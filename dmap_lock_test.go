@@ -240,7 +240,12 @@ func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
 			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
 		}
 	}()
-	r1.updateRouting()
+
+	// Block fsck and partition manager. The code should inspect the key/lock
+	// on a previous partition owner.
+	r1.routingMtx.Lock()
+	defer r1.routingMtx.Unlock()
+
 	dm2 := r2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
@@ -249,6 +254,63 @@ func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v for key: %s", err, key)
 		}
 	}
+	// TODO: This is too error prone. Check the lock in a loop.
+	time.Sleep(350 * time.Millisecond)
+	for i := 0; i < 100; i++ {
+		key := bkey(i)
+		err = dm2.Unlock(key)
+		if err != ErrNoSuchLock {
+			t.Fatalf("Expected ErrNoSuchLock. Got: %v for key: %s", err, key)
+		}
+	}
+}
+
+func TestDMap_LockPrevious(t *testing.T) {
+	r1, srv1, err := newOlricDB(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer srv1.Close()
+	defer func() {
+		err = r1.Shutdown(context.Background())
+		if err != nil {
+			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+		}
+	}()
+
+	dm := r1.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	r1.fsckMtx.Lock()
+	defer r1.fsckMtx.Unlock()
+
+	peers := []string{r1.discovery.localNode().Address()}
+	r2, srv2, err := newOlricDB(peers)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer srv2.Close()
+	defer func() {
+		err = r2.Shutdown(context.Background())
+		if err != nil {
+			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+		}
+	}()
+
+	dm2 := r2.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		key := bkey(i)
+		err = dm2.LockWithTimeout(key, 200*time.Millisecond)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v for key: %s", err, key)
+		}
+	}
+	// TODO: This is too error prone. Check the lock in a loop.
 	time.Sleep(350 * time.Millisecond)
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
