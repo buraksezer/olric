@@ -443,6 +443,9 @@ func TestDMap_GetLookup(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
+	// Dont move partitions. We check and retrieve keys from the previous owner.
+	r1.fsckMtx.Lock()
+	defer r1.fsckMtx.Unlock()
 
 	peers := []string{r1.discovery.localNode().Address()}
 	r2, srv2, err := newOlricDB(peers)
@@ -456,7 +459,6 @@ func TestDMap_GetLookup(t *testing.T) {
 			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
 		}
 	}()
-	r1.updateRouting()
 
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
