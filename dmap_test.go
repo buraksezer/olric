@@ -894,7 +894,6 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
 		}
 	}()
-	fmt.Println(r1.discovery.memberlist.LocalNode().Name)
 	dm := r1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
