@@ -61,6 +61,25 @@ func registerValueType(value interface{}) {
 	gob.Register(v)
 }
 
+func (db *OlricDB) purgeOldVersions(hkey uint64, name string) {
+	owners := db.getPartitionOwners(hkey)
+	// Remove the key/value pair on the previous owners
+	owners = owners[:len(owners)-1]
+	for i := 1; i <= len(owners); i++ {
+		// Traverse in reverse order.
+		idx := len(owners) - i
+		owner := owners[idx]
+		if hostCmp(owner, db.this) {
+			// If the partition's primary owner has been changed by the coordinator node
+			// don't try to remove the on itself.
+			continue
+		}
+		if err := db.transport.deletePrev(owner, hkey, name); err != nil {
+			db.logger.Printf("[ERROR] Failed to remove purge %s:%d on %s", name, hkey, owner)
+		}
+	}
+}
+
 func (db *OlricDB) putKeyVal(hkey uint64, name string, value interface{}, timeout time.Duration) error {
 	dmp := db.getDMap(name, hkey)
 	dmp.Lock()
@@ -75,27 +94,25 @@ func (db *OlricDB) putKeyVal(hkey uint64, name string, value interface{}, timeou
 		TTL:   ttl,
 	}
 
-	if db.config.BackupCount == 0 {
-		dmp.d[hkey] = val
-		return nil
-	}
-
-	if db.config.BackupMode == AsyncBackupMode {
-		db.wg.Add(1)
-		go func() {
-			defer db.wg.Done()
+	if db.config.BackupCount != 0 {
+		if db.config.BackupMode == AsyncBackupMode {
+			db.wg.Add(1)
+			go func() {
+				defer db.wg.Done()
+				err := db.putKeyValBackup(hkey, name, value, timeout)
+				if err != nil {
+					db.logger.Printf("[ERROR] Failed to create backup mode in async mode: %v", err)
+				}
+			}()
+		} else {
 			err := db.putKeyValBackup(hkey, name, value, timeout)
 			if err != nil {
-				db.logger.Printf("[ERROR] Failed to create backup mode in async mode: %v", err)
+				return fmt.Errorf("failed to create backup in sync mode: %v", err)
 			}
-		}()
-	} else {
-		err := db.putKeyValBackup(hkey, name, value, timeout)
-		if err != nil {
-			return fmt.Errorf("failed to create backup in sync mode: %v", err)
 		}
 	}
 	dmp.d[hkey] = val
+	db.purgeOldVersions(hkey, name)
 	return nil
 }
 

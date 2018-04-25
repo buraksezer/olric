@@ -881,3 +881,77 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 		t.Fatalf("Expected dmap count is 0. Got: %d", dc)
 	}
 }
+
+func TestDMap_PutPurgeOldVersions(t *testing.T) {
+	r1, srv1, err := newOlricDB(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer srv1.Close()
+	defer func() {
+		err = r1.Shutdown(context.Background())
+		if err != nil {
+			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+		}
+	}()
+	fmt.Println(r1.discovery.memberlist.LocalNode().Name)
+	dm := r1.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	// Dont move partitions during test.
+	r1.fsckMtx.Lock()
+	defer r1.fsckMtx.Unlock()
+
+	peers := []string{r1.discovery.localNode().Address()}
+	r2, srv2, err := newOlricDB(peers)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer srv2.Close()
+	defer func() {
+		err = r2.Shutdown(context.Background())
+		if err != nil {
+			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+		}
+	}()
+
+	// Write again
+	dm2 := r2.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		err := dm2.Put(bkey(i), []byte(bkey(i)+"-v2"))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+	// The outdated values on secondary owners should be deleted.
+	for _, ins := range []*OlricDB{r1, r2} {
+		for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
+			part := ins.partitions[partID]
+			part.RLock()
+			// We should see modified values on r1
+			for i := 0; i < 100; i++ {
+				dmp := part.m["mymap"]
+				if dmp == nil {
+					continue
+				}
+				dmp.RLock()
+				key := bkey(i)
+				hkey := r1.getHKey("mymap", key)
+				value, ok := dmp.d[hkey]
+				if ok {
+					val := []byte(bkey(i) + "-v2")
+					if !bytes.Equal(value.Value.([]byte), val) {
+						t.Fatalf("Different value retrieved for %s", key)
+					}
+				}
+				dmp.RUnlock()
+			}
+			part.RUnlock()
+		}
+	}
+}
