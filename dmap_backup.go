@@ -15,6 +15,7 @@
 package olricdb
 
 import (
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -33,6 +34,7 @@ func (db *OlricDB) putKeyValBackup(hkey uint64, name string, value interface{}, 
 		return nil
 	}
 
+	var successful int32
 	var g errgroup.Group
 	for _, backup := range backupOwners {
 		mem := backup
@@ -41,11 +43,19 @@ func (db *OlricDB) putKeyValBackup(hkey uint64, name string, value interface{}, 
 			err := db.transport.putBackup(mem, name, hkey, value, timeout)
 			if err != nil {
 				db.logger.Printf("[ERROR] Failed to put backup hkey: %s on %s", mem, err)
+				return err
 			}
-			return err
+			atomic.AddInt32(&successful, 1)
+			return nil
 		})
 	}
-	return g.Wait()
+	werr := g.Wait()
+	// Return nil if one of the backup nodes has the key/value pair, at least.
+	// Active anti-entropy system will repair the failed backup node.
+	if atomic.LoadInt32(&successful) >= 1 {
+		return nil
+	}
+	return werr
 }
 
 func (db *OlricDB) deleteKeyValBackup(hkey uint64, name string) error {
