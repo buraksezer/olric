@@ -74,12 +74,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:c303b69fce100a685a87a43c99169644966e88c4ff372965813df11fa92ec937"
+  branch = "master"
+  digest = "1:70e2df69879bd481a620b103b21940a09c61dc7727c9193423509c0507b052d0"
   name = "github.com/hashicorp/memberlist"
   packages = ["."]
   pruneopts = "UT"
-  revision = "ce8abaa0c60c2d6bee7219f5ddf500e0a1457b28"
-  version = "v0.1.0"
+  revision = "b195c8e4fcc6284fff1583fd6ab09e68ca207551"
 
 [[projects]]
   digest = "1:ccfa094742ce1c97fd3f6481e1bf98f3d9862510eee2bc0eb56e2745396bd330"
