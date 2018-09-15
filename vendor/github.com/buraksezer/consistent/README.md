@@ -8,7 +8,7 @@ For detailed information about the concept, you should take a look at the follow
 
 * [Consistent Hashing with Bounded Loads on Google Research Blog](https://research.googleblog.com/2017/04/consistent-hashing-with-bounded-loads.html)
 * [Improving load balancing with a new consistent-hashing algorithm on Vimeo Engineering Blog](https://medium.com/vimeo-engineering-blog/improving-load-balancing-with-a-new-consistent-hashing-algorithm-9f1bd75709ed)
-* [Consistent Hashing with Bounded Loads paper on arXiv](https://arxiv.org/abs/1608.0135)
+* [Consistent Hashing with Bounded Loads paper on arXiv](https://arxiv.org/abs/1608.01350)
 
 Table of Content
 ----------------
