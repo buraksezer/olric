@@ -18,7 +18,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,7 +26,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"reflect"
 	"time"
 
 	"github.com/buraksezer/olricdb"
@@ -37,15 +35,16 @@ var nilTimeout = 0 * time.Second
 
 // Client represents a Golang client to access an OlricDB cluster from outside.
 type Client struct {
-	servers []string
-	client  *http.Client
-	ctx     context.Context
-	cancel  context.CancelFunc
+	servers    []string
+	client     *http.Client
+	serializer olricdb.Serializer
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // New returns a new Client object. The second parameter is http.Client. It can be nil.
 // Server names have to be start with protocol scheme: http or https.
-func New(servers []string, c *http.Client) (*Client, error) {
+func New(servers []string, c *http.Client, s olricdb.Serializer) (*Client, error) {
 	if c == nil {
 		c = &http.Client{}
 	}
@@ -53,12 +52,16 @@ func New(servers []string, c *http.Client) (*Client, error) {
 		return nil, fmt.Errorf("servers slice cannot be empty")
 	}
 
+	if s == nil {
+		s = olricdb.NewDefaultSerializer()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
-		servers: servers,
-		client:  c,
-		ctx:     ctx,
-		cancel:  cancel,
+		servers:    servers,
+		client:     c,
+		serializer: s,
+		ctx:        ctx,
+		cancel:     cancel,
 	}, nil
 }
 
@@ -133,9 +136,9 @@ func (c *Client) Get(name, key string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	buf := bytes.NewReader(raw)
+
 	var value interface{}
-	err = gob.NewDecoder(buf).Decode(&value)
+	err = c.serializer.Unmarshal(raw, &value)
 	if err != nil {
 		return nil, err
 	}
@@ -161,16 +164,12 @@ func (c *Client) put(name, key string, value interface{}, timeout time.Duration)
 	if value == nil {
 		value = struct{}{}
 	}
-	t := reflect.TypeOf(value)
-	v := reflect.New(t).Elem().Interface()
-	gob.Register(v)
-
-	var body bytes.Buffer
-	err = gob.NewEncoder(&body).Encode(&value)
+	data, err := c.serializer.Marshal(value)
 	if err != nil {
 		return err
 	}
-	_, err = c.doRequest(http.MethodPost, target, &body)
+	body := bytes.NewReader(data)
+	_, err = c.doRequest(http.MethodPost, target, body)
 	return err
 }
 

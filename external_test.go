@@ -17,7 +17,6 @@ package olricdb
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -38,18 +37,16 @@ func getTestVal() interface{} {
 	}
 }
 
-func testExPut(name, key, srv string) error {
+func testExPut(name, key, srv string, s Serializer) error {
 	// Put a K/V pair.
 	val := getTestVal()
-	registerValueType(val)
-	var buf bytes.Buffer
-	err := gob.NewEncoder(&buf).Encode(&val)
+	data, err := s.Marshal(val)
 	if err != nil {
 		return err
 	}
-
+	body := bytes.NewReader(data)
 	target := fmt.Sprintf("%s/ex/put/%s/%s?t=1m", srv, name, key)
-	resp, err := http.Post(target, "application/octet-stream", &buf)
+	resp, err := http.Post(target, "application/octet-stream", body)
 	if err != nil {
 		return err
 	}
@@ -75,7 +72,7 @@ func TestDMap_ExPut(t *testing.T) {
 			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
 		}
 	}()
-	err = testExPut("my-dmap", "my-key", srv.URL)
+	err = testExPut("my-dmap", "my-key", srv.URL, r.serializer)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -95,7 +92,7 @@ func TestDMap_ExGet(t *testing.T) {
 	}()
 
 	// Put a K/V pair.
-	err = testExPut("my-dmap", "my-key", srv.URL)
+	err = testExPut("my-dmap", "my-key", srv.URL, r.serializer)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -117,8 +114,7 @@ func TestDMap_ExGet(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	var val interface{}
-	buf := bytes.NewReader(data)
-	err = gob.NewDecoder(buf).Decode(&val)
+	err = r.serializer.Unmarshal(data, &val)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -141,7 +137,7 @@ func TestDMap_ExDelete(t *testing.T) {
 	}()
 
 	// Put a K/V pair.
-	err = testExPut("my-dmap", "my-key", srv.URL)
+	err = testExPut("my-dmap", "my-key", srv.URL, r.serializer)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -210,7 +206,7 @@ func TestDMap_ExPutWithTwoMembers(t *testing.T) {
 	r1.updateRouting()
 
 	for i := 0; i < 100; i++ {
-		err = testExPut("my-dmap", strconv.Itoa(i), srv1.URL)
+		err = testExPut("my-dmap", strconv.Itoa(i), srv1.URL, r1.serializer)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -266,15 +262,13 @@ func TestDMap_ExPutExWithTwoMembers(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		// Put a K/V pair.
 		val := getTestVal()
-		registerValueType(val)
-		var buf bytes.Buffer
-		err = gob.NewEncoder(&buf).Encode(&val)
+		data, err := r1.serializer.Marshal(val)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-
+		body := bytes.NewReader(data)
 		target := fmt.Sprintf("%s/ex/put/my-dmap/%d?t=1ms", srv1.URL, i)
-		resp, err := http.Post(target, "application/octet-stream", &buf)
+		resp, err := http.Post(target, "application/octet-stream", body)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -313,7 +307,7 @@ func TestDMap_ExLockWithTimeout(t *testing.T) {
 	}()
 
 	// Put a K/V pair.
-	err = testExPut("my-dmap", "my-key", srv.URL)
+	err = testExPut("my-dmap", "my-key", srv.URL, r.serializer)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -357,7 +351,7 @@ func TestDMap_ExUnlock(t *testing.T) {
 	}()
 
 	// Put a K/V pair.
-	err = testExPut("my-dmap", "my-key", srv.URL)
+	err = testExPut("my-dmap", "my-key", srv.URL, r.serializer)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -393,7 +387,7 @@ func TestDMap_ExDestroy(t *testing.T) {
 	}()
 
 	// Put a K/V pair.
-	err = testExPut("my-dmap", "my-key", srv.URL)
+	err = testExPut("my-dmap", "my-key", srv.URL, r.serializer)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

@@ -77,7 +77,7 @@ func TestClient_Get(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestClient_Put(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestClient_PutEx(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestClient_Delete(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestClient_LockWithTimeout(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestClient_Unlock(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestClient_Destroy(t *testing.T) {
 	}()
 
 	servers := []string{"http://" + addr}
-	c, err := New(servers, nil)
+	c, err := New(servers, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

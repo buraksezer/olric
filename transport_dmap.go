@@ -16,8 +16,9 @@ package olricdb
 
 import (
 	"bytes"
-	"encoding/gob"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -37,12 +38,11 @@ func (h *httpTransport) put(member host, hkey uint64, name string, value interfa
 		q.Set("t", timeout.String())
 		target.RawQuery = q.Encode()
 	}
-	var buf bytes.Buffer
-	err := gob.NewEncoder(&buf).Encode(&value)
+	buf, err := h.db.serializer.Marshal(value)
 	if err != nil {
 		return err
 	}
-	body := bytes.NewReader(buf.Bytes())
+	body := bytes.NewReader(buf)
 	_, err = h.doRequest(http.MethodPost, target, body)
 	return err
 }
@@ -68,8 +68,14 @@ func (h *httpTransport) handlePut(w http.ResponseWriter, r *http.Request, ps htt
 		)
 		return
 	}
+
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
 	var value interface{}
-	err = gob.NewDecoder(r.Body).Decode(&value)
+	err = h.db.serializer.Unmarshal(data, &value)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -101,12 +107,12 @@ func (h *httpTransport) get(member host, hkey uint64, name string) (interface{},
 	if err != nil {
 		return nil, err
 	}
-	body := bytes.NewReader(data)
+
 	var value interface{}
-	if err := gob.NewDecoder(body).Decode(&value); err != nil {
+	err = h.db.serializer.Unmarshal(data, &value)
+	if err != nil {
 		return nil, err
 	}
-
 	if _, ok := value.(struct{}); ok {
 		return nil, nil
 	}
@@ -146,8 +152,13 @@ func (h *httpTransport) handleGet(w http.ResponseWriter, r *http.Request, ps htt
 	if value == nil {
 		value = struct{}{}
 	}
-	registerValueType(value)
-	err = gob.NewEncoder(w).Encode(&value)
+
+	data, err := h.db.serializer.Marshal(value)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+	_, err = io.Copy(w, bytes.NewReader(data))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -185,9 +196,12 @@ func (h *httpTransport) handleGetPrev(w http.ResponseWriter, r *http.Request, ps
 		h.returnErr(w, ErrKeyNotFound, http.StatusNotFound)
 		return
 	}
-
-	registerValueType(&vdata.Value)
-	err = gob.NewEncoder(w).Encode(&vdata.Value)
+	data, err := h.db.serializer.Marshal(vdata.Value)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+	_, err = io.Copy(w, bytes.NewReader(data))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -262,12 +276,20 @@ func (h *httpTransport) deletePrev(owner host, hkey uint64, name string) error {
 }
 
 func (h *httpTransport) handleMoveDmap(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	dbox := &dmapbox{}
-	err := gob.NewDecoder(r.Body).Decode(dbox)
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		h.logger.Printf("[ERROR] Failed to read request body: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	dbox := &dmapbox{}
+	err = h.db.serializer.Unmarshal(data, dbox)
+	if err != nil {
+		h.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	part := h.db.partitions[dbox.PartID]
 	part.RLock()
 	if len(part.owners) == 0 {

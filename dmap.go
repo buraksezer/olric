@@ -15,7 +15,6 @@
 package olricdb
 
 import (
-	"bytes"
 	"context"
 	"encoding/gob"
 	"errors"
@@ -126,7 +125,6 @@ func (dm *DMap) put(key string, value interface{}, timeout time.Duration) error 
 		value = struct{}{}
 	}
 
-	registerValueType(value)
 	if !hostCmp(member, dm.db.this) {
 		return dm.db.transport.put(member, hkey, dm.name, value, timeout)
 	}
@@ -181,16 +179,15 @@ func (db *OlricDB) getKeyVal(hkey uint64, name string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		buf := bytes.NewReader(rawval)
-		var value interface{}
-		err = gob.NewDecoder(buf).Decode(&value)
+		var val interface{}
+		err = db.serializer.Unmarshal(rawval, &val)
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := value.(struct{}); ok {
+		if _, ok := val.(struct{}); ok {
 			return nil, nil
 		}
-		return value, nil
+		return val, nil
 	}
 
 	backups := db.getBackupPartitionOwners(hkey)
@@ -207,16 +204,16 @@ func (db *OlricDB) getKeyVal(hkey uint64, name string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		buf := bytes.NewReader(rawval)
-		var value interface{}
-		err = gob.NewDecoder(buf).Decode(&value)
+
+		var val interface{}
+		err = db.serializer.Unmarshal(rawval, &val)
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := value.(struct{}); ok {
+		if _, ok := val.(struct{}); ok {
 			return nil, nil
 		}
-		return value, nil
+		return val, nil
 	}
 
 	// It's not there, really.

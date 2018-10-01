@@ -74,6 +74,9 @@ type Config struct {
 	// Hasher interface.
 	Hasher Hasher
 
+	// Default Serializer implementation uses gob for encoding/decoding.
+	Serializer Serializer
+
 	// TLS certificate file for HTTP server. If it's empty, TLS is disabled.
 	CertFile string
 

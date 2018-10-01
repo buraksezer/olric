@@ -15,7 +15,9 @@
 package olricdb
 
 import (
-	"encoding/gob"
+	"bytes"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -37,7 +39,13 @@ func (h *httpTransport) handleExGet(w http.ResponseWriter, r *http.Request, ps h
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
 	}
-	err = gob.NewEncoder(w).Encode(&value)
+
+	data, err := h.db.serializer.Marshal(value)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+	_, err = io.Copy(w, bytes.NewReader(data))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -73,11 +81,13 @@ func (h *httpTransport) handleExPut(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// We need to add a fallback option here to handle requests outside from Go,
-	// such as a possible Python client. JSON or Msgpack can be used for encoding
-	// at client side.
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
 	var value interface{}
-	err = gob.NewDecoder(r.Body).Decode(&value)
+	err = h.db.serializer.Unmarshal(data, &value)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -93,8 +103,6 @@ func (h *httpTransport) handleExPut(w http.ResponseWriter, r *http.Request, ps h
 		}
 	}
 
-	// FIXME: The following call may be useless. Check it.
-	registerValueType(value)
 	err = h.db.putKeyVal(hkey, name, value, timeout)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)

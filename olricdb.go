@@ -16,10 +16,13 @@
 package olricdb
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strconv"
 	"sync"
 
@@ -36,6 +39,7 @@ type OlricDB struct {
 	config     *Config
 	logger     *log.Logger
 	hasher     Hasher
+	serializer Serializer
 	discovery  *discovery
 	consistent *consistent.Consistent
 	partitions map[uint64]*partition
@@ -106,6 +110,9 @@ func New(c *Config) (*OlricDB, error) {
 	if c.Hasher == nil {
 		c.Hasher = newDefaultHasher()
 	}
+	if c.Serializer == nil {
+		c.Serializer = NewDefaultSerializer()
+	}
 	if c.Name == "" {
 		name, err := os.Hostname()
 		if err != nil {
@@ -138,6 +145,7 @@ func New(c *Config) (*OlricDB, error) {
 		logger:     c.Logger,
 		config:     c,
 		hasher:     c.Hasher,
+		serializer: c.Serializer,
 		consistent: consistent.New(nil, cfg),
 		transport:  newHTTPTransport(ctx, c),
 		partitions: make(map[uint64]*partition),
@@ -357,4 +365,36 @@ func printHKey(hkey uint64) string {
 
 func readHKey(ps httprouter.Params) (uint64, error) {
 	return strconv.ParseUint(ps.ByName("hkey"), 10, 64)
+}
+
+// Serializer interface responsible for encoding/decoding values to transmit over network between OlricDB nodes.
+type Serializer interface {
+	// Marshal encodes v and returns a byte slice and possible error.
+	Marshal(v interface{}) ([]byte, error)
+
+	// Unmarshal decodes the encoded data and stores the result in the value pointed to by v.
+	Unmarshal(data []byte, v interface{}) error
+}
+
+// Default serializer implementation which uses encoding/gob.
+type gobSerializer struct{}
+
+// NewDefaultSerializer returns a gob serializer.
+func NewDefaultSerializer() Serializer {
+	return Serializer(gobSerializer{})
+}
+
+func (g gobSerializer) Marshal(value interface{}) ([]byte, error) {
+	t := reflect.TypeOf(value)
+	v := reflect.New(t).Elem().Interface()
+	gob.Register(v)
+
+	var res bytes.Buffer
+	err := gob.NewEncoder(&res).Encode(&value)
+	return res.Bytes(), err
+}
+
+func (g gobSerializer) Unmarshal(data []byte, v interface{}) error {
+	r := bytes.NewBuffer(data)
+	return gob.NewDecoder(r).Decode(v)
 }

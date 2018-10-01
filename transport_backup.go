@@ -2,7 +2,8 @@ package olricdb
 
 import (
 	"bytes"
-	"encoding/gob"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -51,12 +52,11 @@ func (h *httpTransport) putBackup(member host, name string, hkey uint64, value i
 		q.Set("t", timeout.String())
 		target.RawQuery = q.Encode()
 	}
-	var buf bytes.Buffer
-	err := gob.NewEncoder(&buf).Encode(&value)
+	buf, err := h.db.serializer.Marshal(value)
 	if err != nil {
 		return err
 	}
-	body := bytes.NewReader(buf.Bytes())
+	body := bytes.NewReader(buf)
 	_, err = h.doRequest(http.MethodPost, target, body)
 	return err
 }
@@ -70,8 +70,14 @@ func (h *httpTransport) handlePutBackup(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// TODO: We may need to check backup ownership
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+
 	var value interface{}
-	err = gob.NewDecoder(r.Body).Decode(&value)
+	err = h.db.serializer.Unmarshal(data, &value)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -151,8 +157,13 @@ func (h *httpTransport) handleGetBackup(w http.ResponseWriter, r *http.Request, 
 		h.returnErr(w, ErrKeyNotFound, http.StatusNotFound)
 		return
 	}
-	registerValueType(&vdata.Value)
-	err = gob.NewEncoder(w).Encode(&vdata.Value)
+
+	data, err := h.db.serializer.Marshal(vdata.Value)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+	_, err = io.Copy(w, bytes.NewReader(data))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -160,9 +171,16 @@ func (h *httpTransport) handleGetBackup(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *httpTransport) handleMoveBackupDmap(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	dbox := &dmapbox{}
-	err := gob.NewDecoder(r.Body).Decode(dbox)
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		h.logger.Printf("[ERROR] Failed to read request body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	dbox := &dmapbox{}
+	err = h.db.serializer.Unmarshal(data, dbox)
+	if err != nil {
+		h.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
