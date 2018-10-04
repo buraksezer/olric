@@ -57,7 +57,7 @@ type OlricDB struct {
 }
 
 type vdata struct {
-	Value interface{}
+	Value []byte
 	TTL   int64
 }
 

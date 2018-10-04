@@ -29,8 +29,7 @@ import (
 func (h *httpTransport) handleExGet(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	name := ps.ByName("name")
 	key := ps.ByName("key")
-	dm := h.db.NewDMap(name)
-	value, err := dm.Get(key)
+	value, err := h.db.get(name, key)
 	if err == ErrKeyNotFound {
 		h.returnErr(w, err, http.StatusNotFound)
 		return
@@ -39,13 +38,7 @@ func (h *httpTransport) handleExGet(w http.ResponseWriter, r *http.Request, ps h
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
 	}
-
-	data, err := h.db.serializer.Marshal(value)
-	if err != nil {
-		h.returnErr(w, err, http.StatusInternalServerError)
-		return
-	}
-	_, err = io.Copy(w, bytes.NewReader(data))
+	_, err = io.Copy(w, bytes.NewReader(value))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -81,13 +74,7 @@ func (h *httpTransport) handleExPut(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	data, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		h.returnErr(w, err, http.StatusInternalServerError)
-		return
-	}
-	var value interface{}
-	err = h.db.serializer.Unmarshal(data, &value)
+	value, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return

@@ -21,7 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (db *OlricDB) putKeyValBackup(hkey uint64, name string, value interface{}, timeout time.Duration) error {
+func (db *OlricDB) putKeyValBackup(hkey uint64, name string, value []byte, timeout time.Duration) error {
 	memCount := db.discovery.numMembers()
 	backupCount := calcMaxBackupCount(db.config.BackupCount, memCount)
 	backupOwners := db.getBackupPartitionOwners(hkey)

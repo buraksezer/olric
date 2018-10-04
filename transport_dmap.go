@@ -27,7 +27,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (h *httpTransport) put(member host, hkey uint64, name string, value interface{}, timeout time.Duration) error {
+func (h *httpTransport) put(member host, hkey uint64, name string, value []byte, timeout time.Duration) error {
 	target := url.URL{
 		Scheme: h.scheme,
 		Host:   member.String(),
@@ -38,12 +38,7 @@ func (h *httpTransport) put(member host, hkey uint64, name string, value interfa
 		q.Set("t", timeout.String())
 		target.RawQuery = q.Encode()
 	}
-	buf, err := h.db.serializer.Marshal(value)
-	if err != nil {
-		return err
-	}
-	body := bytes.NewReader(buf)
-	_, err = h.doRequest(http.MethodPost, target, body)
+	_, err := h.doRequest(http.MethodPost, target, bytes.NewReader(value))
 	return err
 }
 
@@ -69,18 +64,11 @@ func (h *httpTransport) handlePut(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
-	data, err := ioutil.ReadAll(r.Body)
+	value, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
 	}
-	var value interface{}
-	err = h.db.serializer.Unmarshal(data, &value)
-	if err != nil {
-		h.returnErr(w, err, http.StatusInternalServerError)
-		return
-	}
-
 	var timeout = nilTimeout
 	rtimeout := r.URL.Query().Get("t")
 	if rtimeout != "" {
@@ -97,26 +85,13 @@ func (h *httpTransport) handlePut(w http.ResponseWriter, r *http.Request, ps htt
 	}
 }
 
-func (h *httpTransport) get(member host, hkey uint64, name string) (interface{}, error) {
+func (h *httpTransport) get(member host, hkey uint64, name string) ([]byte, error) {
 	target := url.URL{
 		Scheme: h.scheme,
 		Host:   member.String(),
 		Path:   path.Join("/get/", name, printHKey(hkey)),
 	}
-	data, err := h.doRequest(http.MethodGet, target, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var value interface{}
-	err = h.db.serializer.Unmarshal(data, &value)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := value.(struct{}); ok {
-		return nil, nil
-	}
-	return value, nil
+	return h.doRequest(http.MethodGet, target, nil)
 }
 
 func (h *httpTransport) handleGet(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -140,25 +115,16 @@ func (h *httpTransport) handleGet(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
-	statusCode := http.StatusInternalServerError
 	value, err := h.db.getKeyVal(hkey, name)
 	if err == ErrKeyNotFound {
-		statusCode = http.StatusNotFound
-	}
-	if err != nil {
-		h.returnErr(w, err, statusCode)
+		h.returnErr(w, err, http.StatusNotFound)
 		return
 	}
-	if value == nil {
-		value = struct{}{}
-	}
-
-	data, err := h.db.serializer.Marshal(value)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
 	}
-	_, err = io.Copy(w, bytes.NewReader(data))
+	_, err = io.Copy(w, bytes.NewReader(value))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -196,12 +162,7 @@ func (h *httpTransport) handleGetPrev(w http.ResponseWriter, r *http.Request, ps
 		h.returnErr(w, ErrKeyNotFound, http.StatusNotFound)
 		return
 	}
-	data, err := h.db.serializer.Marshal(vdata.Value)
-	if err != nil {
-		h.returnErr(w, err, http.StatusInternalServerError)
-		return
-	}
-	_, err = io.Copy(w, bytes.NewReader(data))
+	_, err = io.Copy(w, bytes.NewReader(vdata.Value))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return

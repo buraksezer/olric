@@ -79,7 +79,12 @@ func TestDMap_PutBackup(t *testing.T) {
 		if !ok {
 			t.Fatalf("key: %s could not be found", key)
 		}
-		if !bytes.Equal(vdata.Value.([]byte), bval(i)) {
+		var val interface{}
+		err = r1.serializer.Unmarshal(vdata.Value, &val)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if !bytes.Equal(val.([]byte), bval(i)) {
 			t.Fatalf("value is different for key: %s", key)
 		}
 		bpart.Unlock()

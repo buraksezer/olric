@@ -257,7 +257,12 @@ func TestDMap_Put(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		if !bytes.Equal(value.([]byte), bval(i)) {
+		var val interface{}
+		err = owner.serializer.Unmarshal(value, &val)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if !bytes.Equal(val.([]byte), bval(i)) {
 			t.Fatalf("Different value retrieved for %s from %s", bkey(i), owner.this)
 		}
 	}
@@ -922,7 +927,7 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 	// Write again
 	dm2 := r2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
-		err := dm2.Put(bkey(i), []byte(bkey(i)+"-v2"))
+		err = dm2.Put(bkey(i), []byte(bkey(i)+"-v2"))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -943,8 +948,12 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 				hkey := r1.getHKey("mymap", key)
 				value, ok := dmp.d[hkey]
 				if ok {
-					val := []byte(bkey(i) + "-v2")
-					if !bytes.Equal(value.Value.([]byte), val) {
+					var val interface{}
+					err = r1.serializer.Unmarshal(value.Value, &val)
+					if err != nil {
+						t.Fatalf("Expected nil. Got: %v", err)
+					}
+					if !bytes.Equal(val.([]byte), []byte(bkey(i)+"-v2")) {
 						t.Fatalf("Different value retrieved for %s", key)
 					}
 				}

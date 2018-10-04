@@ -54,6 +54,7 @@ func (db *OlricDB) NewDMap(name string) *DMap {
 	}
 }
 
+// TODO: This function should be removed.
 func registerValueType(value interface{}) {
 	t := reflect.TypeOf(value)
 	v := reflect.New(t).Elem().Interface()
@@ -79,7 +80,7 @@ func (db *OlricDB) purgeOldVersions(hkey uint64, name string) {
 	}
 }
 
-func (db *OlricDB) putKeyVal(hkey uint64, name string, value interface{}, timeout time.Duration) error {
+func (db *OlricDB) putKeyVal(hkey uint64, name string, value []byte, timeout time.Duration) error {
 	dmp := db.getDMap(name, hkey)
 	dmp.Lock()
 	defer dmp.Unlock()
@@ -125,10 +126,14 @@ func (dm *DMap) put(key string, value interface{}, timeout time.Duration) error 
 		value = struct{}{}
 	}
 
-	if !hostCmp(member, dm.db.this) {
-		return dm.db.transport.put(member, hkey, dm.name, value, timeout)
+	val, err := dm.db.serializer.Marshal(value)
+	if err != nil {
+		return err
 	}
-	return dm.db.putKeyVal(hkey, dm.name, value, timeout)
+	if !hostCmp(member, dm.db.this) {
+		return dm.db.transport.put(member, hkey, dm.name, val, timeout)
+	}
+	return dm.db.putKeyVal(hkey, dm.name, val, timeout)
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
@@ -143,7 +148,19 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 	return dm.put(key, value, timeout)
 }
 
-func (db *OlricDB) getKeyVal(hkey uint64, name string) (interface{}, error) {
+func (db *OlricDB) unmarshalValue(rawval []byte) (interface{}, error) {
+	var value interface{}
+	err := db.serializer.Unmarshal(rawval, &value)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := value.(struct{}); ok {
+		return nil, nil
+	}
+	return value, nil
+}
+
+func (db *OlricDB) getKeyVal(hkey uint64, name string) ([]byte, error) {
 	dmp := db.getDMap(name, hkey)
 	dmp.RLock()
 	defer dmp.RUnlock()
@@ -151,9 +168,6 @@ func (db *OlricDB) getKeyVal(hkey uint64, name string) (interface{}, error) {
 	if ok {
 		if isKeyExpired(value.TTL) {
 			return nil, ErrKeyNotFound
-		}
-		if _, ok := value.Value.(struct{}); ok {
-			return nil, nil
 		}
 		return value.Value, nil
 	}
@@ -179,15 +193,7 @@ func (db *OlricDB) getKeyVal(hkey uint64, name string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		var val interface{}
-		err = db.serializer.Unmarshal(rawval, &val)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := val.(struct{}); ok {
-			return nil, nil
-		}
-		return val, nil
+		return rawval, err
 	}
 
 	backups := db.getBackupPartitionOwners(hkey)
@@ -204,33 +210,31 @@ func (db *OlricDB) getKeyVal(hkey uint64, name string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		var val interface{}
-		err = db.serializer.Unmarshal(rawval, &val)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := val.(struct{}); ok {
-			return nil, nil
-		}
-		return val, nil
+		return rawval, nil
 	}
-
 	// It's not there, really.
 	return nil, ErrKeyNotFound
+}
+
+func (db *OlricDB) get(name, key string) ([]byte, error) {
+	member, hkey, err := db.locateKey(name, key)
+	if err != nil {
+		return nil, err
+	}
+	if !hostCmp(member, db.this) {
+		return db.transport.get(member, hkey, name)
+	}
+	return db.getKeyVal(hkey, name)
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key. It's thread-safe.
 // It is safe to modify the contents of the returned value. It is safe to modify the contents of the argument after Get returns.
 func (dm *DMap) Get(key string) (interface{}, error) {
-	member, hkey, err := dm.db.locateKey(dm.name, key)
+	rawval, err := dm.db.get(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
-	if !hostCmp(member, dm.db.this) {
-		return dm.db.transport.get(member, hkey, dm.name)
-	}
-	return dm.db.getKeyVal(hkey, dm.name)
+	return dm.db.unmarshalValue(rawval)
 }
 
 func (db *OlricDB) deleteStaleDMap(name string, hkey uint64, backup bool) {

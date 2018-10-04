@@ -41,7 +41,7 @@ func (h *httpTransport) isBackupEmpty(partID uint64, owner host) error {
 	return err
 }
 
-func (h *httpTransport) putBackup(member host, name string, hkey uint64, value interface{}, timeout time.Duration) error {
+func (h *httpTransport) putBackup(member host, name string, hkey uint64, value []byte, timeout time.Duration) error {
 	target := url.URL{
 		Scheme: h.scheme,
 		Host:   member.String(),
@@ -52,12 +52,7 @@ func (h *httpTransport) putBackup(member host, name string, hkey uint64, value i
 		q.Set("t", timeout.String())
 		target.RawQuery = q.Encode()
 	}
-	buf, err := h.db.serializer.Marshal(value)
-	if err != nil {
-		return err
-	}
-	body := bytes.NewReader(buf)
-	_, err = h.doRequest(http.MethodPost, target, body)
+	_, err := h.doRequest(http.MethodPost, target, bytes.NewReader(value))
 	return err
 }
 
@@ -70,14 +65,7 @@ func (h *httpTransport) handlePutBackup(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// TODO: We may need to check backup ownership
-	data, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		h.returnErr(w, err, http.StatusInternalServerError)
-		return
-	}
-
-	var value interface{}
-	err = h.db.serializer.Unmarshal(data, &value)
+	value, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
@@ -157,13 +145,7 @@ func (h *httpTransport) handleGetBackup(w http.ResponseWriter, r *http.Request, 
 		h.returnErr(w, ErrKeyNotFound, http.StatusNotFound)
 		return
 	}
-
-	data, err := h.db.serializer.Marshal(vdata.Value)
-	if err != nil {
-		h.returnErr(w, err, http.StatusInternalServerError)
-		return
-	}
-	_, err = io.Copy(w, bytes.NewReader(data))
+	_, err = io.Copy(w, bytes.NewReader(vdata.Value))
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
