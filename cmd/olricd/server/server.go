@@ -92,7 +92,7 @@ func New(c *Config) (*Olricd, error) {
 
 	var client *http.Client
 	var err error
-	if c.Server.CertFile != "" || c.Server.KeyFile != "" {
+	if c.Olricd.CertFile != "" || c.Olricd.KeyFile != "" {
 		client, err = newHTTP2Client(c)
 		if err != nil {
 			return nil, err
@@ -104,9 +104,9 @@ func New(c *Config) (*Olricd, error) {
 
 	// Default serializer is Gob serializer, just set nil to use it.
 	var serializer olricdb.Serializer
-	if c.Server.Serializer == "json" {
+	if c.Olricd.Serializer == "json" {
 		serializer = jsonSerializer{}
-	} else if c.Server.Serializer == "msgpack" {
+	} else if c.Olricd.Serializer == "msgpack" {
 		serializer = msgpackSerializer{}
 	}
 	mc, err := newMemberlistConf(c)
@@ -114,16 +114,16 @@ func New(c *Config) (*Olricd, error) {
 		return nil, err
 	}
 	s.config = &olricdb.Config{
-		Name:             c.Server.Name,
+		Name:             c.Olricd.Name,
 		MemberlistConfig: mc,
-		KeyFile:          c.Server.KeyFile,
-		CertFile:         c.Server.CertFile,
+		KeyFile:          c.Olricd.KeyFile,
+		CertFile:         c.Olricd.CertFile,
 		LogLevel:         c.Logging.Level,
 		Peers:            c.Memberlist.Peers,
-		PartitionCount:   c.Server.PartitionCount,
-		BackupCount:      c.Server.BackupCount,
-		BackupMode:       c.Server.BackupMode,
-		LoadFactor:       c.Server.LoadFactor,
+		PartitionCount:   c.Olricd.PartitionCount,
+		BackupCount:      c.Olricd.BackupCount,
+		BackupMode:       c.Olricd.BackupMode,
+		LoadFactor:       c.Olricd.LoadFactor,
 		Client:           client,
 		Logger:           s.logger,
 		Hasher:           hasher{},

@@ -72,7 +72,7 @@ type Config struct {
 	HTTPClient httpClient
 	Memberlist memberlist
 	Logging    logging
-	Server     olricd
+	Olricd     olricd
 }
 
 // NewConfig creates a new configuration object of olricd
