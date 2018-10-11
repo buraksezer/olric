@@ -16,7 +16,6 @@ package cli
 
 import (
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -28,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/buraksezer/olricdb"
 	"github.com/buraksezer/olricdb/client"
 	"github.com/chzyer/readline"
 	"golang.org/x/net/http2"
@@ -39,7 +39,7 @@ type CLI struct {
 	output io.Writer
 }
 
-func New(uri string, insecureSkipVerify bool, timeouts string) (*CLI, error) {
+func New(uri string, insecureSkipVerify bool, serializer, timeouts string) (*CLI, error) {
 	timeout, err := time.ParseDuration(timeouts)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,19 @@ func New(uri string, insecureSkipVerify bool, timeouts string) (*CLI, error) {
 		}
 	}
 
-	c, err := client.New([]string{uri}, hc, nil)
+	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
+	var s olricdb.Serializer
+	if serializer == "json" {
+		s = olricdb.NewJsonSerializer()
+	} else if serializer == "msgpack" {
+		s = olricdb.NewMsgpackSerializer()
+	} else if serializer == "gob" {
+		s = olricdb.NewGobSerializer()
+	} else {
+		return nil, fmt.Errorf("invalid serializer: %s", serializer)
+	}
+
+	c, err := client.New([]string{uri}, hc, s)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +109,7 @@ var completer = readline.NewPrefixCompleter(
 func extractKey(str string) (string, error) {
 	res := regexp.MustCompile(`"([^"]*)"`).FindStringSubmatch(str)
 	if len(res) < 2 {
-		return "", errors.New("invalid command")
+		return "", fmt.Errorf("invalid command")
 	}
 	return res[1], nil
 }

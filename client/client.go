@@ -53,7 +53,7 @@ func New(servers []string, c *http.Client, s olricdb.Serializer) (*Client, error
 	}
 
 	if s == nil {
-		s = olricdb.NewDefaultSerializer()
+		s = olricdb.NewGobSerializer()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{

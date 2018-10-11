@@ -17,7 +17,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -33,7 +33,6 @@ import (
 	"github.com/buraksezer/olricdb"
 	"github.com/cespare/xxhash"
 	"github.com/hashicorp/logutils"
-	"github.com/vmihailenco/msgpack"
 )
 
 // Olricd represents a new Olricd instance.
@@ -102,13 +101,18 @@ func New(c *Config) (*Olricd, error) {
 		client = &http.Client{}
 	}
 
-	// Default serializer is Gob serializer, just set nil to use it.
+	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var serializer olricdb.Serializer
 	if c.Olricd.Serializer == "json" {
-		serializer = jsonSerializer{}
+		serializer = olricdb.NewJsonSerializer()
 	} else if c.Olricd.Serializer == "msgpack" {
-		serializer = msgpackSerializer{}
+		serializer = olricdb.NewMsgpackSerializer()
+	} else if c.Olricd.Serializer == "gob" {
+		serializer = olricdb.NewGobSerializer()
+	} else {
+		return nil, fmt.Errorf("invalid serializer: %s", c.Olricd.Serializer)
 	}
+
 	mc, err := newMemberlistConf(c)
 	if err != nil {
 		return nil, err
@@ -169,18 +173,4 @@ type hasher struct{}
 
 func (h hasher) Sum64(data []byte) uint64 {
 	return xxhash.Sum64(data)
-}
-
-type jsonSerializer struct{}
-
-func (j jsonSerializer) Marshal(v interface{}) ([]byte, error) { return json.Marshal(v) }
-
-func (j jsonSerializer) Unmarshal(data []byte, v interface{}) error { return json.Unmarshal(data, v) }
-
-type msgpackSerializer struct{}
-
-func (m msgpackSerializer) Marshal(v interface{}) ([]byte, error) { return msgpack.Marshal(v) }
-
-func (m msgpackSerializer) Unmarshal(data []byte, v interface{}) error {
-	return msgpack.Unmarshal(data, v)
 }

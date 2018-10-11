@@ -18,7 +18,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"os"
 	"runtime"
@@ -26,6 +25,11 @@ import (
 
 	"github.com/buraksezer/olricdb"
 	"github.com/buraksezer/olricdb/cmd/olricdb-cli/cli"
+)
+
+const (
+	defaultSerializer string = "gob"
+	defaultURI        string = "https://127.0.0.1:3320"
 )
 
 var usage = `olricdb-cli is a CLI interface for OlricDB
@@ -42,13 +46,15 @@ Flags:
   
   -k -insecure      
       Allow insecure server connections when using SSL
+  
+  -s -serializer
+      Specifies serialization format. Available formats: gob, json, msgpack. Default: %s
 
   -u -uri
-      Server URI.
+      Server URI. Default: %s
 
   -t timeout
       Specifies a time limit for requests and dial made by OlricDB client
-
 
 The Go runtime version %s
 Report bugs to https://github.com/buraksezer/olricdb/issues`
@@ -59,6 +65,7 @@ var (
 	insecure    bool
 	uri         string
 	timeout     string
+	serializer  string
 )
 
 func init() {
@@ -71,16 +78,24 @@ func main() {
 	f.SetOutput(ioutil.Discard)
 	f.BoolVar(&showHelp, "h", false, "")
 	f.BoolVar(&showHelp, "help", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
+
 	f.BoolVar(&showVersion, "v", false, "")
+	f.BoolVar(&showVersion, "version", false, "")
+
 	f.BoolVar(&insecure, "k", false, "")
 	f.BoolVar(&insecure, "insecure", false, "")
+
 	f.StringVar(&timeout, "t", "10s", "")
 	f.StringVar(&timeout, "timeout", "10s", "")
-	f.StringVar(&uri, "uri", "https://127.0.0.1:3320", "")
+
+	f.StringVar(&uri, "u", defaultURI, "")
+	f.StringVar(&uri, "uri", defaultURI, "")
+
+	f.StringVar(&serializer, "s", defaultSerializer, "")
+	f.StringVar(&serializer, "serializer", defaultSerializer, "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
-		log.Printf("Failed to parse flags: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to parse flags: %v", err)
 		os.Exit(1)
 	}
 
@@ -88,12 +103,12 @@ func main() {
 		fmt.Printf("olricdb-cli %s with runtime %s\n", olricdb.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
-		msg := fmt.Sprintf(usage, runtime.Version())
+		msg := fmt.Sprintf(usage, defaultSerializer, defaultURI, runtime.Version())
 		fmt.Println(msg)
 		return
 	}
 
-	c, err := cli.New(uri, insecure, timeout)
+	c, err := cli.New(uri, insecure, serializer, timeout)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] Failed to create olricdb-cli instance: %v", err)
 		os.Exit(1)
