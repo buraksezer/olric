@@ -40,11 +40,15 @@ Flags:
   -v -version                   
       Shows version information.
   
-  -k, -insecure      
+  -k -insecure      
       Allow insecure server connections when using SSL
 
   -u -uri
       Server URI.
+
+  -t timeout
+      Specifies a time limit for requests and dial made by OlricDB client
+
 
 The Go runtime version %s
 Report bugs to https://github.com/buraksezer/olricdb/issues`
@@ -55,7 +59,6 @@ var (
 	insecure    bool
 	uri         string
 	timeout     string
-	dialTimeout string
 )
 
 func init() {
@@ -72,8 +75,8 @@ func main() {
 	f.BoolVar(&showVersion, "v", false, "")
 	f.BoolVar(&insecure, "k", false, "")
 	f.BoolVar(&insecure, "insecure", false, "")
+	f.StringVar(&timeout, "t", "10s", "")
 	f.StringVar(&timeout, "timeout", "10s", "")
-	f.StringVar(&dialTimeout, "dialTimeout", "10s", "")
 	f.StringVar(&uri, "uri", "https://127.0.0.1:3320", "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
@@ -90,13 +93,13 @@ func main() {
 		return
 	}
 
-	c, err := cli.New(uri, insecure, dialTimeout, timeout)
+	c, err := cli.New(uri, insecure, timeout)
 	if err != nil {
-		fmt.Printf("[ERROR] Failed to create olricdb-cli instance: %v", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to create olricdb-cli instance: %v", err)
 		os.Exit(1)
 	}
 	if err := c.Start(); err != nil {
-		fmt.Printf("[ERROR] olricdb-cli has returned an error: %v", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] olricdb-cli has returned an error: %v", err)
 		os.Exit(1)
 	}
 }

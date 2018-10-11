@@ -39,11 +39,7 @@ type CLI struct {
 	output io.Writer
 }
 
-func New(uri string, insecureSkipVerify bool, dialerTimeouts, timeouts string) (*CLI, error) {
-	dialerTimeout, err := time.ParseDuration(dialerTimeouts)
-	if err != nil {
-		return nil, err
-	}
+func New(uri string, insecureSkipVerify bool, timeouts string) (*CLI, error) {
 	timeout, err := time.ParseDuration(timeouts)
 	if err != nil {
 		return nil, err
@@ -56,7 +52,7 @@ func New(uri string, insecureSkipVerify bool, dialerTimeouts, timeouts string) (
 	if parsed.Scheme == "https" {
 		tc := &tls.Config{InsecureSkipVerify: insecureSkipVerify}
 		dialTLS := func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-			d := &net.Dialer{Timeout: dialerTimeout}
+			d := &net.Dialer{Timeout: timeout}
 			return tls.DialWithDialer(d, network, addr, cfg)
 		}
 		hc = &http.Client{
@@ -72,7 +68,7 @@ func New(uri string, insecureSkipVerify bool, dialerTimeouts, timeouts string) (
 			Transport: &http.Transport{
 				DialContext: (&net.Dialer{
 					KeepAlive: 5 * time.Minute,
-					Timeout:   dialerTimeout,
+					Timeout:   timeout,
 				}).DialContext,
 			},
 		}
