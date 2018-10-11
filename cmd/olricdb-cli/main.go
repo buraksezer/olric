@@ -25,13 +25,13 @@ import (
 	"time"
 
 	"github.com/buraksezer/olricdb"
-	"github.com/buraksezer/olricdb/cmd/olricd/server"
+	"github.com/buraksezer/olricdb/cmd/olricdb-cli/cli"
 )
 
-var usage = `olricd is the default standalone server for OlricDB
+var usage = `olricdb-cli is a CLI interface for OlricDB
 
 Usage: 
-  olricd [flags] ...
+  olricdb-cli [flags] ...
 
 Flags:
   -h -help                      
@@ -39,18 +39,23 @@ Flags:
 
   -v -version                   
       Shows version information.
+  
+  -k, -insecure      
+      Allow insecure server connections when using SSL
 
-  -c -config                    
-      Sets configuration file path. Default is /etc/olricd.toml
-      Set OLRICD_CONFIG to overwrite it.
+  -u -uri
+      Server URI.
 
 The Go runtime version %s
 Report bugs to https://github.com/buraksezer/olricdb/issues`
 
 var (
-	cpath       string
 	showHelp    bool
 	showVersion bool
+	insecure    bool
+	uri         string
+	timeout     string
+	dialTimeout string
 )
 
 func init() {
@@ -65,8 +70,11 @@ func main() {
 	f.BoolVar(&showHelp, "help", false, "")
 	f.BoolVar(&showVersion, "version", false, "")
 	f.BoolVar(&showVersion, "v", false, "")
-	f.StringVar(&cpath, "config", server.DefaultConfigFile, "")
-	f.StringVar(&cpath, "c", server.DefaultConfigFile, "")
+	f.BoolVar(&insecure, "k", false, "")
+	f.BoolVar(&insecure, "insecure", false, "")
+	f.StringVar(&timeout, "timeout", "10s", "")
+	f.StringVar(&dialTimeout, "dialTimeout", "10s", "")
+	f.StringVar(&uri, "uri", "https://127.0.0.1:3320", "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
 		log.Printf("Failed to parse flags: %v", err)
@@ -74,7 +82,7 @@ func main() {
 	}
 
 	if showVersion {
-		fmt.Printf("olricd %s with runtime %s\n", olricdb.ReleaseVersion, runtime.Version())
+		fmt.Printf("olricdb-cli %s with runtime %s\n", olricdb.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
 		msg := fmt.Sprintf(usage, runtime.Version())
@@ -82,20 +90,13 @@ func main() {
 		return
 	}
 
-	c, err := server.NewConfig(cpath)
+	c, err := cli.New(uri, insecure, dialTimeout, timeout)
 	if err != nil {
-		log.Printf("Failed to parse config file: %v", err)
+		fmt.Printf("[ERROR] Failed to create olricdb-cli instance: %v", err)
 		os.Exit(1)
 	}
-	s, err := server.New(c)
-	if err != nil {
-		log.Printf("Failed to create a new olricd instance: %v", err)
+	if err := c.Start(); err != nil {
+		fmt.Printf("[ERROR] olricdb-cli has returned an error: %v", err)
 		os.Exit(1)
 	}
-
-	if err = s.Start(); err != nil {
-		log.Printf("olricd returned an error: %v", err)
-		os.Exit(1)
-	}
-	log.Print("Quit!")
 }

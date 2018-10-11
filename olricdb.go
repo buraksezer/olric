@@ -33,6 +33,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// ReleaseVersion is the current stable version of OlricDB
+const ReleaseVersion string = "0.1.0"
+
 // OlricDB represens an member in the cluster. All functions on the OlricDB structure are safe to call concurrently.
 type OlricDB struct {
 	this       host
