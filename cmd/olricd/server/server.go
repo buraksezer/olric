@@ -42,7 +42,7 @@ type Olricd struct {
 	db     *olricdb.OlricDB
 }
 
-func newHTTP2Client(c *Config) (*http.Client, error) {
+func newHTTPClient(c *Config) (*http.Client, error) {
 	dialerTimeout, err := time.ParseDuration(c.HTTPClient.DialerTimeout)
 	if err != nil {
 		return nil, err
@@ -51,6 +51,19 @@ func newHTTP2Client(c *Config) (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if c.Olricd.CertFile == "" || c.Olricd.KeyFile == "" {
+		return &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					KeepAlive: 5 * time.Minute,
+					Timeout:   dialerTimeout,
+				}).DialContext,
+			},
+		}, nil
+	}
+
 	tc := &tls.Config{InsecureSkipVerify: c.HTTPClient.InsecureSkipVerify}
 	dialTLS := func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 		d := &net.Dialer{Timeout: dialerTimeout}
@@ -89,16 +102,9 @@ func New(c *Config) (*Olricd, error) {
 	s.logger = log.New(logDest, "", log.LstdFlags)
 	s.logger.SetOutput(filter)
 
-	var client *http.Client
-	var err error
-	if c.Olricd.CertFile != "" || c.Olricd.KeyFile != "" {
-		client, err = newHTTP2Client(c)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// TODO: make a function to create an HTTP client with configuration.
-		client = &http.Client{}
+	client, err := newHTTPClient(c)
+	if err != nil {
+		return nil, err
 	}
 
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
