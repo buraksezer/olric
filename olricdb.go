@@ -108,7 +108,7 @@ func New(c *Config) (*OlricDB, error) {
 	}
 
 	if c.Hasher == nil {
-		c.Hasher = newDefaultHasher()
+		c.Hasher = NewDefaultHasher()
 	}
 	if c.Serializer == nil {
 		c.Serializer = NewGobSerializer()

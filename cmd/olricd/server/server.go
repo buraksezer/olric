@@ -31,7 +31,6 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/buraksezer/olricdb"
-	"github.com/cespare/xxhash"
 	"github.com/hashicorp/logutils"
 )
 
@@ -136,7 +135,7 @@ func New(c *Config) (*Olricd, error) {
 		LoadFactor:       c.Olricd.LoadFactor,
 		Client:           client,
 		Logger:           s.logger,
-		Hasher:           hasher{},
+		Hasher:           olricdb.NewDefaultHasher(),
 		Serializer:       serializer,
 	}
 	return s, nil
@@ -172,11 +171,4 @@ func (s *Olricd) Shutdown() {
 	if err != nil {
 		s.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
 	}
-}
-
-// olricd uses xxhash as hash function for performance.
-type hasher struct{}
-
-func (h hasher) Sum64(data []byte) uint64 {
-	return xxhash.Sum64(data)
 }
