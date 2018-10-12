@@ -70,8 +70,8 @@ type Config struct {
 	// for a server in the cluster. Keep it small.
 	LoadFactor float64
 
-	// Default hasher is FNV64a. You may want to use a different hasher which implements
-	// Hasher interface.
+	// Default hasher is github.com/cespare/xxhash. You may want to use a different
+	// hasher which implements Hasher interface.
 	Hasher Hasher
 
 	// Default Serializer implementation uses gob for encoding/decoding.
