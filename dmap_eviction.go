@@ -38,8 +38,16 @@ func (db *OlricDB) evictKeysAtBackground() {
 func (db *OlricDB) evictKeys() {
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.partitions[partID]
+	// Disable writes on this partition
 	part.RLock()
 
+	// If the partition is empty, quit immediately.
+	if len(part.m) == 0 {
+		part.RUnlock()
+		return
+	}
+
+	// Picks 20 map objects randomly to check out expired keys. Then waits until all the goroutines done.
 	var wg sync.WaitGroup
 	dcount := 0
 	for name, dm := range part.m {
