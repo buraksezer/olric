@@ -116,36 +116,41 @@ func (db *OlricDB) putKeyVal(hkey uint64, name string, value []byte, timeout tim
 	return nil
 }
 
-func (dm *DMap) put(key string, value interface{}, timeout time.Duration) error {
-	member, hkey, err := dm.db.locateKey(dm.name, key)
+func (db *OlricDB) put(name, key string, value []byte, timeout time.Duration) error {
+	member, hkey, err := db.locateKey(name, key)
 	if err != nil {
 		return err
 	}
-
-	if value == nil {
-		value = struct{}{}
+	if !hostCmp(member, db.this) {
+		return db.transport.put(member, hkey, name, value, timeout)
 	}
-
-	val, err := dm.db.serializer.Marshal(value)
-	if err != nil {
-		return err
-	}
-	if !hostCmp(member, dm.db.this) {
-		return dm.db.transport.put(member, hkey, dm.name, val, timeout)
-	}
-	return dm.db.putKeyVal(hkey, dm.name, val, timeout)
+	return db.putKeyVal(hkey, name, value, timeout)
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
 // The key has to be string. Value type is arbitrary. It is safe to modify the contents of the arguments after Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
-	return dm.put(key, value, nilTimeout)
+	if value == nil {
+		value = struct{}{}
+	}
+	val, err := dm.db.serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return dm.db.put(dm.name, key, val, nilTimeout)
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
 // The key has to be string. Value type is arbitrary. It is safe to modify the contents of the arguments after Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	return dm.put(key, value, timeout)
+	if value == nil {
+		value = struct{}{}
+	}
+	val, err := dm.db.serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return dm.db.put(dm.name, key, val, timeout)
 }
 
 func (db *OlricDB) unmarshalValue(rawval []byte) (interface{}, error) {

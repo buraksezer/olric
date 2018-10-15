@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -119,8 +121,7 @@ func (h *httpTransport) handleExLockWithTimeout(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	dm := h.db.NewDMap(name)
-	err = dm.LockWithTimeout(key, timeout)
+	err = h.db.lockWithTimeout(name, key, timeout)
 	if err == ErrKeyNotFound {
 		h.returnErr(w, err, http.StatusNotFound)
 		return
@@ -135,8 +136,7 @@ func (h *httpTransport) handleExUnlock(w http.ResponseWriter, r *http.Request, p
 	name := ps.ByName("name")
 	key := ps.ByName("key")
 
-	dm := h.db.NewDMap(name)
-	err := dm.Unlock(key)
+	err := h.db.unlock(name, key)
 	if err == ErrNoSuchLock {
 		h.returnErr(w, err, http.StatusNotFound)
 		return
@@ -154,5 +154,70 @@ func (h *httpTransport) handleExDestroy(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
+	}
+}
+
+func (h *httpTransport) exIncrDecr(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	name := ps.ByName("name")
+	key := ps.ByName("key")
+	sdelta := ps.ByName("delta")
+	delta, err := strconv.Atoi(sdelta)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	var value int
+	if strings.HasPrefix(r.URL.Path, "/ex/incr") {
+		value, err = h.db.atomicIncrDecr(name, key, "incr", delta)
+	} else {
+		value, err = h.db.atomicIncrDecr(name, key, "decr", delta)
+	}
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	data, err := h.db.serializer.Marshal(value)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	_, err = io.Copy(w, bytes.NewReader(data))
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *httpTransport) handleExIncr(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	h.exIncrDecr(w, r, ps)
+}
+
+func (h *httpTransport) handleExDecr(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	h.exIncrDecr(w, r, ps)
+}
+
+func (h *httpTransport) handleExGetPut(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	value, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	name := ps.ByName("name")
+	key := ps.ByName("key")
+	oldval, err := h.db.getPut(name, key, value)
+	if err != nil {
+		h.returnErr(w, err, http.StatusInternalServerError)
+		return
+	}
+	if oldval != nil {
+		_, err = io.Copy(w, bytes.NewReader(oldval))
+		if err != nil {
+			h.returnErr(w, err, http.StatusInternalServerError)
+			return
+		}
 	}
 }

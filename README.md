@@ -2,7 +2,7 @@
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olricdb) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olricdb/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olricdb?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olricdb.svg?branch=master)](https://travis-ci.org/buraksezer/olricdb) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olricdb)](https://goreportcard.com/report/github.com/buraksezer/olricdb) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Embeddable, in-memory and distributed key/value store for Go.
+Distributed, in-memory and embeddable key/value store, used as a database and cache. Built with [Go](https://golang.org).
 
 ## WIP
 
@@ -11,6 +11,7 @@ This project is a work in progress. The implementation is incomplete. The docume
 ## Table of Contents
 
 * [Features](#features)
+* [Planned Features](#planned-features)
 * [Installing](#installing)
 * [Usage](#usage)
   * [Put](#put)
@@ -20,14 +21,23 @@ This project is a work in progress. The implementation is incomplete. The docume
   * [LockWithTimeout](#lockwithtimeout)
   * [Unlock](#unlock)
   * [Destroy](#destroy)
+  * [Atomic Operations](#atomic-operations)
+    * [Incr](#incr)
+    * [Decr](#decr)
+    * [GetPut](#getput)
+* [HTTP API](#http-api)
+* [Golang Client](#golang-client)
+* [Standalone Server](#standalone-server)
+* [Command Line Interface](#command-line-interface)
+* [Operation Modes](#operation-modes)
+  * [Embedded member](#embedded-member)
+  * [Client plus member](#client-plus-member)
 * [Configuration](#configuration)
 * [Architecture](#architecture)
   * [Overview](#overview)
   * [Consistency and Replication Model](#consistency-and-replication-model)
   * [Eviction](#eviction)
   * [Lock Implementation](#lock-implementation)
-* [Client](#client)
-* [Planned Features](#planned-features)
 * [Sample Code](#sample-code)
 * [To-Do](#to-do)
 * [Caveats](#caveats)
@@ -38,16 +48,32 @@ This project is a work in progress. The implementation is incomplete. The docume
 * Accepts arbitrary types as value,
 * Only in-memory,
 * Embeddable,
+* Provides a server implementation. So it supports different operation modes,
+* Gob, JSON and MsgPack are supportted by default as serialization format,
+* Has simplicity as a key concept,
 * Highly available,
 * Horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
 * Distributes load fairly among cluster members with a [consistent hash function](https://github.com/buraksezer/consistent),
 * Supports replication by default(with sync and async options),
 * Thread-safe by default,
+* Provides a command-line-interface to access the cluster directly from the terminal,
 * Very simple package API,
 * Time-To-Live(TTL) eviction policy,
 * Offers an HTTP API with built-in Go client,
 * Provides a single-node lock implementation which can be used for non-critical purposes.
+
+## Planned Features
+
+* Anti-entropy system to repair inconsistencies in DMaps,
+* LRU eviction policy,
+* Publish/Subscribe for messaging,
+* Eviction listeners by using Pub/Sub,
+* Memcached interface,
+* On-disk persistence with [Badger](https://github.com/dgraph-io/badger)
+* Python client.
+
+We may implement different data structures such as list, queue or bitmap in OlricDB. It's highly depends on attention of the Golang community.
 
 ## Installing
 
@@ -313,15 +339,6 @@ OlricDB is pretty suitable to share some transient, approximate, fast-changing d
 process? Fortunately, OlricDB has a simple HTTP API which can be used to access the cluster within any environment. It will be documented soon.
 
 A Golang client is already prepared to access and modify DMaps from outside. [Here is the documentation](https://godoc.org/github.com/buraksezer/olricdb/client).
-
-## Planned Features
-
-* Anti-entropy system to repair inconsistencies in DMaps,
-* LRU eviction policy,
-* Eviction listeners, if it's reasonable and easy to build,
-* Python client.
-
-We may implement different data structures such as list, queue or bitmap in OlricDB. It's highly depends on attention of the Golang community.
 
 ## Sample Code
 

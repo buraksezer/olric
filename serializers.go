@@ -47,8 +47,8 @@ func (j jsonSerializer) Marshal(v interface{}) ([]byte, error) { return json.Mar
 
 func (j jsonSerializer) Unmarshal(data []byte, v interface{}) error { return json.Unmarshal(data, v) }
 
-// NewJsonSerializer returns a json serializer.
-func NewJsonSerializer() Serializer {
+// NewJSONSerializer returns a json serializer.
+func NewJSONSerializer() Serializer {
 	return Serializer(jsonSerializer{})
 }
 

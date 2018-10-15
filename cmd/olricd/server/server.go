@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*Package server provides a standalone server implementation for OlricDB*/
 package server
 
 import (
@@ -109,7 +110,7 @@ func New(c *Config) (*Olricd, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var serializer olricdb.Serializer
 	if c.Olricd.Serializer == "json" {
-		serializer = olricdb.NewJsonSerializer()
+		serializer = olricdb.NewJSONSerializer()
 	} else if c.Olricd.Serializer == "msgpack" {
 		serializer = olricdb.NewMsgpackSerializer()
 	} else if c.Olricd.Serializer == "gob" {

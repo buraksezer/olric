@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*Package cli is the OlricDB command line interface, a simple program that allows
+to send commands to OlricDB, and read the replies sent by the server, directly from
+the terminal.*/
 package cli
 
 import (
@@ -24,6 +27,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,7 +81,7 @@ func New(uri string, insecureSkipVerify bool, serializer, timeouts string) (*CLI
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var s olricdb.Serializer
 	if serializer == "json" {
-		s = olricdb.NewJsonSerializer()
+		s = olricdb.NewJSONSerializer()
 	} else if serializer == "msgpack" {
 		s = olricdb.NewMsgpackSerializer()
 	} else if serializer == "gob" {
@@ -104,6 +108,8 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("get"),
 	readline.PcItem("delete"),
 	readline.PcItem("destroy"),
+	readline.PcItem("incr"),
+	readline.PcItem("decr"),
 )
 
 func extractKey(str string) (string, error) {
@@ -116,6 +122,29 @@ func extractKey(str string) (string, error) {
 
 func (c *CLI) print(msg string) {
 	io.WriteString(c.output, msg)
+}
+
+func parseLine(tmp string) (string, string, error) {
+	tmp = strings.TrimSpace(tmp)
+	var key, value string
+	if strings.HasPrefix(tmp, "\"") {
+		key, err := extractKey(tmp)
+		if err != nil {
+			return "", "", err
+		}
+		rval := strings.Split(tmp, fmt.Sprintf("\"%s\"", key))
+		if len(rval) < 1 {
+			return "", "", fmt.Errorf("invalid command")
+		}
+		value = strings.TrimSpace(rval[0])
+	} else {
+		res := strings.SplitN(tmp, " ", 2)
+		if len(res) < 2 {
+			return "", "", fmt.Errorf("invalid command")
+		}
+		key, value = res[0], res[1]
+	}
+	return key, value, nil
 }
 
 func (c *CLI) Start() error {
@@ -188,33 +217,16 @@ func (c *CLI) Start() error {
 		case strings.HasPrefix(line, "put "):
 			tmp := strings.TrimLeft(line, "put ")
 			tmp = strings.TrimSpace(tmp)
-			var key, value string
-			if strings.HasPrefix(tmp, "\"") {
-				key, err = extractKey(tmp)
-				if err != nil {
-					c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-					continue
-				}
-				rval := strings.Split(tmp, fmt.Sprintf("\"%s\"", key))
-				if len(rval) < 1 {
-					c.print(fmt.Sprintf("[ERROR] invalid command: %s\n", line))
-					continue
-				}
-				value = strings.TrimSpace(rval[0])
-			} else {
-				res := strings.SplitN(tmp, " ", 2)
-				if len(res) < 2 {
-					c.print(fmt.Sprintf("[ERROR] invalid command: %s\n", line))
-					continue
-				}
-				key, value = res[0], res[1]
+			key, value, err := parseLine(tmp)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
+				continue
 			}
 			if err := c.client.Put(dmap, key, value); err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Put on %s with key %s: %v\n", dmap, key, err))
 				continue
 			}
 			c.print("OK\n")
-
 		case strings.HasPrefix(line, "putex "):
 			tmp := strings.TrimLeft(line, "putex ")
 			tmp = strings.TrimSpace(tmp)
@@ -295,6 +307,44 @@ func (c *CLI) Start() error {
 				continue
 			}
 			c.print("OK\n")
+		case strings.HasPrefix(line, "incr "):
+			tmp := strings.TrimLeft(line, "incr ")
+			key, value, err := parseLine(tmp)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
+				continue
+			}
+
+			delta, err := strconv.Atoi(value)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] invalid delta: %s\n", value))
+				continue
+			}
+			current, err := c.client.Incr(dmap, key, delta)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] Failed to call Incr on %s with key %s: %v\n", dmap, key, err))
+				continue
+			}
+			c.print(fmt.Sprintf("%d\n", current))
+		case strings.HasPrefix(line, "decr "):
+			tmp := strings.TrimLeft(line, "decr ")
+			key, value, err := parseLine(tmp)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
+				continue
+			}
+
+			delta, err := strconv.Atoi(value)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] invalid delta: %s\n", value))
+				continue
+			}
+			current, err := c.client.Decr(dmap, key, delta)
+			if err != nil {
+				c.print(fmt.Sprintf("[ERROR] Failed to call Decr on %s with key %s: %v\n", dmap, key, err))
+				continue
+			}
+			c.print(fmt.Sprintf("%d\n", current))
 		default:
 			c.print("[ERROR] Invalid command. Available commands: put, putex, get, delete, destroy and exit.\n")
 		}

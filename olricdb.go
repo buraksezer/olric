@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olricdb provides embeddable, in-memory and distributed key/value store.*/
+/*Package olricdb provides distributed, in-memory and embeddable key/value store, used as a database and cache.*/
 package olricdb
 
 import (

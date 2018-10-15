@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/buraksezer/olricdb"
@@ -255,4 +256,82 @@ func (c *Client) Destroy(name string) error {
 	}
 	_, err = c.doRequest(http.MethodGet, target, nil)
 	return err
+}
+
+// Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
+func (c *Client) Incr(name, key string, delta int) (int, error) {
+	scheme, server, err := c.pickHost()
+	if err != nil {
+		return 0, err
+	}
+	target := url.URL{
+		Scheme: scheme,
+		Host:   server,
+		Path:   path.Join("/ex/incr/", name, key, strconv.Itoa(delta)),
+	}
+	res, err := c.doRequest(http.MethodPut, target, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	var value interface{}
+	err = c.serializer.Unmarshal(res, &value)
+	if err != nil {
+		return 0, err
+	}
+	return value.(int), err
+}
+
+// Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
+func (c *Client) Decr(name, key string, delta int) (int, error) {
+	scheme, server, err := c.pickHost()
+	if err != nil {
+		return 0, err
+	}
+	target := url.URL{
+		Scheme: scheme,
+		Host:   server,
+		Path:   path.Join("/ex/decr/", name, key, strconv.Itoa(delta)),
+	}
+	res, err := c.doRequest(http.MethodPut, target, nil)
+	if err != nil {
+		return 0, err
+	}
+	var value interface{}
+	err = c.serializer.Unmarshal(res, &value)
+	if err != nil {
+		return 0, err
+	}
+	return value.(int), err
+}
+
+// GetPut atomically sets key to value and returns the old value stored at key.
+func (c *Client) GetPut(name, key string, value interface{}) (interface{}, error) {
+	scheme, server, err := c.pickHost()
+	if err != nil {
+		return nil, err
+	}
+	target := url.URL{
+		Scheme: scheme,
+		Host:   server,
+		Path:   path.Join("/ex/getput/", name, key),
+	}
+	data, err := c.serializer.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	body := bytes.NewReader(data)
+	raw, err := c.doRequest(http.MethodPut, target, body)
+	if err != nil {
+		return nil, err
+	}
+
+	var oldval interface{}
+	if len(raw) != 0 {
+		err = c.serializer.Unmarshal(raw, &oldval)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return oldval, nil
 }

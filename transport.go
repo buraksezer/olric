@@ -99,6 +99,9 @@ func newHTTPTransport(ctx context.Context, cfg *Config) *httpTransport {
 	h.router.GET("/ex/lock-with-timeout/:name/:key", h.handleExLockWithTimeout)
 	h.router.GET("/ex/unlock/:name/:key", h.handleExUnlock)
 	h.router.GET("/ex/destroy/:name", h.handleExDestroy)
+	h.router.PUT("/ex/incr/:name/:key/:delta", h.handleExIncr)
+	h.router.PUT("/ex/decr/:name/:key/:delta", h.handleExDecr)
+	h.router.PUT("/ex/getput/:name/:key", h.handleExGetPut)
 	return h
 }
 
