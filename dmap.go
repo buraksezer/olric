@@ -304,39 +304,47 @@ func (db *OlricDB) delKeyVal(dmp *dmap, hkey uint64, name string) error {
 	return nil
 }
 
-// Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
-// It is safe to modify the contents of the argument after Delete returns.
-func (dm *DMap) Delete(key string) error {
-	member, hkey, err := dm.db.locateKey(dm.name, key)
+func (db *OlricDB) deleteKey(name, key string) error {
+	member, hkey, err := db.locateKey(name, key)
 	if err != nil {
 		return err
 	}
-	if !hostCmp(member, dm.db.this) {
-		return dm.db.transport.delete(member, hkey, dm.name)
+	if !hostCmp(member, db.this) {
+		return db.transport.delete(member, hkey, name)
 	}
-	return dm.db.deleteKeyVal(hkey, dm.name)
+	return db.deleteKeyVal(hkey, name)
 }
 
-// Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps. So if you call Put/PutEx and Destroy
-// methods concurrently on the cluster, Put/PutEx calls may set new values to the DMap.
-func (dm *DMap) Destroy() error {
-	<-dm.db.bctx.Done()
-	if dm.db.bctx.Err() == context.DeadlineExceeded {
+// Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
+// It is safe to modify the contents of the argument after Delete returns.
+func (dm *DMap) Delete(key string) error {
+	return dm.db.deleteKey(dm.name, key)
+}
+
+func (db *OlricDB) destroyDMap(name string) error {
+	<-db.bctx.Done()
+	if db.bctx.Err() == context.DeadlineExceeded {
 		return ErrOperationTimeout
 	}
 
 	var g errgroup.Group
-	for _, item := range dm.db.discovery.getMembers() {
+	for _, item := range db.discovery.getMembers() {
 		addr := item.String()
 		g.Go(func() error {
-			err := dm.db.transport.destroyDmap(dm.name, addr)
+			err := db.transport.destroyDmap(name, addr)
 			if err != nil {
-				dm.db.logger.Printf("Failed to destroy dmap:%s on %s", dm.name, addr)
+				db.logger.Printf("Failed to destroy dmap:%s on %s", name, addr)
 			}
 			return err
 		})
 	}
 	return g.Wait()
+}
+
+// Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps. So if you call Put/PutEx and Destroy
+// methods concurrently on the cluster, Put/PutEx calls may set new values to the DMap.
+func (dm *DMap) Destroy() error {
+	return dm.db.destroyDMap(dm.name)
 }
 
 func getTTL(timeout time.Duration) int64 {

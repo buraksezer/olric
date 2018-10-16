@@ -102,9 +102,7 @@ func (h *httpTransport) handleExPut(w http.ResponseWriter, r *http.Request, ps h
 func (h *httpTransport) handleExDelete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	name := ps.ByName("name")
 	key := ps.ByName("key")
-	dm := h.db.NewDMap(name)
-	err := dm.Delete(key)
-	if err != nil {
+	if err := h.db.deleteKey(name, key); err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -149,9 +147,7 @@ func (h *httpTransport) handleExUnlock(w http.ResponseWriter, r *http.Request, p
 
 func (h *httpTransport) handleExDestroy(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	name := ps.ByName("name")
-	dm := h.db.NewDMap(name)
-	err := dm.Destroy()
-	if err != nil {
+	if err := h.db.destroyDMap(name); err != nil {
 		h.returnErr(w, err, http.StatusInternalServerError)
 		return
 	}
