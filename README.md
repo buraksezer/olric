@@ -1,6 +1,7 @@
 # OlricDB
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olricdb) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olricdb/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olricdb?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olricdb.svg?branch=master)](https://travis-ci.org/buraksezer/olricdb) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olricdb)](https://goreportcard.com/report/github.com/buraksezer/olricdb) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fburaksezer%2Folricdb.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fburaksezer%2Folricdb?ref=badge_shield)
 
 Distributed, in-memory and embeddable key/value store, used as a database and cache. Built with [Go](https://golang.org).
 
@@ -435,6 +436,9 @@ Please don't hesitate to fork the project and send a pull request or just e-mail
 ## License
 
 The Apache License, Version 2.0 - see LICENSE for more details.
+
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fburaksezer%2Folricdb.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fburaksezer%2Folricdb?ref=badge_large)
 
 ## About the name
 
