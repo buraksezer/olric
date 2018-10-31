@@ -20,18 +20,37 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
+	"unsafe"
 
 	"github.com/buraksezer/consistent"
+	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olricdb/internal/transport"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/memberlist"
-	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
+)
+
+var (
+	// ErrKeyNotFound is returned when a key could not be found.
+	ErrKeyNotFound = errors.New("key not found")
+
+	// ErrOperationTimeout is returned when an operation times out.
+	ErrOperationTimeout    = errors.New("operation timeout")
+	ErrInternalServerError = errors.New("internal server error")
+	errPartNotEmpty        = errors.New("partition not empty")
+	errBackupNotEmpty      = errors.New("backup not empty")
 )
 
 // ReleaseVersion is the current stable version of OlricDB
 const ReleaseVersion string = "0.1.0"
+
+const nilTimeout = 0 * time.Second
+
+var bootstrapTimeoutDuration = 10 * time.Second
 
 // OlricDB represens an member in the cluster. All functions on the OlricDB structure are safe to call concurrently.
 type OlricDB struct {
@@ -44,19 +63,20 @@ type OlricDB struct {
 	consistent *consistent.Consistent
 	partitions map[uint64]*partition
 	backups    map[uint64]*partition
-	transport  *httpTransport
+	client     *transport.Client
 	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
-	fsckMtx    sync.Mutex
-	routingMtx sync.Mutex
-
+	fsckMx     sync.Mutex
+	routingMx  sync.Mutex
+	server     *transport.Server
 	// To control non-bootstrapped OlricDB instance
-	bctx    context.Context
+	bcx     context.Context
 	bcancel context.CancelFunc
 }
 
 type vdata struct {
+	Key   string
 	Value []byte
 	TTL   int64
 }
@@ -72,11 +92,25 @@ type dmap struct {
 type partition struct {
 	sync.RWMutex
 
+	count  int32
 	id     uint64
 	backup bool
 	owners []host
-	// map name > map
-	m map[string]*dmap
+	m      sync.Map
+}
+
+// DMap represents a distributed map object.
+type DMap struct {
+	name string
+	db   *OlricDB
+}
+
+// NewDMap creates an returns a new DMap object.
+func (db *OlricDB) NewDMap(name string) *DMap {
+	return &DMap{
+		name: name,
+		db:   db,
+	}
 }
 
 // New creates a new OlricDB object, otherwise returns an error.
@@ -139,6 +173,17 @@ func New(c *Config) (*OlricDB, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	bctx, bcancel := context.WithTimeout(context.Background(), bootstrapTimeoutDuration)
+
+	// TODO: That's not a good think. We need to change design of the protocol package to improve this.
+	if c.MaxValueSize != 0 {
+		protocol.MaxValueSize = c.MaxValueSize
+	}
+	cc := &transport.ClientConfig{
+		DialTimeout: c.DialTimeout,
+		KeepAlive:   c.KeepAlivePeriod,
+		MaxConn:     1024, // TODO: Make this configurable.
+	}
+	client := transport.NewClient(cc)
 	db := &OlricDB{
 		ctx:        ctx,
 		cancel:     cancel,
@@ -147,17 +192,17 @@ func New(c *Config) (*OlricDB, error) {
 		hasher:     c.Hasher,
 		serializer: c.Serializer,
 		consistent: consistent.New(nil, cfg),
-		transport:  newHTTPTransport(ctx, c),
+		client:     client,
 		partitions: make(map[uint64]*partition),
 		backups:    make(map[uint64]*partition),
-		bctx:       bctx,
+		bcx:        bctx,
 		bcancel:    bcancel,
+		server:     transport.NewServer(c.Name, c.Logger, c.KeepAlivePeriod),
 	}
-	db.transport.db = db
 
 	// Create all the partitions. It's read-only. No need for locking.
 	for i := uint64(0); i < c.PartitionCount; i++ {
-		db.partitions[i] = &partition{id: i, m: make(map[string]*dmap)}
+		db.partitions[i] = &partition{id: i}
 	}
 
 	// Create all the backup partitions. It's read-only. No need for locking.
@@ -165,9 +210,10 @@ func New(c *Config) (*OlricDB, error) {
 		db.backups[i] = &partition{
 			id:     i,
 			backup: true,
-			m:      make(map[string]*dmap),
 		}
 	}
+
+	db.registerOperations()
 	return db, nil
 }
 
@@ -205,21 +251,73 @@ func (db *OlricDB) prepare() error {
 // Start starts background servers and joins the cluster.
 func (db *OlricDB) Start() error {
 	errCh := make(chan error, 1)
+	db.wg.Add(1)
 	go func() {
-		errCh <- db.transport.start()
+		defer db.wg.Done()
+		// TODO: Check files on disk.
+		if db.config.KeyFile != "" && db.config.CertFile != "" {
+			errCh <- db.server.ListenAndServeTLS(db.config.CertFile, db.config.KeyFile)
+			return
+		}
+		errCh <- db.server.ListenAndServe()
 	}()
 
-	if err := db.transport.checkAliveness(db.config.Server.Addr); err != nil {
+	<-db.server.StartCh
+	select {
+	case err := <-errCh:
 		return err
+	default:
 	}
 
 	if err := db.prepare(); err != nil {
 		return err
 	}
-	db.wg.Add(2)
+	db.wg.Add(3)
 	go db.updateRoutingPeriodically()
 	go db.evictKeysAtBackground()
+	go db.deleteStaleDMapsAtBackground()
+
 	return <-errCh
+}
+
+func (db *OlricDB) registerOperations() {
+	// Put
+	db.server.RegisterOperation(protocol.OpExPut, db.exPutOperation)
+	db.server.RegisterOperation(protocol.OpExPutEx, db.exPutExOperation)
+	db.server.RegisterOperation(protocol.OpPutBackup, db.putBackupOperation)
+
+	// Get
+	db.server.RegisterOperation(protocol.OpExGet, db.exGetOperation)
+	db.server.RegisterOperation(protocol.OpGetPrev, db.getPrevOperation)
+	db.server.RegisterOperation(protocol.OpGetBackup, db.getBackupOperation)
+
+	// Delete
+	db.server.RegisterOperation(protocol.OpExDelete, db.exDeleteOperation)
+	db.server.RegisterOperation(protocol.OpDeleteBackup, db.deleteBackupOperation)
+	db.server.RegisterOperation(protocol.OpDeletePrev, db.deletePrevOperation)
+
+	// Lock/Unlock
+	db.server.RegisterOperation(protocol.OpExLockWithTimeout, db.exLockWithTimeoutOperation)
+	db.server.RegisterOperation(protocol.OpExUnlock, db.exUnlockOperation)
+	db.server.RegisterOperation(protocol.OpFindLock, db.findLockOperation)
+	db.server.RegisterOperation(protocol.OpLockPrev, db.lockPrevOperation)
+	db.server.RegisterOperation(protocol.OpUnlockPrev, db.unlockPrevOperation)
+
+	// Destroy
+	db.server.RegisterOperation(protocol.OpExDestroy, db.exDestroyOperation)
+	db.server.RegisterOperation(protocol.OpDestroyDMap, db.destroyDMapOperation)
+
+	// Atomic
+	db.server.RegisterOperation(protocol.OpExIncr, db.exIncrDecrOperation)
+	db.server.RegisterOperation(protocol.OpExDecr, db.exIncrDecrOperation)
+	db.server.RegisterOperation(protocol.OpExGetPut, db.exGetPutOperation)
+
+	// Internal
+	db.server.RegisterOperation(protocol.OpUpdateRouting, db.updateRoutingOperation)
+	db.server.RegisterOperation(protocol.OpMoveDMap, db.moveDMapOperation)
+	db.server.RegisterOperation(protocol.OpBackupMoveDMap, db.moveBackupDMapOperation)
+	db.server.RegisterOperation(protocol.OpIsPartEmpty, db.isPartEmptyOperation)
+	db.server.RegisterOperation(protocol.OpIsBackupEmpty, db.isBackupEmptyOperation)
 }
 
 // Shutdown stops background servers and leaves the cluster.
@@ -227,38 +325,19 @@ func (db *OlricDB) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
-	cx := ctx
-	_, ok := ctx.Deadline()
-	if ok {
-		done := make(chan struct{})
-		go func() {
-			db.wg.Wait()
-			close(done)
-		}()
-		select {
-		case <-ctx.Done():
-			err := ctx.Err()
-			if err != nil {
-				result = multierror.Append(result, err)
-			}
-		case <-done:
-		}
-	} else {
-		db.wg.Wait()
-		cx = context.Background()
-	}
-
-	err := db.transport.server.Shutdown(cx)
-	if err != nil {
+	if err := db.server.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}
 
 	if db.discovery != nil {
-		err = db.discovery.memberlist.Shutdown()
+		err := db.discovery.memberlist.Shutdown()
 		if err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
+
+	db.wg.Wait()
+
 	// The GC will flush all the data.
 	db.partitions = nil
 	db.backups = nil
@@ -296,12 +375,13 @@ func (db *OlricDB) getPartitionOwners(hkey uint64) []host {
 }
 
 func (db *OlricDB) getHKey(name, key string) uint64 {
-	return db.hasher.Sum64([]byte(name + key))
+	tmp := name + key
+	return db.hasher.Sum64(*(*[]byte)(unsafe.Pointer(&tmp)))
 }
 
 func (db *OlricDB) locateHKey(hkey uint64) (host, error) {
-	<-db.bctx.Done()
-	if db.bctx.Err() == context.DeadlineExceeded {
+	<-db.bcx.Done()
+	if db.bcx.Err() == context.DeadlineExceeded {
 		return host{}, ErrOperationTimeout
 	}
 
@@ -325,19 +405,17 @@ func (db *OlricDB) locateKey(name, key string) (host, uint64, error) {
 
 func (db *OlricDB) getDMap(name string, hkey uint64) *dmap {
 	part := db.getPartition(hkey)
-	part.Lock()
-	defer part.Unlock()
-
-	dmp, ok := part.m[name]
+	dm, ok := part.m.Load(name)
 	if ok {
-		return dmp
+		return dm.(*dmap)
 	}
-	dmp = &dmap{
+	dm = &dmap{
 		locker: newLocker(),
 		d:      make(map[uint64]vdata),
 	}
-	part.m[name] = dmp
-	return dmp
+	res, _ := part.m.LoadOrStore(name, dm)
+	atomic.AddInt32(&part.count, 1)
+	return res.(*dmap)
 }
 
 // hostCmp returns true if o1 and o2 is the same.
@@ -345,24 +423,48 @@ func hostCmp(o1, o2 host) bool {
 	return o1.Name == o2.Name && o1.Birthdate == o2.Birthdate
 }
 
-func (db *OlricDB) getBackupDmap(name string, hkey uint64) *dmap {
-	bpart := db.getBackupPartition(hkey)
-	bpart.Lock()
-	defer bpart.Unlock()
-
-	dmp, ok := bpart.m[name]
+func (db *OlricDB) getBackupDMap(name string, hkey uint64) *dmap {
+	part := db.getBackupPartition(hkey)
+	dm, ok := part.m.Load(name)
 	if ok {
-		return dmp
+		return dm.(*dmap)
 	}
-	dmp = &dmap{d: make(map[uint64]vdata)}
-	bpart.m[name] = dmp
-	return dmp
+	dm = &dmap{d: make(map[uint64]vdata)}
+	res, _ := part.m.LoadOrStore(name, dm)
+	atomic.AddInt32(&part.count, 1)
+	return res.(*dmap)
 }
 
-func printHKey(hkey uint64) string {
-	return strconv.FormatUint(hkey, 10)
+func (db *OlricDB) requestTo(addr string, opcode protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
+	resp, err := db.client.RequestTo(addr, opcode, req)
+	if err != nil {
+		return nil, err
+	}
+
+	switch {
+	case resp.Status == protocol.StatusOK:
+		return resp, nil
+	case resp.Status == protocol.StatusInternalServerError:
+		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value))
+	case resp.Status == protocol.StatusNoSuchLock:
+		return nil, ErrNoSuchLock
+	case resp.Status == protocol.StatusKeyNotFound:
+		return nil, ErrKeyNotFound
+	case resp.Status == protocol.StatusPartNotEmpty:
+		return nil, errPartNotEmpty
+	case resp.Status == protocol.StatusBackupNotEmpty:
+		return nil, errBackupNotEmpty
+	}
+	return nil, fmt.Errorf("unknown status code: %d", resp.Status)
 }
 
-func readHKey(ps httprouter.Params) (uint64, error) {
-	return strconv.ParseUint(ps.ByName("hkey"), 10, 64)
+func getTTL(timeout time.Duration) int64 {
+	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
+}
+
+func isKeyExpired(ttl int64) bool {
+	if ttl == 0 {
+		return false
+	}
+	return (time.Now().UnixNano() / 1000000) >= ttl
 }

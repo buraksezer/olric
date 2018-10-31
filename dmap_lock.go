@@ -16,10 +16,9 @@ package olricdb
 
 import (
 	"context"
-	"net/http"
-	"net/url"
-	"path"
 	"time"
+
+	"github.com/buraksezer/olricdb/internal/protocol"
 )
 
 func (db *OlricDB) findLockKey(hkey uint64, name, key string) (host, error) {
@@ -42,12 +41,11 @@ func (db *OlricDB) findLockKey(hkey uint64, name, key string) (host, error) {
 		if hostCmp(db.this, owner) {
 			continue
 		}
-		target := url.URL{
-			Scheme: db.transport.scheme,
-			Host:   owner.String(),
-			Path:   path.Join("/find-lock", name, key),
+		req := &protocol.Message{
+			DMap: name,
+			Key:  key,
 		}
-		_, err := db.transport.doRequest(http.MethodGet, target, nil)
+		_, err := db.requestTo(owner.String(), protocol.OpFindLock, req)
 		if err == nil {
 			return owner, nil
 		}
@@ -62,9 +60,9 @@ func (db *OlricDB) findLockKey(hkey uint64, name, key string) (host, error) {
 }
 
 // Wait until the timeout is exceeded and background and release the key if it's still locked.
-func (db *OlricDB) waitLockForTimeout(dmp *dmap, key string, timeout time.Duration) {
+func (db *OlricDB) waitLockForTimeout(dm *dmap, key string, timeout time.Duration) {
 	defer db.wg.Done()
-	unlockCh := dmp.locker.unlockNotifier(key)
+	unlockCh := dm.locker.unlockNotifier(key)
 	select {
 	case <-time.After(timeout):
 	case <-db.ctx.Done():
@@ -72,7 +70,7 @@ func (db *OlricDB) waitLockForTimeout(dmp *dmap, key string, timeout time.Durati
 		// It's already unlocked
 		return
 	}
-	err := dmp.locker.unlock(key)
+	err := dm.locker.unlock(key)
 	if err == ErrNoSuchLock {
 		err = nil
 	}
@@ -82,11 +80,11 @@ func (db *OlricDB) waitLockForTimeout(dmp *dmap, key string, timeout time.Durati
 }
 
 func (db *OlricDB) lockKey(hkey uint64, name, key string, timeout time.Duration) error {
-	dmp := db.getDMap(name, hkey)
-	if dmp.locker.check(key) {
-		dmp.locker.lock(key)
+	dm := db.getDMap(name, hkey)
+	if dm.locker.check(key) {
+		dm.locker.lock(key)
 		db.wg.Add(1)
-		go db.waitLockForTimeout(dmp, key, timeout)
+		go db.waitLockForTimeout(dm, key, timeout)
 		return nil
 	}
 
@@ -98,24 +96,21 @@ func (db *OlricDB) lockKey(hkey uint64, name, key string, timeout time.Duration)
 
 	// One of the previous owners has the key, redirect the call.
 	if !hostCmp(db.this, owner) {
-		target := url.URL{
-			Scheme: db.transport.scheme,
-			Host:   owner.String(),
-			Path:   path.Join("/lock-prev", name, key),
+		req := &protocol.Message{
+			DMap:  name,
+			Key:   key,
+			Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
 		}
-		q := target.Query()
-		q.Set("timeout", timeout.String())
-		target.RawQuery = q.Encode()
-		_, err = db.transport.doRequest(http.MethodGet, target, nil)
+		_, err := db.requestTo(owner.String(), protocol.OpLockPrev, req)
 		return err
 	}
 
 	// This node owns the key/lock. Try to acquire it.
-	dmp.locker.lock(key)
+	dm.locker.lock(key)
 	// Wait until the timeout is exceeded and background and release the key if
 	// it's still locked.
 	db.wg.Add(1)
-	go db.waitLockForTimeout(dmp, key, timeout)
+	go db.waitLockForTimeout(dm, key, timeout)
 	return nil
 }
 
@@ -125,7 +120,13 @@ func (db *OlricDB) lockWithTimeout(name, key string, timeout time.Duration) erro
 		return err
 	}
 	if !hostCmp(member, db.this) {
-		return db.transport.lock(member, name, key, timeout)
+		req := &protocol.Message{
+			DMap:  name,
+			Key:   key,
+			Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
+		}
+		_, err = db.requestTo(member.String(), protocol.OpExLockWithTimeout, req)
+		return err
 	}
 	return db.lockKey(hkey, name, key, timeout)
 }
@@ -147,21 +148,20 @@ func (db *OlricDB) unlockKey(hkey uint64, name, key string) error {
 		return err
 	}
 	if !hostCmp(db.this, owner) {
-		target := url.URL{
-			Scheme: db.transport.scheme,
-			Host:   owner.String(),
-			Path:   path.Join("/unlock-prev", name, key),
+		req := &protocol.Message{
+			DMap: name,
+			Key:  key,
 		}
-		_, err = db.transport.doRequest(http.MethodGet, target, nil)
+		_, err = db.requestTo(owner.String(), protocol.OpUnlockPrev, req)
 		return err
 	}
-	dmp := db.getDMap(name, hkey)
-	return dmp.locker.unlock(key)
+	dm := db.getDMap(name, hkey)
+	return dm.locker.unlock(key)
 }
 
 func (db *OlricDB) unlock(name, key string) error {
-	<-db.bctx.Done()
-	if db.bctx.Err() == context.DeadlineExceeded {
+	<-db.bcx.Done()
+	if db.bcx.Err() == context.DeadlineExceeded {
 		return ErrOperationTimeout
 	}
 
@@ -170,7 +170,12 @@ func (db *OlricDB) unlock(name, key string) error {
 		return err
 	}
 	if !hostCmp(member, db.this) {
-		return db.transport.unlock(member, name, key)
+		req := &protocol.Message{
+			DMap: name,
+			Key:  key,
+		}
+		_, err = db.requestTo(member.String(), protocol.OpExUnlock, req)
+		return err
 	}
 	return db.unlockKey(hkey, name, key)
 }
@@ -178,4 +183,65 @@ func (db *OlricDB) unlock(name, key string) error {
 // Unlock releases an acquired lock for the given key. It returns ErrNoSuchLock if there is no lock for the given key.
 func (dm *DMap) Unlock(key string) error {
 	return dm.db.unlock(dm.name, key)
+}
+
+func (db *OlricDB) exLockWithTimeoutOperation(req *protocol.Message) *protocol.Message {
+	ttl := req.Extra.(protocol.LockWithTimeoutExtra).TTL
+	err := db.lockWithTimeout(req.DMap, req.Key, time.Duration(ttl))
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	return req.Success()
+}
+
+func (db *OlricDB) exUnlockOperation(req *protocol.Message) *protocol.Message {
+	err := db.unlock(req.DMap, req.Key)
+	if err == ErrNoSuchLock {
+		return req.Error(protocol.StatusNoSuchLock, "")
+	}
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	return req.Success()
+}
+
+func (db *OlricDB) findLockOperation(req *protocol.Message) *protocol.Message {
+	hkey := db.getHKey(req.DMap, req.Key)
+
+	dm := db.getDMap(req.DMap, hkey)
+	if dm.locker.check(req.Key) {
+		return req.Success()
+	}
+	dm.RLock()
+	defer dm.RUnlock()
+	_, ok := dm.d[hkey]
+	if ok {
+		return req.Success()
+	}
+	return req.Error(protocol.StatusNoSuchLock, "")
+}
+
+func (db *OlricDB) unlockPrevOperation(req *protocol.Message) *protocol.Message {
+	key := req.Key
+	hkey := db.getHKey(req.DMap, key)
+	dm := db.getDMap(req.DMap, hkey)
+	err := dm.locker.unlock(key)
+	if err == ErrNoSuchLock {
+		return req.Error(protocol.StatusNoSuchLock, "")
+	}
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	return req.Success()
+}
+
+func (db *OlricDB) lockPrevOperation(req *protocol.Message) *protocol.Message {
+	key := req.Key
+	hkey := db.getHKey(req.DMap, key)
+	dm := db.getDMap(req.DMap, hkey)
+	dm.locker.lock(key)
+	db.wg.Add(1)
+	ttl := req.Extra.(protocol.LockWithTimeoutExtra).TTL
+	go db.waitLockForTimeout(dm, key, time.Duration(ttl))
+	return req.Success()
 }

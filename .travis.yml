@@ -1,3 +1,8 @@
+go:
+    - "1.9"
+    - "1.10"
+    - "1.11"
+
 language: go
 before_script:
 - go get github.com/mattn/goveralls
@@ -5,3 +10,4 @@ script:
 - bash cover.sh $HOME/build coverage.out || travis_terminate 1
 - goveralls -service=travis-ci -coverprofile=coverage.out || true
 - goveralls -coverprofile=coverage.out -service=travis-ci
+

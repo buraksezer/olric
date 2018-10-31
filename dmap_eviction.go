@@ -38,27 +38,21 @@ func (db *OlricDB) evictKeysAtBackground() {
 func (db *OlricDB) evictKeys() {
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.partitions[partID]
-	// Disable writes on this partition
-	part.RLock()
 
-	// If the partition is empty, quit immediately.
-	if len(part.m) == 0 {
-		part.RUnlock()
-		return
-	}
-
-	// Picks 20 map objects randomly to check out expired keys. Then waits until all the goroutines done.
 	var wg sync.WaitGroup
-	dcount := 0
-	for name, dm := range part.m {
+	part.m.Range(func(name, tmp interface{}) bool {
+		dm := tmp.(*dmap)
+		// Picks 20 map objects randomly to check out expired keys. Then waits until all the goroutines done.
+		dcount := 0
 		dcount++
 		if dcount >= 20 {
-			break
+			return false
 		}
 		wg.Add(1)
-		go db.scanDMapForEviction(partID, name, dm, &wg)
-	}
-	part.RUnlock()
+		go db.scanDMapForEviction(partID, name.(string), dm, &wg)
+		return true
+	})
+
 	wg.Wait()
 }
 
@@ -81,7 +75,7 @@ func (db *OlricDB) scanDMapForEviction(partID uint64, name string, dm *dmap, wg 
 				break
 			}
 			if isKeyExpired(vdata.TTL) {
-				err := db.delKeyVal(dm, hkey, name)
+				err := db.delKeyVal(dm, hkey, name, vdata.Key)
 				if err != nil {
 					db.logger.Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v", hkey, name, err)
 					continue

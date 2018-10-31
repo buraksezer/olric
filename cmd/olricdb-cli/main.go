@@ -29,7 +29,7 @@ import (
 
 const (
 	defaultSerializer string = "gob"
-	defaultURI        string = "https://127.0.0.1:3320"
+	defaultAddr       string = "127.0.0.1:3320"
 )
 
 var usage = `olricdb-cli is a CLI interface for OlricDB
@@ -50,7 +50,7 @@ Flags:
   -s -serializer
       Specifies serialization format. Available formats: gob, json, msgpack. Default: %s
 
-  -u -uri
+  -a -addr
       Server URI. Default: %s
 
   -t timeout
@@ -63,7 +63,7 @@ var (
 	showHelp    bool
 	showVersion bool
 	insecure    bool
-	uri         string
+	addr        string
 	timeout     string
 	serializer  string
 )
@@ -88,8 +88,8 @@ func main() {
 	f.StringVar(&timeout, "t", "10s", "")
 	f.StringVar(&timeout, "timeout", "10s", "")
 
-	f.StringVar(&uri, "u", defaultURI, "")
-	f.StringVar(&uri, "uri", defaultURI, "")
+	f.StringVar(&addr, "a", defaultAddr, "")
+	f.StringVar(&addr, "addr", defaultAddr, "")
 
 	f.StringVar(&serializer, "s", defaultSerializer, "")
 	f.StringVar(&serializer, "serializer", defaultSerializer, "")
@@ -103,12 +103,12 @@ func main() {
 		fmt.Printf("olricdb-cli %s with runtime %s\n", olricdb.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
-		msg := fmt.Sprintf(usage, defaultSerializer, defaultURI, runtime.Version())
+		msg := fmt.Sprintf(usage, defaultSerializer, defaultAddr, runtime.Version())
 		fmt.Println(msg)
 		return
 	}
 
-	c, err := cli.New(uri, insecure, serializer, timeout)
+	c, err := cli.New(addr, insecure, serializer, timeout)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] Failed to create olricdb-cli instance: %v", err)
 		os.Exit(1)

@@ -18,12 +18,8 @@ the terminal.*/
 package cli
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"regexp"
@@ -34,50 +30,15 @@ import (
 	"github.com/buraksezer/olricdb"
 	"github.com/buraksezer/olricdb/client"
 	"github.com/chzyer/readline"
-	"golang.org/x/net/http2"
 )
 
 type CLI struct {
-	uri    string
+	addr   string
 	client *client.Client
 	output io.Writer
 }
 
-func New(uri string, insecureSkipVerify bool, serializer, timeouts string) (*CLI, error) {
-	timeout, err := time.ParseDuration(timeouts)
-	if err != nil {
-		return nil, err
-	}
-	parsed, err := url.Parse(uri)
-	if err != nil {
-		return nil, err
-	}
-	var hc *http.Client
-	if parsed.Scheme == "https" {
-		tc := &tls.Config{InsecureSkipVerify: insecureSkipVerify}
-		dialTLS := func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-			d := &net.Dialer{Timeout: timeout}
-			return tls.DialWithDialer(d, network, addr, cfg)
-		}
-		hc = &http.Client{
-			Transport: &http2.Transport{
-				DialTLS:         dialTLS,
-				TLSClientConfig: tc,
-			},
-			Timeout: timeout,
-		}
-	} else {
-		hc = &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					KeepAlive: 5 * time.Minute,
-					Timeout:   timeout,
-				}).DialContext,
-			},
-		}
-	}
-
+func New(addr string, insecureSkipVerify bool, serializer, timeout string) (*CLI, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var s olricdb.Serializer
 	if serializer == "json" {
@@ -90,12 +51,15 @@ func New(uri string, insecureSkipVerify bool, serializer, timeouts string) (*CLI
 		return nil, fmt.Errorf("invalid serializer: %s", serializer)
 	}
 
-	c, err := client.New([]string{uri}, hc, s)
+	cc := &client.Config{
+		Addrs: []string{addr},
+	}
+	c, err := client.New(cc, s)
 	if err != nil {
 		return nil, err
 	}
 	return &CLI{
-		uri:    uri,
+		addr:   addr,
 		client: c,
 	}, nil
 }
@@ -155,7 +119,7 @@ func (c *CLI) Start() error {
 	} else {
 		c.print("[WARN] $HOME is empty.\n")
 	}
-	prompt := fmt.Sprintf("[%s] \033[31m»\033[0m ", c.uri)
+	prompt := fmt.Sprintf("[%s] \033[31m»\033[0m ", c.addr)
 	l, err := readline.NewEx(&readline.Config{
 		Prompt:          prompt,
 		HistoryFile:     historyFile,
@@ -280,6 +244,10 @@ func (c *CLI) Start() error {
 				}
 			}
 			value, err := c.client.Get(dmap, key)
+			if err == olricdb.ErrKeyNotFound {
+				c.print("nil\n")
+				continue
+			}
 			if err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Get on %s with key %s: %v\n", dmap, key, err))
 				continue

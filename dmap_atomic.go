@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/buraksezer/olricdb/internal/protocol"
 )
 
 func (db *OlricDB) atomicIncrDecr(name, key, opr string, delta int) (int, error) {
@@ -28,7 +30,7 @@ func (db *OlricDB) atomicIncrDecr(name, key, opr string, delta int) (int, error)
 	defer func() {
 		err = db.unlock(name, key)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to release the lock for key: %s", key)
+			db.logger.Printf("[ERROR] Failed to release the lock for key: %s: %v", key, err)
 		}
 	}()
 
@@ -92,7 +94,7 @@ func (db *OlricDB) getPut(name, key string, value []byte) ([]byte, error) {
 	defer func() {
 		err = db.unlock(name, key)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to release the lock for key: %s", key)
+			db.logger.Printf("[ERROR] Failed to release the lock for key: %s: %v", key, err)
 		}
 	}()
 
@@ -130,4 +132,40 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 		}
 	}
 	return oldval, nil
+}
+
+func (db *OlricDB) exIncrDecrOperation(req *protocol.Message) *protocol.Message {
+	var delta interface{}
+	err := db.serializer.Unmarshal(req.Value, &delta)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	op := "incr"
+	if req.Op == protocol.OpExDecr {
+		op = "decr"
+	}
+	newval, err := db.atomicIncrDecr(req.DMap, req.Key, op, delta.(int))
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	data, err := db.serializer.Marshal(newval)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	resp := req.Success()
+	resp.Value = data
+	return resp
+}
+
+func (db *OlricDB) exGetPutOperation(req *protocol.Message) *protocol.Message {
+	oldval, err := db.getPut(req.DMap, req.Key, req.Value)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	resp := req.Success()
+	if oldval != nil {
+		resp.Value = oldval
+	}
+	return resp
 }

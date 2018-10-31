@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
+	"time"
 
 	"github.com/hashicorp/memberlist"
 )
@@ -51,8 +51,12 @@ type Config struct {
 	// Name of this node in the cluster. This must be unique in the cluster. If this is not set,
 	// OlricDB will set it to the hostname of the running machine. Example: node1.my-cluster.net
 	//
-	// Name is also used by the HTTP server as Addr. It should be an IP adress or domain name of the server.
+	// Name is also used by the TCP server as Addr. It should be an IP adress or domain name of the server.
 	Name string
+
+	KeepAlivePeriod time.Duration
+
+	DialTimeout time.Duration
 
 	// The list of host:port which are used by memberlist for discovery. Don't confuse it with Name.
 	Peers []string
@@ -70,6 +74,8 @@ type Config struct {
 	// for a server in the cluster. Keep it small.
 	LoadFactor float64
 
+	MaxValueSize int
+
 	// Default hasher is github.com/cespare/xxhash. You may want to use a different
 	// hasher which implements Hasher interface.
 	Hasher Hasher
@@ -77,17 +83,11 @@ type Config struct {
 	// Default Serializer implementation uses gob for encoding/decoding.
 	Serializer Serializer
 
-	// TLS certificate file for HTTP server. If it's empty, TLS is disabled.
+	// TLS certificate file for TCP server. If it's empty, TLS is disabled.
 	CertFile string
 
-	// TLS key file for HTTP server. If it's empty, TLS is disabled.
+	// TLS key file for TCP server. If it's empty, TLS is disabled.
 	KeyFile string
-
-	// A Client is an HTTP client. Its zero value (DefaultClient) is a usable client that uses DefaultTransport.
-	Client *http.Client
-
-	// HTTP server. Don't set Addr field. It's overwritten by Name field.
-	Server *http.Server
 
 	// LogOutput is the writer where logs should be sent. If this is not
 	// set, logging will go to stderr by default. You cannot specify both LogOutput

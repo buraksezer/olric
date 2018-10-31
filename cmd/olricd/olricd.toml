@@ -1,11 +1,15 @@
 [olricd]
-partitionCount = 271
-backupCount = 1
+partitionCount = 19
+backupCount = 0
 backupMode = 0
 name = "0.0.0.0:3320"
-certFile = "/home/burak/Projects/server.pem"
-keyFile = "/home/burak/Projects/server.key"
+tcpAddr = "0.0.0.0:3422"
+#certFile = "/home/burak/Projects/server.pem"
+#keyFile = "/home/burak/Projects/server.key"
 serializer = "gob"
+keepAlivePeriod = "300s"
+# 1MB by default
+maxValueSize = 1048576 
 
 [logging]
 level = "DEBUG"

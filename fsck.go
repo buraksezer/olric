@@ -17,7 +17,11 @@ package olricdb
 import (
 	"bytes"
 	"encoding/gob"
+	"reflect"
 	"sync"
+	"sync/atomic"
+
+	"github.com/buraksezer/olricdb/internal/protocol"
 )
 
 type dmapbox struct {
@@ -26,43 +30,39 @@ type dmapbox struct {
 	Payload map[uint64]vdata
 }
 
-func (db *OlricDB) moveBackupDmaps(bpart *partition, backups []host, wg *sync.WaitGroup) {
+func (db *OlricDB) moveBackupDMaps(part *partition, backups []host, wg *sync.WaitGroup) {
 	defer wg.Done() // local wg for this fsck call
-
-	bpart.RLock()
-	defer bpart.RUnlock()
 
 	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too big, the following
 	// code may cause CPU starvation.
 	for _, backup := range backups {
-		for name, dm := range bpart.m {
+		part.m.Range(func(name, dm interface{}) bool {
 			wg.Add(1)
-			go db.moveDmap(bpart, name, dm, backup, wg)
-		}
+			go db.moveDMap(part, name.(string), dm.(*dmap), backup, wg)
+			return true
+		})
 	}
 }
 
-func (db *OlricDB) moveDmaps(part *partition, owner host, wg *sync.WaitGroup) {
+func (db *OlricDB) moveDMaps(part *partition, owner host, wg *sync.WaitGroup) {
 	defer wg.Done() // local wg for this fsck call
-	part.RLock()
-	defer part.RUnlock()
-
 	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too big, the following
 	// code may cause CPU starvation.
-	for name, dm := range part.m {
+	part.m.Range(func(name, dm interface{}) bool {
 		wg.Add(1)
-		go db.moveDmap(part, name, dm, owner, wg)
-	}
+		go db.moveDMap(part, name.(string), dm.(*dmap), owner, wg)
+		return true
+	})
 }
 
-func (db *OlricDB) moveDmap(part *partition, name string, dm *dmap, owner host, wg *sync.WaitGroup) {
+func (db *OlricDB) moveDMap(part *partition, name string, dm *dmap, owner host, wg *sync.WaitGroup) {
 	defer wg.Done()
 	dm.Lock()
 	defer dm.Unlock()
 
 	if !part.backup {
 		if dm.locker.length() != 0 {
-			db.logger.Printf("[DEBUG] Lock found on %s. moveDmap has been cancelled", name)
+			db.logger.Printf("[DEBUG] Lock found on %s. moveDMap has been cancelled", name)
 			return
 		}
 	}
@@ -71,8 +71,12 @@ func (db *OlricDB) moveDmap(part *partition, name string, dm *dmap, owner host, 
 		Name:    name,
 		Payload: dm.d,
 	}
+
+	// TODO: Check out this.
 	// To encode nil values, register struct{}{}
-	registerValueType(struct{}{})
+	t := reflect.TypeOf(struct{}{})
+	v := reflect.New(t).Elem().Interface()
+	gob.Register(v)
 
 	var buf bytes.Buffer
 	err := gob.NewEncoder(&buf).Encode(data)
@@ -80,62 +84,64 @@ func (db *OlricDB) moveDmap(part *partition, name string, dm *dmap, owner host, 
 		db.logger.Printf("[ERROR] Failed to encode dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
 		return
 	}
+
+	var opcode protocol.OpCode
 	if !part.backup {
-		err = db.transport.moveDmap(buf.Bytes(), owner)
+		opcode = protocol.OpMoveDMap
 	} else {
-		err = db.transport.moveBackupDmap(buf.Bytes(), owner)
+		opcode = protocol.OpBackupMoveDMap
 	}
+	req := &protocol.Message{
+		Value: buf.Bytes(),
+	}
+	_, err = db.requestTo(owner.String(), opcode, req)
 	if err != nil {
 		db.logger.Printf("[ERROR] Failed to move dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
 		return
 	}
 
-	part.Lock()
 	// Delete moved dmap object. the gc will free the allocated memory.
-	delete(part.m, name)
-	part.Unlock()
+	part.m.Delete(name)
+	atomic.AddInt32(&part.count, -1)
 }
 
 func (db *OlricDB) mergeDMaps(part *partition, data *dmapbox) {
-	part.Lock()
-	defer part.Unlock()
-
-	dm, ok := part.m[data.Name]
+	tmp, ok := part.m.Load(data.Name)
 	if !ok {
-		dm = &dmap{d: data.Payload}
+		dm := &dmap{d: data.Payload}
 		if !part.backup {
 			// Create this on the owners, not backups.
 			dm.locker = newLocker()
 		}
-		part.m[data.Name] = dm
+		part.m.Store(data.Name, dm)
 		return
 	}
+	dm := tmp.(*dmap)
 	for hkey, value := range data.Payload {
 		_, ok := dm.d[hkey]
 		if !ok {
 			dm.d[hkey] = value
 		}
 	}
-	part.m[data.Name] = dm
+	part.m.Store(data.Name, dm)
 }
 
 func (db *OlricDB) fsck() {
-	db.fsckMtx.Lock()
-	defer db.fsckMtx.Unlock()
+	db.fsckMx.Lock()
+	defer db.fsckMx.Unlock()
 
 	var wg sync.WaitGroup
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		part := db.partitions[partID]
-		part.RLock()
-		if len(part.m) == 0 {
-			part.RUnlock()
+		if atomic.LoadInt32(&part.count) == 0 {
 			continue
 		}
+		part.RLock()
 		primaryOwner := part.owners[len(part.owners)-1]
 		for _, node := range part.owners[:len(part.owners)-1] {
 			if hostCmp(node, db.this) {
 				wg.Add(1)
-				go db.moveDmaps(part, primaryOwner, &wg)
+				go db.moveDMaps(part, primaryOwner, &wg)
 				break
 			}
 		}
@@ -146,8 +152,12 @@ func (db *OlricDB) fsck() {
 	backupCount := calcMaxBackupCount(db.config.BackupCount, memCount)
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		bpart := db.backups[partID]
+		if atomic.LoadInt32(&bpart.count) == 0 {
+			continue
+		}
+
 		bpart.RLock()
-		if len(bpart.m) == 0 || len(bpart.owners) <= backupCount {
+		if len(bpart.owners) <= backupCount {
 			bpart.RUnlock()
 			continue
 		}
@@ -157,11 +167,51 @@ func (db *OlricDB) fsck() {
 		for _, backup := range staleBackups {
 			if hostCmp(backup, db.this) {
 				wg.Add(1)
-				go db.moveBackupDmaps(bpart, backups, &wg)
+				go db.moveBackupDMaps(bpart, backups, &wg)
 				break
 			}
 		}
 		bpart.RUnlock()
 	}
 	wg.Wait()
+}
+
+func (db *OlricDB) moveBackupDMapOperation(req *protocol.Message) *protocol.Message {
+	dbox := &dmapbox{}
+	err := db.serializer.Unmarshal(req.Value, dbox)
+	if err != nil {
+		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	part := db.backups[dbox.PartID]
+	part.RLock()
+	if len(part.owners) == 0 {
+		part.RUnlock()
+		panic("partition owners list cannot be empty")
+	}
+	part.RUnlock()
+	// TODO: Check partition owner here!
+	db.mergeDMaps(part, dbox)
+	return req.Success()
+}
+
+func (db *OlricDB) moveDMapOperation(req *protocol.Message) *protocol.Message {
+	dbox := &dmapbox{}
+	err := db.serializer.Unmarshal(req.Value, dbox)
+	if err != nil {
+		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	part := db.partitions[dbox.PartID]
+	part.RLock()
+	if len(part.owners) == 0 {
+		part.RUnlock()
+		panic("partition owners list cannot be empty")
+	}
+	part.RUnlock()
+	// TODO: Check partition owner here!
+	db.mergeDMaps(part, dbox)
+	return req.Success()
 }

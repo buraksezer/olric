@@ -17,16 +17,16 @@ package olricdb
 import (
 	"bytes"
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
 func TestFSCK_Merge(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -43,11 +43,10 @@ func TestFSCK_Merge(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -62,22 +61,22 @@ func TestFSCK_Merge(t *testing.T) {
 			part.Unlock()
 			continue
 		}
+		part.Unlock()
+
 		if hostCmp(part.owners[0], r1.this) {
 			// Previous owner
-			if len(part.m) != 0 {
-				t.Fatalf("Expected map count is 0. Got: %d", len(part.m))
+			if atomic.LoadInt32(&part.count) != 0 {
+				t.Fatalf("Expected map count is 0. Got: %d", atomic.LoadInt32(&part.count))
 			}
 		}
-		part.Unlock()
 	}
 }
 
 func TestFSCK_MergeWithNewValues(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -92,14 +91,13 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	r1.fsckMtx.Lock()
+	r1.fsckMx.Lock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -117,7 +115,7 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	r1.fsckMtx.Unlock()
+	r1.fsckMx.Unlock()
 
 	var eval []byte
 	r1.updateRouting()
@@ -138,11 +136,10 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 }
 
 func TestFSCK_MergeWithLock(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -163,11 +160,10 @@ func TestFSCK_MergeWithLock(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -179,11 +175,9 @@ func TestFSCK_MergeWithLock(t *testing.T) {
 
 	for partID := uint64(0); partID < r2.config.PartitionCount; partID++ {
 		part := r2.partitions[partID]
-		part.Lock()
-		if len(part.m) != 0 {
-			t.Fatalf("Expected map count is 0. Got: %d", len(part.m))
+		if atomic.LoadInt32(&part.count) != 0 {
+			t.Fatalf("Expected map count is 0. Got: %d", atomic.LoadInt32(&part.count))
 		}
-		part.Unlock()
 	}
 
 	dm2 := r2.NewDMap("mymap")
@@ -202,12 +196,12 @@ func TestFSCK_MergeWithLock(t *testing.T) {
 			part.Unlock()
 			continue
 		}
+		part.Unlock()
 		if hostCmp(part.owners[0], r1.this) {
 			// Previous owner
-			if len(part.m) != 0 {
-				t.Fatalf("Expected map count is 0. Got: %d", len(part.m))
+			if atomic.LoadInt32(&part.count) != 0 {
+				t.Fatalf("Expected map count is 0. Got: %d", atomic.LoadInt32(&part.count))
 			}
 		}
-		part.Unlock()
 	}
 }

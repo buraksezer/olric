@@ -22,11 +22,10 @@ import (
 )
 
 func TestDMap_Incr(t *testing.T) {
-	r, srv, err := newOlricDB(nil)
+	r, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv.Close()
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
@@ -68,11 +67,10 @@ func TestDMap_Incr(t *testing.T) {
 }
 
 func TestDMap_Decr(t *testing.T) {
-	r, srv, err := newOlricDB(nil)
+	r, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv.Close()
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
@@ -115,11 +113,10 @@ func TestDMap_Decr(t *testing.T) {
 }
 
 func TestDMap_GetPut(t *testing.T) {
-	r, srv, err := newOlricDB(nil)
+	r, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv.Close()
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {

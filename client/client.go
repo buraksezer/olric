@@ -16,152 +16,81 @@
 package client
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
-	"math/rand"
-	"net/http"
-	"net/url"
-	"path"
-	"strconv"
 	"time"
 
 	"github.com/buraksezer/olricdb"
+	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olricdb/internal/transport"
 )
 
-var nilTimeout = 0 * time.Second
-
-// Client represents a Golang client to access an OlricDB cluster from outside.
+// Client implements Go client of Olric's binary protocol and its methods.
 type Client struct {
-	servers    []string
-	client     *http.Client
+	client     *transport.Client
 	serializer olricdb.Serializer
-	ctx        context.Context
-	cancel     context.CancelFunc
 }
 
-// New returns a new Client object. The second parameter is http.Client. It can be nil.
-// Server names have to be start with protocol scheme: http or https.
-func New(servers []string, c *http.Client, s olricdb.Serializer) (*Client, error) {
-	if c == nil {
-		c = &http.Client{}
-	}
-	if len(servers) == 0 {
-		return nil, fmt.Errorf("servers slice cannot be empty")
-	}
+// Config includes configuration parameters for the Client.
+type Config struct {
+	Addrs       []string
+	DialTimeout time.Duration
+	KeepAlive   time.Duration
+	MaxConn     int
+}
 
+// New returns a new Client object. The second parameter is serializer, it can be nil.
+func New(c *Config, s olricdb.Serializer) (*Client, error) {
+	if c == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+	if len(c.Addrs) == 0 {
+		return nil, fmt.Errorf("addrs list cannot be empty")
+	}
 	if s == nil {
 		s = olricdb.NewGobSerializer()
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	cc := &transport.ClientConfig{
+		Addrs:       c.Addrs,
+		DialTimeout: c.DialTimeout,
+		KeepAlive:   c.KeepAlive,
+		MaxConn:     c.MaxConn,
+	}
 	return &Client{
-		servers:    servers,
-		client:     c,
+		client:     transport.NewClient(cc),
 		serializer: s,
-		ctx:        ctx,
-		cancel:     cancel,
 	}, nil
 }
 
 // Close cancels underlying context and cancels ongoing requests.
 func (c *Client) Close() {
-	c.cancel()
-}
-
-func (c *Client) doRequest(method string, target url.URL, body io.Reader) ([]byte, error) {
-	req, err := http.NewRequest(method, target.String(), body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(c.ctx)
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err = resp.Body.Close()
-		if err != nil {
-			log.Printf("[ERROR] response body could not be closed: %v", err)
-		}
-	}()
-
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusOK {
-		return data, nil
-	}
-
-	msg := string(data)
-	switch {
-	case msg == olricdb.ErrKeyNotFound.Error():
-		return nil, olricdb.ErrKeyNotFound
-	case msg == olricdb.ErrNoSuchLock.Error():
-		return nil, olricdb.ErrNoSuchLock
-	case msg == olricdb.ErrOperationTimeout.Error():
-		return nil, olricdb.ErrOperationTimeout
-	}
-	return nil, fmt.Errorf("unknown response received: %s", string(data))
-}
-
-// pickHosts selects a host randomly for query.
-// TODO: We may want to implement a different algorithm such as round-robin.
-func (c *Client) pickHost() (string, string, error) {
-	i := rand.Intn(len(c.servers))
-	picked := c.servers[i]
-	p, err := url.Parse(picked)
-	if err != nil {
-		return "", "", err
-	}
-	return p.Scheme, p.Host, nil
+	c.client.Close()
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key. It's thread-safe.
 // It is safe to modify the contents of the returned value. It is safe to modify the contents of the argument after Get returns.
 func (c *Client) Get(name, key string) (interface{}, error) {
-	scheme, server, err := c.pickHost()
+	m := &protocol.Message{
+		DMap: name,
+		Key:  key,
+	}
+	resp, err := c.client.Request(protocol.OpExGet, m)
 	if err != nil {
 		return nil, err
 	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/get/", name, key),
+	if resp.Status == protocol.StatusKeyNotFound {
+		return nil, olricdb.ErrKeyNotFound
 	}
-	raw, err := c.doRequest(http.MethodGet, target, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var value interface{}
-	err = c.serializer.Unmarshal(raw, &value)
+	err = c.serializer.Unmarshal(resp.Value, &value)
 	if err != nil {
 		return nil, err
 	}
 	return value, nil
 }
 
-func (c *Client) put(name, key string, value interface{}, timeout time.Duration) error {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return err
-	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/put/", name, key),
-	}
-	if timeout != nilTimeout {
-		q := target.Query()
-		q.Set("t", timeout.String())
-		target.RawQuery = q.Encode()
-	}
-
+// Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
+// It is safe to modify the contents of the arguments after Put returns but not before.
+func (c *Client) Put(name, key string, value interface{}) error {
 	if value == nil {
 		value = struct{}{}
 	}
@@ -169,36 +98,43 @@ func (c *Client) put(name, key string, value interface{}, timeout time.Duration)
 	if err != nil {
 		return err
 	}
-	body := bytes.NewReader(data)
-	_, err = c.doRequest(http.MethodPost, target, body)
+	m := &protocol.Message{
+		DMap:  name,
+		Key:   key,
+		Value: data,
+	}
+	_, err = c.client.Request(protocol.OpExPut, m)
 	return err
-}
-
-// Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
-// It is safe to modify the contents of the arguments after Put returns but not before.
-func (c *Client) Put(name, key string, value interface{}) error {
-	return c.put(name, key, value, nilTimeout)
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
 // It is safe to modify the contents of the arguments after Put returns but not before.
 func (c *Client) PutEx(name, key string, value interface{}, timeout time.Duration) error {
-	return c.put(name, key, value, timeout)
+	if value == nil {
+		value = struct{}{}
+	}
+	data, err := c.serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	m := &protocol.Message{
+		DMap:  name,
+		Key:   key,
+		Extra: protocol.PutExExtra{TTL: timeout.Nanoseconds()},
+		Value: data,
+	}
+	_, err = c.client.Request(protocol.OpExPutEx, m)
+	return err
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
 func (c *Client) Delete(name, key string) error {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return err
+	m := &protocol.Message{
+		DMap: name,
+		Key:  key,
 	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/delete/", name, key),
-	}
-	_, err = c.doRequest(http.MethodDelete, target, nil)
+	_, err := c.client.Request(protocol.OpExDelete, m)
 	return err
 }
 
@@ -207,128 +143,91 @@ func (c *Client) Delete(name, key string) error {
 // setting a lock for a key, you should set the key with Put method. Otherwise it returns olricdb.ErrKeyNotFound error.
 //
 // It returns immediately if it acquires the lock for the given key. Otherwise, it waits until timeout.
-// The timeout is determined by http.Client which can be configured via Config structure.
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (c *Client) LockWithTimeout(name, key string, timeout time.Duration) error {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return err
+	m := &protocol.Message{
+		DMap:  name,
+		Key:   key,
+		Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
 	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/lock-with-timeout/", name, key),
-	}
-	q := target.Query()
-	q.Set("t", timeout.String())
-	target.RawQuery = q.Encode()
-	_, err = c.doRequest(http.MethodGet, target, nil)
+	_, err := c.client.Request(protocol.OpExLockWithTimeout, m)
 	return err
 }
 
 // Unlock releases an acquired lock for the given key. It returns olricdb.ErrNoSuchLock if there is no lock for the given key.
 func (c *Client) Unlock(name, key string) error {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return err
+	m := &protocol.Message{
+		DMap: name,
+		Key:  key,
 	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/unlock/", name, key),
+	resp, err := c.client.Request(protocol.OpExUnlock, m)
+	if resp.Status == protocol.StatusNoSuchLock {
+		return olricdb.ErrNoSuchLock
 	}
-	_, err = c.doRequest(http.MethodGet, target, nil)
 	return err
 }
 
 // Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps.
 // So if you call Put/PutEx and Destroy methods concurrently on the cluster, Put/PutEx calls may set new values to the DMap.
 func (c *Client) Destroy(name string) error {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return err
+	m := &protocol.Message{
+		DMap: name,
 	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/destroy/", name),
-	}
-	_, err = c.doRequest(http.MethodGet, target, nil)
+	_, err := c.client.Request(protocol.OpExDestroy, m)
 	return err
+}
+
+func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int, error) {
+	value, err := c.serializer.Marshal(delta)
+	if err != nil {
+		return 0, err
+	}
+	m := &protocol.Message{
+		DMap:  name,
+		Key:   key,
+		Value: value,
+	}
+	resp, err := c.client.Request(op, m)
+	if err != nil {
+		return 0, err
+	}
+	var res interface{}
+	err = c.serializer.Unmarshal(resp.Value, &res)
+	return res.(int), err
 }
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (c *Client) Incr(name, key string, delta int) (int, error) {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return 0, err
-	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/incr/", name, key, strconv.Itoa(delta)),
-	}
-	res, err := c.doRequest(http.MethodPut, target, nil)
-	if err != nil {
-		return 0, err
-	}
-
-	var value interface{}
-	err = c.serializer.Unmarshal(res, &value)
-	if err != nil {
-		return 0, err
-	}
-	return value.(int), err
+	return c.incrDecr(protocol.OpExIncr, name, key, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (c *Client) Decr(name, key string, delta int) (int, error) {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return 0, err
-	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/decr/", name, key, strconv.Itoa(delta)),
-	}
-	res, err := c.doRequest(http.MethodPut, target, nil)
-	if err != nil {
-		return 0, err
-	}
-	var value interface{}
-	err = c.serializer.Unmarshal(res, &value)
-	if err != nil {
-		return 0, err
-	}
-	return value.(int), err
+	return c.incrDecr(protocol.OpExDecr, name, key, delta)
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
 func (c *Client) GetPut(name, key string, value interface{}) (interface{}, error) {
-	scheme, server, err := c.pickHost()
-	if err != nil {
-		return nil, err
-	}
-	target := url.URL{
-		Scheme: scheme,
-		Host:   server,
-		Path:   path.Join("/ex/getput/", name, key),
+	if value == nil {
+		value = struct{}{}
 	}
 	data, err := c.serializer.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
-	body := bytes.NewReader(data)
-	raw, err := c.doRequest(http.MethodPut, target, body)
+	m := &protocol.Message{
+		DMap:  name,
+		Key:   key,
+		Value: data,
+	}
+	resp, err := c.client.Request(protocol.OpExGetPut, m)
 	if err != nil {
 		return nil, err
 	}
-
 	var oldval interface{}
-	if len(raw) != 0 {
-		err = c.serializer.Unmarshal(raw, &oldval)
+	if len(resp.Value) != 0 {
+		err = c.serializer.Unmarshal(resp.Value, &oldval)
 		if err != nil {
 			return nil, err
 		}

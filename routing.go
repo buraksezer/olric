@@ -17,15 +17,15 @@ package olricdb
 import (
 	"bytes"
 	"encoding/gob"
-	"errors"
+	"sync/atomic"
 	"time"
 
+	"github.com/buraksezer/olricdb/internal/protocol"
 	"github.com/hashicorp/memberlist"
 	"golang.org/x/sync/errgroup"
 )
 
 var maxBackupCount = 3
-var errPartNotEmpty = errors.New("partition not empty")
 
 type route struct {
 	Owners  []host
@@ -127,15 +127,17 @@ func (db *OlricDB) distributeBackups(partID uint64, rt routing, backupCount int)
 	tbackups := []host{}
 	for _, backup := range tmp[:len(tmp)-backupCount] {
 		if hostCmp(db.this, backup) {
-			if len(bpart.m) != 0 {
+			if atomic.LoadInt32(&bpart.count) != 0 {
 				tbackups = append(tbackups, backup)
 			}
 			continue
 		}
-		// If isBackupEmpty returns nil, this means that the partition is empty.
-		err := db.transport.isBackupEmpty(partID, backup)
+		req := &protocol.Message{
+			Extra: protocol.IsPartEmptyExtra{PartID: partID},
+		}
+		_, err := db.requestTo(backup.String(), protocol.OpIsBackupEmpty, req)
 		if err != nil {
-			if err != errPartNotEmpty {
+			if err != errBackupNotEmpty {
 				db.logger.Printf("[ERROR] Failed to check dmaps in partition backup: %d: %v", partID, err)
 			}
 			tbackups = append(tbackups, backup)
@@ -196,12 +198,15 @@ func (db *OlricDB) distributePrimaryCopies(partID uint64, rt routing) {
 	owners := []host{}
 	for _, own := range tmp[:len(tmp)-1] {
 		if hostCmp(db.this, own) {
-			if len(part.m) != 0 {
+			if atomic.LoadInt32(&part.count) != 0 {
 				owners = append(owners, own)
 			}
 			continue
 		}
-		err := db.transport.isPartEmpty(partID, own)
+		req := &protocol.Message{
+			Extra: protocol.IsPartEmptyExtra{PartID: partID},
+		}
+		_, err := db.requestTo(own.String(), protocol.OpIsPartEmpty, req)
 		if err != nil {
 			if err != errPartNotEmpty {
 				db.logger.Printf("[ERROR] Failed to check dmaps in partition: %d: %v", partID, err)
@@ -241,7 +246,11 @@ func (db *OlricDB) updateRoutingOnCluster(rt routing) error {
 			continue
 		}
 		g.Go(func() error {
-			return db.transport.updateRouting(mem, data)
+			msg := &protocol.Message{
+				Value: data,
+			}
+			_, err := db.requestTo(mem.String(), protocol.OpUpdateRouting, msg)
+			return err
 		})
 	}
 	return g.Wait()
@@ -251,8 +260,8 @@ func (db *OlricDB) updateRouting() {
 	if !db.discovery.isCoordinator() {
 		return
 	}
-	db.routingMtx.Lock()
-	defer db.routingMtx.Unlock()
+	db.routingMx.Lock()
+	defer db.routingMx.Unlock()
 	pm := db.distributePartitions()
 	err := db.updateRoutingOnCluster(pm)
 	if err != nil {
@@ -276,6 +285,7 @@ func (db *OlricDB) listenMemberlistEvents(eventCh chan memberlist.NodeEvent) {
 
 func (db *OlricDB) updateRoutingPeriodically() {
 	defer db.wg.Done()
+	// TODO: Make this parametric.
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
@@ -287,4 +297,53 @@ func (db *OlricDB) updateRoutingPeriodically() {
 			db.updateRouting()
 		}
 	}
+}
+
+func (db *OlricDB) updateRoutingOperation(req *protocol.Message) *protocol.Message {
+	rt := make(routing)
+	err := gob.NewDecoder(bytes.NewReader(req.Value)).Decode(&rt)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	for partID, data := range rt {
+		// Set partition(primary copies) owners
+		part := db.partitions[partID]
+		part.Lock()
+		part.owners = data.Owners
+		part.Unlock()
+
+		// Set backup owners
+		bpart := db.backups[partID]
+		bpart.Lock()
+		bpart.owners = data.Backups
+		bpart.Unlock()
+	}
+
+	// Bootstrapped by the coordinator.
+	db.bcancel()
+	db.wg.Add(1)
+	go func() {
+		defer db.wg.Done()
+		db.fsck()
+	}()
+	return req.Success()
+}
+
+func (db *OlricDB) isPartEmptyOperation(req *protocol.Message) *protocol.Message {
+	partID := req.Extra.(protocol.IsPartEmptyExtra).PartID
+	part := db.partitions[partID]
+	if atomic.LoadInt32(&part.count) == 0 {
+		return req.Success()
+	}
+	return req.Error(protocol.StatusPartNotEmpty, "")
+}
+
+func (db *OlricDB) isBackupEmptyOperation(req *protocol.Message) *protocol.Message {
+	partID := req.Extra.(protocol.IsPartEmptyExtra).PartID
+	part := db.backups[partID]
+
+	if atomic.LoadInt32(&part.count) == 0 {
+		return req.Success()
+	}
+	return req.Error(protocol.StatusBackupNotEmpty, "")
 }

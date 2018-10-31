@@ -42,8 +42,8 @@ type discovery struct {
 	wg         sync.WaitGroup
 	done       chan struct{}
 
-	eventMutex       sync.RWMutex
-	eventsChan       chan memberlist.NodeEvent
+	eventMx          sync.RWMutex
+	eventsCh         chan memberlist.NodeEvent
 	eventSubscribers []chan memberlist.NodeEvent
 }
 
@@ -97,7 +97,7 @@ func newDiscovery(cfg *Config) (*discovery, error) {
 		memberlist: list,
 		peers:      cfg.Peers,
 		config:     cfg.MemberlistConfig,
-		eventsChan: eventsCh,
+		eventsCh:   eventsCh,
 		done:       make(chan struct{}),
 	}, nil
 }
@@ -194,8 +194,8 @@ func (d *discovery) shutdown() error {
 }
 
 func (d *discovery) handleEvent(event memberlist.NodeEvent) {
-	d.eventMutex.RLock()
-	defer d.eventMutex.RUnlock()
+	d.eventMx.RLock()
+	defer d.eventMx.RUnlock()
 
 	for _, ch := range d.eventSubscribers {
 		if event.Node.Name == d.Name {
@@ -221,7 +221,7 @@ func (d *discovery) eventLoop() {
 
 	for {
 		select {
-		case event := <-d.eventsChan:
+		case event := <-d.eventsCh:
 			d.handleEvent(event)
 		case <-d.done:
 			return
@@ -230,8 +230,8 @@ func (d *discovery) eventLoop() {
 }
 
 func (d *discovery) subscribeNodeEvents() chan memberlist.NodeEvent {
-	d.eventMutex.Lock()
-	defer d.eventMutex.Unlock()
+	d.eventMx.Lock()
+	defer d.eventMx.Unlock()
 
 	ch := make(chan memberlist.NodeEvent, eventChanCapacity)
 	d.eventSubscribers = append(d.eventSubscribers, ch)

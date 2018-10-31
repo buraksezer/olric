@@ -18,8 +18,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
+	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,10 +34,30 @@ func bval(i int) []byte {
 	return []byte(fmt.Sprintf("%025d", i))
 }
 
-func newTestOlricDB(peers []string, mc *memberlist.Config) (*OlricDB, *httptest.Server, error) {
-	srv := httptest.NewUnstartedServer(nil)
+func getRandomAddr() (string, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return "", err
+	}
+	defer l.Close()
+	return l.Addr().String(), nil
+}
+
+func newTestOlricDB(peers []string, mc *memberlist.Config) (*OlricDB, error) {
+	addr, err := getRandomAddr()
+	if err != nil {
+		return nil, err
+	}
+	if mc == nil {
+		mc = memberlist.DefaultLocalConfig()
+	}
+	mc.Name = addr
 	mc.BindPort = 0
-	mc.Name = srv.Listener.Addr().String()
 	cfg := &Config{
 		PartitionCount:   7,
 		BackupCount:      1,
@@ -47,24 +67,27 @@ func newTestOlricDB(peers []string, mc *memberlist.Config) (*OlricDB, *httptest.
 	}
 	r, err := New(cfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		err = r.server.ListenAndServe()
+		if err != nil {
+			r.logger.Printf("[ERROR] Failed to run TCP server")
+		}
+	}()
+	<-r.server.StartCh
 
 	err = r.prepare()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	srv.Config = &http.Server{Handler: r.transport.router}
-	srv.Start()
-
-	err = r.transport.checkAliveness(srv.Listener.Addr().String())
-	if err != nil {
-		return nil, nil, err
-	}
-	return r, srv, nil
+	return r, nil
 }
 
-func newOlricDBWithCustomMemberlist(peers []string) (*OlricDB, *httptest.Server, error) {
+func newOlricDBWithCustomMemberlist(peers []string) (*OlricDB, error) {
 	mc := memberlist.DefaultLocalConfig()
 	mc.IndirectChecks = 0
 	mc.SuspicionMult = 1
@@ -73,17 +96,15 @@ func newOlricDBWithCustomMemberlist(peers []string) (*OlricDB, *httptest.Server,
 	return newTestOlricDB(peers, mc)
 }
 
-func newOlricDB(peers []string) (*OlricDB, *httptest.Server, error) {
-	mc := memberlist.DefaultLocalConfig()
-	return newTestOlricDB(peers, mc)
+func newOlricDB(peers []string) (*OlricDB, error) {
+	return newTestOlricDB(peers, nil)
 }
 
 func TestDMap_Standalone(t *testing.T) {
-	r, srv, err := newOlricDB(nil)
+	r, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv.Close()
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
@@ -120,11 +141,10 @@ func TestDMap_Standalone(t *testing.T) {
 }
 
 func TestDMap_NilValue(t *testing.T) {
-	r, srv, err := newOlricDB(nil)
+	r, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv.Close()
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
@@ -160,11 +180,10 @@ func TestDMap_NilValue(t *testing.T) {
 }
 
 func TestDMap_NilValueWithTwoMembers(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -181,11 +200,10 @@ func TestDMap_NilValueWithTwoMembers(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -208,11 +226,10 @@ func TestDMap_NilValueWithTwoMembers(t *testing.T) {
 }
 
 func TestDMap_Put(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -221,11 +238,10 @@ func TestDMap_Put(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -241,39 +257,23 @@ func TestDMap_Put(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-
+	dm2 := r2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
-		member, hkey, err := r1.locateKey("mymap", bkey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		var owner *OlricDB
-		if hostCmp(member, r1.this) {
-			owner = r1
-		} else {
-			owner = r2
-		}
-		value, err := owner.getKeyVal(hkey, "mymap")
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		var val interface{}
-		err = owner.serializer.Unmarshal(value, &val)
+		val, err := dm2.Get(bkey(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		if !bytes.Equal(val.([]byte), bval(i)) {
-			t.Fatalf("Different value retrieved for %s from %s", bkey(i), owner.this)
+			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), bkey(i))
 		}
 	}
 }
 
 func TestDMap_PutLookup(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -290,14 +290,13 @@ func TestDMap_PutLookup(t *testing.T) {
 	}
 
 	// Dont move partitions during test.
-	r1.fsckMtx.Lock()
+	r1.fsckMx.Lock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -327,16 +326,15 @@ func TestDMap_PutLookup(t *testing.T) {
 	}
 
 	// To prevent useless error messages
-	r1.fsckMtx.Unlock()
+	r1.fsckMx.Unlock()
 	r1.fsck()
 }
 
 func TestDMap_Get(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -345,11 +343,10 @@ func TestDMap_Get(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -379,11 +376,10 @@ func TestDMap_Get(t *testing.T) {
 }
 
 func TestDMap_Delete(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -392,11 +388,10 @@ func TestDMap_Delete(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -429,11 +424,10 @@ func TestDMap_Delete(t *testing.T) {
 }
 
 func TestDMap_GetLookup(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -449,15 +443,14 @@ func TestDMap_GetLookup(t *testing.T) {
 		}
 	}
 	// Dont move partitions. We check and retrieve keys from the previous owner.
-	r1.fsckMtx.Lock()
-	defer r1.fsckMtx.Unlock()
+	r1.fsckMx.Lock()
+	defer r1.fsckMx.Unlock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -478,11 +471,10 @@ func TestDMap_GetLookup(t *testing.T) {
 }
 
 func TestDMap_DeleteLookup(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -498,14 +490,18 @@ func TestDMap_DeleteLookup(t *testing.T) {
 		}
 	}
 	// Don't move partitions to r2
-	r1.fsckMtx.Lock()
+	r1.fsckMx.Lock()
+	// To prevent useless error messages
+	defer func() {
+		r1.fsckMx.Unlock()
+		r1.fsck()
+	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -529,18 +525,13 @@ func TestDMap_DeleteLookup(t *testing.T) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v for %s", err, key)
 		}
 	}
-
-	// To prevent useless error messages
-	r1.fsckMtx.Unlock()
-	r1.fsck()
 }
 
 func TestDMap_PruneHosts(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -549,11 +540,10 @@ func TestDMap_PruneHosts(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -571,11 +561,10 @@ func TestDMap_PruneHosts(t *testing.T) {
 	}
 
 	peers = []string{r1.discovery.localNode().Address(), r2.discovery.localNode().Address()}
-	r3, srv3, err := newOlricDB(peers)
+	r3, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv3.Close()
 	defer func() {
 		err = r3.Shutdown(context.Background())
 		if err != nil {
@@ -597,12 +586,11 @@ func TestDMap_PruneHosts(t *testing.T) {
 	}
 }
 
-func TestDMap_DestroyDmap(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+func TestDMap_Destroy(t *testing.T) {
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -611,11 +599,10 @@ func TestDMap_DestroyDmap(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -647,11 +634,10 @@ func TestDMap_DestroyDmap(t *testing.T) {
 }
 
 func TestDMap_CrashServer(t *testing.T) {
-	r1, srv1, err := newOlricDBWithCustomMemberlist(nil)
+	r1, err := newOlricDBWithCustomMemberlist(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -660,11 +646,10 @@ func TestDMap_CrashServer(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDBWithCustomMemberlist(peers)
+	r2, err := newOlricDBWithCustomMemberlist(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -673,11 +658,10 @@ func TestDMap_CrashServer(t *testing.T) {
 	}()
 
 	peers = append(peers, r2.discovery.localNode().Address())
-	r3, srv3, err := newOlricDBWithCustomMemberlist(peers)
+	r3, err := newOlricDBWithCustomMemberlist(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv3.Close()
 	defer func() {
 		err = r3.Shutdown(context.Background())
 		if err != nil {
@@ -696,7 +680,6 @@ func TestDMap_CrashServer(t *testing.T) {
 	}
 
 	events := r2.discovery.subscribeNodeEvents()
-	srv1.Close()
 	err = r1.Shutdown(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to shutdown OlricDB: %v", err)
@@ -717,11 +700,10 @@ func TestDMap_CrashServer(t *testing.T) {
 }
 
 func TestDMap_PutEx(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -730,11 +712,10 @@ func TestDMap_PutEx(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -760,11 +741,10 @@ func TestDMap_PutEx(t *testing.T) {
 }
 
 func TestDMap_TTLEviction(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -773,11 +753,10 @@ func TestDMap_TTLEviction(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -802,13 +781,13 @@ func TestDMap_TTLEviction(t *testing.T) {
 	for _, ins := range []*OlricDB{r1, r2} {
 		for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
 			part := ins.partitions[partID]
-			part.RLock()
-			for _, dm := range part.m {
+			part.m.Range(func(k, v interface{}) bool {
+				dm := v.(*dmap)
 				dm.RLock()
 				length += len(dm.d)
 				dm.RUnlock()
-			}
-			part.RUnlock()
+				return true
+			})
 		}
 	}
 	if length == 100 {
@@ -817,11 +796,10 @@ func TestDMap_TTLEviction(t *testing.T) {
 }
 
 func TestDMap_DeleteStaleDMaps(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -830,11 +808,10 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -861,20 +838,18 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 		}
 	}
 
-	var dc int
+	r1.deleteStaleDMaps()
+	r2.deleteStaleDMaps()
+
+	var dc int32
 	for i := 0; i < 1000; i++ {
 		dc = 0
 		for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
 			for _, instance := range []*OlricDB{r1, r2} {
 				part := instance.partitions[partID]
-				part.Lock()
-				dc += len(part.m)
-				part.Unlock()
-
+				dc += atomic.LoadInt32(&part.count)
 				bpart := instance.backups[partID]
-				bpart.Lock()
-				dc += len(bpart.m)
-				bpart.Unlock()
+				dc += atomic.LoadInt32(&bpart.count)
 			}
 		}
 		if dc == 0 {
@@ -888,11 +863,10 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 }
 
 func TestDMap_PutPurgeOldVersions(t *testing.T) {
-	r1, srv1, err := newOlricDB(nil)
+	r1, err := newOlricDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv1.Close()
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
@@ -908,15 +882,14 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 	}
 
 	// Dont move partitions during test.
-	r1.fsckMtx.Lock()
-	defer r1.fsckMtx.Unlock()
+	r1.fsckMx.Lock()
+	defer r1.fsckMx.Unlock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, srv2, err := newOlricDB(peers)
+	r2, err := newOlricDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer srv2.Close()
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
@@ -939,14 +912,15 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 			part.RLock()
 			// We should see modified values on r1
 			for i := 0; i < 100; i++ {
-				dmp := part.m["mymap"]
-				if dmp == nil {
+				tmp, ok := part.m.Load("mymap")
+				if !ok {
 					continue
 				}
-				dmp.RLock()
+				dm := tmp.(*dmap)
+				dm.RLock()
 				key := bkey(i)
 				hkey := r1.getHKey("mymap", key)
-				value, ok := dmp.d[hkey]
+				value, ok := dm.d[hkey]
 				if ok {
 					var val interface{}
 					err = r1.serializer.Unmarshal(value.Value, &val)
@@ -957,7 +931,7 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 						t.Fatalf("Different value retrieved for %s", key)
 					}
 				}
-				dmp.RUnlock()
+				dm.RUnlock()
 			}
 			part.RUnlock()
 		}

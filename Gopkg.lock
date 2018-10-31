@@ -26,6 +26,14 @@
   revision = "1fd2e52820658d2d76672f1d93da56f5cbea39ba"
 
 [[projects]]
+  digest = "1:ed2c2283337727ed96e47dc5081ddfa5ffbff718d30a87e68059e633a426e0de"
+  name = "github.com/buraksezer/pool"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "830a0f4759206ca695bc91927303867a1ba951bc"
+  version = "v3.0.0"
+
+[[projects]]
   digest = "1:4c69f3f6b7b2f6481f858db3cb7a84c7a5958287be33ec05ce4814ea49ef555d"
   name = "github.com/cespare/xxhash"
   packages = ["."]
@@ -114,20 +122,20 @@
   revision = "b195c8e4fcc6284fff1583fd6ab09e68ca207551"
 
 [[projects]]
-  digest = "1:ccfa094742ce1c97fd3f6481e1bf98f3d9862510eee2bc0eb56e2745396bd330"
-  name = "github.com/julienschmidt/httprouter"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "8c199fb6259ffc1af525cc3ad52ee60ba8359669"
-  version = "v1.1"
-
-[[projects]]
   digest = "1:463e4140189f8194f9121ca1c7fe3b8e9e9a2ab3d949b43c835c21034927dc62"
   name = "github.com/miekg/dns"
   packages = ["."]
   pruneopts = "UT"
   revision = "5a2b9fab83ff0f8bfc99684bd5f43a37abe560f1"
   version = "v1.0.8"
+
+[[projects]]
+  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
 
 [[projects]]
   branch = "master"
@@ -161,15 +169,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fe5e24c02254a68e6b15138223741ba32bb1edfe16ba6383eed81aaa29f32b86"
+  digest = "1:5a83591bcb11501a55db71952158d217ad7440826eeca278e3c5d83de973091b"
   name = "golang.org/x/net"
   packages = [
     "bpf",
     "context",
-    "http/httpguts",
-    "http2",
-    "http2/hpack",
-    "idna",
     "internal/iana",
     "internal/socket",
     "ipv4",
@@ -185,29 +189,6 @@
   packages = ["errgroup"]
   pruneopts = "UT"
   revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
-
-[[projects]]
-  digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
-  name = "golang.org/x/text"
-  packages = [
-    "collate",
-    "collate/build",
-    "internal/colltab",
-    "internal/gen",
-    "internal/tag",
-    "internal/triegen",
-    "internal/ucd",
-    "language",
-    "secure/bidirule",
-    "transform",
-    "unicode/bidi",
-    "unicode/cldr",
-    "unicode/norm",
-    "unicode/rangetable",
-  ]
-  pruneopts = "UT"
-  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
-  version = "v0.3.0"
 
 [[projects]]
   digest = "1:9c89d32a15e9941a6d5c396cc54f9afbcca6ea349b33d997d72119a7a67803f4"
@@ -233,14 +214,14 @@
   input-imports = [
     "github.com/BurntSushi/toml",
     "github.com/buraksezer/consistent",
+    "github.com/buraksezer/pool",
     "github.com/cespare/xxhash",
     "github.com/chzyer/readline",
     "github.com/hashicorp/go-multierror",
     "github.com/hashicorp/logutils",
     "github.com/hashicorp/memberlist",
-    "github.com/julienschmidt/httprouter",
+    "github.com/pkg/errors",
     "github.com/vmihailenco/msgpack",
-    "golang.org/x/net/http2",
     "golang.org/x/sync/errgroup",
   ]
   solver-name = "gps-cdcl"

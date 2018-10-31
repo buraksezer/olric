@@ -17,22 +17,20 @@ package server
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
-	"golang.org/x/net/http2"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/buraksezer/olricdb"
 	"github.com/hashicorp/logutils"
+	"github.com/pkg/errors"
 )
 
 // Olricd represents a new Olricd instance.
@@ -40,42 +38,7 @@ type Olricd struct {
 	logger *log.Logger
 	config *olricdb.Config
 	db     *olricdb.OlricDB
-}
-
-func newHTTPClient(c *Config) (*http.Client, error) {
-	dialerTimeout, err := time.ParseDuration(c.HTTPClient.DialerTimeout)
-	if err != nil {
-		return nil, err
-	}
-	timeout, err := time.ParseDuration(c.HTTPClient.Timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.Olricd.CertFile == "" || c.Olricd.KeyFile == "" {
-		return &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				DialContext: (&net.Dialer{
-					KeepAlive: 5 * time.Minute,
-					Timeout:   dialerTimeout,
-				}).DialContext,
-			},
-		}, nil
-	}
-
-	tc := &tls.Config{InsecureSkipVerify: c.HTTPClient.InsecureSkipVerify}
-	dialTLS := func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-		d := &net.Dialer{Timeout: dialerTimeout}
-		return tls.DialWithDialer(d, network, addr, cfg)
-	}
-	return &http.Client{
-		Transport: &http2.Transport{
-			DialTLS:         dialTLS,
-			TLSClientConfig: tc,
-		},
-		Timeout: timeout,
-	}, nil
+	errgr  errgroup.Group
 }
 
 // New creates a new Server instance
@@ -102,11 +65,6 @@ func New(c *Config) (*Olricd, error) {
 	s.logger = log.New(logDest, "", log.LstdFlags)
 	s.logger.SetOutput(filter)
 
-	client, err := newHTTPClient(c)
-	if err != nil {
-		return nil, err
-	}
-
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var serializer olricdb.Serializer
 	if c.Olricd.Serializer == "json" {
@@ -123,6 +81,15 @@ func New(c *Config) (*Olricd, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var keepAlivePeriod time.Duration
+	if c.Olricd.KeepAlivePeriod != "" {
+		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse KeepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
+		}
+	}
 	s.config = &olricdb.Config{
 		Name:             c.Olricd.Name,
 		MemberlistConfig: mc,
@@ -134,10 +101,11 @@ func New(c *Config) (*Olricd, error) {
 		BackupCount:      c.Olricd.BackupCount,
 		BackupMode:       c.Olricd.BackupMode,
 		LoadFactor:       c.Olricd.LoadFactor,
-		Client:           client,
 		Logger:           s.logger,
 		Hasher:           olricdb.NewDefaultHasher(),
 		Serializer:       serializer,
+		KeepAlivePeriod:  keepAlivePeriod,
+		MaxValueSize:     c.Olricd.MaxValueSize,
 	}
 	return s, nil
 }
@@ -147,7 +115,15 @@ func (s *Olricd) waitForInterrupt() {
 	signal.Notify(shutDownChan, syscall.SIGTERM, syscall.SIGINT)
 	ch := <-shutDownChan
 	s.logger.Printf("[INFO] Signal catched: %s", ch.String())
-	s.Shutdown()
+	s.errgr.Go(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := s.db.Shutdown(ctx); err != nil {
+			s.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			return err
+		}
+		return nil
+	})
 }
 
 // Start starts a new olricd server instance and blocks until the server is closed.
@@ -161,15 +137,12 @@ func (s *Olricd) Start() error {
 	}
 	s.db = db
 	s.logger.Printf("[INFO] olricd (pid: %d) has been started on %s", os.Getpid(), s.config.Name)
-	return s.db.Start()
-}
-
-// Shutdown calls olricdb.Shutdown for graceful shutdown.
-func (s *Olricd) Shutdown() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err := s.db.Shutdown(ctx)
-	if err != nil {
-		s.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
-	}
+	s.errgr.Go(func() error {
+		if err = s.db.Start(); err != nil {
+			s.logger.Printf("[ERROR] Failed to run OlricDB: %v", err)
+			return err
+		}
+		return nil
+	})
+	return s.errgr.Wait()
 }

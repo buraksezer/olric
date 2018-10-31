@@ -29,14 +29,16 @@ const (
 )
 
 type olricd struct {
-	Name           string  `toml:"name"`
-	CertFile       string  `toml:"certFile"`
-	KeyFile        string  `toml:"keyFile"`
-	BackupMode     int     `toml:"backupMode"`
-	PartitionCount uint64  `toml:"partitionCount"`
-	BackupCount    int     `toml:"backupCount"`
-	LoadFactor     float64 `toml:"loadFactor"`
-	Serializer     string  `toml:"serializer"`
+	Name            string  `toml:"name"`
+	CertFile        string  `toml:"certFile"`
+	KeyFile         string  `toml:"keyFile"`
+	BackupMode      int     `toml:"backupMode"`
+	PartitionCount  uint64  `toml:"partitionCount"`
+	BackupCount     int     `toml:"backupCount"`
+	LoadFactor      float64 `toml:"loadFactor"`
+	Serializer      string  `toml:"serializer"`
+	KeepAlivePeriod string  `toml:"keepAlivePeriod"`
+	MaxValueSize    int     `toml:"maxValueSize"`
 }
 
 // logging contains configuration variables of logging section of config file.
@@ -61,15 +63,8 @@ type memberlist struct {
 	GossipToTheDeadTime string   `toml:"gossipToTheDeadTime"`
 }
 
-type httpClient struct {
-	DialerTimeout      string `toml:"dialerTimeout"`
-	InsecureSkipVerify bool   `toml:"insecureSkipVerify"`
-	Timeout            string `toml:"timeout"`
-}
-
 // Config is the main configuration struct
 type Config struct {
-	HTTPClient httpClient
 	Memberlist memberlist
 	Logging    logging
 	Olricd     olricd

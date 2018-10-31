@@ -27,6 +27,12 @@ import (
 	"github.com/buraksezer/olricdb"
 )
 
+var testConfig = &Config{
+	DialTimeout: time.Second,
+	KeepAlive:   time.Second,
+	MaxConn:     100,
+}
+
 func getFreePort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -41,16 +47,16 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-func newOlricDB() (*olricdb.OlricDB, string, chan struct{}, error) {
+func newOlricDB() (*olricdb.OlricDB, chan struct{}, error) {
 	port, err := getFreePort()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 	addr := "127.0.0.1:" + strconv.Itoa(port)
 	cfg := &olricdb.Config{Name: addr}
 	db, err := olricdb.New(cfg)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	done := make(chan struct{})
@@ -62,11 +68,12 @@ func newOlricDB() (*olricdb.OlricDB, string, chan struct{}, error) {
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)
-	return db, addr, done, nil
+	testConfig.Addrs = []string{addr}
+	return db, done, nil
 }
 
 func TestClient_Get(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -78,8 +85,7 @@ func TestClient_Get(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -101,7 +107,7 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_Put(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -113,8 +119,7 @@ func TestClient_Put(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -137,7 +142,7 @@ func TestClient_Put(t *testing.T) {
 }
 
 func TestClient_PutEx(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -149,8 +154,7 @@ func TestClient_PutEx(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -171,7 +175,7 @@ func TestClient_PutEx(t *testing.T) {
 }
 
 func TestClient_Delete(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -183,8 +187,7 @@ func TestClient_Delete(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -208,7 +211,7 @@ func TestClient_Delete(t *testing.T) {
 }
 
 func TestClient_LockWithTimeout(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -220,8 +223,7 @@ func TestClient_LockWithTimeout(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -246,7 +248,7 @@ func TestClient_LockWithTimeout(t *testing.T) {
 }
 
 func TestClient_Unlock(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -258,8 +260,7 @@ func TestClient_Unlock(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -283,7 +284,7 @@ func TestClient_Unlock(t *testing.T) {
 }
 
 func TestClient_Destroy(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -295,8 +296,7 @@ func TestClient_Destroy(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestClient_Destroy(t *testing.T) {
 }
 
 func TestClient_Incr(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -334,8 +334,7 @@ func TestClient_Incr(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -376,7 +375,7 @@ func TestClient_Incr(t *testing.T) {
 }
 
 func TestClient_Decr(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -390,8 +389,7 @@ func TestClient_Decr(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -432,7 +430,7 @@ func TestClient_Decr(t *testing.T) {
 }
 
 func TestClient_GetPut(t *testing.T) {
-	db, addr, done, err := newOlricDB()
+	db, done, err := newOlricDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -446,8 +444,7 @@ func TestClient_GetPut(t *testing.T) {
 		<-done
 	}()
 
-	servers := []string{"http://" + addr}
-	c, err := New(servers, nil, nil)
+	c, err := New(testConfig, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
