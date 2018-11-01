@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"context"
 	"testing"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
-	"github.com/buraksezer/olricdb/internal/transport"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/transport"
 )
 
 func TestExternal_UnknownOperation(t *testing.T) {
-	db, err := newOlricDB(nil)
+	db, err := newOlric(nil)
 	if err != nil {
 		t.Errorf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = db.Shutdown(context.Background())
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			db.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	m := &protocol.Message{

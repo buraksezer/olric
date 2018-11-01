@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"bytes"
@@ -23,14 +23,14 @@ import (
 )
 
 func TestFSCK_Merge(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -43,14 +43,14 @@ func TestFSCK_Merge(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -73,14 +73,14 @@ func TestFSCK_Merge(t *testing.T) {
 }
 
 func TestFSCK_MergeWithNewValues(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -94,14 +94,14 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 	r1.fsckMx.Lock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -136,14 +136,14 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 }
 
 func TestFSCK_MergeWithLock(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -160,14 +160,14 @@ func TestFSCK_MergeWithLock(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 

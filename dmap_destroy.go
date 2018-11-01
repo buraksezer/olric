@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"context"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 )
 
-func (db *OlricDB) destroyDMap(name string) error {
+func (db *Olric) destroyDMap(name string) error {
 	<-db.bcx.Done()
 	if db.bcx.Err() == context.DeadlineExceeded {
 		return ErrOperationTimeout
@@ -50,7 +50,7 @@ func (dm *DMap) Destroy() error {
 	return dm.db.destroyDMap(dm.name)
 }
 
-func (db *OlricDB) exDestroyOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exDestroyOperation(req *protocol.Message) *protocol.Message {
 	err := db.destroyDMap(req.DMap)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
@@ -58,7 +58,7 @@ func (db *OlricDB) exDestroyOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
-func (db *OlricDB) destroyDMapOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) destroyDMapOperation(req *protocol.Message) *protocol.Message {
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		// Delete primary copies
 		part := db.partitions[partID]

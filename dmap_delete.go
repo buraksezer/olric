@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 )
 
-func (db *OlricDB) deleteStaleDMapsAtBackground() {
+func (db *Olric) deleteStaleDMapsAtBackground() {
 	defer db.wg.Done()
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -37,7 +37,7 @@ func (db *OlricDB) deleteStaleDMapsAtBackground() {
 	}
 }
 
-func (db *OlricDB) deleteStaleDMaps() {
+func (db *Olric) deleteStaleDMaps() {
 	janitor := func(part *partition) {
 		part.m.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
@@ -61,7 +61,7 @@ func (db *OlricDB) deleteStaleDMaps() {
 	}
 }
 
-func (db *OlricDB) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
+func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	owners := db.getPartitionOwners(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
@@ -92,7 +92,7 @@ func (db *OlricDB) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	return nil
 }
 
-func (db *OlricDB) deleteKey(name, key string) error {
+func (db *Olric) deleteKey(name, key string) error {
 	member, hkey, err := db.locateKey(name, key)
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func (dm *DMap) Delete(key string) error {
 	return dm.db.deleteKey(dm.name, key)
 }
 
-func (db *OlricDB) exDeleteOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exDeleteOperation(req *protocol.Message) *protocol.Message {
 	err := db.deleteKey(req.DMap, req.Key)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
@@ -126,7 +126,7 @@ func (db *OlricDB) exDeleteOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
-func (db *OlricDB) deleteBackupOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
 	dm := db.getBackupDMap(req.DMap, hkey)
@@ -136,7 +136,7 @@ func (db *OlricDB) deleteBackupOperation(req *protocol.Message) *protocol.Messag
 	return req.Success()
 }
 
-func (db *OlricDB) deletePrevOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	hkey := db.getHKey(req.DMap, req.Key)
 	dm := db.getDMap(req.DMap, hkey)
 	dm.Lock()
@@ -146,7 +146,7 @@ func (db *OlricDB) deletePrevOperation(req *protocol.Message) *protocol.Message 
 	return req.Success()
 }
 
-func (db *OlricDB) deleteKeyValBackup(hkey uint64, name, key string) error {
+func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
 	backupOwners := db.getBackupPartitionOwners(hkey)
 	var g errgroup.Group
 	for _, backup := range backupOwners {

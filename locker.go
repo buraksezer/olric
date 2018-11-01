@@ -1,4 +1,4 @@
-package olricdb
+package olric
 
 import (
 	"errors"

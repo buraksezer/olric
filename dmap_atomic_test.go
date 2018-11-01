@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"context"
@@ -22,14 +22,14 @@ import (
 )
 
 func TestDMap_Incr(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -67,14 +67,14 @@ func TestDMap_Incr(t *testing.T) {
 }
 
 func TestDMap_Decr(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -113,14 +113,14 @@ func TestDMap_Decr(t *testing.T) {
 }
 
 func TestDMap_GetPut(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 

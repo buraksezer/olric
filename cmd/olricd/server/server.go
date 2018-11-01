@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package server provides a standalone server implementation for OlricDB*/
+/*Package server provides a standalone server implementation for Olric*/
 package server
 
 import (
@@ -28,7 +28,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/buraksezer/olricdb"
+	"github.com/buraksezer/olric"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
 )
@@ -36,8 +36,8 @@ import (
 // Olricd represents a new Olricd instance.
 type Olricd struct {
 	logger *log.Logger
-	config *olricdb.Config
-	db     *olricdb.OlricDB
+	config *olric.Config
+	db     *olric.Olric
 	errgr  errgroup.Group
 }
 
@@ -54,7 +54,7 @@ func New(c *Config) (*Olricd, error) {
 	}
 
 	if c.Logging.Level == "" {
-		c.Logging.Level = olricdb.DefaultLogLevel
+		c.Logging.Level = olric.DefaultLogLevel
 	}
 
 	filter := &logutils.LevelFilter{
@@ -66,13 +66,13 @@ func New(c *Config) (*Olricd, error) {
 	s.logger.SetOutput(filter)
 
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var serializer olricdb.Serializer
+	var serializer olric.Serializer
 	if c.Olricd.Serializer == "json" {
-		serializer = olricdb.NewJSONSerializer()
+		serializer = olric.NewJSONSerializer()
 	} else if c.Olricd.Serializer == "msgpack" {
-		serializer = olricdb.NewMsgpackSerializer()
+		serializer = olric.NewMsgpackSerializer()
 	} else if c.Olricd.Serializer == "gob" {
-		serializer = olricdb.NewGobSerializer()
+		serializer = olric.NewGobSerializer()
 	} else {
 		return nil, fmt.Errorf("invalid serializer: %s", c.Olricd.Serializer)
 	}
@@ -90,7 +90,7 @@ func New(c *Config) (*Olricd, error) {
 				fmt.Sprintf("failed to parse KeepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
-	s.config = &olricdb.Config{
+	s.config = &olric.Config{
 		Name:             c.Olricd.Name,
 		MemberlistConfig: mc,
 		KeyFile:          c.Olricd.KeyFile,
@@ -102,7 +102,7 @@ func New(c *Config) (*Olricd, error) {
 		BackupMode:       c.Olricd.BackupMode,
 		LoadFactor:       c.Olricd.LoadFactor,
 		Logger:           s.logger,
-		Hasher:           olricdb.NewDefaultHasher(),
+		Hasher:           olric.NewDefaultHasher(),
 		Serializer:       serializer,
 		KeepAlivePeriod:  keepAlivePeriod,
 		MaxValueSize:     c.Olricd.MaxValueSize,
@@ -119,7 +119,7 @@ func (s *Olricd) waitForInterrupt() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := s.db.Shutdown(ctx); err != nil {
-			s.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			s.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 			return err
 		}
 		return nil
@@ -131,7 +131,7 @@ func (s *Olricd) Start() error {
 	// Wait for SIGTERM or SIGINT
 	go s.waitForInterrupt()
 
-	db, err := olricdb.New(s.config)
+	db, err := olric.New(s.config)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (s *Olricd) Start() error {
 	s.logger.Printf("[INFO] olricd (pid: %d) has been started on %s", os.Getpid(), s.config.Name)
 	s.errgr.Go(func() error {
 		if err = s.db.Start(); err != nil {
-			s.logger.Printf("[ERROR] Failed to run OlricDB: %v", err)
+			s.logger.Printf("[ERROR] Failed to run Olric: %v", err)
 			return err
 		}
 		return nil

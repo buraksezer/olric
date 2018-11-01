@@ -1,6 +1,6 @@
-# OlricDB
+# Olric
 
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olricdb) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olricdb/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olricdb?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olricdb.svg?branch=master)](https://travis-ci.org/buraksezer/olricdb) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olricdb)](https://goreportcard.com/report/github.com/buraksezer/olricdb) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Distributed, in-memory and embeddable key/value store, used as a database and cache. Built with [Go](https://golang.org).
 
@@ -73,25 +73,25 @@ This project is a work in progress. The implementation is incomplete. The docume
 * On-disk persistence with [Badger](https://github.com/dgraph-io/badger)
 * Python client.
 
-We may implement different data structures such as list, queue or bitmap in OlricDB. It's highly depends on attention of the Golang community.
+We may implement different data structures such as list, queue or bitmap in Olric. It's highly depends on attention of the Golang community.
 
 ## Installing
 
 With a correctly configured Golang environment:
 
 ```
-go get -u github.com/buraksezer/olricdb
+go get -u github.com/buraksezer/olric
 ```
 
 ## Usage
 
-OlricDB is designed to work efficiently with the minimum amount of configuration. So the default configuration should be enough for experimenting:
+Olric is designed to work efficiently with the minimum amount of configuration. So the default configuration should be enough for experimenting:
 
 ```go
-db, err := olricdb.New(nil)
+db, err := olric.New(nil)
 ```
 
-This creates an OlricDB object without running any server at background. In order to run OlricDB, you need to call **Start** method.
+This creates an Olric object without running any server at background. In order to run Olric, you need to call **Start** method.
 
 ```go
 err := db.Start()
@@ -107,7 +107,7 @@ Create a **DMap** object to access the cluster:
 dm := db.NewDMap("my-dmap")
 ```
 
-DMap object has *Put*, *PutEx*, *Get*, *Delete*, *LockWithTimeout*, *Unlock* and *Destroy* methods to access and modify data in OlricDB. 
+DMap object has *Put*, *PutEx*, *Get*, *Delete*, *LockWithTimeout*, *Unlock* and *Destroy* methods to access and modify data in Olric. 
 We may add more methods for finer control but first, I'm willing to stabilize this set of features.
 
 When you want to leave the cluster, just need to call **Shutdown** method:
@@ -198,33 +198,33 @@ err := dm.Destroy()
 
 [memberlist configuration](https://godoc.org/github.com/hashicorp/memberlist#Config) can be tricky and and the default configuration set should be tuned for your environment. A detailed deployment and configuration guide will be prepared before stable release.
 
-Please take a look at [Config section at godoc.org](https://godoc.org/github.com/buraksezer/olricdb#Config)
+Please take a look at [Config section at godoc.org](https://godoc.org/github.com/buraksezer/olric#Config)
 
 Here is a sample configuration for a cluster with two hosts:
 
 ```go
-m1, _ := olricdb.NewMemberlistConfig("local")
+m1, _ := olric.NewMemberlistConfig("local")
 m1.BindAddr = "127.0.0.1"
 m1.BindPort = 5555
-c1 := &olricdb.Config{
+c1 := &olric.Config{
 	Name:          "127.0.0.1:3535", // Unique in the cluster and used by HTTP server.
 	Peers:         []string{"127.0.0.1:5656"},
 	MemberlistCfg: m1,
 }
 
-m2, _ := olricdb.NewMemberlistConfig("local")
+m2, _ := olric.NewMemberlistConfig("local")
 m2.BindAddr = "127.0.0.1"
 m2.BindPort = 5656
-c2 := &olricdb.Config{
+c2 := &olric.Config{
 	Name:          "127.0.0.1:3636",
 	Peers:         []string{"127.0.0.1:5555"},
 	MemberlistCfg: m2,
 }
 
-db1, err := olricdb.New(c1)
+db1, err := olric.New(c1)
 // Check error
 
-db2, err := olricdb.New(c2)
+db2, err := olric.New(c2)
 // Check error
 
 // Call Start method for db1 and db2 in a seperate goroutine.
@@ -234,18 +234,18 @@ db2, err := olricdb.New(c2)
 
 ### Overview
 
-OlricDB uses:
+Olric uses:
 
 * [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for cluster membership and failure detection,
 * [buraksezer/consistent](https://github.com/buraksezer/consistent) for consistent hashing and load balancing,
 * [net/http](https://golang.org/pkg/net/http/) as transport layer,
 * [encoding/gob](https://golang.org/pkg/encoding/gob/) for serialization.
 
-OlricDB distributes data among partitions. Every partition is owned by a cluster member and may has one or more backup for redundancy. 
+Olric distributes data among partitions. Every partition is owned by a cluster member and may has one or more backup for redundancy. 
 When you read or write a map entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a
 particular data entry in a stable cluster.
 
-In order to find the partition which the key belongs to, OlricDB hashes the key and mod it with the number of partitions:
+In order to find the partition which the key belongs to, Olric hashes the key and mod it with the number of partitions:
 
 ```
 partID = MOD(hash result, partition count)
@@ -264,7 +264,7 @@ When a new cluster is created, one of the instances elected as the **cluster coo
 Members propagates their birthdate(Unix timestamp in nanoseconds) to the cluster. The coordinator is the oldest member in the cluster.
 If the coordinator leaves the cluster, the second oldest member elected as the coordinator.
 
-OlricDB has a component called **fsck** which is responsible for keeping underlying data structures consistent:
+Olric has a component called **fsck** which is responsible for keeping underlying data structures consistent:
 
 * Works on every node,
 * When a node joins or leaves, the cluster coordinator pushes the new partition table. Then, fsck goroutine runs immediately and moves the partitions and backups to their new hosts,
@@ -283,17 +283,17 @@ the data remains available on the previous owners. DMap methods use this list to
 
 *Please note that, multiple partition owner is an undesirable situation and the fsck component is designed to fix that in a short time.*
 
-OlricDB uses HTTP as transport layer. It's suitable to transfer small messages between servers. **[HTTP/2](https://hpbn.co/http2/) is highly
+Olric uses HTTP as transport layer. It's suitable to transfer small messages between servers. **[HTTP/2](https://hpbn.co/http2/) is highly
 recommended for production use** because it uses a single TCP socket to deliver multiple requests and responses in parallel.
 
-When you call **Start** method of OlricDB, it starts an HTTP server at background which can be configured by the user via **Config** struct.
+When you call **Start** method of Olric, it starts an HTTP server at background which can be configured by the user via **Config** struct.
 
 ### Consistency and Replication Model
 
-[OlricDB is an AP product](https://en.wikipedia.org/wiki/CAP_theorem), which employs the combination of primary-copy and [optimistic replication](https://en.wikipedia.org/wiki/Optimistic_replication) techniques. With optimistic replication, when the partition owner receives a write or delete 
+[Olric is an AP product](https://en.wikipedia.org/wiki/CAP_theorem), which employs the combination of primary-copy and [optimistic replication](https://en.wikipedia.org/wiki/Optimistic_replication) techniques. With optimistic replication, when the partition owner receives a write or delete 
 operation for a key, applies it locally, and propagates it to backup owners.
 
-This technique enables OlricDB clusters to offer high throughput. However, due to temporary situations in the system, such as network
+This technique enables Olric clusters to offer high throughput. However, due to temporary situations in the system, such as network
 failure, backup owners can miss some updates and diverge from the primary owner. If a partition owner crashes while there is an
 inconsistency between itself and the backups, strong consistency of the data can be lost.
 
@@ -307,7 +307,7 @@ An anti-entropy system has been planned to deal with inconsistencies in DMaps.
 
 ### Eviction
 
-OlricDB only implements TTL eviction policy. It shares the same algorithm with [Redis](https://redis.io/commands/expire#appendix-redis-expires):
+Olric only implements TTL eviction policy. It shares the same algorithm with [Redis](https://redis.io/commands/expire#appendix-redis-expires):
 
 > Periodically Redis tests a few keys at random among keys with an expire set. All the keys that are already expired are deleted from the keyspace.
 >
@@ -319,7 +319,7 @@ OlricDB only implements TTL eviction policy. It shares the same algorithm with [
 >
 > This is a trivial probabilistic algorithm, basically the assumption is that our sample is representative of the whole key space, and we continue to expire until the percentage of keys that are likely to be expired is under 25%
 
-When a client tries to access a key, OlricDB returns `ErrKeyNotFound` if the key is found to be timed out. A background task evicts keys with the algorithm described above.
+When a client tries to access a key, Olric returns `ErrKeyNotFound` if the key is found to be timed out. A background task evicts keys with the algorithm described above.
 
 LRU eviction policy implementation has been planned.
 
@@ -334,11 +334,11 @@ Please note that the lock implementation has no backup. So if the node, which th
 
 ## Client
 
-OlricDB is mainly designed to be used as an embedded [DHT](https://en.wikipedia.org/wiki/Distributed_hash_table). So if you are running long-lived servers,
-OlricDB is pretty suitable to share some transient, approximate, fast-changing data between them. What if you want to access the cluster in a short-lived
-process? Fortunately, OlricDB has a simple HTTP API which can be used to access the cluster within any environment. It will be documented soon.
+Olric is mainly designed to be used as an embedded [DHT](https://en.wikipedia.org/wiki/Distributed_hash_table). So if you are running long-lived servers,
+Olric is pretty suitable to share some transient, approximate, fast-changing data between them. What if you want to access the cluster in a short-lived
+process? Fortunately, Olric has a simple HTTP API which can be used to access the cluster within any environment. It will be documented soon.
 
-A Golang client is already prepared to access and modify DMaps from outside. [Here is the documentation](https://godoc.org/github.com/buraksezer/olricdb/client).
+A Golang client is already prepared to access and modify DMaps from outside. [Here is the documentation](https://godoc.org/github.com/buraksezer/olric/client).
 
 ## Sample Code
 
@@ -355,7 +355,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/buraksezer/olricdb"
+	"github.com/buraksezer/olric"
 )
 
 type customType struct {
@@ -364,10 +364,10 @@ type customType struct {
 }
 
 func main() {
-	// This creates a single-node OlricDB cluster. It's good enough for experimenting.
-	db, err := olricdb.New(nil)
+	// This creates a single-node Olric cluster. It's good enough for experimenting.
+	db, err := olric.New(nil)
 	if err != nil {
-		log.Fatalf("Failed to create OlricDB object: %v", err)
+		log.Fatalf("Failed to create Olric object: %v", err)
 	}
 
 	go func() {
@@ -403,7 +403,7 @@ func main() {
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err = db.Shutdown(ctx)
 	if err != nil {
-		log.Printf("Failed to shutdown OlricDB: %v", err)
+		log.Printf("Failed to shutdown Olric: %v", err)
 	}
 }
 ```
@@ -414,16 +414,16 @@ func main() {
 * Some parts of FSCK implementation is missing: It currently doesn't repair failed backups,
 * Design & write benchmarks,
 * Document the external HTTP API,
-* Build a website for OlricDB and create extensive documentation.
+* Build a website for Olric and create extensive documentation.
 
 ## Caveats
 
-OlricDB uses Golang's built-in map. It's known that the built-in map has problems with the GC:
+Olric uses Golang's built-in map. It's known that the built-in map has problems with the GC:
 
 * [Go GC and maps with pointers](https://www.komu.engineer/blogs/go-gc-maps)
 * [GC is bad but you shouldn’t feel bad](https://syslog.ravelin.com/gc-is-bad-and-you-should-feel-bad-e9bdd9324f0)
 
-OlricDB already uses `map[uint64][]byte` as underlying data structure. It should work fine for most of the cases.
+Olric already uses `map[uint64][]byte` as underlying data structure. It should work fine for most of the cases.
 
 I have implemented an off-heap hash table with [mmap](http://man7.org/linux/man-pages/man2/mmap.2.html). We may add an option to use it in the future but 
 my implementation needs too much effort to be used in production.

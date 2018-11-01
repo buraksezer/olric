@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"math/rand"
@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-func (db *OlricDB) evictKeysAtBackground() {
+func (db *Olric) evictKeysAtBackground() {
 	defer db.wg.Done()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -35,7 +35,7 @@ func (db *OlricDB) evictKeysAtBackground() {
 	}
 }
 
-func (db *OlricDB) evictKeys() {
+func (db *Olric) evictKeys() {
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.partitions[partID]
 
@@ -56,7 +56,7 @@ func (db *OlricDB) evictKeys() {
 	wg.Wait()
 }
 
-func (db *OlricDB) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *sync.WaitGroup) {
+func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *sync.WaitGroup) {
 	/*
 		1- Test 20 random keys from the set of keys with an associated expire.
 		2- Delete all the keys found expired.

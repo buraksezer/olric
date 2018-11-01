@@ -1,4 +1,4 @@
-package olricdb
+package olric
 
 // Slightly modified version of https://github.com/moby/moby/tree/master/pkg/locker
 

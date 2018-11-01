@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"bytes"
@@ -48,7 +48,7 @@ func getRandomAddr() (string, error) {
 	return l.Addr().String(), nil
 }
 
-func newTestOlricDB(peers []string, mc *memberlist.Config) (*OlricDB, error) {
+func newTestOlric(peers []string, mc *memberlist.Config) (*Olric, error) {
 	addr, err := getRandomAddr()
 	if err != nil {
 		return nil, err
@@ -87,28 +87,28 @@ func newTestOlricDB(peers []string, mc *memberlist.Config) (*OlricDB, error) {
 	return r, nil
 }
 
-func newOlricDBWithCustomMemberlist(peers []string) (*OlricDB, error) {
+func newOlricWithCustomMemberlist(peers []string) (*Olric, error) {
 	mc := memberlist.DefaultLocalConfig()
 	mc.IndirectChecks = 0
 	mc.SuspicionMult = 1
 	mc.TCPTimeout = 50 * time.Millisecond
 	mc.ProbeInterval = 10 * time.Millisecond
-	return newTestOlricDB(peers, mc)
+	return newTestOlric(peers, mc)
 }
 
-func newOlricDB(peers []string) (*OlricDB, error) {
-	return newTestOlricDB(peers, nil)
+func newOlric(peers []string) (*Olric, error) {
+	return newTestOlric(peers, nil)
 }
 
 func TestDMap_Standalone(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -141,14 +141,14 @@ func TestDMap_Standalone(t *testing.T) {
 }
 
 func TestDMap_NilValue(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -180,14 +180,14 @@ func TestDMap_NilValue(t *testing.T) {
 }
 
 func TestDMap_NilValueWithTwoMembers(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -200,14 +200,14 @@ func TestDMap_NilValueWithTwoMembers(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -226,26 +226,26 @@ func TestDMap_NilValueWithTwoMembers(t *testing.T) {
 }
 
 func TestDMap_Put(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -270,14 +270,14 @@ func TestDMap_Put(t *testing.T) {
 }
 
 func TestDMap_PutLookup(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -293,14 +293,14 @@ func TestDMap_PutLookup(t *testing.T) {
 	r1.fsckMx.Lock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -331,26 +331,26 @@ func TestDMap_PutLookup(t *testing.T) {
 }
 
 func TestDMap_Get(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -376,26 +376,26 @@ func TestDMap_Get(t *testing.T) {
 }
 
 func TestDMap_Delete(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -424,14 +424,14 @@ func TestDMap_Delete(t *testing.T) {
 }
 
 func TestDMap_GetLookup(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -447,14 +447,14 @@ func TestDMap_GetLookup(t *testing.T) {
 	defer r1.fsckMx.Unlock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -471,14 +471,14 @@ func TestDMap_GetLookup(t *testing.T) {
 }
 
 func TestDMap_DeleteLookup(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -498,14 +498,14 @@ func TestDMap_DeleteLookup(t *testing.T) {
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -528,26 +528,26 @@ func TestDMap_DeleteLookup(t *testing.T) {
 }
 
 func TestDMap_PruneHosts(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -561,19 +561,19 @@ func TestDMap_PruneHosts(t *testing.T) {
 	}
 
 	peers = []string{r1.discovery.localNode().Address(), r2.discovery.localNode().Address()}
-	r3, err := newOlricDB(peers)
+	r3, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r3.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
 
-	instances := []*OlricDB{r1, r2, r3}
+	instances := []*Olric{r1, r2, r3}
 	for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
 		for _, db := range instances {
 			part := db.partitions[partID]
@@ -587,26 +587,26 @@ func TestDMap_PruneHosts(t *testing.T) {
 }
 
 func TestDMap_Destroy(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -634,38 +634,38 @@ func TestDMap_Destroy(t *testing.T) {
 }
 
 func TestDMap_CrashServer(t *testing.T) {
-	r1, err := newOlricDBWithCustomMemberlist(nil)
+	r1, err := newOlricWithCustomMemberlist(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDBWithCustomMemberlist(peers)
+	r2, err := newOlricWithCustomMemberlist(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers = append(peers, r2.discovery.localNode().Address())
-	r3, err := newOlricDBWithCustomMemberlist(peers)
+	r3, err := newOlricWithCustomMemberlist(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r3.Shutdown(context.Background())
 		if err != nil {
-			r3.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r3.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -682,7 +682,7 @@ func TestDMap_CrashServer(t *testing.T) {
 	events := r2.discovery.subscribeNodeEvents()
 	err = r1.Shutdown(context.Background())
 	if err != nil {
-		t.Fatalf("Failed to shutdown OlricDB: %v", err)
+		t.Fatalf("Failed to shutdown Olric: %v", err)
 	}
 	<-events
 	// Remove from consistent hash table, otherwise partition distributing algorithm is broken
@@ -700,26 +700,26 @@ func TestDMap_CrashServer(t *testing.T) {
 }
 
 func TestDMap_PutEx(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -741,26 +741,26 @@ func TestDMap_PutEx(t *testing.T) {
 }
 
 func TestDMap_TTLEviction(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -778,7 +778,7 @@ func TestDMap_TTLEviction(t *testing.T) {
 		r2.evictKeys()
 	}
 	length := 0
-	for _, ins := range []*OlricDB{r1, r2} {
+	for _, ins := range []*Olric{r1, r2} {
 		for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
 			part := ins.partitions[partID]
 			part.m.Range(func(k, v interface{}) bool {
@@ -796,26 +796,26 @@ func TestDMap_TTLEviction(t *testing.T) {
 }
 
 func TestDMap_DeleteStaleDMaps(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -845,7 +845,7 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		dc = 0
 		for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
-			for _, instance := range []*OlricDB{r1, r2} {
+			for _, instance := range []*Olric{r1, r2} {
 				part := instance.partitions[partID]
 				dc += atomic.LoadInt32(&part.count)
 				bpart := instance.backups[partID]
@@ -863,14 +863,14 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 }
 
 func TestDMap_PutPurgeOldVersions(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	dm := r1.NewDMap("mymap")
@@ -886,14 +886,14 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 	defer r1.fsckMx.Unlock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -906,7 +906,7 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 		}
 	}
 	// The outdated values on secondary owners should be deleted.
-	for _, ins := range []*OlricDB{r1, r2} {
+	for _, ins := range []*Olric{r1, r2} {
 		for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
 			part := ins.partitions[partID]
 			part.RLock()

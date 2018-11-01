@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"context"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (db *OlricDB) findLockKey(hkey uint64, name, key string) (host, error) {
+func (db *Olric) findLockKey(hkey uint64, name, key string) (host, error) {
 	part := db.getPartition(hkey)
 	part.RLock()
 	defer part.RUnlock()
@@ -60,7 +60,7 @@ func (db *OlricDB) findLockKey(hkey uint64, name, key string) (host, error) {
 }
 
 // Wait until the timeout is exceeded and background and release the key if it's still locked.
-func (db *OlricDB) waitLockForTimeout(dm *dmap, key string, timeout time.Duration) {
+func (db *Olric) waitLockForTimeout(dm *dmap, key string, timeout time.Duration) {
 	defer db.wg.Done()
 	unlockCh := dm.locker.unlockNotifier(key)
 	select {
@@ -79,7 +79,7 @@ func (db *OlricDB) waitLockForTimeout(dm *dmap, key string, timeout time.Duratio
 	}
 }
 
-func (db *OlricDB) lockKey(hkey uint64, name, key string, timeout time.Duration) error {
+func (db *Olric) lockKey(hkey uint64, name, key string, timeout time.Duration) error {
 	dm := db.getDMap(name, hkey)
 	if dm.locker.check(key) {
 		dm.locker.lock(key)
@@ -114,7 +114,7 @@ func (db *OlricDB) lockKey(hkey uint64, name, key string, timeout time.Duration)
 	return nil
 }
 
-func (db *OlricDB) lockWithTimeout(name, key string, timeout time.Duration) error {
+func (db *Olric) lockWithTimeout(name, key string, timeout time.Duration) error {
 	member, hkey, err := db.locateKey(name, key)
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (dm *DMap) LockWithTimeout(key string, timeout time.Duration) error {
 	return dm.db.lockWithTimeout(dm.name, key, timeout)
 }
 
-func (db *OlricDB) unlockKey(hkey uint64, name, key string) error {
+func (db *Olric) unlockKey(hkey uint64, name, key string) error {
 	owner, err := db.findLockKey(hkey, name, key)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func (db *OlricDB) unlockKey(hkey uint64, name, key string) error {
 	return dm.locker.unlock(key)
 }
 
-func (db *OlricDB) unlock(name, key string) error {
+func (db *Olric) unlock(name, key string) error {
 	<-db.bcx.Done()
 	if db.bcx.Err() == context.DeadlineExceeded {
 		return ErrOperationTimeout
@@ -185,7 +185,7 @@ func (dm *DMap) Unlock(key string) error {
 	return dm.db.unlock(dm.name, key)
 }
 
-func (db *OlricDB) exLockWithTimeoutOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exLockWithTimeoutOperation(req *protocol.Message) *protocol.Message {
 	ttl := req.Extra.(protocol.LockWithTimeoutExtra).TTL
 	err := db.lockWithTimeout(req.DMap, req.Key, time.Duration(ttl))
 	if err != nil {
@@ -194,7 +194,7 @@ func (db *OlricDB) exLockWithTimeoutOperation(req *protocol.Message) *protocol.M
 	return req.Success()
 }
 
-func (db *OlricDB) exUnlockOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exUnlockOperation(req *protocol.Message) *protocol.Message {
 	err := db.unlock(req.DMap, req.Key)
 	if err == ErrNoSuchLock {
 		return req.Error(protocol.StatusNoSuchLock, "")
@@ -205,7 +205,7 @@ func (db *OlricDB) exUnlockOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
-func (db *OlricDB) findLockOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) findLockOperation(req *protocol.Message) *protocol.Message {
 	hkey := db.getHKey(req.DMap, req.Key)
 
 	dm := db.getDMap(req.DMap, hkey)
@@ -221,7 +221,7 @@ func (db *OlricDB) findLockOperation(req *protocol.Message) *protocol.Message {
 	return req.Error(protocol.StatusNoSuchLock, "")
 }
 
-func (db *OlricDB) unlockPrevOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) unlockPrevOperation(req *protocol.Message) *protocol.Message {
 	key := req.Key
 	hkey := db.getHKey(req.DMap, key)
 	dm := db.getDMap(req.DMap, hkey)
@@ -235,7 +235,7 @@ func (db *OlricDB) unlockPrevOperation(req *protocol.Message) *protocol.Message 
 	return req.Success()
 }
 
-func (db *OlricDB) lockPrevOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) lockPrevOperation(req *protocol.Message) *protocol.Message {
 	key := req.Key
 	hkey := db.getHKey(req.DMap, key)
 	dm := db.getDMap(req.DMap, hkey)

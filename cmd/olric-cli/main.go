@@ -23,8 +23,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/buraksezer/olricdb"
-	"github.com/buraksezer/olricdb/cmd/olricdb-cli/cli"
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/cmd/olric-cli/cli"
 )
 
 const (
@@ -32,10 +32,10 @@ const (
 	defaultAddr       string = "127.0.0.1:3320"
 )
 
-var usage = `olricdb-cli is a CLI interface for OlricDB
+var usage = `olric-cli is a CLI interface for Olric
 
 Usage: 
-  olricdb-cli [flags] ...
+  olric-cli [flags] ...
 
 Flags:
   -h -help                      
@@ -54,10 +54,10 @@ Flags:
       Server URI. Default: %s
 
   -t timeout
-      Specifies a time limit for requests and dial made by OlricDB client
+      Specifies a time limit for requests and dial made by Olric client
 
 The Go runtime version %s
-Report bugs to https://github.com/buraksezer/olricdb/issues`
+Report bugs to https://github.com/buraksezer/olric/issues`
 
 var (
 	showHelp    bool
@@ -100,7 +100,7 @@ func main() {
 	}
 
 	if showVersion {
-		fmt.Printf("olricdb-cli %s with runtime %s\n", olricdb.ReleaseVersion, runtime.Version())
+		fmt.Printf("olric-cli %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
 		msg := fmt.Sprintf(usage, defaultSerializer, defaultAddr, runtime.Version())
@@ -110,11 +110,11 @@ func main() {
 
 	c, err := cli.New(addr, insecure, serializer, timeout)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] Failed to create olricdb-cli instance: %v", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] Failed to create olric-cli instance: %v", err)
 		os.Exit(1)
 	}
 	if err := c.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] olricdb-cli has returned an error: %v", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] olric-cli has returned an error: %v", err)
 		os.Exit(1)
 	}
 }

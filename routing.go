@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/hashicorp/memberlist"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,7 +48,7 @@ func calcMaxBackupCount(backupCount, memCount int) int {
 	return backupCount
 }
 
-func (db *OlricDB) processNodeEvent(event memberlist.NodeEvent) {
+func (db *Olric) processNodeEvent(event memberlist.NodeEvent) {
 	if event.Event == memberlist.NodeJoin {
 		mt, _ := db.discovery.DecodeMeta(event.Node.Meta)
 		member := host{
@@ -65,7 +65,7 @@ func (db *OlricDB) processNodeEvent(event memberlist.NodeEvent) {
 	}
 }
 
-func (db *OlricDB) distributeBackups(partID uint64, rt routing, backupCount int) {
+func (db *Olric) distributeBackups(partID uint64, rt routing, backupCount int) {
 	backups, err := db.consistent.GetClosestNForPartition(int(partID), backupCount)
 	if err != nil {
 		db.logger.Printf("[ERROR] Failed to calculate backups for partID: %d: %v", partID, err)
@@ -148,7 +148,7 @@ func (db *OlricDB) distributeBackups(partID uint64, rt routing, backupCount int)
 	data.Backups = bpart.owners
 }
 
-func (db *OlricDB) distributePrimaryCopies(partID uint64, rt routing) {
+func (db *Olric) distributePrimaryCopies(partID uint64, rt routing) {
 	owner := db.consistent.GetPartitionOwner(int(partID))
 	part := db.partitions[partID]
 	part.Lock()
@@ -219,7 +219,7 @@ func (db *OlricDB) distributePrimaryCopies(partID uint64, rt routing) {
 	data.Owners = part.owners
 }
 
-func (db *OlricDB) distributePartitions() routing {
+func (db *Olric) distributePartitions() routing {
 	rt := make(routing)
 	memCount := len(db.consistent.GetMembers())
 	backupCount := calcMaxBackupCount(db.config.BackupCount, memCount)
@@ -232,7 +232,7 @@ func (db *OlricDB) distributePartitions() routing {
 	return rt
 }
 
-func (db *OlricDB) updateRoutingOnCluster(rt routing) error {
+func (db *Olric) updateRoutingOnCluster(rt routing) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(rt); err != nil {
 		return err
@@ -256,7 +256,7 @@ func (db *OlricDB) updateRoutingOnCluster(rt routing) error {
 	return g.Wait()
 }
 
-func (db *OlricDB) updateRouting() {
+func (db *Olric) updateRouting() {
 	if !db.discovery.isCoordinator() {
 		return
 	}
@@ -270,7 +270,7 @@ func (db *OlricDB) updateRouting() {
 	db.fsck()
 }
 
-func (db *OlricDB) listenMemberlistEvents(eventCh chan memberlist.NodeEvent) {
+func (db *Olric) listenMemberlistEvents(eventCh chan memberlist.NodeEvent) {
 	defer db.wg.Done()
 	for {
 		select {
@@ -283,7 +283,7 @@ func (db *OlricDB) listenMemberlistEvents(eventCh chan memberlist.NodeEvent) {
 	}
 }
 
-func (db *OlricDB) updateRoutingPeriodically() {
+func (db *Olric) updateRoutingPeriodically() {
 	defer db.wg.Done()
 	// TODO: Make this parametric.
 	ticker := time.NewTicker(5 * time.Minute)
@@ -299,7 +299,7 @@ func (db *OlricDB) updateRoutingPeriodically() {
 	}
 }
 
-func (db *OlricDB) updateRoutingOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message {
 	rt := make(routing)
 	err := gob.NewDecoder(bytes.NewReader(req.Value)).Decode(&rt)
 	if err != nil {
@@ -329,7 +329,7 @@ func (db *OlricDB) updateRoutingOperation(req *protocol.Message) *protocol.Messa
 	return req.Success()
 }
 
-func (db *OlricDB) isPartEmptyOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) isPartEmptyOperation(req *protocol.Message) *protocol.Message {
 	partID := req.Extra.(protocol.IsPartEmptyExtra).PartID
 	part := db.partitions[partID]
 	if atomic.LoadInt32(&part.count) == 0 {
@@ -338,7 +338,7 @@ func (db *OlricDB) isPartEmptyOperation(req *protocol.Message) *protocol.Message
 	return req.Error(protocol.StatusPartNotEmpty, "")
 }
 
-func (db *OlricDB) isBackupEmptyOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) isBackupEmptyOperation(req *protocol.Message) *protocol.Message {
 	partID := req.Extra.(protocol.IsPartEmptyExtra).PartID
 	part := db.backups[partID]
 

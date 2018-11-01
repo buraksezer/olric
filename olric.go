@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olricdb provides distributed, in-memory and embeddable key/value store, used as a database and cache.*/
-package olricdb
+/*Package olric provides distributed, in-memory and embeddable key/value store, used as a database and cache.*/
+package olric
 
 import (
 	"context"
@@ -26,8 +26,8 @@ import (
 	"unsafe"
 
 	"github.com/buraksezer/consistent"
-	"github.com/buraksezer/olricdb/internal/protocol"
-	"github.com/buraksezer/olricdb/internal/transport"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/transport"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/hashicorp/memberlist"
@@ -45,15 +45,15 @@ var (
 	errBackupNotEmpty      = errors.New("backup not empty")
 )
 
-// ReleaseVersion is the current stable version of OlricDB
+// ReleaseVersion is the current stable version of Olric
 const ReleaseVersion string = "0.1.0"
 
 const nilTimeout = 0 * time.Second
 
 var bootstrapTimeoutDuration = 10 * time.Second
 
-// OlricDB represens an member in the cluster. All functions on the OlricDB structure are safe to call concurrently.
-type OlricDB struct {
+// Olric represens an member in the cluster. All functions on the Olric structure are safe to call concurrently.
+type Olric struct {
 	this       host
 	config     *Config
 	logger     *log.Logger
@@ -70,7 +70,7 @@ type OlricDB struct {
 	fsckMx     sync.Mutex
 	routingMx  sync.Mutex
 	server     *transport.Server
-	// To control non-bootstrapped OlricDB instance
+	// To control non-bootstrapped Olric instance
 	bcx     context.Context
 	bcancel context.CancelFunc
 }
@@ -102,19 +102,19 @@ type partition struct {
 // DMap represents a distributed map object.
 type DMap struct {
 	name string
-	db   *OlricDB
+	db   *Olric
 }
 
 // NewDMap creates an returns a new DMap object.
-func (db *OlricDB) NewDMap(name string) *DMap {
+func (db *Olric) NewDMap(name string) *DMap {
 	return &DMap{
 		name: name,
 		db:   db,
 	}
 }
 
-// New creates a new OlricDB object, otherwise returns an error.
-func New(c *Config) (*OlricDB, error) {
+// New creates a new Olric object, otherwise returns an error.
+func New(c *Config) (*Olric, error) {
 	if c == nil {
 		c = &Config{}
 	}
@@ -184,7 +184,7 @@ func New(c *Config) (*OlricDB, error) {
 		MaxConn:     1024, // TODO: Make this configurable.
 	}
 	client := transport.NewClient(cc)
-	db := &OlricDB{
+	db := &Olric{
 		ctx:        ctx,
 		cancel:     cancel,
 		logger:     c.Logger,
@@ -217,7 +217,7 @@ func New(c *Config) (*OlricDB, error) {
 	return db, nil
 }
 
-func (db *OlricDB) prepare() error {
+func (db *Olric) prepare() error {
 	dsc, err := newDiscovery(db.config)
 	if err != nil {
 		return err
@@ -249,7 +249,7 @@ func (db *OlricDB) prepare() error {
 }
 
 // Start starts background servers and joins the cluster.
-func (db *OlricDB) Start() error {
+func (db *Olric) Start() error {
 	errCh := make(chan error, 1)
 	db.wg.Add(1)
 	go func() {
@@ -280,7 +280,7 @@ func (db *OlricDB) Start() error {
 	return <-errCh
 }
 
-func (db *OlricDB) registerOperations() {
+func (db *Olric) registerOperations() {
 	// Put
 	db.server.RegisterOperation(protocol.OpExPut, db.exPutOperation)
 	db.server.RegisterOperation(protocol.OpExPutEx, db.exPutExOperation)
@@ -321,7 +321,7 @@ func (db *OlricDB) registerOperations() {
 }
 
 // Shutdown stops background servers and leaves the cluster.
-func (db *OlricDB) Shutdown(ctx context.Context) error {
+func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
@@ -344,21 +344,21 @@ func (db *OlricDB) Shutdown(ctx context.Context) error {
 	return result
 }
 
-func (db *OlricDB) getPartitionID(hkey uint64) uint64 {
+func (db *Olric) getPartitionID(hkey uint64) uint64 {
 	return hkey % db.config.PartitionCount
 }
 
-func (db *OlricDB) getPartition(hkey uint64) *partition {
+func (db *Olric) getPartition(hkey uint64) *partition {
 	partID := db.getPartitionID(hkey)
 	return db.partitions[partID]
 }
 
-func (db *OlricDB) getBackupPartition(hkey uint64) *partition {
+func (db *Olric) getBackupPartition(hkey uint64) *partition {
 	partID := db.getPartitionID(hkey)
 	return db.backups[partID]
 }
 
-func (db *OlricDB) getBackupPartitionOwners(hkey uint64) []host {
+func (db *Olric) getBackupPartitionOwners(hkey uint64) []host {
 	bpart := db.getBackupPartition(hkey)
 	bpart.RLock()
 	defer bpart.RUnlock()
@@ -366,7 +366,7 @@ func (db *OlricDB) getBackupPartitionOwners(hkey uint64) []host {
 	return owners
 }
 
-func (db *OlricDB) getPartitionOwners(hkey uint64) []host {
+func (db *Olric) getPartitionOwners(hkey uint64) []host {
 	part := db.getPartition(hkey)
 	part.RLock()
 	defer part.RUnlock()
@@ -374,12 +374,12 @@ func (db *OlricDB) getPartitionOwners(hkey uint64) []host {
 	return owners
 }
 
-func (db *OlricDB) getHKey(name, key string) uint64 {
+func (db *Olric) getHKey(name, key string) uint64 {
 	tmp := name + key
 	return db.hasher.Sum64(*(*[]byte)(unsafe.Pointer(&tmp)))
 }
 
-func (db *OlricDB) locateHKey(hkey uint64) (host, error) {
+func (db *Olric) locateHKey(hkey uint64) (host, error) {
 	<-db.bcx.Done()
 	if db.bcx.Err() == context.DeadlineExceeded {
 		return host{}, ErrOperationTimeout
@@ -394,7 +394,7 @@ func (db *OlricDB) locateHKey(hkey uint64) (host, error) {
 	return part.owners[len(part.owners)-1], nil
 }
 
-func (db *OlricDB) locateKey(name, key string) (host, uint64, error) {
+func (db *Olric) locateKey(name, key string) (host, uint64, error) {
 	hkey := db.getHKey(name, key)
 	member, err := db.locateHKey(hkey)
 	if err != nil {
@@ -403,7 +403,7 @@ func (db *OlricDB) locateKey(name, key string) (host, uint64, error) {
 	return member, hkey, nil
 }
 
-func (db *OlricDB) getDMap(name string, hkey uint64) *dmap {
+func (db *Olric) getDMap(name string, hkey uint64) *dmap {
 	part := db.getPartition(hkey)
 	dm, ok := part.m.Load(name)
 	if ok {
@@ -423,7 +423,7 @@ func hostCmp(o1, o2 host) bool {
 	return o1.Name == o2.Name && o1.Birthdate == o2.Birthdate
 }
 
-func (db *OlricDB) getBackupDMap(name string, hkey uint64) *dmap {
+func (db *Olric) getBackupDMap(name string, hkey uint64) *dmap {
 	part := db.getBackupPartition(hkey)
 	dm, ok := part.m.Load(name)
 	if ok {
@@ -435,7 +435,7 @@ func (db *OlricDB) getBackupDMap(name string, hkey uint64) *dmap {
 	return res.(*dmap)
 }
 
-func (db *OlricDB) requestTo(addr string, opcode protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
+func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
 	resp, err := db.client.RequestTo(addr, opcode, req)
 	if err != nil {
 		return nil, err

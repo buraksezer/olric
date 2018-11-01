@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"fmt"
@@ -45,11 +45,11 @@ const (
 	DefaultLogLevel = "DEBUG"
 )
 
-// Config is the configuration for creating a OlricDB instance.
+// Config is the configuration for creating a Olric instance.
 type Config struct {
 	LogLevel string
 	// Name of this node in the cluster. This must be unique in the cluster. If this is not set,
-	// OlricDB will set it to the hostname of the running machine. Example: node1.my-cluster.net
+	// Olric will set it to the hostname of the running machine. Example: node1.my-cluster.net
 	//
 	// Name is also used by the TCP server as Addr. It should be an IP adress or domain name of the server.
 	Name string
@@ -100,17 +100,17 @@ type Config struct {
 	// at the same time.
 	Logger *log.Logger
 
-	// MemberlistConfig is the memberlist configuration that OlricDB will
+	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some
-	// fields in the MemberlistConfig will be overwritten by OlricDB no
+	// fields in the MemberlistConfig will be overwritten by Olric no
 	// matter what:
 	//
 	//   * Name - This will always be set to the same as the NodeName
 	//     in this configuration.
 	//
-	//   * Events - OlricDB uses a custom event delegate.
+	//   * Events - Olric uses a custom event delegate.
 	//
-	//   * Delegate - OlricDB uses a custom delegate.
+	//   * Delegate - Olric uses a custom delegate.
 	//
 	// You have to use NewMemberlistConfig to create a new one.
 	// Then, you may need to modify it to tune for your environment.

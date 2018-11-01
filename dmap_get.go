@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
-import "github.com/buraksezer/olricdb/internal/protocol"
+import "github.com/buraksezer/olric/internal/protocol"
 
-func (db *OlricDB) unmarshalValue(rawval []byte) (interface{}, error) {
+func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
 	var value interface{}
 	err := db.serializer.Unmarshal(rawval, &value)
 	if err != nil {
@@ -28,7 +28,7 @@ func (db *OlricDB) unmarshalValue(rawval []byte) (interface{}, error) {
 	return value, nil
 }
 
-func (db *OlricDB) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
+func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 	dm := db.getDMap(name, hkey)
 	dm.RLock()
 	defer dm.RUnlock()
@@ -82,7 +82,7 @@ func (db *OlricDB) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 	return nil, ErrKeyNotFound
 }
 
-func (db *OlricDB) get(name, key string) ([]byte, error) {
+func (db *Olric) get(name, key string) ([]byte, error) {
 	member, hkey, err := db.locateKey(name, key)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 	return dm.db.unmarshalValue(rawval)
 }
 
-func (db *OlricDB) exGetOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exGetOperation(req *protocol.Message) *protocol.Message {
 	value, err := db.get(req.DMap, req.Key)
 	if err == ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
@@ -125,7 +125,7 @@ func (db *OlricDB) exGetOperation(req *protocol.Message) *protocol.Message {
 	return resp
 }
 
-func (db *OlricDB) getBackupOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) getBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
 	dm := db.getBackupDMap(req.DMap, hkey)
@@ -144,7 +144,7 @@ func (db *OlricDB) getBackupOperation(req *protocol.Message) *protocol.Message {
 	return resp
 }
 
-func (db *OlricDB) getPrevOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) getPrevOperation(req *protocol.Message) *protocol.Message {
 	hkey := db.getHKey(req.DMap, req.Key)
 	part := db.getPartition(hkey)
 	tmp, ok := part.m.Load(req.DMap)

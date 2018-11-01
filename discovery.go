@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"bytes"
@@ -205,7 +205,7 @@ func (d *discovery) handleEvent(event memberlist.NodeEvent) {
 			ch <- event
 			continue
 		}
-		// Overwrite it. In olricdb, NodeUpdate evaluated as NodeLeave
+		// Overwrite it. In olric, NodeUpdate evaluated as NodeLeave
 		event.Event = memberlist.NodeLeave
 		ch <- event
 		// Create a Join event from copied event.

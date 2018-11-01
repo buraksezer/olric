@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"fmt"
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 )
 
-func (db *OlricDB) purgeOldVersions(hkey uint64, name, key string) {
+func (db *Olric) purgeOldVersions(hkey uint64, name, key string) {
 	owners := db.getPartitionOwners(hkey)
 	// Remove the key/value pair on the previous owners
 	owners = owners[:len(owners)-1]
@@ -47,7 +47,7 @@ func (db *OlricDB) purgeOldVersions(hkey uint64, name, key string) {
 	}
 }
 
-func (db *OlricDB) putKeyVal(hkey uint64, name, key string, value []byte, timeout time.Duration) error {
+func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout time.Duration) error {
 	dm := db.getDMap(name, hkey)
 	dm.Lock()
 	defer dm.Unlock()
@@ -84,7 +84,7 @@ func (db *OlricDB) putKeyVal(hkey uint64, name, key string, value []byte, timeou
 	return nil
 }
 
-func (db *OlricDB) put(name, key string, value []byte, timeout time.Duration) error {
+func (db *Olric) put(name, key string, value []byte, timeout time.Duration) error {
 	member, hkey, err := db.locateKey(name, key)
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 	return dm.PutEx(key, value, nilTimeout)
 }
 
-func (db *OlricDB) exPutOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exPutOperation(req *protocol.Message) *protocol.Message {
 	err := db.put(req.DMap, req.Key, req.Value, nilTimeout)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
@@ -133,7 +133,7 @@ func (db *OlricDB) exPutOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
-func (db *OlricDB) exPutExOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exPutExOperation(req *protocol.Message) *protocol.Message {
 	ttl := req.Extra.(protocol.PutExExtra).TTL
 	err := db.put(req.DMap, req.Key, req.Value, time.Duration(ttl))
 	if err != nil {
@@ -142,7 +142,7 @@ func (db *OlricDB) exPutExOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
-func (db *OlricDB) putBackupOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
 	dm := db.getBackupDMap(req.DMap, hkey)
@@ -164,7 +164,7 @@ func (db *OlricDB) putBackupOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
-func (db *OlricDB) putKeyValBackup(hkey uint64, name, key string, value []byte, timeout time.Duration) error {
+func (db *Olric) putKeyValBackup(hkey uint64, name, key string, value []byte, timeout time.Duration) error {
 	memCount := db.discovery.numMembers()
 	backupCount := calcMaxBackupCount(db.config.BackupCount, memCount)
 	backupOwners := db.getBackupPartitionOwners(hkey)

@@ -26,7 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )

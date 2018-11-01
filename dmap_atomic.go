@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"fmt"
 	"reflect"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (db *OlricDB) atomicIncrDecr(name, key, opr string, delta int) (int, error) {
+func (db *Olric) atomicIncrDecr(name, key, opr string, delta int) (int, error) {
 	err := db.lockWithTimeout(name, key, time.Minute)
 	if err != nil {
 		return 0, err
@@ -86,7 +86,7 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 	return dm.db.atomicIncrDecr(dm.name, key, "decr", delta)
 }
 
-func (db *OlricDB) getPut(name, key string, value []byte) ([]byte, error) {
+func (db *Olric) getPut(name, key string, value []byte) ([]byte, error) {
 	err := db.lockWithTimeout(name, key, time.Minute)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 	return oldval, nil
 }
 
-func (db *OlricDB) exIncrDecrOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exIncrDecrOperation(req *protocol.Message) *protocol.Message {
 	var delta interface{}
 	err := db.serializer.Unmarshal(req.Value, &delta)
 	if err != nil {
@@ -158,7 +158,7 @@ func (db *OlricDB) exIncrDecrOperation(req *protocol.Message) *protocol.Message 
 	return resp
 }
 
-func (db *OlricDB) exGetPutOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) exGetPutOperation(req *protocol.Message) *protocol.Message {
 	oldval, err := db.getPut(req.DMap, req.Key, req.Value)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)

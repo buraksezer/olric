@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package cli is the OlricDB command line interface, a simple program that allows
-to send commands to OlricDB, and read the replies sent by the server, directly from
+/*Package cli is the Olric command line interface, a simple program that allows
+to send commands to Olric, and read the replies sent by the server, directly from
 the terminal.*/
 package cli
 
@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buraksezer/olricdb"
-	"github.com/buraksezer/olricdb/client"
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/client"
 	"github.com/chzyer/readline"
 )
 
@@ -40,13 +40,13 @@ type CLI struct {
 
 func New(addr string, insecureSkipVerify bool, serializer, timeout string) (*CLI, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var s olricdb.Serializer
+	var s olric.Serializer
 	if serializer == "json" {
-		s = olricdb.NewJSONSerializer()
+		s = olric.NewJSONSerializer()
 	} else if serializer == "msgpack" {
-		s = olricdb.NewMsgpackSerializer()
+		s = olric.NewMsgpackSerializer()
 	} else if serializer == "gob" {
-		s = olricdb.NewGobSerializer()
+		s = olric.NewGobSerializer()
 	} else {
 		return nil, fmt.Errorf("invalid serializer: %s", serializer)
 	}
@@ -115,7 +115,7 @@ func (c *CLI) Start() error {
 	var historyFile string
 	home := os.Getenv("HOME")
 	if home != "" {
-		historyFile = path.Join(home, ".olricdbcli_history")
+		historyFile = path.Join(home, ".olriccli_history")
 	} else {
 		c.print("[WARN] $HOME is empty.\n")
 	}
@@ -244,7 +244,7 @@ func (c *CLI) Start() error {
 				}
 			}
 			value, err := c.client.Get(dmap, key)
-			if err == olricdb.ErrKeyNotFound {
+			if err == olric.ErrKeyNotFound {
 				c.print("nil\n")
 				continue
 			}

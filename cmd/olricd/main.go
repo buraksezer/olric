@@ -24,11 +24,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/buraksezer/olricdb"
-	"github.com/buraksezer/olricdb/cmd/olricd/server"
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/cmd/olricd/server"
 )
 
-var usage = `olricd is the default standalone server for OlricDB
+var usage = `olricd is the default standalone server for Olric
 
 Usage: 
   olricd [flags] ...
@@ -45,7 +45,7 @@ Flags:
       Set OLRICD_CONFIG to overwrite it.
 
 The Go runtime version %s
-Report bugs to https://github.com/buraksezer/olricdb/issues`
+Report bugs to https://github.com/buraksezer/olric/issues`
 
 var (
 	cpath       string
@@ -74,7 +74,7 @@ func main() {
 	}
 
 	if showVersion {
-		fmt.Printf("olricd %s with runtime %s\n", olricdb.ReleaseVersion, runtime.Version())
+		fmt.Printf("olricd %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
 		msg := fmt.Sprintf(usage, runtime.Version())

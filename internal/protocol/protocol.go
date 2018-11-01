@@ -22,7 +22,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/buraksezer/olricdb/internal/bufpool"
+	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/pkg/errors"
 )
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 type dmapbox struct {
@@ -30,7 +30,7 @@ type dmapbox struct {
 	Payload map[uint64]vdata
 }
 
-func (db *OlricDB) moveBackupDMaps(part *partition, backups []host, wg *sync.WaitGroup) {
+func (db *Olric) moveBackupDMaps(part *partition, backups []host, wg *sync.WaitGroup) {
 	defer wg.Done() // local wg for this fsck call
 
 	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too big, the following
@@ -44,7 +44,7 @@ func (db *OlricDB) moveBackupDMaps(part *partition, backups []host, wg *sync.Wai
 	}
 }
 
-func (db *OlricDB) moveDMaps(part *partition, owner host, wg *sync.WaitGroup) {
+func (db *Olric) moveDMaps(part *partition, owner host, wg *sync.WaitGroup) {
 	defer wg.Done() // local wg for this fsck call
 	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too big, the following
 	// code may cause CPU starvation.
@@ -55,7 +55,7 @@ func (db *OlricDB) moveDMaps(part *partition, owner host, wg *sync.WaitGroup) {
 	})
 }
 
-func (db *OlricDB) moveDMap(part *partition, name string, dm *dmap, owner host, wg *sync.WaitGroup) {
+func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg *sync.WaitGroup) {
 	defer wg.Done()
 	dm.Lock()
 	defer dm.Unlock()
@@ -105,7 +105,7 @@ func (db *OlricDB) moveDMap(part *partition, name string, dm *dmap, owner host, 
 	atomic.AddInt32(&part.count, -1)
 }
 
-func (db *OlricDB) mergeDMaps(part *partition, data *dmapbox) {
+func (db *Olric) mergeDMaps(part *partition, data *dmapbox) {
 	tmp, ok := part.m.Load(data.Name)
 	if !ok {
 		dm := &dmap{d: data.Payload}
@@ -126,7 +126,7 @@ func (db *OlricDB) mergeDMaps(part *partition, data *dmapbox) {
 	part.m.Store(data.Name, dm)
 }
 
-func (db *OlricDB) fsck() {
+func (db *Olric) fsck() {
 	db.fsckMx.Lock()
 	defer db.fsckMx.Unlock()
 
@@ -176,7 +176,7 @@ func (db *OlricDB) fsck() {
 	wg.Wait()
 }
 
-func (db *OlricDB) moveBackupDMapOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Message {
 	dbox := &dmapbox{}
 	err := db.serializer.Unmarshal(req.Value, dbox)
 	if err != nil {
@@ -196,7 +196,7 @@ func (db *OlricDB) moveBackupDMapOperation(req *protocol.Message) *protocol.Mess
 	return req.Success()
 }
 
-func (db *OlricDB) moveDMapOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
 	dbox := &dmapbox{}
 	err := db.serializer.Unmarshal(req.Value, dbox)
 	if err != nil {

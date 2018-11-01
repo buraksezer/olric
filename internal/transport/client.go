@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buraksezer/olricdb/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/pool"
 )
 

@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/buraksezer/olricdb"
+	"github.com/buraksezer/olric"
 	memlist "github.com/hashicorp/memberlist"
 )
 
@@ -34,7 +34,7 @@ func newMemberlistConf(c *Config) (*memlist.Config, error) {
 		return nil, err
 	}
 
-	mc, err := olricdb.NewMemberlistConfig(c.Memberlist.Environment)
+	mc, err := olric.NewMemberlistConfig(c.Memberlist.Environment)
 	if err != nil {
 		return nil, err
 	}

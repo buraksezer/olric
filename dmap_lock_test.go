@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olricdb
+package olric
 
 import (
 	"context"
@@ -21,14 +21,14 @@ import (
 )
 
 func TestDMap_Locker_Standalone(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -51,14 +51,14 @@ func TestDMap_Locker_Standalone(t *testing.T) {
 }
 
 func TestDMap_UnlockWithTwoHosts(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -75,14 +75,14 @@ func TestDMap_UnlockWithTwoHosts(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -98,14 +98,14 @@ func TestDMap_UnlockWithTwoHosts(t *testing.T) {
 }
 
 func TestDMap_LockWithTwoHosts(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -118,14 +118,14 @@ func TestDMap_LockWithTwoHosts(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	r1.updateRouting()
@@ -160,14 +160,14 @@ func TestDMap_LockWithTwoHosts(t *testing.T) {
 }
 
 func TestDMap_Locker_LockWithTimeout(t *testing.T) {
-	r, err := newOlricDB(nil)
+	r, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -202,14 +202,14 @@ func TestDMap_Locker_LockWithTimeout(t *testing.T) {
 }
 
 func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -222,14 +222,14 @@ func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
 	}
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -260,14 +260,14 @@ func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
 }
 
 func TestDMap_LockPrevious(t *testing.T) {
-	r1, err := newOlricDB(nil)
+	r1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -283,14 +283,14 @@ func TestDMap_LockPrevious(t *testing.T) {
 	defer r1.fsckMx.Unlock()
 
 	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlricDB(peers)
+	r2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = r2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown OlricDB: %v", err)
+			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 

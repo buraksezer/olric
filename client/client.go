@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package client implements a Golang client to access an OlricDB cluster from outside. */
+/*Package client implements a Golang client to access an Olric cluster from outside. */
 package client
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/buraksezer/olricdb"
-	"github.com/buraksezer/olricdb/internal/protocol"
-	"github.com/buraksezer/olricdb/internal/transport"
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/transport"
 )
 
 // Client implements Go client of Olric's binary protocol and its methods.
 type Client struct {
 	client     *transport.Client
-	serializer olricdb.Serializer
+	serializer olric.Serializer
 }
 
 // Config includes configuration parameters for the Client.
@@ -39,7 +39,7 @@ type Config struct {
 }
 
 // New returns a new Client object. The second parameter is serializer, it can be nil.
-func New(c *Config, s olricdb.Serializer) (*Client, error) {
+func New(c *Config, s olric.Serializer) (*Client, error) {
 	if c == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -47,7 +47,7 @@ func New(c *Config, s olricdb.Serializer) (*Client, error) {
 		return nil, fmt.Errorf("addrs list cannot be empty")
 	}
 	if s == nil {
-		s = olricdb.NewGobSerializer()
+		s = olric.NewGobSerializer()
 	}
 	cc := &transport.ClientConfig{
 		Addrs:       c.Addrs,
@@ -78,7 +78,7 @@ func (c *Client) Get(name, key string) (interface{}, error) {
 		return nil, err
 	}
 	if resp.Status == protocol.StatusKeyNotFound {
-		return nil, olricdb.ErrKeyNotFound
+		return nil, olric.ErrKeyNotFound
 	}
 	var value interface{}
 	err = c.serializer.Unmarshal(resp.Value, &value)
@@ -140,7 +140,7 @@ func (c *Client) Delete(name, key string) error {
 
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
 // it automatically releases the lock. Acquired lock is only for the key in this map. Please note that, before
-// setting a lock for a key, you should set the key with Put method. Otherwise it returns olricdb.ErrKeyNotFound error.
+// setting a lock for a key, you should set the key with Put method. Otherwise it returns olric.ErrKeyNotFound error.
 //
 // It returns immediately if it acquires the lock for the given key. Otherwise, it waits until timeout.
 //
@@ -155,7 +155,7 @@ func (c *Client) LockWithTimeout(name, key string, timeout time.Duration) error 
 	return err
 }
 
-// Unlock releases an acquired lock for the given key. It returns olricdb.ErrNoSuchLock if there is no lock for the given key.
+// Unlock releases an acquired lock for the given key. It returns olric.ErrNoSuchLock if there is no lock for the given key.
 func (c *Client) Unlock(name, key string) error {
 	m := &protocol.Message{
 		DMap: name,
@@ -163,7 +163,7 @@ func (c *Client) Unlock(name, key string) error {
 	}
 	resp, err := c.client.Request(protocol.OpExUnlock, m)
 	if resp.Status == protocol.StatusNoSuchLock {
-		return olricdb.ErrNoSuchLock
+		return olric.ErrNoSuchLock
 	}
 	return err
 }

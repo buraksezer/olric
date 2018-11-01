@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olricdb"
+	"github.com/buraksezer/olric"
 )
 
 var testConfig = &Config{
@@ -47,14 +47,14 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-func newOlricDB() (*olricdb.OlricDB, chan struct{}, error) {
+func newOlric() (*olric.Olric, chan struct{}, error) {
 	port, err := getFreePort()
 	if err != nil {
 		return nil, nil, err
 	}
 	addr := "127.0.0.1:" + strconv.Itoa(port)
-	cfg := &olricdb.Config{Name: addr}
-	db, err := olricdb.New(cfg)
+	cfg := &olric.Config{Name: addr}
+	db, err := olric.New(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -73,7 +73,7 @@ func newOlricDB() (*olricdb.OlricDB, chan struct{}, error) {
 }
 
 func TestClient_Get(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -107,7 +107,7 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_Put(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -142,7 +142,7 @@ func TestClient_Put(t *testing.T) {
 }
 
 func TestClient_PutEx(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -169,13 +169,13 @@ func TestClient_PutEx(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	dm := db.NewDMap(dname)
 	_, err = dm.Get(key)
-	if err != olricdb.ErrKeyNotFound {
+	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }
 
 func TestClient_Delete(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -205,13 +205,13 @@ func TestClient_Delete(t *testing.T) {
 	}
 
 	_, err = c.Get(dname, key)
-	if err != olricdb.ErrKeyNotFound {
+	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
 }
 
 func TestClient_LockWithTimeout(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -248,7 +248,7 @@ func TestClient_LockWithTimeout(t *testing.T) {
 }
 
 func TestClient_Unlock(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -284,7 +284,7 @@ func TestClient_Unlock(t *testing.T) {
 }
 
 func TestClient_Destroy(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -314,13 +314,13 @@ func TestClient_Destroy(t *testing.T) {
 	}
 
 	_, err = c.Get(dname, key)
-	if err != olricdb.ErrKeyNotFound {
+	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
 }
 
 func TestClient_Incr(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -329,7 +329,7 @@ func TestClient_Incr(t *testing.T) {
 		defer cancel()
 		serr := db.Shutdown(ctx)
 		if serr != nil {
-			log.Printf("[WARN] OlricDB Shutdown returned an error: %v", serr)
+			log.Printf("[WARN] Olric Shutdown returned an error: %v", serr)
 		}
 		<-done
 	}()
@@ -375,7 +375,7 @@ func TestClient_Incr(t *testing.T) {
 }
 
 func TestClient_Decr(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -384,7 +384,7 @@ func TestClient_Decr(t *testing.T) {
 		defer cancel()
 		serr := db.Shutdown(ctx)
 		if serr != nil {
-			log.Printf("[WARN] OlricDB Shutdown returned an error: %v", serr)
+			log.Printf("[WARN] Olric Shutdown returned an error: %v", serr)
 		}
 		<-done
 	}()
@@ -430,7 +430,7 @@ func TestClient_Decr(t *testing.T) {
 }
 
 func TestClient_GetPut(t *testing.T) {
-	db, done, err := newOlricDB()
+	db, done, err := newOlric()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -439,7 +439,7 @@ func TestClient_GetPut(t *testing.T) {
 		defer cancel()
 		serr := db.Shutdown(ctx)
 		if serr != nil {
-			log.Printf("[WARN] OlricDB Shutdown returned an error: %v", serr)
+			log.Printf("[WARN] Olric Shutdown returned an error: %v", serr)
 		}
 		<-done
 	}()

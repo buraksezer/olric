@@ -1,4 +1,4 @@
-package olricdb
+package olric
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-// Serializer interface responsible for encoding/decoding values to transmit over network between OlricDB nodes.
+// Serializer interface responsible for encoding/decoding values to transmit over network between Olric nodes.
 type Serializer interface {
 	// Marshal encodes v and returns a byte slice and possible error.
 	Marshal(v interface{}) ([]byte, error)
