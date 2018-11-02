@@ -90,14 +90,14 @@ func TestClient_Get(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
-	dm := db.NewDMap(dname)
+	name := "mymap"
+	dm := db.NewDMap(name)
 	key, value := "my-key", "my-value"
 	err = dm.Put(key, value)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	val, err := c.Get(dname, key)
+	val, err := c.NewDMap(name).Get(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -124,14 +124,14 @@ func TestClient_Put(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
+	name := "mymap"
 	key, value := "my-key", "my-value"
-	err = c.Put(dname, key, value)
+	err = c.NewDMap(name).Put(key, value)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dm := db.NewDMap(dname)
+	dm := db.NewDMap(name)
 	val, err := dm.Get(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -159,15 +159,15 @@ func TestClient_PutEx(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
+	name := "mymap"
 	key, value := "my-key", "my-value"
-	err = c.PutEx(dname, key, value, 10*time.Millisecond)
+	err = c.NewDMap(name).PutEx(key, value, 10*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	dm := db.NewDMap(dname)
+	dm := db.NewDMap(name)
 	_, err = dm.Get(key)
 	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -192,19 +192,19 @@ func TestClient_Delete(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
+	name := "mymap"
 	key, value := "my-key", "my-value"
-	err = c.Put(dname, key, value)
+	err = c.NewDMap(name).Put(key, value)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.Delete(dname, key)
+	err = c.NewDMap(name).Delete(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	_, err = c.Get(dname, key)
+	_, err = c.NewDMap(name).Get(key)
 	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
@@ -228,19 +228,19 @@ func TestClient_LockWithTimeout(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
+	name := "mymap"
 	key := "my-key"
-	err = c.Put(dname, key, nil)
+	err = c.NewDMap(name).Put(key, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.LockWithTimeout(dname, key, time.Second)
+	err = c.NewDMap(name).LockWithTimeout(key, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dm := db.NewDMap(dname)
+	dm := db.NewDMap(name)
 	err = dm.Unlock(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -265,19 +265,19 @@ func TestClient_Unlock(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
+	name := "mymap"
 	key := "my-key"
-	err = c.Put(dname, key, nil)
+	err = c.NewDMap(name).Put(key, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.LockWithTimeout(dname, key, time.Second)
+	err = c.NewDMap(name).LockWithTimeout(key, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.Unlock(dname, key)
+	err = c.NewDMap(name).Unlock(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -301,19 +301,19 @@ func TestClient_Destroy(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dname := "mymap"
+	name := "mymap"
 	key := "my-key"
-	err = c.Put(dname, key, nil)
+	err = c.NewDMap(name).Put(key, nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.Destroy(dname)
+	err = c.NewDMap(name).Destroy()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	_, err = c.Get(dname, key)
+	_, err = c.NewDMap(name).Get(key)
 	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestClient_Incr(t *testing.T) {
 	}
 
 	key := "incr"
-	dname := "atomic_test"
+	name := "atomic_test"
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 
@@ -348,7 +348,7 @@ func TestClient_Incr(t *testing.T) {
 		defer wg.Done()
 		<-start
 
-		_, ierr := c.Incr(dname, key, 1)
+		_, ierr := c.NewDMap(name).Incr(key, 1)
 		if ierr != nil {
 			log.Printf("[ERROR] Failed to call Incr: %v", ierr)
 			return
@@ -363,7 +363,7 @@ func TestClient_Incr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	res, err := c.Incr(dname, key, 1)
+	res, err := c.NewDMap(name).Incr(key, 1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestClient_Decr(t *testing.T) {
 	}
 
 	key := "incr"
-	dname := "atomic_test"
+	name := "atomic_test"
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 
@@ -403,7 +403,7 @@ func TestClient_Decr(t *testing.T) {
 		defer wg.Done()
 		<-start
 
-		_, ierr := c.Decr(dname, key, 1)
+		_, ierr := c.NewDMap(name).Decr(key, 1)
 		if ierr != nil {
 			log.Printf("[ERROR] Failed to call Decr: %v", ierr)
 			return
@@ -418,7 +418,7 @@ func TestClient_Decr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	res, err := c.Decr(dname, key, 1)
+	res, err := c.NewDMap(name).Decr(key, 1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestClient_GetPut(t *testing.T) {
 	}
 
 	key := "getput"
-	dname := "atomic_test"
+	name := "atomic_test"
 	var total int64
 	var wg sync.WaitGroup
 	var final int64
@@ -460,7 +460,7 @@ func TestClient_GetPut(t *testing.T) {
 		defer wg.Done()
 		<-start
 
-		oldval, ierr := c.GetPut(dname, key, i)
+		oldval, ierr := c.NewDMap(name).GetPut(key, i)
 		if ierr != nil {
 			log.Printf("[ERROR] Failed to call GetPut: %v", ierr)
 			return
@@ -479,7 +479,7 @@ func TestClient_GetPut(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	last, err := c.Get(dname, key)
+	last, err := c.NewDMap(name).Get(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
