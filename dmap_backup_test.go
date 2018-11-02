@@ -21,33 +21,33 @@ import (
 )
 
 func TestDMap_PutBackup(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	r1.updateRouting()
+	db1.updateRouting()
 
 	mname := "mymap"
-	dm := r1.NewDMap(mname)
+	dm := db1.NewDMap(mname)
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -61,11 +61,11 @@ func TestDMap_PutBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		var backup = r1
-		if hostCmp(owner, r1.this) {
-			backup = r2
+		var backup = db1
+		if hostCmp(owner, db1.this) {
+			backup = db2
 		}
-		partID := r1.getPartitionID(hkey)
+		partID := db1.getPartitionID(hkey)
 		bpart := backup.backups[partID]
 		tmp, ok := bpart.m.Load(mname)
 		data := tmp.(*dmap)
@@ -78,7 +78,7 @@ func TestDMap_PutBackup(t *testing.T) {
 			t.Fatalf("key: %s could not be found", key)
 		}
 		var val interface{}
-		err = r1.serializer.Unmarshal(vdata.Value, &val)
+		err = db1.serializer.Unmarshal(vdata.Value, &val)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -90,34 +90,34 @@ func TestDMap_PutBackup(t *testing.T) {
 }
 
 func TestDMap_DeleteBackup(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	r1.updateRouting()
-	r1.fsck()
+	db1.updateRouting()
+	db1.fsck()
 
 	mname := "mymap"
-	dm := r1.NewDMap(mname)
+	dm := db1.NewDMap(mname)
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -138,11 +138,11 @@ func TestDMap_DeleteBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		var backup = r1
-		if hostCmp(owner, r1.this) {
-			backup = r2
+		var backup = db1
+		if hostCmp(owner, db1.this) {
+			backup = db2
 		}
-		partID := r1.getPartitionID(hkey)
+		partID := db1.getPartitionID(hkey)
 		bpart := backup.backups[partID]
 		tmp, ok := bpart.m.Load(mname)
 		data := tmp.(*dmap)
@@ -161,33 +161,33 @@ func TestDMap_DeleteBackup(t *testing.T) {
 }
 
 func TestDMap_GetBackup(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	r1.updateRouting()
+	db1.updateRouting()
 
 	mname := "mymap"
-	dm := r1.NewDMap(mname)
+	dm := db1.NewDMap(mname)
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -201,9 +201,9 @@ func TestDMap_GetBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		var kloc = r1
-		if !hostCmp(owner, r1.this) {
-			kloc = r2
+		var kloc = db1
+		if !hostCmp(owner, db1.this) {
+			kloc = db2
 		}
 
 		m := kloc.getDMap(mname, hkey)
@@ -222,40 +222,40 @@ func TestDMap_GetBackup(t *testing.T) {
 }
 
 func TestDMap_PruneStaleBackups(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	r1.updateRouting()
+	db1.updateRouting()
 
 	mname := "mymap"
-	dm := r1.NewDMap(mname)
+	dm := db1.NewDMap(mname)
 	for i := 0; i < 1000; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	peers = append(peers, r2.discovery.localNode().Address())
+	peers = append(peers, db2.discovery.localNode().Address())
 	r3, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -279,10 +279,10 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 		}
 	}()
 
-	r1.deleteStaleDMaps()
-	r1.updateRouting()
+	db1.deleteStaleDMaps()
+	db1.updateRouting()
 
-	for _, bpart := range r1.backups {
+	for _, bpart := range db1.backups {
 		bpart.RLock()
 		if len(bpart.owners) != 1 {
 			t.Fatalf("Expected backup owner count is 1. Got: %d", len(bpart.owners))

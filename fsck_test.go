@@ -23,18 +23,18 @@ import (
 )
 
 func TestFSCK_Merge(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -42,20 +42,20 @@ func TestFSCK_Merge(t *testing.T) {
 		}
 	}
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	r1.updateRouting()
-	for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
-		part := r1.partitions[partID]
+	db1.updateRouting()
+	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
+		part := db1.partitions[partID]
 		part.Lock()
 		if len(part.owners) <= 1 {
 			part.Unlock()
@@ -63,7 +63,7 @@ func TestFSCK_Merge(t *testing.T) {
 		}
 		part.Unlock()
 
-		if hostCmp(part.owners[0], r1.this) {
+		if hostCmp(part.owners[0], db1.this) {
 			// Previous owner
 			if atomic.LoadInt32(&part.count) != 0 {
 				t.Fatalf("Expected map count is 0. Got: %d", atomic.LoadInt32(&part.count))
@@ -73,39 +73,39 @@ func TestFSCK_Merge(t *testing.T) {
 }
 
 func TestFSCK_MergeWithNewValues(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	r1.fsckMx.Lock()
+	db1.fsckMx.Lock()
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm2 := r2.NewDMap("mymap")
+	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 101; i++ {
 		if i == 3 {
 			continue
@@ -115,10 +115,10 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	r1.fsckMx.Unlock()
+	db1.fsckMx.Unlock()
 
 	var eval []byte
-	r1.updateRouting()
+	db1.updateRouting()
 	for i := 0; i < 101; i++ {
 		val, err := dm2.Get(bkey(i))
 		if err != nil {
@@ -136,18 +136,18 @@ func TestFSCK_MergeWithNewValues(t *testing.T) {
 }
 
 func TestFSCK_MergeWithLock(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -159,28 +159,28 @@ func TestFSCK_MergeWithLock(t *testing.T) {
 		}
 	}
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	r1.updateRouting()
+	db1.updateRouting()
 
-	for partID := uint64(0); partID < r2.config.PartitionCount; partID++ {
-		part := r2.partitions[partID]
+	for partID := uint64(0); partID < db2.config.PartitionCount; partID++ {
+		part := db2.partitions[partID]
 		if atomic.LoadInt32(&part.count) != 0 {
 			t.Fatalf("Expected map count is 0. Got: %d", atomic.LoadInt32(&part.count))
 		}
 	}
 
-	dm2 := r2.NewDMap("mymap")
+	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm2.Unlock(bkey(i))
 		if err != nil {
@@ -188,16 +188,16 @@ func TestFSCK_MergeWithLock(t *testing.T) {
 		}
 	}
 
-	r1.fsck()
-	for partID := uint64(0); partID < r1.config.PartitionCount; partID++ {
-		part := r1.partitions[partID]
+	db1.fsck()
+	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
+		part := db1.partitions[partID]
 		part.Lock()
 		if len(part.owners) <= 1 {
 			part.Unlock()
 			continue
 		}
 		part.Unlock()
-		if hostCmp(part.owners[0], r1.this) {
+		if hostCmp(part.owners[0], db1.this) {
 			// Previous owner
 			if atomic.LoadInt32(&part.count) != 0 {
 				t.Fatalf("Expected map count is 0. Got: %d", atomic.LoadInt32(&part.count))

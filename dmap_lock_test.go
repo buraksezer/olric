@@ -51,18 +51,18 @@ func TestDMap_Locker_Standalone(t *testing.T) {
 }
 
 func TestDMap_UnlockWithTwoHosts(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -74,20 +74,20 @@ func TestDMap_UnlockWithTwoHosts(t *testing.T) {
 		}
 	}
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	r1.updateRouting()
-	dm2 := r2.NewDMap("mymap")
+	db1.updateRouting()
+	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
 		err := dm2.Unlock(key)
@@ -98,18 +98,18 @@ func TestDMap_UnlockWithTwoHosts(t *testing.T) {
 }
 
 func TestDMap_LockWithTwoHosts(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -117,19 +117,19 @@ func TestDMap_LockWithTwoHosts(t *testing.T) {
 		}
 	}
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	r1.updateRouting()
-	dm2 := r2.NewDMap("mymap")
+	db1.updateRouting()
+	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
 		err = dm2.LockWithTimeout(key, time.Minute)
@@ -143,7 +143,7 @@ func TestDMap_LockWithTwoHosts(t *testing.T) {
 		t.Fatalf("Expected ErrNoSuchLock. Got: %v", err)
 	}
 
-	err = dm.Unlock("foobar2")
+	err = dm.Unlock("foobadb2")
 	if err != ErrNoSuchLock {
 		t.Fatalf("Expected ErrNoSuchLock. Got: %v", err)
 	}
@@ -202,18 +202,18 @@ func TestDMap_Locker_LockWithTimeout(t *testing.T) {
 }
 
 func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -221,26 +221,26 @@ func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
 		}
 	}
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	//r1.updateRouting()
+	//db1.updateRouting()
 
 	// Block fsck and partition manager. The code should inspect the key/lock
 	// on a previous partition owner.
-	r1.fsckMx.Lock()
-	defer r1.fsckMx.Unlock()
+	db1.fsckMx.Lock()
+	defer db1.fsckMx.Unlock()
 
-	dm2 := r2.NewDMap("mymap")
+	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
 		err = dm2.LockWithTimeout(key, 200*time.Millisecond)
@@ -260,18 +260,18 @@ func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
 }
 
 func TestDMap_LockPrevious(t *testing.T) {
-	r1, err := newOlric(nil)
+	db1, err := newOlric(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r1.Shutdown(context.Background())
+		err = db1.Shutdown(context.Background())
 		if err != nil {
-			r1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := r1.NewDMap("mymap")
+	dm := db1.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
@@ -279,22 +279,22 @@ func TestDMap_LockPrevious(t *testing.T) {
 		}
 	}
 
-	r1.fsckMx.Lock()
-	defer r1.fsckMx.Unlock()
+	db1.fsckMx.Lock()
+	defer db1.fsckMx.Unlock()
 
-	peers := []string{r1.discovery.localNode().Address()}
-	r2, err := newOlric(peers)
+	peers := []string{db1.discovery.localNode().Address()}
+	db2, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r2.Shutdown(context.Background())
+		err = db2.Shutdown(context.Background())
 		if err != nil {
-			r2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm2 := r2.NewDMap("mymap")
+	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
 		key := bkey(i)
 		err = dm2.LockWithTimeout(key, 200*time.Millisecond)
