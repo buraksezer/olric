@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unsafe"
 
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/pkg/errors"
@@ -120,11 +119,6 @@ type IsPartEmptyExtra struct {
 
 var ErrConnClosed = errors.New("connection closed")
 
-// TODO: Check this on appengine
-func bytesToString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
-}
-
 func filterNetworkErrors(err error) error {
 	if err == nil {
 		return nil
@@ -180,8 +174,8 @@ func (m *Message) Read(conn io.Reader) error {
 			return err
 		}
 	}
-	m.DMap = bytesToString(buf.Next(int(m.DMapLen)))
-	m.Key = bytesToString(buf.Next(int(m.KeyLen)))
+	m.DMap = string(buf.Next(int(m.DMapLen)))
+	m.Key = string(buf.Next(int(m.KeyLen)))
 	if vlen != 0 {
 		m.Value = make([]byte, vlen)
 		copy(m.Value, buf.Next(vlen))
