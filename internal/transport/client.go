@@ -35,7 +35,7 @@ type Client struct {
 	pools  map[string]pool.Pool
 }
 
-// ClientConfig, configuration parameters of the client.
+// ClientConfig configuration parameters of the client.
 type ClientConfig struct {
 	Addrs       []string
 	DialTimeout time.Duration
@@ -63,7 +63,7 @@ func NewClient(cc *ClientConfig) *Client {
 	return c
 }
 
-// Closes all the connections in the connection pool.
+// Close all the connections in the connection pool.
 func (c *Client) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

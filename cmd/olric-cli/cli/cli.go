@@ -32,12 +32,14 @@ import (
 	"github.com/chzyer/readline"
 )
 
+// CLI defines the command line client for Olric.
 type CLI struct {
 	addr   string
 	client *client.Client
 	output io.Writer
 }
 
+// New returns a new CLI instance.
 func New(addr string, insecureSkipVerify bool, serializer, timeout string) (*CLI, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var s olric.Serializer
@@ -111,6 +113,7 @@ func parseLine(tmp string) (string, string, error) {
 	return key, value, nil
 }
 
+// Start waits for new input from stdin.
 func (c *CLI) Start() error {
 	var historyFile string
 	home := os.Getenv("HOME")

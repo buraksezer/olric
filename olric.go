@@ -39,10 +39,13 @@ var (
 	ErrKeyNotFound = errors.New("key not found")
 
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout    = errors.New("operation timeout")
+	ErrOperationTimeout = errors.New("operation timeout")
+
+	// ErrInternalServerError means that something unintentionally went wrong while processing the request.
 	ErrInternalServerError = errors.New("internal server error")
-	errPartNotEmpty        = errors.New("partition not empty")
-	errBackupNotEmpty      = errors.New("backup not empty")
+
+	errPartNotEmpty   = errors.New("partition not empty")
+	errBackupNotEmpty = errors.New("backup not empty")
 )
 
 // ReleaseVersion is the current stable version of Olric
@@ -90,13 +93,13 @@ type dmap struct {
 }
 
 type partition struct {
-	sync.RWMutex
-
 	count  int32
 	id     uint64
 	backup bool
-	owners []host
 	m      sync.Map
+
+	sync.RWMutex
+	owners []host
 }
 
 // DMap represents a distributed map object.

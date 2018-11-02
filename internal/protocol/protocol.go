@@ -28,20 +28,26 @@ import (
 // MaxValueSize is 1MB by default.
 var MaxValueSize = 1 << 20
 
+// ErrValueTooBig means that the value from sender is too big to receive.
 var ErrValueTooBig = errors.New("value too big")
 
 var pool *bufpool.BufPool = bufpool.New()
 
+// Operation defines an operation handler for Olric Binary Protocol.
 type Operation func(in *Message) (out *Message)
 
-// Magic Codes
+// MagicCode ...
 type MagicCode uint8
 
 const (
+	// MagicReq defines an magic code for REQUEST in Olric Binary Protocol
 	MagicReq MagicCode = 0xE2
+
+	// MagicRes defines an magic code for RESPONSE in Olric Binary Protocol
 	MagicRes MagicCode = 0xE3
 )
 
+// Opcode ...
 type OpCode uint8
 
 // ops
@@ -72,6 +78,7 @@ const (
 	OpIsBackupEmpty
 )
 
+// StatusCode ...
 type StatusCode uint8
 
 // status codes
@@ -84,9 +91,9 @@ const (
 	StatusBackupNotEmpty
 )
 
-const HeaderSize int64 = 12
+const headerSize int64 = 12
 
-// total length    // 12
+// Header defines a message header for both request and response.
 type Header struct {
 	Magic    MagicCode  // 1
 	Op       OpCode     // 1
@@ -97,6 +104,7 @@ type Header struct {
 	BodyLen  uint32     // 4
 }
 
+// Message defines a protocol message in Olric Binary Protocol.
 type Message struct {
 	Header             // [0..10]
 	Extra  interface{} // [11..(m-1)] Command specific extras (In)
@@ -105,18 +113,23 @@ type Message struct {
 	Value  []byte      // [x..y] Value (as needed, length in Header)
 }
 
+// LockWithTimeoutExtra defines extra values for this operation.
 type LockWithTimeoutExtra struct {
 	TTL int64
 }
 
+// PutExExtra defines extra values for this operation.
 type PutExExtra struct {
 	TTL int64
 }
 
+// IsPartEmptyExtra defines extra values for this operation.
 type IsPartEmptyExtra struct {
 	PartID uint64
 }
 
+// ErrConnClosed means that the underlying TCP connection has been closed
+// by the client or operating system.
 var ErrConnClosed = errors.New("connection closed")
 
 func filterNetworkErrors(err error) error {
@@ -129,11 +142,13 @@ func filterNetworkErrors(err error) error {
 	return err
 }
 
+// Read reads a whole protocol message(including the value) from given connection
+// by decoding it.
 func (m *Message) Read(conn io.Reader) error {
 	buf := pool.Get()
 	defer pool.Put(buf)
 
-	_, err := io.CopyN(buf, conn, HeaderSize)
+	_, err := io.CopyN(buf, conn, headerSize)
 	if err != nil {
 		return filterNetworkErrors(err)
 	}
@@ -183,6 +198,7 @@ func (m *Message) Read(conn io.Reader) error {
 	return nil
 }
 
+// Write writes a protocol message to given TCP connection by encoding it.
 func (m *Message) Write(conn io.Writer) error {
 	buf := pool.Get()
 	defer pool.Put(buf)
@@ -224,6 +240,7 @@ func (m *Message) Write(conn io.Writer) error {
 	return filterNetworkErrors(err)
 }
 
+// Error generates an error message for the request.
 func (m *Message) Error(status StatusCode, err interface{}) *Message {
 	var value []byte
 	switch err.(type) {
@@ -242,6 +259,7 @@ func (m *Message) Error(status StatusCode, err interface{}) *Message {
 	}
 }
 
+// Success generates a success message for the request.
 func (m *Message) Success() *Message {
 	return &Message{
 		Header: Header{
