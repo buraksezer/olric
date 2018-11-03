@@ -109,9 +109,6 @@ func (db *Olric) put(name, key string, value []byte, timeout time.Duration) erro
 // PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
 // The key has to be string. Value type is arbitrary. It is safe to modify the contents of the arguments after Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	if value == nil {
-		value = struct{}{}
-	}
 	val, err := dm.db.serializer.Marshal(value)
 	if err != nil {
 		return err

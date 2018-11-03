@@ -104,9 +104,6 @@ func (d *DMap) Get(key string) (interface{}, error) {
 // Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
 // It is safe to modify the contents of the arguments after Put returns but not before.
 func (d *DMap) Put(key string, value interface{}) error {
-	if value == nil {
-		value = struct{}{}
-	}
 	data, err := d.serializer.Marshal(value)
 	if err != nil {
 		return err
@@ -123,9 +120,6 @@ func (d *DMap) Put(key string, value interface{}) error {
 // PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
 // It is safe to modify the contents of the arguments after Put returns but not before.
 func (d *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	if value == nil {
-		value = struct{}{}
-	}
 	data, err := d.serializer.Marshal(value)
 	if err != nil {
 		return err
@@ -222,9 +216,6 @@ func (d *DMap) Decr(key string, delta int) (int, error) {
 
 // GetPut atomically sets key to value and returns the old value stored at key.
 func (d *DMap) GetPut(key string, value interface{}) (interface{}, error) {
-	if value == nil {
-		value = struct{}{}
-	}
 	data, err := d.serializer.Marshal(value)
 	if err != nil {
 		return nil, err

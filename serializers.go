@@ -27,10 +27,13 @@ func NewGobSerializer() Serializer {
 }
 
 func (g gobSerializer) Marshal(value interface{}) ([]byte, error) {
-	t := reflect.TypeOf(value)
-	v := reflect.New(t).Elem().Interface()
-	gob.Register(v)
-
+	if value != nil {
+		t := reflect.TypeOf(value)
+		v := reflect.New(t).Elem().Interface()
+		gob.Register(v)
+	}
+	// TODO: As an optimization, you may want to a bytes.Buffer pool to reduce
+	// memory consumption.
 	var res bytes.Buffer
 	err := gob.NewEncoder(&res).Encode(&value)
 	return res.Bytes(), err
