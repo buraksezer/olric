@@ -246,8 +246,9 @@ func (db *Olric) prepare() error {
 		// The coordinator bootstraps itself.
 		db.bcancel()
 	}
-	db.wg.Add(1)
+	db.wg.Add(2)
 	go db.listenMemberlistEvents(eventCh)
+	go db.updateCurrentUnixNano()
 	return nil
 }
 
@@ -461,13 +462,34 @@ func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Me
 	return nil, fmt.Errorf("unknown status code: %d", resp.Status)
 }
 
+var currentUnixNano int64
+
+// updates currentUnixNano every second. This is better than getting current time
+// for every request. It has its own cost.
+func (db *Olric) updateCurrentUnixNano() {
+	defer db.wg.Done()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			atomic.StoreInt64(&currentUnixNano, time.Now().UnixNano())
+		case <-db.ctx.Done():
+			return
+		}
+	}
+}
+
 func getTTL(timeout time.Duration) int64 {
-	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
+	// convert nanoseconds to milliseconds
+	return (timeout.Nanoseconds() + atomic.LoadInt64(&currentUnixNano)) / 1000000
 }
 
 func isKeyExpired(ttl int64) bool {
 	if ttl == 0 {
 		return false
 	}
-	return (time.Now().UnixNano() / 1000000) >= ttl
+	// convert nanoseconds to milliseconds
+	return (atomic.LoadInt64(&currentUnixNano) / 1000000) >= ttl
 }

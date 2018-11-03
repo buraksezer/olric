@@ -731,6 +731,9 @@ func TestDMap_PutEx(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
+
+	// Update currentUnixNano to evict the key now.
+	atomic.StoreInt64(&currentUnixNano, time.Now().UnixNano())
 	time.Sleep(20 * time.Millisecond)
 	for i := 0; i < 100; i++ {
 		_, err := dm.Get(bkey(i))
@@ -773,6 +776,8 @@ func TestDMap_TTLEviction(t *testing.T) {
 		}
 	}
 	time.Sleep(20 * time.Millisecond)
+	// Update currentUnixNano to evict the key now.
+	atomic.StoreInt64(&currentUnixNano, time.Now().UnixNano())
 	for i := 0; i < 100; i++ {
 		db1.evictKeys()
 		db2.evictKeys()
