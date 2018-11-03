@@ -15,13 +15,11 @@
 package olric
 
 import (
-	"bytes"
-	"encoding/gob"
-	"reflect"
 	"sync"
 	"sync/atomic"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/vmihailenco/msgpack"
 )
 
 type dmapbox struct {
@@ -66,25 +64,17 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 			return
 		}
 	}
+
 	data := &dmapbox{
 		PartID:  part.id,
 		Name:    name,
 		Payload: dm.d,
 	}
-
-	// TODO: Check out this.
-	// To encode nil values, register struct{}{}
-	t := reflect.TypeOf(struct{}{})
-	v := reflect.New(t).Elem().Interface()
-	gob.Register(v)
-
-	var buf bytes.Buffer
-	err := gob.NewEncoder(&buf).Encode(data)
+	value, err := msgpack.Marshal(data)
 	if err != nil {
 		db.logger.Printf("[ERROR] Failed to encode dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
 		return
 	}
-
 	var opcode protocol.OpCode
 	if !part.backup {
 		opcode = protocol.OpMoveDMap
@@ -92,7 +82,7 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 		opcode = protocol.OpBackupMoveDMap
 	}
 	req := &protocol.Message{
-		Value: buf.Bytes(),
+		Value: value,
 	}
 	_, err = db.requestTo(owner.String(), opcode, req)
 	if err != nil {
@@ -178,7 +168,7 @@ func (db *Olric) fsck() {
 
 func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Message {
 	dbox := &dmapbox{}
-	err := db.serializer.Unmarshal(req.Value, dbox)
+	err := msgpack.Unmarshal(req.Value, dbox)
 	if err != nil {
 		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
@@ -198,7 +188,7 @@ func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Messag
 
 func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
 	dbox := &dmapbox{}
-	err := db.serializer.Unmarshal(req.Value, dbox)
+	err := msgpack.Unmarshal(req.Value, dbox)
 	if err != nil {
 		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)

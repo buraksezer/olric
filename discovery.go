@@ -15,8 +15,6 @@
 package olric
 
 import (
-	"bytes"
-	"encoding/gob"
 	"errors"
 	"log"
 	"sort"
@@ -24,6 +22,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/memberlist"
+	"github.com/vmihailenco/msgpack"
 )
 
 const eventChanCapacity = 32
@@ -64,11 +63,8 @@ func (m host) String() string {
 
 func (d *discovery) DecodeMeta(buf []byte) (*NodeMetadata, error) {
 	res := &NodeMetadata{}
-	r := bytes.NewReader(buf)
-	if err := gob.NewDecoder(r).Decode(res); err != nil {
-		return nil, err
-	}
-	return res, nil
+	err := msgpack.Unmarshal(buf, res)
+	return res, err
 }
 
 // New creates a new memberlist with a proper configuration and returns a new discovery instance along with it.
@@ -248,12 +244,12 @@ func newDelegate(birthdate int64) (delegate, error) {
 	mt := &NodeMetadata{
 		Birthdate: birthdate,
 	}
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(mt); err != nil {
+	data, err := msgpack.Marshal(mt)
+	if err != nil {
 		return delegate{}, err
 	}
 	return delegate{
-		meta: buf.Bytes(),
+		meta: data,
 	}, nil
 }
 

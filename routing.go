@@ -15,13 +15,12 @@
 package olric
 
 import (
-	"bytes"
-	"encoding/gob"
 	"sync/atomic"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/hashicorp/memberlist"
+	"github.com/vmihailenco/msgpack"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -233,13 +232,12 @@ func (db *Olric) distributePartitions() routing {
 }
 
 func (db *Olric) updateRoutingOnCluster(rt routing) error {
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(rt); err != nil {
-		return err
+	data, err := msgpack.Marshal(rt)
+	if err != nil {
+		return nil
 	}
 
 	var g errgroup.Group
-	data := buf.Bytes()
 	for _, member := range db.consistent.GetMembers() {
 		mem := member.(host)
 		if hostCmp(mem, db.this) {
@@ -301,7 +299,7 @@ func (db *Olric) updateRoutingPeriodically() {
 
 func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message {
 	rt := make(routing)
-	err := gob.NewDecoder(bytes.NewReader(req.Value)).Decode(&rt)
+	err := msgpack.Unmarshal(req.Value, &rt)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
