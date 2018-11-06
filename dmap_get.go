@@ -14,7 +14,10 @@
 
 package olric
 
-import "github.com/buraksezer/olric/internal/protocol"
+import (
+	"github.com/buraksezer/olric/internal/offheap"
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
 func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
 	var value interface{}
@@ -29,17 +32,19 @@ func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
 }
 
 func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
-	dm := db.getDMap(name, hkey)
-	dm.RLock()
-	defer dm.RUnlock()
-	value, ok := dm.d[hkey]
-	if ok {
+	dm, err := db.getDMap(name, hkey)
+	if err != nil {
+		return nil, err
+	}
+	value, err := dm.oh.Get(hkey)
+	if err == nil {
 		if isKeyExpired(value.TTL) {
 			return nil, ErrKeyNotFound
 		}
 		return value.Value, nil
 	}
 
+	// Run a query on the previous owners.
 	owners := db.getPartitionOwners(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
@@ -63,6 +68,7 @@ func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 		return resp.Value, err
 	}
 
+	// Check backups.
 	backups := db.getBackupPartitionOwners(hkey)
 	for _, backup := range backups {
 		req := &protocol.Message{
@@ -78,6 +84,7 @@ func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 		}
 		return resp.Value, nil
 	}
+
 	// It's not there, really.
 	return nil, ErrKeyNotFound
 }
@@ -128,17 +135,21 @@ func (db *Olric) exGetOperation(req *protocol.Message) *protocol.Message {
 func (db *Olric) getBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
-	dm := db.getBackupDMap(req.DMap, hkey)
-	dm.RLock()
-	defer dm.RUnlock()
-	vdata, ok := dm.d[hkey]
-	if !ok {
+	dm, err := db.getBackupDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	vdata, err := dm.oh.Get(hkey)
+	if err == offheap.ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}
-
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	if isKeyExpired(vdata.TTL) {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}
+
 	resp := req.Success()
 	resp.Value = vdata.Value
 	return resp
@@ -153,13 +164,13 @@ func (db *Olric) getPrevOperation(req *protocol.Message) *protocol.Message {
 	}
 	dm := tmp.(*dmap)
 
-	dm.RLock()
-	vdata, ok := dm.d[hkey]
-	if !ok {
-		dm.RUnlock()
+	vdata, err := dm.oh.Get(hkey)
+	if err == offheap.ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}
-	dm.RUnlock()
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 
 	if isKeyExpired(vdata.TTL) {
 		return req.Error(protocol.StatusKeyNotFound, "")

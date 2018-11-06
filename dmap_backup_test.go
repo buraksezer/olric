@@ -73,9 +73,9 @@ func TestDMap_PutBackup(t *testing.T) {
 			t.Fatalf("mymap could not be found")
 		}
 		data.Lock()
-		vdata, ok := data.d[hkey]
-		if !ok {
-			t.Fatalf("key: %s could not be found", key)
+		vdata, err := data.oh.Get(hkey)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		var val interface{}
 		err = db1.serializer.Unmarshal(vdata.Value, &val)
@@ -151,12 +151,9 @@ func TestDMap_DeleteBackup(t *testing.T) {
 			// dmap object is deleted, everything is ok.
 			continue
 		}
-		data.Lock()
-		_, ok = data.d[hkey]
-		if ok {
+		if data.oh.Check(hkey) {
 			t.Fatalf("key: %s found on backup", key)
 		}
-		data.Unlock()
 	}
 }
 
@@ -206,11 +203,14 @@ func TestDMap_GetBackup(t *testing.T) {
 			kloc = db2
 		}
 
-		m := kloc.getDMap(mname, hkey)
-		m.Lock()
-		delete(m.d, hkey)
-		m.Unlock()
-
+		m, err := kloc.getDMap(mname, hkey)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		err = m.oh.Delete(hkey)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
 		value, err := dm.Get(key)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

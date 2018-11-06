@@ -42,12 +42,18 @@ func (db *Olric) deleteStaleDMaps() {
 		part.m.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
 			d.Lock()
-			if len(d.d) == 0 {
+			defer d.Unlock()
+			if d.oh.Len() == 0 {
+				err := d.oh.Close()
+				if err != nil {
+					db.logger.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v",
+						name, part.id, err)
+					return true
+				}
 				part.m.Delete(name)
 				atomic.AddInt32(&part.count, -1)
 				db.logger.Printf("[DEBUG] Stale DMap has been deleted: %s on PartID: %d", name, part.id)
 			}
-			d.Unlock()
 			return true
 		})
 	}
@@ -88,8 +94,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 			return err
 		}
 	}
-	delete(dm.d, hkey)
-	return nil
+	return dm.oh.Delete(hkey)
 }
 
 func (db *Olric) deleteKey(name, key string) error {
@@ -106,7 +111,10 @@ func (db *Olric) deleteKey(name, key string) error {
 		return err
 	}
 
-	dm := db.getDMap(name, hkey)
+	dm, err := db.getDMap(name, hkey)
+	if err != nil {
+		return err
+	}
 	dm.Lock()
 	defer dm.Unlock()
 	return db.delKeyVal(dm, hkey, name, key)
@@ -129,20 +137,33 @@ func (db *Olric) exDeleteOperation(req *protocol.Message) *protocol.Message {
 func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
-	dm := db.getBackupDMap(req.DMap, hkey)
+	dm, err := db.getBackupDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	dm.Lock()
 	defer dm.Unlock()
-	delete(dm.d, hkey)
+
+	err = dm.oh.Delete(hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	return req.Success()
 }
 
 func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	hkey := db.getHKey(req.DMap, req.Key)
-	dm := db.getDMap(req.DMap, hkey)
+	dm, err := db.getDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	dm.Lock()
 	defer dm.Unlock()
 
-	delete(dm.d, hkey)
+	err = dm.oh.Delete(hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	return req.Success()
 }
 

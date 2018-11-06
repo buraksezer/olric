@@ -18,6 +18,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/vmihailenco/msgpack"
 )
@@ -25,14 +26,14 @@ import (
 type dmapbox struct {
 	PartID  uint64
 	Name    string
-	Payload map[uint64]vdata
+	Payload []byte
 }
 
 func (db *Olric) moveBackupDMaps(part *partition, backups []host, wg *sync.WaitGroup) {
 	defer wg.Done() // local wg for this fsck call
 
 	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too big, the following
-	// code may cause CPU starvation.
+	// code may cause CPU/network IO starvation.
 	for _, backup := range backups {
 		part.m.Range(func(name, dm interface{}) bool {
 			wg.Add(1)
@@ -44,8 +45,8 @@ func (db *Olric) moveBackupDMaps(part *partition, backups []host, wg *sync.WaitG
 
 func (db *Olric) moveDMaps(part *partition, owner host, wg *sync.WaitGroup) {
 	defer wg.Done() // local wg for this fsck call
-	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too big, the following
-	// code may cause CPU starvation.
+	// TODO: We may need to implement worker to limit concurrency. If the dmap count is too large, the following
+	// code may cause CPU/network IO starvation.
 	part.m.Range(func(name, dm interface{}) bool {
 		wg.Add(1)
 		go db.moveDMap(part, name.(string), dm.(*dmap), owner, wg)
@@ -65,10 +66,15 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 		}
 	}
 
+	payload, err := dm.oh.Export()
+	if err != nil {
+		db.logger.Printf("[ERROR] Failed to call Export on dmap. partID: %d, name: %s, error: %v", part.id, name, err)
+		return
+	}
 	data := &dmapbox{
 		PartID:  part.id,
 		Name:    name,
-		Payload: dm.d,
+		Payload: payload,
 	}
 	value, err := msgpack.Marshal(data)
 	if err != nil {
@@ -92,28 +98,45 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 
 	// Delete moved dmap object. the gc will free the allocated memory.
 	part.m.Delete(name)
+	err = dm.oh.Close()
+	if err != nil {
+		db.logger.Printf("[ERROR] Failed to close offheap instance. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
+	}
 	atomic.AddInt32(&part.count, -1)
 }
 
-func (db *Olric) mergeDMaps(part *partition, data *dmapbox) {
+func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
+	oh, err := offheap.Import(data.Payload)
+	if err != nil {
+		return err
+	}
+
 	tmp, ok := part.m.Load(data.Name)
 	if !ok {
-		dm := &dmap{d: data.Payload}
+		dm := &dmap{oh: oh}
 		if !part.backup {
 			// Create this on the owners, not backups.
 			dm.locker = newLocker()
 		}
 		part.m.Store(data.Name, dm)
-		return
+		return nil
 	}
+
 	dm := tmp.(*dmap)
-	for hkey, value := range data.Payload {
-		_, ok := dm.d[hkey]
-		if !ok {
-			dm.d[hkey] = value
+	dm.Lock()
+	defer dm.Unlock()
+
+	var merr error
+	oh.Range(func(hkey uint64, vdata *offheap.VData) bool {
+		if !dm.oh.Check(hkey) {
+			merr = dm.oh.Put(hkey, vdata)
+			if merr != nil {
+				return false
+			}
 		}
-	}
-	part.m.Store(data.Name, dm)
+		return true
+	})
+	return merr
 }
 
 func (db *Olric) fsck() {
@@ -173,7 +196,6 @@ func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Messag
 		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
-
 	part := db.backups[dbox.PartID]
 	part.RLock()
 	if len(part.owners) == 0 {
@@ -182,7 +204,11 @@ func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Messag
 	}
 	part.RUnlock()
 	// TODO: Check partition owner here!
-	db.mergeDMaps(part, dbox)
+	err = db.mergeDMaps(part, dbox)
+	if err != nil {
+		db.logger.Printf("[ERROR] Failed to merge dmap for backup: %v", err)
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	return req.Success()
 }
 
@@ -202,6 +228,10 @@ func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
 	}
 	part.RUnlock()
 	// TODO: Check partition owner here!
-	db.mergeDMaps(part, dbox)
+	err = db.mergeDMaps(part, dbox)
+	if err != nil {
+		db.logger.Printf("[ERROR] Failed to merge dmap: %v", err)
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	return req.Success()
 }

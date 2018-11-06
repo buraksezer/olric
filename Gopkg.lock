@@ -191,6 +191,14 @@
   revision = "1d60e4601c6fd243af51cc01ddf169918a5407ca"
 
 [[projects]]
+  branch = "master"
+  digest = "1:bf563be850c4ba68c4de69cd10e3c8b19a6c42b7be70b6d6416b3cf77d1f0208"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  pruneopts = "UT"
+  revision = "7155702f2d47d94b134229da97195d0130cab001"
+
+[[projects]]
   digest = "1:9c89d32a15e9941a6d5c396cc54f9afbcca6ea349b33d997d72119a7a67803f4"
   name = "google.golang.org/appengine"
   packages = [
@@ -223,6 +231,7 @@
     "github.com/pkg/errors",
     "github.com/vmihailenco/msgpack",
     "golang.org/x/sync/errgroup",
+    "golang.org/x/sys/unix",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

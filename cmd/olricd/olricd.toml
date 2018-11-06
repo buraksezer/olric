@@ -6,7 +6,7 @@ name = "0.0.0.0:3320"
 tcpAddr = "0.0.0.0:3422"
 #certFile = "/home/burak/Projects/server.pem"
 #keyFile = "/home/burak/Projects/server.key"
-serializer = "gob"
+serializer = "msgpack"
 keepAlivePeriod = "300s"
 # 1MB by default
 maxValueSize = 1048576 

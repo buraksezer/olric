@@ -166,11 +166,15 @@ func TestClient_PutEx(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	time.Sleep(20 * time.Millisecond)
+	// Wait for updating currentUnixNano in Olric.
+	time.Sleep(110 * time.Millisecond)
 	dm := db.NewDMap(name)
-	_, err = dm.Get(key)
+	v, err := dm.Get(key)
 	if err != olric.ErrKeyNotFound {
 		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if v != nil {
+		t.Fatalf("Expected nil. Got: %v", v)
 	}
 }
 

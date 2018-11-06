@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -788,9 +789,7 @@ func TestDMap_TTLEviction(t *testing.T) {
 			part := ins.partitions[partID]
 			part.m.Range(func(k, v interface{}) bool {
 				dm := v.(*dmap)
-				dm.RLock()
-				length += len(dm.d)
-				dm.RUnlock()
+				length += dm.oh.Len()
 				return true
 			})
 		}
@@ -922,21 +921,24 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 					continue
 				}
 				dm := tmp.(*dmap)
-				dm.RLock()
 				key := bkey(i)
 				hkey := db1.getHKey("mymap", key)
-				value, ok := dm.d[hkey]
-				if ok {
-					var val interface{}
-					err = db1.serializer.Unmarshal(value.Value, &val)
-					if err != nil {
-						t.Fatalf("Expected nil. Got: %v", err)
-					}
-					if !bytes.Equal(val.([]byte), []byte(bkey(i)+"-v2")) {
-						t.Fatalf("Different value retrieved for %s", key)
-					}
+				value, err := dm.oh.Get(hkey)
+				// Some keys are owned by the second node.
+				if err == offheap.ErrKeyNotFound {
+					continue
 				}
-				dm.RUnlock()
+				if err != nil {
+					t.Fatalf("Expected nil. Got: %v", err)
+				}
+				var val interface{}
+				err = db1.serializer.Unmarshal(value.Value, &val)
+				if err != nil {
+					t.Fatalf("Expected nil. Got: %v", err)
+				}
+				if !bytes.Equal(val.([]byte), []byte(bkey(i)+"-v2")) {
+					t.Fatalf("Different value retrieved for %s", key)
+				}
 			}
 			part.RUnlock()
 		}

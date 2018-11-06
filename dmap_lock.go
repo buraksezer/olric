@@ -80,7 +80,10 @@ func (db *Olric) waitLockForTimeout(dm *dmap, key string, timeout time.Duration)
 }
 
 func (db *Olric) lockKey(hkey uint64, name, key string, timeout time.Duration) error {
-	dm := db.getDMap(name, hkey)
+	dm, err := db.getDMap(name, hkey)
+	if err != nil {
+		return err
+	}
 	if dm.locker.check(key) {
 		dm.locker.lock(key)
 		db.wg.Add(1)
@@ -155,7 +158,10 @@ func (db *Olric) unlockKey(hkey uint64, name, key string) error {
 		_, err = db.requestTo(owner.String(), protocol.OpUnlockPrev, req)
 		return err
 	}
-	dm := db.getDMap(name, hkey)
+	dm, err := db.getDMap(name, hkey)
+	if err != nil {
+		return err
+	}
 	return dm.locker.unlock(key)
 }
 
@@ -207,15 +213,11 @@ func (db *Olric) exUnlockOperation(req *protocol.Message) *protocol.Message {
 
 func (db *Olric) findLockOperation(req *protocol.Message) *protocol.Message {
 	hkey := db.getHKey(req.DMap, req.Key)
-
-	dm := db.getDMap(req.DMap, hkey)
-	if dm.locker.check(req.Key) {
-		return req.Success()
+	dm, err := db.getDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
 	}
-	dm.RLock()
-	defer dm.RUnlock()
-	_, ok := dm.d[hkey]
-	if ok {
+	if dm.locker.check(req.Key) {
 		return req.Success()
 	}
 	return req.Error(protocol.StatusNoSuchLock, "")
@@ -224,8 +226,11 @@ func (db *Olric) findLockOperation(req *protocol.Message) *protocol.Message {
 func (db *Olric) unlockPrevOperation(req *protocol.Message) *protocol.Message {
 	key := req.Key
 	hkey := db.getHKey(req.DMap, key)
-	dm := db.getDMap(req.DMap, hkey)
-	err := dm.locker.unlock(key)
+	dm, err := db.getDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	err = dm.locker.unlock(key)
 	if err == ErrNoSuchLock {
 		return req.Error(protocol.StatusNoSuchLock, "")
 	}
@@ -238,7 +243,10 @@ func (db *Olric) unlockPrevOperation(req *protocol.Message) *protocol.Message {
 func (db *Olric) lockPrevOperation(req *protocol.Message) *protocol.Message {
 	key := req.Key
 	hkey := db.getHKey(req.DMap, key)
-	dm := db.getDMap(req.DMap, hkey)
+	dm, err := db.getDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	dm.locker.lock(key)
 	db.wg.Add(1)
 	ttl := req.Extra.(protocol.LockWithTimeoutExtra).TTL

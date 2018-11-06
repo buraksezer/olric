@@ -1,11 +1,23 @@
-go:
-    - "1.9"
-    - "1.10"
-    - "1.11"
+# This is a weird way of telling Travis to use the fast container-based test
+# runner instead of the slow VM-based runner.
+sudo: false
 
 language: go
+
+go:
+    - "1.11"
+
+# Skip the install step. Don't `go get` dependencies. Only build with the code
+# in vendor/
+install: true
+
+# Don't email me the results of the test runs.
+notifications:
+  email: false
+
 before_script:
 - go get github.com/mattn/goveralls
+
 script:
 - bash cover.sh $HOME/build coverage.out || travis_terminate 1
 - goveralls -service=travis-ci -coverprofile=coverage.out || true

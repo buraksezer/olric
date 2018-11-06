@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,19 +49,12 @@ func (db *Olric) purgeOldVersions(hkey uint64, name, key string) {
 }
 
 func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout time.Duration) error {
-	dm := db.getDMap(name, hkey)
+	dm, err := db.getDMap(name, hkey)
+	if err != nil {
+		return err
+	}
 	dm.Lock()
 	defer dm.Unlock()
-
-	var ttl int64
-	if timeout != nilTimeout {
-		ttl = getTTL(timeout)
-	}
-	val := vdata{
-		Key:   key,
-		Value: value,
-		TTL:   ttl,
-	}
 
 	if db.config.BackupCount != 0 {
 		if db.config.BackupMode == AsyncBackupMode {
@@ -79,7 +73,20 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 			}
 		}
 	}
-	dm.d[hkey] = val
+
+	var ttl int64
+	if timeout.Seconds() != 0 {
+		ttl = getTTL(timeout)
+	}
+	val := &offheap.VData{
+		Key:   key,
+		TTL:   ttl,
+		Value: value,
+	}
+	err = dm.oh.Put(hkey, val)
+	if err != nil {
+		return err
+	}
 	db.purgeOldVersions(hkey, name, key)
 	return nil
 }
@@ -142,9 +149,10 @@ func (db *Olric) exPutExOperation(req *protocol.Message) *protocol.Message {
 func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
-	dm := db.getBackupDMap(req.DMap, hkey)
-	dm.Lock()
-	defer dm.Unlock()
+	dm, err := db.getBackupDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 
 	var ttl int64
 	if req.Extra != nil {
@@ -153,10 +161,14 @@ func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 			ttl = getTTL(tmp)
 		}
 	}
-	dm.d[hkey] = vdata{
+	vdata := &offheap.VData{
 		Key:   req.Key,
-		Value: req.Value,
 		TTL:   ttl,
+		Value: req.Value,
+	}
+	err = dm.oh.Put(hkey, vdata)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
 	}
 	return req.Success()
 }

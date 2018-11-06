@@ -26,6 +26,7 @@ import (
 	"unsafe"
 
 	"github.com/buraksezer/consistent"
+	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	multierror "github.com/hashicorp/go-multierror"
@@ -55,7 +56,7 @@ const nilTimeout = 0 * time.Second
 
 var bootstrapTimeoutDuration = 10 * time.Second
 
-// Olric represens an member in the cluster. All functions on the Olric structure are safe to call concurrently.
+// Olric implements a distributed, in-memory and embeddable key/value store.
 type Olric struct {
 	this       host
 	config     *Config
@@ -80,16 +81,15 @@ type Olric struct {
 
 type vdata struct {
 	Key   string
-	Value []byte
 	TTL   int64
+	Value []byte
 }
 
 type dmap struct {
-	sync.RWMutex
+	sync.Mutex
 
 	locker *locker
-	// user's key/value pairs
-	d map[uint64]vdata
+	oh     *offheap.Offheap
 }
 
 type partition struct {
@@ -342,6 +342,26 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	db.wg.Wait()
 
+	// Free allocated memory by mmap.
+	purgeDMaps := func(part *partition) {
+		part.m.Range(func(name, dm interface{}) bool {
+			d := dm.(*dmap)
+			err := d.oh.Close()
+			if err != nil {
+				db.logger.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v", name, part.id, err)
+				result = multierror.Append(result, err)
+				return true
+			}
+			return true
+		})
+	}
+	for _, part := range db.partitions {
+		purgeDMaps(part)
+	}
+	for _, part := range db.backups {
+		purgeDMaps(part)
+	}
+
 	// The GC will flush all the data.
 	db.partitions = nil
 	db.backups = nil
@@ -407,19 +427,23 @@ func (db *Olric) locateKey(name, key string) (host, uint64, error) {
 	return member, hkey, nil
 }
 
-func (db *Olric) getDMap(name string, hkey uint64) *dmap {
+func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
 	part := db.getPartition(hkey)
 	dm, ok := part.m.Load(name)
 	if ok {
-		return dm.(*dmap)
+		return dm.(*dmap), nil
+	}
+	oh, err := offheap.New(0)
+	if err != nil {
+		return nil, err
 	}
 	dm = &dmap{
 		locker: newLocker(),
-		d:      make(map[uint64]vdata),
+		oh:     oh,
 	}
 	res, _ := part.m.LoadOrStore(name, dm)
 	atomic.AddInt32(&part.count, 1)
-	return res.(*dmap)
+	return res.(*dmap), nil
 }
 
 // hostCmp returns true if o1 and o2 is the same.
@@ -427,16 +451,24 @@ func hostCmp(o1, o2 host) bool {
 	return o1.Name == o2.Name && o1.Birthdate == o2.Birthdate
 }
 
-func (db *Olric) getBackupDMap(name string, hkey uint64) *dmap {
+func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
 	part := db.getBackupPartition(hkey)
 	dm, ok := part.m.Load(name)
 	if ok {
-		return dm.(*dmap)
+		return dm.(*dmap), nil
 	}
-	dm = &dmap{d: make(map[uint64]vdata)}
+	oh, err := offheap.New(0)
+	if err != nil {
+		return nil, err
+	}
+	dm = &dmap{
+		locker: newLocker(),
+		oh:     oh,
+	}
 	res, _ := part.m.LoadOrStore(name, dm)
 	atomic.AddInt32(&part.count, 1)
-	return res.(*dmap)
+	return res.(*dmap), nil
+
 }
 
 func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
@@ -464,12 +496,12 @@ func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Me
 
 var currentUnixNano int64
 
-// updates currentUnixNano every second. This is better than getting current time
+// updates currentUnixNano 10 times per second. This is better than getting current time
 // for every request. It has its own cost.
 func (db *Olric) updateCurrentUnixNano() {
 	defer db.wg.Done()
 
-	ticker := time.NewTicker(250 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {

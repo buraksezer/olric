@@ -18,6 +18,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/buraksezer/olric/internal/offheap"
 )
 
 func (db *Olric) evictKeysAtBackground() {
@@ -69,20 +71,21 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 	var maxKcount = 20
 	janitor := func() bool {
 		dcount, kcount := 0, 0
-		for hkey, vdata := range dm.d {
+		dm.oh.Range(func(hkey uint64, vdata *offheap.VData) bool {
 			kcount++
 			if kcount >= maxKcount {
-				break
+				return false
 			}
 			if isKeyExpired(vdata.TTL) {
 				err := db.delKeyVal(dm, hkey, name, vdata.Key)
 				if err != nil {
 					db.logger.Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v", hkey, name, err)
-					continue
+					return true
 				}
 				dcount++
 			}
-		}
+			return true
+		})
 		totalCount += dcount
 		return dcount >= maxKcount/4
 	}
