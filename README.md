@@ -4,6 +4,7 @@
 
 Distributed and in-memory key/value database that persists on disk. It can be used both as an embedded Go library and as 
 a language-independent service. Built with [Go](https://golang.org).
+
 ## WIP
 
 This project is a work in progress. The implementation is incomplete. The documentation may be inaccurate.
@@ -26,6 +27,7 @@ This project is a work in progress. The implementation is incomplete. The docume
     * [Decr](#decr)
     * [GetPut](#getput)
 * [Persistence](#persistence)
+* [Serialization](#serialization)
 * [Golang Client](#golang-client)
 * [Standalone Server](#standalone-server)
 * [Command Line Interface](#command-line-interface)
@@ -117,7 +119,7 @@ When you want to leave the cluster, just need to call **Shutdown** method:
 err := db.Shutdown(context.Background())
 ```
 
-This will stop background tasks, then call **Shutdown** methods of HTTP server and memberlist, respectively.
+This will stop background tasks and servers, synchronizes in-memory data to the disk if persistence is enabled. Finally purges in-memory data and quits.
 
 ### Put
 
@@ -208,7 +210,7 @@ m1, _ := olric.NewMemberlistConfig("local")
 m1.BindAddr = "127.0.0.1"
 m1.BindPort = 5555
 c1 := &olric.Config{
-	Name:          "127.0.0.1:3535", // Unique in the cluster and used by HTTP server.
+	Name:          "127.0.0.1:3535", // Unique in the cluster and used by TCP server.
 	Peers:         []string{"127.0.0.1:5656"},
 	MemberlistCfg: m1,
 }
@@ -236,11 +238,11 @@ db2, err := olric.New(c2)
 ### Overview
 
 Olric uses:
-
+* [dgraph-io/badger](https://github.com/dgraph-io/badger) for persistence,
 * [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for cluster membership and failure detection,
 * [buraksezer/consistent](https://github.com/buraksezer/consistent) for consistent hashing and load balancing,
-* [net/http](https://golang.org/pkg/net/http/) as transport layer,
-* [encoding/gob](https://golang.org/pkg/encoding/gob/) for serialization.
+* [Golang's TCP implementation](https://golang.org/pkg/net/#TCPConn) as transport layer,
+* [encoding/gob](https://golang.org/pkg/encoding/gob/), [encoding/json](https://golang.org/pkg/encoding/json/) or [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack)for serialization, optionally. 
 
 Olric distributes data among partitions. Every partition is owned by a cluster member and may has one or more backup for redundancy. 
 When you read or write a map entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a
@@ -284,10 +286,7 @@ the data remains available on the previous owners. DMap methods use this list to
 
 *Please note that, multiple partition owner is an undesirable situation and the fsck component is designed to fix that in a short time.*
 
-Olric uses HTTP as transport layer. It's suitable to transfer small messages between servers. **[HTTP/2](https://hpbn.co/http2/) is highly
-recommended for production use** because it uses a single TCP socket to deliver multiple requests and responses in parallel.
-
-When you call **Start** method of Olric, it starts an HTTP server at background which can be configured by the user via **Config** struct.
+When you call **Start** method of Olric, it starts background services with a TCP server.
 
 ### Consistency and Replication Model
 
@@ -337,7 +336,7 @@ Please note that the lock implementation has no backup. So if the node, which th
 
 Olric is mainly designed to be used as an embedded [DHT](https://en.wikipedia.org/wiki/Distributed_hash_table). So if you are running long-lived servers,
 Olric is pretty suitable to share some transient, approximate, fast-changing data between them. What if you want to access the cluster in a short-lived
-process? Fortunately, Olric has a simple HTTP API which can be used to access the cluster within any environment. It will be documented soon.
+process? Fortunately, Olric has an external API which can be used to access the cluster within any environment. It will be documented soon.
 
 A Golang client is already prepared to access and modify DMaps from outside. [Here is the documentation](https://godoc.org/github.com/buraksezer/olric/client).
 
