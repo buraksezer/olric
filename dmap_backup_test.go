@@ -28,7 +28,7 @@ func TestDMap_PutBackup(t *testing.T) {
 	defer func() {
 		err = db1.Shutdown(context.Background())
 		if err != nil {
-			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -40,7 +40,7 @@ func TestDMap_PutBackup(t *testing.T) {
 	defer func() {
 		err = db2.Shutdown(context.Background())
 		if err != nil {
-			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -73,7 +73,7 @@ func TestDMap_PutBackup(t *testing.T) {
 			t.Fatalf("mymap could not be found")
 		}
 		data.Lock()
-		vdata, err := data.oh.Get(hkey)
+		vdata, err := data.off.Get(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -97,7 +97,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 	defer func() {
 		err = db1.Shutdown(context.Background())
 		if err != nil {
-			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -109,7 +109,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 	defer func() {
 		err = db2.Shutdown(context.Background())
 		if err != nil {
-			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -151,7 +151,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 			// dmap object is deleted, everything is ok.
 			continue
 		}
-		if data.oh.Check(hkey) {
+		if data.off.Check(hkey) {
 			t.Fatalf("key: %s found on backup", key)
 		}
 	}
@@ -165,7 +165,7 @@ func TestDMap_GetBackup(t *testing.T) {
 	defer func() {
 		err = db1.Shutdown(context.Background())
 		if err != nil {
-			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -177,7 +177,7 @@ func TestDMap_GetBackup(t *testing.T) {
 	defer func() {
 		err = db2.Shutdown(context.Background())
 		if err != nil {
-			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -207,7 +207,7 @@ func TestDMap_GetBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = m.oh.Delete(hkey)
+		err = m.off.Delete(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -229,7 +229,7 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 	defer func() {
 		err = db1.Shutdown(context.Background())
 		if err != nil {
-			db1.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -241,7 +241,7 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 	defer func() {
 		err = db2.Shutdown(context.Background())
 		if err != nil {
-			db2.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -256,18 +256,18 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 		}
 	}
 	peers = append(peers, db2.discovery.localNode().Address())
-	r3, err := newOlric(peers)
+	db3, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r3.Shutdown(context.Background())
+		err = db3.Shutdown(context.Background())
 		if err != nil {
-			r3.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db3.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers = append(peers, r3.discovery.localNode().Address())
+	peers = append(peers, db3.discovery.localNode().Address())
 	r4, err := newOlric(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -275,7 +275,7 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 	defer func() {
 		err = r4.Shutdown(context.Background())
 		if err != nil {
-			r4.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			r4.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 

@@ -30,7 +30,7 @@ func TestExternal_UnknownOperation(t *testing.T) {
 	defer func() {
 		err = db.Shutdown(context.Background())
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 	m := &protocol.Message{

@@ -75,7 +75,7 @@ func (db *Olric) waitLockForTimeout(dm *dmap, key string, timeout time.Duration)
 		err = nil
 	}
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to unlock key: %s", key)
+		db.log.Printf("[ERROR] Failed to unlock key: %s", key)
 	}
 }
 

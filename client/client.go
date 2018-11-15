@@ -55,6 +55,9 @@ func New(c *Config, s olric.Serializer) (*Client, error) {
 	if s == nil {
 		s = olric.NewGobSerializer()
 	}
+	if c.MaxConn == 0 {
+		c.MaxConn = 1
+	}
 	cc := &transport.ClientConfig{
 		Addrs:       c.Addrs,
 		DialTimeout: c.DialTimeout,
@@ -72,6 +75,7 @@ func (c *Client) Close() {
 	c.client.Close()
 }
 
+// NewDMap creates and returns a new DMap object to access DMaps on the cluster.
 func (c *Client) NewDMap(name string) *DMap {
 	return &DMap{
 		Client: c,

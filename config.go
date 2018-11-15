@@ -20,6 +20,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/dgraph-io/badger"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -45,6 +46,19 @@ const (
 	DefaultLogLevel = "DEBUG"
 )
 
+// OpMode is the type for operation modes.
+type OpMode uint8
+
+const (
+	// OpInMemory indicates pure in-memory operation mode. In-memory data structures
+	// are not durable at that mode.
+	OpInMemory OpMode = OpMode(iota)
+
+	// OpInMemoryWithSnapshot indicates in-memory operation mode with snapshot support.
+	// The in-memory data is durable at that mode.
+	OpInMemoryWithSnapshot
+)
+
 // Config is the configuration for creating a Olric instance.
 type Config struct {
 	LogLevel string
@@ -53,6 +67,8 @@ type Config struct {
 	//
 	// Name is also used by the TCP server as Addr. It should be an IP adress or domain name of the server.
 	Name string
+
+	OperationMode OpMode
 
 	KeepAlivePeriod time.Duration
 
@@ -99,6 +115,11 @@ type Config struct {
 	// behavior for using LogOutput. You cannot specify both LogOutput and Logger
 	// at the same time.
 	Logger *log.Logger
+
+	SnapshotInterval time.Duration
+	GCInterval       time.Duration
+	GCDiscardRatio   float64
+	BadgerOptions    *badger.Options
 
 	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some

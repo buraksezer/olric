@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/snapshot"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -43,17 +44,33 @@ func (db *Olric) deleteStaleDMaps() {
 			d := dm.(*dmap)
 			d.Lock()
 			defer d.Unlock()
-			if d.oh.Len() == 0 {
-				err := d.oh.Close()
+			if d.off.Len() != 0 {
+				// Continue scanning.
+				return true
+			}
+			err := d.off.Close()
+			if err != nil {
+				db.log.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v",
+					name, part.id, err)
+				return true
+			}
+			// Unregister DMap from snapshot.
+			if db.config.OperationMode == OpInMemoryWithSnapshot {
+				dkey := snapshot.PrimaryDMapKey
+				if part.backup {
+					dkey = snapshot.BackupDMapKey
+				}
+				err = db.snapshot.UnregisterDMap(dkey, part.id, name.(string))
 				if err != nil {
-					db.logger.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v",
+					db.log.Printf("[ERROR] Failed to unregister dmap from snapshot %s on PartID: %d: %v",
 						name, part.id, err)
+					// Try again later.
 					return true
 				}
-				part.m.Delete(name)
-				atomic.AddInt32(&part.count, -1)
-				db.logger.Printf("[DEBUG] Stale DMap has been deleted: %s on PartID: %d", name, part.id)
 			}
+			part.m.Delete(name)
+			atomic.AddInt32(&part.count, -1)
+			db.log.Printf("[DEBUG] Stale DMap has been deleted: %s on PartID: %d", name, part.id)
 			return true
 		})
 	}
@@ -94,7 +111,10 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 			return err
 		}
 	}
-	return dm.oh.Delete(hkey)
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dm.oplog.Delete(hkey)
+	}
+	return dm.off.Delete(hkey)
 }
 
 func (db *Olric) deleteKey(name, key string) error {
@@ -134,6 +154,26 @@ func (db *Olric) exDeleteOperation(req *protocol.Message) *protocol.Message {
 	return req.Success()
 }
 
+func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
+	hkey := db.getHKey(req.DMap, req.Key)
+	dm, err := db.getDMap(req.DMap, hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	dm.Lock()
+	defer dm.Unlock()
+
+	err = dm.off.Delete(hkey)
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dm.oplog.Delete(hkey)
+	}
+	return req.Success()
+}
+
 func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message {
 	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
@@ -144,25 +184,12 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 	dm.Lock()
 	defer dm.Unlock()
 
-	err = dm.oh.Delete(hkey)
+	err = dm.off.Delete(hkey)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
-	return req.Success()
-}
-
-func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getDMap(req.DMap, hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	dm.Lock()
-	defer dm.Unlock()
-
-	err = dm.oh.Delete(hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dm.oplog.Delete(hkey)
 	}
 	return req.Success()
 }
@@ -180,7 +207,7 @@ func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
 			}
 			_, err := db.requestTo(mem.String(), protocol.OpDeleteBackup, req)
 			if err != nil {
-				db.logger.Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
+				db.log.Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
 			}
 			return err
 		})

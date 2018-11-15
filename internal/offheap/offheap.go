@@ -16,6 +16,7 @@ package offheap
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 	"sync/atomic"
 
@@ -99,6 +100,38 @@ func (o *Offheap) Close() error {
 	return nil
 }
 
+// PutRaw sets the raw value for the given key.
+func (o *Offheap) PutRaw(hkey uint64, value []byte) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if len(o.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+
+	for {
+		// Get the last value, offheap only calls Put on the last created table.
+		t := o.tables[len(o.tables)-1]
+		err := t.putRaw(hkey, value)
+		if err == errNotEnoughSpace {
+			// Create a new table and put the new k/v pair in it.
+			nt, err := newTable(t.inuse * 2)
+			if err != nil {
+				return err
+			}
+			o.tables = append(o.tables, nt)
+			if atomic.LoadInt32(&o.merging) == 0 {
+				o.wg.Add(1)
+				atomic.StoreInt32(&o.merging, 1)
+				go o.mergeTables()
+			}
+			continue
+		}
+		// returns an error or nil.
+		return err
+	}
+}
+
 // Put sets the value for the given key. It overwrites any previous value for that key
 func (o *Offheap) Put(hkey uint64, value *VData) error {
 	o.mu.Lock()
@@ -129,6 +162,32 @@ func (o *Offheap) Put(hkey uint64, value *VData) error {
 		// returns an error or nil.
 		return err
 	}
+}
+
+// GetRaw extracts un-decoded value for the given hkey. This is useful for merging tables or
+// snapshots.
+func (o *Offheap) GetRaw(hkey uint64) ([]byte, error) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	if len(o.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+
+	// Scan available tables by starting the last added table.
+	for i := len(o.tables) - 1; i >= 0; i-- {
+		t := o.tables[i]
+		rawval, prev := t.getRaw(hkey)
+		if prev {
+			// Try out the other tables.
+			continue
+		}
+		// Found the key, return the stored value with its metadata.
+		return rawval, nil
+	}
+
+	// Nothing here.
+	return nil, ErrKeyNotFound
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
@@ -204,7 +263,7 @@ func (o *Offheap) Delete(hkey uint64) error {
 }
 
 type transport struct {
-	Keys      map[uint64]int
+	HKeys     map[uint64]int
 	Memory    []byte
 	Offset    int
 	Allocated int
@@ -224,7 +283,7 @@ func (o *Offheap) Export() ([]byte, error) {
 	}
 	t := o.tables[0]
 	tr := &transport{
-		Keys:      t.keys,
+		HKeys:     t.hkeys,
 		Offset:    t.offset,
 		Allocated: t.allocated,
 		Inuse:     t.inuse,
@@ -249,7 +308,7 @@ func Import(data []byte) (*Offheap, error) {
 	}
 
 	t := o.tables[0]
-	t.keys = tr.Keys
+	t.hkeys = tr.HKeys
 	t.offset = tr.Offset
 	t.inuse = tr.Inuse
 	t.garbage = tr.Garbage
@@ -264,7 +323,7 @@ func (o *Offheap) Len() int {
 
 	var total int
 	for _, t := range o.tables {
-		total += len(t.keys)
+		total += len(t.hkeys)
 	}
 	return total
 }
@@ -281,7 +340,7 @@ func (o *Offheap) Check(hkey uint64) bool {
 	// Scan available tables by starting the last added table.
 	for i := len(o.tables) - 1; i >= 0; i-- {
 		t := o.tables[i]
-		_, ok := t.keys[hkey]
+		_, ok := t.hkeys[hkey]
 		if ok {
 			return true
 		}
@@ -305,11 +364,33 @@ func (o *Offheap) Range(f func(hkey uint64, vdata *VData) bool) {
 	// Scan available tables by starting the last added table.
 	for i := len(o.tables) - 1; i >= 0; i-- {
 		t := o.tables[i]
-		for hkey := range t.keys {
+		for hkey := range t.hkeys {
 			vdata, _ := t.get(hkey)
 			if !f(hkey, vdata) {
 				break
 			}
 		}
 	}
+}
+
+// DecodeRaw creates VData for given byte slice. It assumes that the given data is valid. Never returns an error.
+func DecodeRaw(raw []byte) *VData {
+	offset := 0
+	vdata := &VData{}
+	// In-memory structure:
+	//
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	klen := int(uint8(raw[offset]))
+	offset++
+
+	vdata.Key = string(raw[offset : offset+klen])
+	offset += klen
+
+	vdata.TTL = int64(binary.BigEndian.Uint64(raw[offset : offset+8]))
+	offset += 8
+
+	vlen := binary.BigEndian.Uint32(raw[offset : offset+4])
+	offset += 4
+	vdata.Value = raw[offset : offset+int(vlen)]
+	return vdata
 }

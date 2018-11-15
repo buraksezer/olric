@@ -36,7 +36,7 @@ func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	value, err := dm.oh.Get(hkey)
+	value, err := dm.off.Get(hkey)
 	if err == nil {
 		if isKeyExpired(value.TTL) {
 			return nil, ErrKeyNotFound
@@ -139,7 +139,7 @@ func (db *Olric) getBackupOperation(req *protocol.Message) *protocol.Message {
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
-	vdata, err := dm.oh.Get(hkey)
+	vdata, err := dm.off.Get(hkey)
 	if err == offheap.ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}
@@ -164,7 +164,7 @@ func (db *Olric) getPrevOperation(req *protocol.Message) *protocol.Message {
 	}
 	dm := tmp.(*dmap)
 
-	vdata, err := dm.oh.Get(hkey)
+	vdata, err := dm.off.Get(hkey)
 	if err == offheap.ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}

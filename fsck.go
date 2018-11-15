@@ -20,6 +20,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/snapshot"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -61,14 +62,14 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 
 	if !part.backup {
 		if dm.locker.length() != 0 {
-			db.logger.Printf("[DEBUG] Lock found on %s. moveDMap has been cancelled", name)
+			db.log.Printf("[DEBUG] Lock found on %s. moveDMap has been cancelled", name)
 			return
 		}
 	}
 
-	payload, err := dm.oh.Export()
+	payload, err := dm.off.Export()
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to call Export on dmap. partID: %d, name: %s, error: %v", part.id, name, err)
+		db.log.Printf("[ERROR] Failed to call Export on dmap. partID: %d, name: %s, error: %v", part.id, name, err)
 		return
 	}
 	data := &dmapbox{
@@ -78,7 +79,7 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 	}
 	value, err := msgpack.Marshal(data)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to encode dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
+		db.log.Printf("[ERROR] Failed to encode dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
 		return
 	}
 	var opcode protocol.OpCode
@@ -92,17 +93,30 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 	}
 	_, err = db.requestTo(owner.String(), opcode, req)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to move dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
+		db.log.Printf("[ERROR] Failed to move dmap. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
 		return
 	}
 
 	// Delete moved dmap object. the gc will free the allocated memory.
 	part.m.Delete(name)
-	err = dm.oh.Close()
-	if err != nil {
-		db.logger.Printf("[ERROR] Failed to close offheap instance. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
-	}
 	atomic.AddInt32(&part.count, -1)
+	err = dm.off.Close()
+	if err != nil {
+		db.log.Printf("[ERROR] Failed to close offheap instance. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
+	}
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dkey := snapshot.PrimaryDMapKey
+		if part.backup {
+			dkey = snapshot.BackupDMapKey
+		}
+		err = db.snapshot.DestroyDMap(dkey, part.id, name)
+		if err != nil {
+			db.log.Printf(
+				"[ERROR] Failed to destroy moved DMap instance on BadgerDB. PartID(backup: %t): %d, name: %s, error: %v",
+				part.backup, data.PartID, data.Name, err,
+			)
+		}
+	}
 }
 
 func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
@@ -113,7 +127,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 
 	tmp, ok := part.m.Load(data.Name)
 	if !ok {
-		dm := &dmap{oh: oh}
+		dm := &dmap{off: oh}
 		if !part.backup {
 			// Create this on the owners, not backups.
 			dm.locker = newLocker()
@@ -128,8 +142,8 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 
 	var merr error
 	oh.Range(func(hkey uint64, vdata *offheap.VData) bool {
-		if !dm.oh.Check(hkey) {
-			merr = dm.oh.Put(hkey, vdata)
+		if !dm.off.Check(hkey) {
+			merr = dm.off.Put(hkey, vdata)
 			if merr != nil {
 				return false
 			}
@@ -193,7 +207,7 @@ func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Messag
 	dbox := &dmapbox{}
 	err := msgpack.Unmarshal(req.Value, dbox)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
+		db.log.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 	part := db.backups[dbox.PartID]
@@ -206,7 +220,7 @@ func (db *Olric) moveBackupDMapOperation(req *protocol.Message) *protocol.Messag
 	// TODO: Check partition owner here!
 	err = db.mergeDMaps(part, dbox)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to merge dmap for backup: %v", err)
+		db.log.Printf("[ERROR] Failed to merge dmap for backup: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 	return req.Success()
@@ -216,7 +230,7 @@ func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
 	dbox := &dmapbox{}
 	err := msgpack.Unmarshal(req.Value, dbox)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
+		db.log.Printf("[ERROR] Failed to unmarshal dmap for backup: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 
@@ -230,7 +244,7 @@ func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
 	// TODO: Check partition owner here!
 	err = db.mergeDMaps(part, dbox)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to merge dmap: %v", err)
+		db.log.Printf("[ERROR] Failed to merge dmap: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 	return req.Success()

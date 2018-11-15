@@ -2,8 +2,8 @@
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Distributed, in-memory and embeddable key/value store, used as a database and cache. Built with [Go](https://golang.org).
-
+Distributed and in-memory key/value database that persists on disk. It can be used both as an embedded Go library and as 
+a language-independent service. Built with [Go](https://golang.org).
 ## WIP
 
 This project is a work in progress. The implementation is incomplete. The documentation may be inaccurate.
@@ -25,7 +25,7 @@ This project is a work in progress. The implementation is incomplete. The docume
     * [Incr](#incr)
     * [Decr](#decr)
     * [GetPut](#getput)
-* [HTTP API](#http-api)
+* [Persistence](#persistence)
 * [Golang Client](#golang-client)
 * [Standalone Server](#standalone-server)
 * [Command Line Interface](#command-line-interface)
@@ -46,11 +46,13 @@ This project is a work in progress. The implementation is incomplete. The docume
 
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Accepts arbitrary types as value,
-* Only in-memory,
-* Embeddable,
-* Provides a server implementation. So it supports different operation modes,
-* Gob, JSON and MsgPack are supportted by default as serialization format,
-* Has simplicity as a key concept,
+* In-memory with optional persistence,
+* Implements a fast and simple binary protocol,
+* Embeddable but can be used as a language-independent service with olricd,
+* Stores values in off-heap memory, which is memory within the runtime that is not subject to Go garbage collection.
+* Supports atomic operations,
+* Provides a single-node lock implementation which can be used for non-critical purposes,
+* Time-To-Live(TTL) eviction policy,
 * Highly available,
 * Horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
@@ -59,9 +61,9 @@ This project is a work in progress. The implementation is incomplete. The docume
 * Thread-safe by default,
 * Provides a command-line-interface to access the cluster directly from the terminal,
 * Very simple package API,
-* Time-To-Live(TTL) eviction policy,
-* Offers an HTTP API with built-in Go client,
-* Provides a single-node lock implementation which can be used for non-critical purposes.
+* Offers a built-in Go client,
+* Gob, JSON and MessagePack are supportted by default as serialization format,
+* Simplicity as a key concept with a small set of features.
 
 ## Planned Features
 
@@ -70,7 +72,6 @@ This project is a work in progress. The implementation is incomplete. The docume
 * Publish/Subscribe for messaging,
 * Eviction listeners by using Pub/Sub,
 * Memcached interface,
-* On-disk persistence with [Badger](https://github.com/dgraph-io/badger)
 * Python client.
 
 We may implement different data structures such as list, queue or bitmap in Olric. It's highly depends on attention of the Golang community.
@@ -413,7 +414,7 @@ func main() {
 * Document the code,
 * Some parts of FSCK implementation is missing: It currently doesn't repair failed backups,
 * Design & write benchmarks,
-* Document the external HTTP API,
+* Document the binary protocol,
 * Build a website for Olric and create extensive documentation.
 
 ## Caveats

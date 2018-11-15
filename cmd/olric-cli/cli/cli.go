@@ -175,6 +175,7 @@ func (c *CLI) Start() error {
 			continue
 		}
 
+		dm := c.client.NewDMap(dmap)
 		if len(dmap) == 0 {
 			c.print("[ERROR] Call 'use' command before accessing database.\n")
 			continue
@@ -189,7 +190,7 @@ func (c *CLI) Start() error {
 				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
 				continue
 			}
-			if err := c.client.Put(dmap, key, value); err != nil {
+			if err := dm.Put(key, value); err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Put on %s with key %s: %v\n", dmap, key, err))
 				continue
 			}
@@ -232,7 +233,7 @@ func (c *CLI) Start() error {
 				continue
 			}
 
-			if err := c.client.PutEx(dmap, key, value, ttl); err != nil {
+			if err := dm.PutEx(key, value, ttl); err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call PutEx on %s with key %s: %v\n", dmap, key, err))
 				continue
 			}
@@ -246,7 +247,7 @@ func (c *CLI) Start() error {
 					continue
 				}
 			}
-			value, err := c.client.Get(dmap, key)
+			value, err := dm.Get(key)
 			if err == olric.ErrKeyNotFound {
 				c.print("nil\n")
 				continue
@@ -265,14 +266,14 @@ func (c *CLI) Start() error {
 					continue
 				}
 			}
-			err := c.client.Delete(dmap, key)
+			err := dm.Delete(key)
 			if err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Delete on %s with key %s: %v\n", dmap, key, err))
 				continue
 			}
 			c.print("OK\n")
 		case strings.HasPrefix(line, "destroy"):
-			err := c.client.Destroy(dmap)
+			err := dm.Destroy()
 			if err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Destroy on %s: %v\n", dmap, err))
 				continue
@@ -291,7 +292,7 @@ func (c *CLI) Start() error {
 				c.print(fmt.Sprintf("[ERROR] invalid delta: %s\n", value))
 				continue
 			}
-			current, err := c.client.Incr(dmap, key, delta)
+			current, err := dm.Incr(key, delta)
 			if err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Incr on %s with key %s: %v\n", dmap, key, err))
 				continue
@@ -310,7 +311,7 @@ func (c *CLI) Start() error {
 				c.print(fmt.Sprintf("[ERROR] invalid delta: %s\n", value))
 				continue
 			}
-			current, err := c.client.Decr(dmap, key, delta)
+			current, err := dm.Decr(key, delta)
 			if err != nil {
 				c.print(fmt.Sprintf("[ERROR] Failed to call Decr on %s with key %s: %v\n", dmap, key, err))
 				continue

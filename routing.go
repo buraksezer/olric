@@ -55,19 +55,19 @@ func (db *Olric) processNodeEvent(event memberlist.NodeEvent) {
 			NodeMetadata: *mt,
 		}
 		db.consistent.Add(member)
-		db.logger.Printf("[DEBUG] Node joined: %s", member)
+		db.log.Printf("[DEBUG] Node joined: %s", member)
 	} else if event.Event == memberlist.NodeLeave {
 		db.consistent.Remove(event.Node.Name)
-		db.logger.Printf("[DEBUG] Node leaved: %s", event.Node.Name)
+		db.log.Printf("[DEBUG] Node leaved: %s", event.Node.Name)
 	} else {
-		db.logger.Printf("[ERROR] Unknown event received: %v", event)
+		db.log.Printf("[ERROR] Unknown event received: %v", event)
 	}
 }
 
 func (db *Olric) distributeBackups(partID uint64, rt routing, backupCount int) {
 	backups, err := db.consistent.GetClosestNForPartition(int(partID), backupCount)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to calculate backups for partID: %d: %v", partID, err)
+		db.log.Printf("[ERROR] Failed to calculate backups for partID: %d: %v", partID, err)
 		return
 	}
 
@@ -111,11 +111,11 @@ func (db *Olric) distributeBackups(partID uint64, rt routing, backupCount int) {
 	for _, backup := range bpart.owners {
 		cur, err := db.discovery.findMember(backup.Name)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to find %s in the cluster: %v", backup, err)
+			db.log.Printf("[ERROR] Failed to find %s in the cluster: %v", backup, err)
 			continue
 		}
 		if !hostCmp(backup, cur) {
-			db.logger.Printf("[WARN] One of the backup owners is probably re-joined: %s", cur)
+			db.log.Printf("[WARN] One of the backup owners is probably re-joined: %s", cur)
 			continue
 		}
 		tmp = append(tmp, cur)
@@ -137,7 +137,7 @@ func (db *Olric) distributeBackups(partID uint64, rt routing, backupCount int) {
 		_, err := db.requestTo(backup.String(), protocol.OpIsBackupEmpty, req)
 		if err != nil {
 			if err != errBackupNotEmpty {
-				db.logger.Printf("[ERROR] Failed to check dmaps in partition backup: %d: %v", partID, err)
+				db.log.Printf("[ERROR] Failed to check dmaps in partition backup: %d: %v", partID, err)
 			}
 			tbackups = append(tbackups, backup)
 		}
@@ -184,11 +184,11 @@ func (db *Olric) distributePrimaryCopies(partID uint64, rt routing) {
 	for _, own := range part.owners {
 		cur, err := db.discovery.findMember(own.Name)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to find %s in the cluster: %v", own, err)
+			db.log.Printf("[ERROR] Failed to find %s in the cluster: %v", own, err)
 			continue
 		}
 		if !hostCmp(own, cur) {
-			db.logger.Printf("[WARN] One of the partitions owners is probably re-joined: %s", cur)
+			db.log.Printf("[WARN] One of the partitions owners is probably re-joined: %s", cur)
 			continue
 		}
 		tmp = append(tmp, cur)
@@ -208,7 +208,7 @@ func (db *Olric) distributePrimaryCopies(partID uint64, rt routing) {
 		_, err := db.requestTo(own.String(), protocol.OpIsPartEmpty, req)
 		if err != nil {
 			if err != errPartNotEmpty {
-				db.logger.Printf("[ERROR] Failed to check dmaps in partition: %d: %v", partID, err)
+				db.log.Printf("[ERROR] Failed to check dmaps in partition: %d: %v", partID, err)
 			}
 			owners = append(owners, own)
 		}
@@ -263,7 +263,7 @@ func (db *Olric) updateRouting() {
 	pm := db.distributePartitions()
 	err := db.updateRoutingOnCluster(pm)
 	if err != nil {
-		db.logger.Printf("[ERROR] Failed to update routing table on cluster: %v", err)
+		db.log.Printf("[ERROR] Failed to update routing table on cluster: %v", err)
 	}
 	db.fsck()
 }

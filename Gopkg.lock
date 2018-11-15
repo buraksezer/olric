@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:b02e5e3f836f077a3249d1dfe3c57d305e007f71a98f2e69c170a2dd8d2b266c"
+  name = "github.com/AndreasBriese/bbloom"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "343706a395b76e5ca5c7dca46a5d937b48febc74"
+
+[[projects]]
   digest = "1:9f3b30d9f8e0d7040f729b82dcbc8f0dead820a133b3147ce355fc451f32d761"
   name = "github.com/BurntSushi/toml"
   packages = ["."]
@@ -48,6 +56,29 @@
   pruneopts = "UT"
   revision = "62c6fe6193755f722b8b8788aa7357be55a50ff1"
   version = "v1.4"
+
+[[projects]]
+  branch = "master"
+  digest = "1:537a39f7e938884ca047d5d74ee203ddc024de26fa5adb9214ee1f08ba29731d"
+  name = "github.com/dgraph-io/badger"
+  packages = [
+    ".",
+    "options",
+    "protos",
+    "skl",
+    "table",
+    "y",
+  ]
+  pruneopts = "UT"
+  revision = "514fda268ba28d8a42a712aa2936bcb368885763"
+
+[[projects]]
+  branch = "master"
+  digest = "1:8583eab935e3d99d3a7ac489cd2ee7c8e95eecd7c64ab1fc8382746dacaf8563"
+  name = "github.com/dgryski/go-farm"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2de33835d10275975374b37b2dcfd22c9020a1f5"
 
 [[projects]]
   digest = "1:97df918963298c287643883209a2c3f642e6593379f97ab400c2a2e219ab647d"
@@ -169,15 +200,17 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5a83591bcb11501a55db71952158d217ad7440826eeca278e3c5d83de973091b"
+  digest = "1:8ec8e92c877cf930e5d9aea834b6dfb670653966e8a871a9b405a7f3e3525aa9"
   name = "golang.org/x/net"
   packages = [
     "bpf",
     "context",
     "internal/iana",
     "internal/socket",
+    "internal/timeseries",
     "ipv4",
     "ipv6",
+    "trace",
   ]
   pruneopts = "UT"
   revision = "26e67e76b6c3f6ce91f7c52def5af501b4e0f3a2"
@@ -225,6 +258,7 @@
     "github.com/buraksezer/pool",
     "github.com/cespare/xxhash",
     "github.com/chzyer/readline",
+    "github.com/dgraph-io/badger",
     "github.com/hashicorp/go-multierror",
     "github.com/hashicorp/logutils",
     "github.com/hashicorp/memberlist",

@@ -27,8 +27,10 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 
 	"github.com/buraksezer/olric"
+	"github.com/dgraph-io/badger"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
 )
@@ -87,7 +89,7 @@ func New(c *Config) (*Olricd, error) {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
 			return nil, errors.WithMessage(err,
-				fmt.Sprintf("failed to parse KeepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
+				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
 	s.config = &olric.Config{
@@ -106,6 +108,39 @@ func New(c *Config) (*Olricd, error) {
 		Serializer:       serializer,
 		KeepAlivePeriod:  keepAlivePeriod,
 		MaxValueSize:     c.Olricd.MaxValueSize,
+	}
+	if c.Snapshot.Enabled {
+		s.config.OperationMode = olric.OpInMemoryWithSnapshot
+		// Check data dir on disk.
+		err = unix.Access(c.Snapshot.Dir, unix.W_OK)
+		if err != nil {
+			// TODO: We may want to create it if it doesn't exist on disk.
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse snapshot.dir: '%s'", c.Snapshot.Dir))
+		}
+
+		// Parse config params to control snapshot package.
+		s.config.GCDiscardRatio = c.Snapshot.GCDiscardRatio
+		if len(c.Snapshot.GCInterval) != 0 {
+			gcInterval, err := time.ParseDuration(c.Snapshot.GCInterval)
+			if err != nil {
+				return nil, errors.WithMessage(err,
+					fmt.Sprintf("failed to parse snapshot.gcInterval: '%s'", c.Snapshot.GCInterval))
+			}
+			s.config.GCInterval = gcInterval
+		}
+		if len(c.Snapshot.Interval) != 0 {
+			interval, err := time.ParseDuration(c.Snapshot.Interval)
+			if err != nil {
+				return nil, errors.WithMessage(err,
+					fmt.Sprintf("failed to parse snapshot.interval: '%s'", c.Snapshot.Interval))
+			}
+			s.config.SnapshotInterval = interval
+		}
+		opt := &badger.DefaultOptions
+		opt.Dir = c.Snapshot.Dir
+		opt.ValueDir = c.Snapshot.Dir
+		s.config.BadgerOptions = opt
 	}
 	return s, nil
 }

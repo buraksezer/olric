@@ -29,7 +29,7 @@ func TestDMap_Incr(t *testing.T) {
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -43,7 +43,7 @@ func TestDMap_Incr(t *testing.T) {
 
 		_, err := dm.Incr(key, 1)
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to call Incr: %v", err)
+			r.log.Printf("[ERROR] Failed to call Incr: %v", err)
 			return
 		}
 	}
@@ -74,7 +74,7 @@ func TestDMap_Decr(t *testing.T) {
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -88,7 +88,7 @@ func TestDMap_Decr(t *testing.T) {
 
 		_, err := dm.Decr(key, 1)
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to call Decr: %v", err)
+			r.log.Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
 	}
@@ -120,7 +120,7 @@ func TestDMap_GetPut(t *testing.T) {
 	defer func() {
 		err = r.Shutdown(context.Background())
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -134,7 +134,7 @@ func TestDMap_GetPut(t *testing.T) {
 
 		oldval, err := dm.GetPut(key, i)
 		if err != nil {
-			r.logger.Printf("[ERROR] Failed to call Decr: %v", err)
+			r.log.Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
 		if oldval != nil {

@@ -30,7 +30,7 @@ func (db *Olric) atomicIncrDecr(name, key, opr string, delta int) (int, error) {
 	defer func() {
 		err = db.unlock(name, key)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to release the lock for key: %s: %v", key, err)
+			db.log.Printf("[ERROR] Failed to release the lock for key: %s: %v", key, err)
 		}
 	}()
 
@@ -94,7 +94,7 @@ func (db *Olric) getPut(name, key string, value []byte) ([]byte, error) {
 	defer func() {
 		err = db.unlock(name, key)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to release the lock for key: %s: %v", key, err)
+			db.log.Printf("[ERROR] Failed to release the lock for key: %s: %v", key, err)
 		}
 	}()
 

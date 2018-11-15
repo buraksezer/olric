@@ -41,6 +41,14 @@ type olricd struct {
 	MaxValueSize    int     `toml:"maxValueSize"`
 }
 
+type snapshot struct {
+	Enabled        bool    `toml:"enabled"`
+	Interval       string  `toml:"interval"`
+	Dir            string  `toml:"dir"`
+	GCInterval     string  `toml:"gcInterval"`
+	GCDiscardRatio float64 `toml:"gcDiscardRatio"`
+}
+
 // logging contains configuration variables of logging section of config file.
 type logging struct {
 	Level  string `toml:"level"`
@@ -68,6 +76,7 @@ type Config struct {
 	Memberlist memberlist
 	Logging    logging
 	Olricd     olricd
+	Snapshot   snapshot
 }
 
 // NewConfig creates a new configuration object of olricd

@@ -138,8 +138,8 @@ func Test_Delete(t *testing.T) {
 		if item.inuse != 0 {
 			t.Fatal("inuse is different than 0.")
 		}
-		if len(item.keys) != 0 {
-			t.Fatalf("Expected key count is zero. Got: %d", len(item.keys))
+		if len(item.hkeys) != 0 {
+			t.Fatalf("Expected key count is zero. Got: %d", len(item.hkeys))
 		}
 	}
 }

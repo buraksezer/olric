@@ -29,6 +29,12 @@
   branch = "master"
   name = "github.com/hashicorp/memberlist"
 
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/dgraph-io/badger"
+
+
 [prune]
   go-tests = true
   unused-packages = true

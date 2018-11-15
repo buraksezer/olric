@@ -16,6 +16,7 @@
 package olric
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -28,6 +29,7 @@ import (
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/snapshot"
 	"github.com/buraksezer/olric/internal/transport"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
@@ -60,7 +62,7 @@ var bootstrapTimeoutDuration = 10 * time.Second
 type Olric struct {
 	this       host
 	config     *Config
-	logger     *log.Logger
+	log        *log.Logger
 	hasher     Hasher
 	serializer Serializer
 	discovery  *discovery
@@ -68,28 +70,24 @@ type Olric struct {
 	partitions map[uint64]*partition
 	backups    map[uint64]*partition
 	client     *transport.Client
+	server     *transport.Server
+	snapshot   *snapshot.Snapshot
 	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
 	fsckMx     sync.Mutex
 	routingMx  sync.Mutex
-	server     *transport.Server
 	// To control non-bootstrapped Olric instance
 	bcx     context.Context
 	bcancel context.CancelFunc
-}
-
-type vdata struct {
-	Key   string
-	TTL   int64
-	Value []byte
 }
 
 type dmap struct {
 	sync.Mutex
 
 	locker *locker
-	oh     *offheap.Offheap
+	oplog  *snapshot.OpLog
+	off    *offheap.Offheap
 }
 
 type partition struct {
@@ -190,7 +188,7 @@ func New(c *Config) (*Olric, error) {
 	db := &Olric{
 		ctx:        ctx,
 		cancel:     cancel,
-		logger:     c.Logger,
+		log:        c.Logger,
 		config:     c,
 		hasher:     c.Hasher,
 		serializer: c.Serializer,
@@ -202,7 +200,14 @@ func New(c *Config) (*Olric, error) {
 		bcancel:    bcancel,
 		server:     transport.NewServer(c.Name, c.Logger, c.KeepAlivePeriod),
 	}
-
+	if c.OperationMode == OpInMemoryWithSnapshot {
+		snap, err := snapshot.New(c.BadgerOptions, c.SnapshotInterval,
+			c.GCInterval, c.GCDiscardRatio, c.Logger)
+		if err != nil {
+			return nil, err
+		}
+		db.snapshot = snap
+	}
 	// Create all the partitions. It's read-only. No need for locking.
 	for i := uint64(0); i < c.PartitionCount; i++ {
 		db.partitions[i] = &partition{id: i}
@@ -217,10 +222,12 @@ func New(c *Config) (*Olric, error) {
 	}
 
 	db.registerOperations()
+	db.wg.Add(1)
+	go db.updateCurrentUnixNano()
 	return db, nil
 }
 
-func (db *Olric) prepare() error {
+func (db *Olric) startDiscovery() error {
 	dsc, err := newDiscovery(db.config)
 	if err != nil {
 		return err
@@ -231,7 +238,7 @@ func (db *Olric) prepare() error {
 	db.discovery.join()
 	this, err := db.discovery.findMember(db.config.Name)
 	if err != nil {
-		db.logger.Printf("[DEBUG] Failed to get this node in cluster: %v", err)
+		db.log.Printf("[DEBUG] Failed to get this node in cluster: %v", err)
 		serr := db.discovery.shutdown()
 		if serr != nil {
 			return serr
@@ -246,14 +253,76 @@ func (db *Olric) prepare() error {
 		// The coordinator bootstraps itself.
 		db.bcancel()
 	}
-	db.wg.Add(2)
+
+	db.wg.Add(1)
 	go db.listenMemberlistEvents(eventCh)
-	go db.updateCurrentUnixNano()
+	return nil
+}
+
+func (db *Olric) restoreDMap(dkey []byte, part *partition, name string, off *offheap.Offheap) error {
+	// Don't use Mutex for this because only partition owners list needs this.
+	oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, off)
+	if err != nil {
+		return err
+	}
+	dm := &dmap{
+		locker: newLocker(),
+		off:    off,
+		oplog:  oplog,
+	}
+	part.m.Store(name, dm)
+	atomic.AddInt32(&part.count, 1)
+	return nil
+}
+
+func (db *Olric) restoreFromSnapshot(dkey []byte) error {
+	l, err := db.snapshot.NewLoader(dkey)
+	if err == snapshot.ErrFirstRun {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	var part *partition
+	for {
+		dm, err := l.Next()
+		if err == snapshot.ErrLoaderDone {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if bytes.Equal(dkey, snapshot.PrimaryDMapKey) {
+			part = db.partitions[dm.PartID]
+		} else {
+			part = db.backups[dm.PartID]
+		}
+		err = db.restoreDMap(dkey, part, dm.Name, dm.Off)
+		if err != nil {
+			return err
+		}
+		db.log.Printf("[DEBUG] Reloaded DMap %s on PartID(backup: %t): %d", dm.Name, part.backup, dm.PartID)
+	}
 	return nil
 }
 
 // Start starts background servers and joins the cluster.
 func (db *Olric) Start() error {
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		now := time.Now()
+		db.log.Printf("[INFO] Reloading data from the snapshot. This may take a while.")
+		err := db.restoreFromSnapshot(snapshot.PrimaryDMapKey)
+		if err != nil {
+			return err
+		}
+		err = db.restoreFromSnapshot(snapshot.BackupDMapKey)
+		if err != nil {
+			return err
+		}
+		db.log.Printf("[INFO] Reloading data from the snapshot took %v", time.Since(now))
+	}
+
 	errCh := make(chan error, 1)
 	db.wg.Add(1)
 	go func() {
@@ -273,14 +342,13 @@ func (db *Olric) Start() error {
 	default:
 	}
 
-	if err := db.prepare(); err != nil {
+	if err := db.startDiscovery(); err != nil {
 		return err
 	}
 	db.wg.Add(3)
 	go db.updateRoutingPeriodically()
 	go db.evictKeysAtBackground()
 	go db.deleteStaleDMapsAtBackground()
-
 	return <-errCh
 }
 
@@ -340,15 +408,21 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		if err := db.snapshot.Shutdown(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
 	db.wg.Wait()
 
 	// Free allocated memory by mmap.
 	purgeDMaps := func(part *partition) {
 		part.m.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
-			err := d.oh.Close()
+			err := d.off.Close()
 			if err != nil {
-				db.logger.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v", name, part.id, err)
+				db.log.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v", name, part.id, err)
 				result = multierror.Append(result, err)
 				return true
 			}
@@ -427,28 +501,47 @@ func (db *Olric) locateKey(name, key string) (host, uint64, error) {
 	return member, hkey, nil
 }
 
+func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
+	// We need to protect snapshot.RegisterDMap and offheap.New
+	part.Lock()
+	defer part.Unlock()
+
+	// Try to load one more time. Another goroutine may have created the dmap.
+	dm, ok := part.m.Load(name)
+	if ok {
+		return dm.(*dmap), nil
+	}
+	off, err := offheap.New(0)
+	if err != nil {
+		return nil, err
+	}
+	fresh := &dmap{
+		locker: newLocker(),
+		off:    off,
+	}
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dkey := snapshot.PrimaryDMapKey
+		if part.backup {
+			dkey = snapshot.BackupDMapKey
+		}
+		oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, off)
+		if err != nil {
+			return nil, err
+		}
+		fresh.oplog = oplog
+	}
+	part.m.Store(name, fresh)
+	atomic.AddInt32(&part.count, 1)
+	return fresh, nil
+}
+
 func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
 	part := db.getPartition(hkey)
 	dm, ok := part.m.Load(name)
 	if ok {
 		return dm.(*dmap), nil
 	}
-	oh, err := offheap.New(0)
-	if err != nil {
-		return nil, err
-	}
-	dm = &dmap{
-		locker: newLocker(),
-		oh:     oh,
-	}
-	res, _ := part.m.LoadOrStore(name, dm)
-	atomic.AddInt32(&part.count, 1)
-	return res.(*dmap), nil
-}
-
-// hostCmp returns true if o1 and o2 is the same.
-func hostCmp(o1, o2 host) bool {
-	return o1.Name == o2.Name && o1.Birthdate == o2.Birthdate
+	return db.createDMap(part, name)
 }
 
 func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
@@ -457,18 +550,12 @@ func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	oh, err := offheap.New(0)
-	if err != nil {
-		return nil, err
-	}
-	dm = &dmap{
-		locker: newLocker(),
-		oh:     oh,
-	}
-	res, _ := part.m.LoadOrStore(name, dm)
-	atomic.AddInt32(&part.count, 1)
-	return res.(*dmap), nil
+	return db.createDMap(part, name)
+}
 
+// hostCmp returns true if o1 and o2 is the same.
+func hostCmp(o1, o2 host) bool {
+	return o1.Name == o2.Name && o1.Birthdate == o2.Birthdate
 }
 
 func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {

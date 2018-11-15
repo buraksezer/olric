@@ -11,6 +11,13 @@ keepAlivePeriod = "300s"
 # 1MB by default
 maxValueSize = 1048576 
 
+[snapshot]
+enabled = true
+dir = "/home/burak/olricd-data"
+interval = "1s"
+gcInterval  = "5m"
+gcDiscardRatio = 0.7
+
 [logging]
 level = "DEBUG"
 output = "stderr"

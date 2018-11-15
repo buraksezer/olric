@@ -43,7 +43,7 @@ func (db *Olric) purgeOldVersions(hkey uint64, name, key string) {
 		}
 		_, err := db.requestTo(owner.String(), protocol.OpDeletePrev, msg)
 		if err != nil {
-			db.logger.Printf("[ERROR] Failed to remove purge %s: %s on %s", name, key, owner)
+			db.log.Printf("[ERROR] Failed to remove purge %s: %s on %s", name, key, owner)
 		}
 	}
 }
@@ -63,7 +63,7 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 				defer db.wg.Done()
 				err := db.putKeyValBackup(hkey, name, key, value, timeout)
 				if err != nil {
-					db.logger.Printf("[ERROR] Failed to create backup mode in async mode: %v", err)
+					db.log.Printf("[ERROR] Failed to create backup mode in async mode: %v", err)
 				}
 			}()
 		} else {
@@ -83,10 +83,15 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 		TTL:   ttl,
 		Value: value,
 	}
-	err = dm.oh.Put(hkey, val)
+	err = dm.off.Put(hkey, val)
 	if err != nil {
 		return err
 	}
+
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dm.oplog.Put(hkey)
+	}
+	// TODO: Consider running this at background.
 	db.purgeOldVersions(hkey, name, key)
 	return nil
 }
@@ -166,9 +171,14 @@ func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 		TTL:   ttl,
 		Value: req.Value,
 	}
-	err = dm.oh.Put(hkey, vdata)
+
+	err = dm.off.Put(hkey, vdata)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	if db.config.OperationMode == OpInMemoryWithSnapshot {
+		dm.oplog.Put(hkey)
 	}
 	return req.Success()
 }
@@ -202,7 +212,7 @@ func (db *Olric) putKeyValBackup(hkey uint64, name, key string, value []byte, ti
 			}
 			_, err := db.requestTo(mem.String(), protocol.OpPutBackup, msg)
 			if err != nil {
-				db.logger.Printf("[ERROR] Failed to put backup hkey: %s on %s", mem, err)
+				db.log.Printf("[ERROR] Failed to put backup hkey: %s on %s", mem, err)
 				return err
 			}
 			atomic.AddInt32(&successful, 1)
