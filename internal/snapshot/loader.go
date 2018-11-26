@@ -18,7 +18,7 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/buraksezer/olric/internal/offheap"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/dgraph-io/badger"
 	"github.com/vmihailenco/msgpack"
 )
@@ -33,9 +33,9 @@ var (
 
 // DMap represents a DMap object which's restored from snapshot.
 type DMap struct {
-	PartID uint64
-	Name   string
-	Off    *offheap.Offheap
+	PartID  uint64
+	Name    string
+	Storage *storage.Storage
 }
 
 // Loader implements an iterator like mechanism to restore dmaps from snapshot.
@@ -70,8 +70,8 @@ func (s *Snapshot) NewLoader(dkey []byte) (*Loader, error) {
 	}, nil
 }
 
-func (l *Loader) loadFromBadger(hkeys map[uint64]struct{}) (*offheap.Offheap, error) {
-	o, err := offheap.New(0)
+func (l *Loader) loadFromBadger(hkeys map[uint64]struct{}) (*storage.Storage, error) {
+	o, err := storage.New(0)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (l *Loader) Next() (*DMap, error) {
 				return nil, err
 			}
 
-			// Read raw data from BadgerDB and return an offheap.Offheap
+			// Read raw data from BadgerDB and return an storage.storage
 			o, err := l.loadFromBadger(hkeys)
 			if err != nil {
 				return nil, err
@@ -128,9 +128,9 @@ func (l *Loader) Next() (*DMap, error) {
 				delete(l.dmaps, partID)
 			}
 			return &DMap{
-				PartID: partID,
-				Name:   name,
-				Off:    o,
+				PartID:  partID,
+				Name:    name,
+				Storage: o,
 			}, nil
 		}
 	}

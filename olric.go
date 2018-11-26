@@ -27,9 +27,9 @@ import (
 	"unsafe"
 
 	"github.com/buraksezer/consistent"
-	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/snapshot"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
@@ -87,7 +87,7 @@ type dmap struct {
 
 	locker *locker
 	oplog  *snapshot.OpLog
-	off    *offheap.Offheap
+	str    *storage.Storage
 }
 
 type partition struct {
@@ -259,15 +259,15 @@ func (db *Olric) startDiscovery() error {
 	return nil
 }
 
-func (db *Olric) restoreDMap(dkey []byte, part *partition, name string, off *offheap.Offheap) error {
+func (db *Olric) restoreDMap(dkey []byte, part *partition, name string, str *storage.Storage) error {
 	// Don't use Mutex for this because only partition owners list needs this.
-	oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, off)
+	oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, str)
 	if err != nil {
 		return err
 	}
 	dm := &dmap{
 		locker: newLocker(),
-		off:    off,
+		str:    str,
 		oplog:  oplog,
 	}
 	part.m.Store(name, dm)
@@ -298,7 +298,7 @@ func (db *Olric) restoreFromSnapshot(dkey []byte) error {
 		} else {
 			part = db.backups[dm.PartID]
 		}
-		err = db.restoreDMap(dkey, part, dm.Name, dm.Off)
+		err = db.restoreDMap(dkey, part, dm.Name, dm.Storage)
 		if err != nil {
 			return err
 		}
@@ -420,9 +420,9 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	purgeDMaps := func(part *partition) {
 		part.m.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
-			err := d.off.Close()
+			err := d.str.Close()
 			if err != nil {
-				db.log.Printf("[ERROR] Failed to close offheap instance: %s on PartID: %d: %v", name, part.id, err)
+				db.log.Printf("[ERROR] Failed to close storage instance: %s on PartID: %d: %v", name, part.id, err)
 				result = multierror.Append(result, err)
 				return true
 			}
@@ -502,7 +502,7 @@ func (db *Olric) locateKey(name, key string) (host, uint64, error) {
 }
 
 func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
-	// We need to protect snapshot.RegisterDMap and offheap.New
+	// We need to protect snapshot.RegisterDMap and storage.New
 	part.Lock()
 	defer part.Unlock()
 
@@ -511,20 +511,20 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	off, err := offheap.New(0)
+	str, err := storage.New(0)
 	if err != nil {
 		return nil, err
 	}
 	fresh := &dmap{
 		locker: newLocker(),
-		off:    off,
+		str:    str,
 	}
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dkey := snapshot.PrimaryDMapKey
 		if part.backup {
 			dkey = snapshot.BackupDMapKey
 		}
-		oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, off)
+		oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, str)
 		if err != nil {
 			return nil, err
 		}

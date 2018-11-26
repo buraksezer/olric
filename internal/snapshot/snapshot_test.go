@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/offheap"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/dgraph-io/badger"
 )
 
@@ -60,11 +60,11 @@ func Test_Put(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		oh, err := offheap.New(0)
+		str, err := storage.New(0)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, strconv.Itoa(int(partID)), oh)
+		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, strconv.Itoa(int(partID)), str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -72,13 +72,13 @@ func Test_Put(t *testing.T) {
 	}
 	for hkey := uint64(0); hkey < uint64(100); hkey++ {
 		for _, oplog := range oplogs {
-			vdata := &offheap.VData{
+			vdata := &storage.VData{
 				Key:   strconv.Itoa(int(hkey)),
 				TTL:   1,
 				Value: []byte("value"),
 			}
 			// Store data on Olric's off-heap store.
-			err = oplog.off.Put(hkey, vdata)
+			err = oplog.str.Put(hkey, vdata)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
@@ -125,11 +125,11 @@ func Test_Delete(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		oh, err := offheap.New(0)
+		str, err := storage.New(0)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, strconv.Itoa(int(partID)), oh)
+		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, strconv.Itoa(int(partID)), str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -139,13 +139,13 @@ func Test_Delete(t *testing.T) {
 	partitions := make(map[uint64][]uint64)
 	for hkey := uint64(0); hkey < uint64(100); hkey++ {
 		for partID, oplog := range oplogs {
-			vdata := &offheap.VData{
+			vdata := &storage.VData{
 				Key:   strconv.Itoa(int(hkey)),
 				TTL:   1,
 				Value: []byte("value"),
 			}
 			// Store data on Olric's off-heap store.
-			err = oplog.off.Put(hkey, vdata)
+			err = oplog.str.Put(hkey, vdata)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
@@ -205,11 +205,11 @@ func Test_Loader(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		oh, err := offheap.New(0)
+		str, err := storage.New(0)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, "test", oh)
+		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, "test", str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -217,13 +217,13 @@ func Test_Loader(t *testing.T) {
 	}
 	for hkey := uint64(0); hkey < uint64(100); hkey++ {
 		for _, oplog := range oplogs {
-			vdata := &offheap.VData{
+			vdata := &storage.VData{
 				Key:   strconv.Itoa(int(hkey)),
 				TTL:   1,
 				Value: []byte("value"),
 			}
 			// Store data on Olric's off-heap store.
-			err = oplog.off.Put(hkey, vdata)
+			err = oplog.str.Put(hkey, vdata)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
@@ -241,7 +241,7 @@ func Test_Loader(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	parts := uint64(0)
-	offs := []*offheap.Offheap{}
+	strs := []*storage.Storage{}
 	for {
 		dm, err := l.Next()
 		if err == ErrLoaderDone {
@@ -254,7 +254,7 @@ func Test_Loader(t *testing.T) {
 		if dm.Name != "test" {
 			t.Fatalf("Expected dmap name: test. Got: %s", dm.Name)
 		}
-		offs = append(offs, dm.Off)
+		strs = append(strs, dm.Storage)
 	}
 	if parts != testPartitionCount {
 		t.Fatalf("Expected partition count %d. Got: %d", testPartitionCount, parts)
@@ -262,9 +262,9 @@ func Test_Loader(t *testing.T) {
 
 	for hkey := uint64(0); hkey < uint64(100); hkey++ {
 		var found bool
-		for _, off := range offs {
-			_, err := off.Get(hkey)
-			if err == offheap.ErrKeyNotFound {
+		for _, str := range strs {
+			_, err := str.Get(hkey)
+			if err == storage.ErrKeyNotFound {
 				continue
 			}
 			if err != nil {
@@ -296,11 +296,11 @@ func Test_DestroyDMap(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		oh, err := offheap.New(0)
+		str, err := storage.New(0)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, "test", oh)
+		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, "test", str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -308,13 +308,13 @@ func Test_DestroyDMap(t *testing.T) {
 	}
 	for hkey := uint64(0); hkey < uint64(100); hkey++ {
 		for _, oplog := range oplogs {
-			vdata := &offheap.VData{
+			vdata := &storage.VData{
 				Key:   strconv.Itoa(int(hkey)),
 				TTL:   1,
 				Value: []byte("value"),
 			}
 			// Store data on Olric's off-heap store.
-			err = oplog.off.Put(hkey, vdata)
+			err = oplog.str.Put(hkey, vdata)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}

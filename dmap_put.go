@@ -19,8 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/storage"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -78,12 +78,12 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 	if timeout.Seconds() != 0 {
 		ttl = getTTL(timeout)
 	}
-	val := &offheap.VData{
+	val := &storage.VData{
 		Key:   key,
 		TTL:   ttl,
 		Value: value,
 	}
-	err = dm.off.Put(hkey, val)
+	err = dm.str.Put(hkey, val)
 	if err != nil {
 		return err
 	}
@@ -166,13 +166,13 @@ func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 			ttl = getTTL(tmp)
 		}
 	}
-	vdata := &offheap.VData{
+	vdata := &storage.VData{
 		Key:   req.Key,
 		TTL:   ttl,
 		Value: req.Value,
 	}
 
-	err = dm.off.Put(hkey, vdata)
+	err = dm.str.Put(hkey, vdata)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}

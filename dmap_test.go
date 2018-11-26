@@ -23,8 +23,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/snapshot"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/dgraph-io/badger"
 	"github.com/hashicorp/memberlist"
 )
@@ -813,7 +813,7 @@ func TestDMap_TTLEviction(t *testing.T) {
 			part := ins.partitions[partID]
 			part.m.Range(func(k, v interface{}) bool {
 				dm := v.(*dmap)
-				length += dm.off.Len()
+				length += dm.str.Len()
 				return true
 			})
 		}
@@ -947,9 +947,9 @@ func TestDMap_PutPurgeOldVersions(t *testing.T) {
 				dm := tmp.(*dmap)
 				key := bkey(i)
 				hkey := db1.getHKey("mymap", key)
-				value, err := dm.off.Get(hkey)
+				value, err := dm.str.Get(hkey)
 				// Some keys are owned by the second node.
-				if err == offheap.ErrKeyNotFound {
+				if err == storage.ErrKeyNotFound {
 					continue
 				}
 				if err != nil {

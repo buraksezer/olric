@@ -15,8 +15,8 @@
 package olric
 
 import (
-	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/storage"
 )
 
 func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
@@ -36,7 +36,7 @@ func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	value, err := dm.off.Get(hkey)
+	value, err := dm.str.Get(hkey)
 	if err == nil {
 		if isKeyExpired(value.TTL) {
 			return nil, ErrKeyNotFound
@@ -139,8 +139,8 @@ func (db *Olric) getBackupOperation(req *protocol.Message) *protocol.Message {
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
-	vdata, err := dm.off.Get(hkey)
-	if err == offheap.ErrKeyNotFound {
+	vdata, err := dm.str.Get(hkey)
+	if err == storage.ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}
 	if err != nil {
@@ -164,8 +164,8 @@ func (db *Olric) getPrevOperation(req *protocol.Message) *protocol.Message {
 	}
 	dm := tmp.(*dmap)
 
-	vdata, err := dm.off.Get(hkey)
-	if err == offheap.ErrKeyNotFound {
+	vdata, err := dm.str.Get(hkey)
+	if err == storage.ErrKeyNotFound {
 		return req.Error(protocol.StatusKeyNotFound, "")
 	}
 	if err != nil {

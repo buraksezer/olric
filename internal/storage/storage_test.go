@@ -10,7 +10,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package offheap
+package storage
 
 import (
 	"bytes"
@@ -30,14 +30,14 @@ func bval(i int) []byte {
 }
 
 func Test_Put(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -48,7 +48,7 @@ func Test_Put(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -56,14 +56,14 @@ func Test_Put(t *testing.T) {
 }
 
 func Test_Get(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -74,7 +74,7 @@ func Test_Get(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -82,7 +82,7 @@ func Test_Get(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		vdata, err := o.Get(hkey)
+		vdata, err := s.Get(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -99,14 +99,14 @@ func Test_Get(t *testing.T) {
 }
 
 func Test_Delete(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -117,7 +117,7 @@ func Test_Delete(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -125,16 +125,16 @@ func Test_Delete(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		if err = o.Delete(hkey); err != nil {
+		if err = s.Delete(hkey); err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-		_, err := o.Get(hkey)
+		_, err := s.Get(hkey)
 		if err != ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
 
-	for _, item := range o.tables {
+	for _, item := range s.tables {
 		if item.inuse != 0 {
 			t.Fatal("inuse is different than 0.")
 		}
@@ -145,14 +145,14 @@ func Test_Delete(t *testing.T) {
 }
 
 func Test_MergeTables(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -164,7 +164,7 @@ func Test_MergeTables(t *testing.T) {
 			Value: []byte(fmt.Sprintf("%01000d", i)),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -172,7 +172,7 @@ func Test_MergeTables(t *testing.T) {
 
 	for i := 0; i < 1500; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		vdata, err := o.Get(hkey)
+		vdata, err := s.Get(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -189,27 +189,27 @@ func Test_MergeTables(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		o.mu.Lock()
-		if len(o.tables) == 1 {
-			o.mu.Unlock()
+		s.mu.Lock()
+		if len(s.tables) == 1 {
+			s.mu.Unlock()
 			// It's OK.
 			return
 		}
-		o.mu.Unlock()
+		s.mu.Unlock()
 		<-time.After(100 * time.Millisecond)
 	}
 	t.Error("Tables cannot be merged.")
 }
 
 func Test_PurgeTables(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -221,7 +221,7 @@ func Test_PurgeTables(t *testing.T) {
 			Value: []byte(fmt.Sprintf("%01000d", i)),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -229,7 +229,7 @@ func Test_PurgeTables(t *testing.T) {
 
 	for i := 0; i < 2000; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		err = o.Delete(hkey)
+		err = s.Delete(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -237,33 +237,33 @@ func Test_PurgeTables(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		// Trigger garbage collection
-		err = o.Delete(1)
+		err = s.Delete(1)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-		o.mu.Lock()
-		if len(o.tables) == 1 {
+		s.mu.Lock()
+		if len(s.tables) == 1 {
 			// Only has 1 table with minimum size.
-			if o.tables[0].allocated == minimumSize {
-				o.mu.Unlock()
+			if s.tables[0].allocated == minimumSize {
+				s.mu.Unlock()
 				return
 			}
 		}
-		o.mu.Unlock()
+		s.mu.Unlock()
 		<-time.After(100 * time.Millisecond)
 	}
 	t.Fatal("Tables cannot be purged.")
 }
 
 func Test_ExportImport(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 	for i := 0; i < 100; i++ {
@@ -273,12 +273,12 @@ func Test_ExportImport(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 	}
-	data, err := o.Export()
+	data, err := s.Export()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -305,14 +305,14 @@ func Test_ExportImport(t *testing.T) {
 }
 
 func Test_Len(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -323,26 +323,26 @@ func Test_Len(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 	}
 
-	if o.Len() != 100 {
-		t.Fatalf("Expected length: 100. Got: %d", o.Len())
+	if s.Len() != 100 {
+		t.Fatalf("Expected length: 100. Got: %d", s.Len())
 	}
 }
 
 func Test_Range(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -354,14 +354,14 @@ func Test_Range(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 		hkeys[hkey] = struct{}{}
 	}
 
-	o.Range(func(hkey uint64, vdata *VData) bool {
+	s.Range(func(hkey uint64, vdata *VData) bool {
 		if _, ok := hkeys[hkey]; !ok {
 			t.Fatalf("Invalid hkey: %d", hkey)
 		}
@@ -370,14 +370,14 @@ func Test_Range(t *testing.T) {
 }
 
 func Test_Check(t *testing.T) {
-	o, err := New(0)
+	s, err := New(0)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		err = o.Close()
+		err = s.Close()
 		if err != nil {
-			t.Fatalf("Failed to close offheap: %v", err)
+			t.Fatalf("Failed to close storage: %v", err)
 		}
 	}()
 
@@ -389,7 +389,7 @@ func Test_Check(t *testing.T) {
 			Value: bval(i),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
-		err := o.Put(hkey, vdata)
+		err := s.Put(hkey, vdata)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -397,7 +397,7 @@ func Test_Check(t *testing.T) {
 	}
 
 	for hkey := range hkeys {
-		if !o.Check(hkey) {
+		if !s.Check(hkey) {
 			t.Fatalf("hkey could not be found: %d", hkey)
 		}
 	}

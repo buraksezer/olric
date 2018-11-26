@@ -18,9 +18,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/buraksezer/olric/internal/offheap"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/snapshot"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -67,7 +67,7 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 		}
 	}
 
-	payload, err := dm.off.Export()
+	payload, err := dm.str.Export()
 	if err != nil {
 		db.log.Printf("[ERROR] Failed to call Export on dmap. partID: %d, name: %s, error: %v", part.id, name, err)
 		return
@@ -100,9 +100,9 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 	// Delete moved dmap object. the gc will free the allocated memory.
 	part.m.Delete(name)
 	atomic.AddInt32(&part.count, -1)
-	err = dm.off.Close()
+	err = dm.str.Close()
 	if err != nil {
-		db.log.Printf("[ERROR] Failed to close offheap instance. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
+		db.log.Printf("[ERROR] Failed to close storage instance. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
 	}
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dkey := snapshot.PrimaryDMapKey
@@ -120,14 +120,14 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 }
 
 func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
-	oh, err := offheap.Import(data.Payload)
+	str, err := storage.Import(data.Payload)
 	if err != nil {
 		return err
 	}
 
 	tmp, ok := part.m.Load(data.Name)
 	if !ok {
-		dm := &dmap{off: oh}
+		dm := &dmap{str: str}
 		if !part.backup {
 			// Create this on the owners, not backups.
 			dm.locker = newLocker()
@@ -141,9 +141,9 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 	defer dm.Unlock()
 
 	var merr error
-	oh.Range(func(hkey uint64, vdata *offheap.VData) bool {
-		if !dm.off.Check(hkey) {
-			merr = dm.off.Put(hkey, vdata)
+	str.Range(func(hkey uint64, vdata *storage.VData) bool {
+		if !dm.str.Check(hkey) {
+			merr = dm.str.Put(hkey, vdata)
 			if merr != nil {
 				return false
 			}

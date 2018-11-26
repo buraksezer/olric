@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buraksezer/olric/internal/offheap"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/dgraph-io/badger"
 	"github.com/vmihailenco/msgpack"
 )
@@ -54,7 +54,7 @@ type OpLog struct {
 	sync.Mutex
 
 	m   map[uint64]uint8
-	off *offheap.Offheap
+	str *storage.Storage
 }
 
 // Put logs 'Put' operation for given hkey.
@@ -217,8 +217,8 @@ func (s *Snapshot) syncDMap(partID uint64, name string, oplog *OpLog) (map[uint6
 		bkey := make([]byte, 8)
 		binary.BigEndian.PutUint64(bkey, hkey)
 		if op == opPut {
-			val, err := oplog.off.GetRaw(hkey)
-			if err == offheap.ErrKeyNotFound {
+			val, err := oplog.str.GetRaw(hkey)
+			if err == storage.ErrKeyNotFound {
 				continue
 			}
 			if err != nil {
@@ -356,7 +356,7 @@ func (s *Snapshot) registerOnBadger(dkey []byte, partID uint64, name string) err
 }
 
 // RegisterDMap registers given DMap to the snapshot instance, creates a new worker for its partition if needed and returns an OpLog.
-func (s *Snapshot) RegisterDMap(dkey []byte, partID uint64, name string, off *offheap.Offheap) (*OpLog, error) {
+func (s *Snapshot) RegisterDMap(dkey []byte, partID uint64, name string, str *storage.Storage) (*OpLog, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -369,7 +369,7 @@ func (s *Snapshot) RegisterDMap(dkey []byte, partID uint64, name string, off *of
 	}
 	oplog := &OpLog{
 		m:   make(map[uint64]uint8),
-		off: off,
+		str: str,
 	}
 	s.oplogs[partID][name] = oplog
 

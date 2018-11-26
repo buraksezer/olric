@@ -68,7 +68,7 @@ func (db *Olric) destroyDMapOperation(req *protocol.Message) *protocol.Message {
 			return nil
 		}
 		dm := tmp.(*dmap)
-		if err := dm.off.Close(); err != nil {
+		if err := dm.str.Close(); err != nil {
 			return err
 		}
 		if db.config.OperationMode == OpInMemoryWithSnapshot {

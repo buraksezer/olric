@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buraksezer/olric/internal/offheap"
+	"github.com/buraksezer/olric/internal/storage"
 )
 
 func (db *Olric) evictKeysAtBackground() {
@@ -71,7 +71,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 	var maxKcount = 20
 	janitor := func() bool {
 		dcount, kcount := 0, 0
-		dm.off.Range(func(hkey uint64, vdata *offheap.VData) bool {
+		dm.str.Range(func(hkey uint64, vdata *storage.VData) bool {
 			kcount++
 			if kcount >= maxKcount {
 				return false
