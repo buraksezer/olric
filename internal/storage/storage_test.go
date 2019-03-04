@@ -30,16 +30,8 @@ func bval(i int) []byte {
 }
 
 func Test_Put(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -56,16 +48,8 @@ func Test_Put(t *testing.T) {
 }
 
 func Test_Get(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -99,16 +83,8 @@ func Test_Get(t *testing.T) {
 }
 
 func Test_Delete(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -125,9 +101,7 @@ func Test_Delete(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		if err = s.Delete(hkey); err != nil {
-			t.Fatalf("Expected nil. Got %v", err)
-		}
+		s.Delete(hkey)
 		_, err := s.Get(hkey)
 		if err != ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
@@ -145,16 +119,8 @@ func Test_Delete(t *testing.T) {
 }
 
 func Test_MergeTables(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	// Current free space is 1MB. Trigger a merge operation.
 	for i := 0; i < 1500; i++ {
@@ -202,16 +168,8 @@ func Test_MergeTables(t *testing.T) {
 }
 
 func Test_PurgeTables(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	// Current free space is 1MB. Trigger a merge operation.
 	for i := 0; i < 2000; i++ {
@@ -229,18 +187,12 @@ func Test_PurgeTables(t *testing.T) {
 
 	for i := 0; i < 2000; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		err = s.Delete(hkey)
-		if err != nil {
-			t.Fatalf("Expected nil. Got %v", err)
-		}
+		s.Delete(hkey)
 	}
 
 	for i := 0; i < 10; i++ {
 		// Trigger garbage collection
-		err = s.Delete(1)
-		if err != nil {
-			t.Fatalf("Expected nil. Got %v", err)
-		}
+		s.Delete(1)
 		s.mu.Lock()
 		if len(s.tables) == 1 {
 			// Only has 1 table with minimum size.
@@ -256,16 +208,8 @@ func Test_PurgeTables(t *testing.T) {
 }
 
 func Test_ExportImport(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
 			Key:   bkey(i),
@@ -305,16 +249,8 @@ func Test_ExportImport(t *testing.T) {
 }
 
 func Test_Len(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -335,16 +271,8 @@ func Test_Len(t *testing.T) {
 }
 
 func Test_Range(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
@@ -370,16 +298,8 @@ func Test_Range(t *testing.T) {
 }
 
 func Test_Check(t *testing.T) {
-	s, err := New(0)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	defer func() {
-		err = s.Close()
-		if err != nil {
-			t.Fatalf("Failed to close storage: %v", err)
-		}
-	}()
+	s := New(0)
+	defer s.Close()
 
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {

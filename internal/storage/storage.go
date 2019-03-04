@@ -56,30 +56,26 @@ type Storage struct {
 }
 
 // New creates a new storage instance.
-func New(size int) (*Storage, error) {
+func New(size int) *Storage {
 	ctx, cancel := context.WithCancel(context.Background())
 	o := &Storage{
 		ctx:    ctx,
 		cancel: cancel,
 	}
-	t, err := newTable(size)
-	if err != nil {
-		return nil, err
-	}
+	t := newTable(size)
 	o.tables = append(o.tables, t)
-	return o, nil
+	return o
 }
 
-// Close closes underlying tables and releases allocated memory with Munmap.
-// It blocks until everything is done.
-func (s *Storage) Close() error {
+// Close closes underlying tables and releases allocated memory. It blocks until everything is done.
+func (s *Storage) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	select {
 	case <-s.ctx.Done():
 		// It's already closed.
-		return nil
+		return
 	default:
 	}
 
@@ -87,18 +83,10 @@ func (s *Storage) Close() error {
 	// Await for table merging processes gets closed.
 	s.wg.Wait()
 
-	// free allocated area with Munmap.
-	for _, t := range s.tables {
-		err := t.close()
-		if err != nil {
-			return err
-		}
-	}
 	// Olric can be used as an embedded database, so closing an storage
 	// instance or Olric's itself, doesn't mean closing the process.
-	// GC will throw out the metadata.
+	// GC will throw out all the data.
 	s.tables = nil
-	return nil
 }
 
 // PutRaw sets the raw value for the given key.
@@ -116,10 +104,7 @@ func (s *Storage) PutRaw(hkey uint64, value []byte) error {
 		err := t.putRaw(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt, err := newTable(t.inuse * 2)
-			if err != nil {
-				return err
-			}
+			nt := newTable(t.inuse * 2)
 			s.tables = append(s.tables, nt)
 			if atomic.LoadInt32(&s.merging) == 0 {
 				s.wg.Add(1)
@@ -148,10 +133,7 @@ func (s *Storage) Put(hkey uint64, value *VData) error {
 		err := t.put(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt, err := newTable(t.inuse * 2)
-			if err != nil {
-				return err
-			}
+			nt := newTable(t.inuse * 2)
 			s.tables = append(s.tables, nt)
 			if atomic.LoadInt32(&s.merging) == 0 {
 				s.wg.Add(1)
@@ -218,7 +200,7 @@ func (s *Storage) Get(hkey uint64) (*VData, error) {
 }
 
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
-func (s *Storage) Delete(hkey uint64) error {
+func (s *Storage) Delete(hkey uint64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -238,12 +220,12 @@ func (s *Storage) Delete(hkey uint64) error {
 
 	//Check garbage ratio here, create a new table if you need.
 	if len(s.tables) != 1 {
-		return nil
+		return
 	}
 	t := s.tables[0]
 	if float64(t.allocated)*maxGarbageRatio <= float64(t.garbage) {
 		if atomic.LoadInt32(&s.merging) == 1 {
-			return nil
+			return
 		}
 		// Create a new table and put the new k/v pair in it.
 		newSize := t.inuse * 2
@@ -251,16 +233,12 @@ func (s *Storage) Delete(hkey uint64) error {
 			// Don't grow up.
 			newSize = t.allocated
 		}
-		nt, err := newTable(newSize)
-		if err != nil {
-			return err
-		}
+		nt := newTable(newSize)
 		s.tables = append(s.tables, nt)
 		s.wg.Add(1)
 		atomic.StoreInt32(&s.merging, 1)
 		go s.mergeTables()
 	}
-	return nil
 }
 
 type transport struct {
@@ -303,10 +281,7 @@ func Import(data []byte) (*Storage, error) {
 		return nil, err
 	}
 
-	o, err := New(tr.Allocated)
-	if err != nil {
-		return nil, err
-	}
+	o := New(tr.Allocated)
 
 	t := o.tables[0]
 	t.hkeys = tr.HKeys

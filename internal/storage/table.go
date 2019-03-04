@@ -16,10 +16,8 @@ package storage
 
 import (
 	"encoding/binary"
-	"syscall"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 )
 
 const maxKeyLen = 256
@@ -46,7 +44,7 @@ type table struct {
 	garbage   int
 }
 
-func newTable(size int) (*table, error) {
+func newTable(size int) *table {
 	if size < minimumSize {
 		size = minimumSize
 	}
@@ -54,27 +52,8 @@ func newTable(size int) (*table, error) {
 		hkeys:     make(map[uint64]int),
 		allocated: size,
 	}
-	err := t.malloc(size)
-	if err != nil {
-		return nil, err
-	}
-	return t, nil
-}
-
-func (t *table) close() error {
-	return unix.Munmap(t.memory)
-}
-
-// malloc allocates memory with mmap syscall on RAM.
-func (t *table) malloc(size int) error {
-	flags := syscall.MAP_ANON | syscall.MAP_PRIVATE
-	prot := syscall.PROT_READ | syscall.PROT_WRITE
-	array, err := unix.Mmap(-1, 0, size, prot, flags)
-	if err != nil {
-		return err
-	}
-	t.memory = array
-	return nil
+	t.memory = make([]byte, size, size)
+	return t
 }
 
 func (t *table) putRaw(hkey uint64, value []byte) error {

@@ -420,12 +420,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	purgeDMaps := func(part *partition) {
 		part.m.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
-			err := d.str.Close()
-			if err != nil {
-				db.log.Printf("[ERROR] Failed to close storage instance: %s on PartID: %d: %v", name, part.id, err)
-				result = multierror.Append(result, err)
-				return true
-			}
+			d.str.Close()
 			return true
 		})
 	}
@@ -511,10 +506,7 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	str, err := storage.New(0)
-	if err != nil {
-		return nil, err
-	}
+	str := storage.New(0)
 	fresh := &dmap{
 		locker: newLocker(),
 		str:    str,

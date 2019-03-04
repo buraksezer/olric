@@ -207,10 +207,7 @@ func TestDMap_GetBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = m.str.Delete(hkey)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		m.str.Delete(hkey)
 		value, err := dm.Get(key)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

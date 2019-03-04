@@ -58,11 +58,7 @@ func (s *Storage) chunkedMergeTables() bool {
 			err := fresh.putRaw(hkey, vdata)
 			if err == errNotEnoughSpace {
 				// Create a new table and put the new k/v pair in it.
-				nt, err := newTable(fresh.allocated * 2)
-				if err != nil {
-					log.Printf("[ERROR] storage: failed to create new table: %v", err)
-					return false
-				}
+				nt := newTable(fresh.allocated * 2)
 				s.tables = append(s.tables, nt)
 				return false
 			}
@@ -85,10 +81,6 @@ func (s *Storage) chunkedMergeTables() bool {
 	tmp := []*table{s.tables[len(s.tables)-1]}
 	for _, t := range s.tables[:len(s.tables)-1] {
 		if len(t.hkeys) == 0 {
-			err := t.close()
-			if err != nil {
-				log.Printf("[ERROR] storage: failed to close table: %v", err)
-			}
 			continue
 		}
 		tmp = append(tmp, t)

@@ -60,10 +60,7 @@ func Test_Put(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		str, err := storage.New(0)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		str := storage.New(0)
 		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, strconv.Itoa(int(partID)), str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -125,10 +122,7 @@ func Test_Delete(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		str, err := storage.New(0)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		str := storage.New(0)
 		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, strconv.Itoa(int(partID)), str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -205,10 +199,7 @@ func Test_Loader(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		str, err := storage.New(0)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		str := storage.New(0)
 		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, "test", str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -296,10 +287,7 @@ func Test_DestroyDMap(t *testing.T) {
 	}()
 	oplogs := make(map[uint64]*OpLog)
 	for partID := uint64(0); partID < testPartitionCount; partID++ {
-		str, err := storage.New(0)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		str := storage.New(0)
 		oplog, err := snap.RegisterDMap(PrimaryDMapKey, partID, "test", str)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

@@ -100,10 +100,7 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 	// Delete moved dmap object. the gc will free the allocated memory.
 	part.m.Delete(name)
 	atomic.AddInt32(&part.count, -1)
-	err = dm.str.Close()
-	if err != nil {
-		db.log.Printf("[ERROR] Failed to close storage instance. partID: %d, name: %s, error: %v", data.PartID, data.Name, err)
-	}
+	dm.str.Close()
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dkey := snapshot.PrimaryDMapKey
 		if part.backup {

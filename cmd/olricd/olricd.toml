@@ -12,7 +12,7 @@ keepAlivePeriod = "300s"
 maxValueSize = 1048576 
 
 [snapshot]
-enabled = true
+enabled = false
 dir = "/home/burak/olricd-data"
 interval = "1s"
 gcInterval  = "5m"

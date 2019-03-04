@@ -48,19 +48,14 @@ func (db *Olric) deleteStaleDMaps() {
 				// Continue scanning.
 				return true
 			}
-			err := d.str.Close()
-			if err != nil {
-				db.log.Printf("[ERROR] Failed to close storage instance: %s on PartID: %d: %v",
-					name, part.id, err)
-				return true
-			}
+			d.str.Close()
 			// Unregister DMap from snapshot.
 			if db.config.OperationMode == OpInMemoryWithSnapshot {
 				dkey := snapshot.PrimaryDMapKey
 				if part.backup {
 					dkey = snapshot.BackupDMapKey
 				}
-				err = db.snapshot.UnregisterDMap(dkey, part.id, name.(string))
+				err := db.snapshot.UnregisterDMap(dkey, part.id, name.(string))
 				if err != nil {
 					db.log.Printf("[ERROR] Failed to unregister dmap from snapshot %s on PartID: %d: %v",
 						name, part.id, err)
@@ -114,7 +109,8 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Delete(hkey)
 	}
-	return dm.str.Delete(hkey)
+	dm.str.Delete(hkey)
+	return nil
 }
 
 func (db *Olric) deleteKey(name, key string) error {
@@ -163,11 +159,7 @@ func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	dm.Lock()
 	defer dm.Unlock()
 
-	err = dm.str.Delete(hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-
+	dm.str.Delete(hkey)
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Delete(hkey)
 	}
@@ -184,10 +176,7 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 	dm.Lock()
 	defer dm.Unlock()
 
-	err = dm.str.Delete(hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
+	dm.str.Delete(hkey)
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Delete(hkey)
 	}

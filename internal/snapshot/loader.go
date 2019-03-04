@@ -71,11 +71,8 @@ func (s *Snapshot) NewLoader(dkey []byte) (*Loader, error) {
 }
 
 func (l *Loader) loadFromBadger(hkeys map[uint64]struct{}) (*storage.Storage, error) {
-	o, err := storage.New(0)
-	if err != nil {
-		return nil, err
-	}
-	err = l.s.db.View(func(txn *badger.Txn) error {
+	o := storage.New(0)
+	err := l.s.db.View(func(txn *badger.Txn) error {
 		bkey := make([]byte, 8)
 		for hkey := range hkeys {
 			binary.BigEndian.PutUint64(bkey, hkey)
