@@ -416,18 +416,6 @@ func main() {
 * Document the binary protocol,
 * Build a website for Olric and create extensive documentation.
 
-## Caveats
-
-Olric uses Golang's built-in map. It's known that the built-in map has problems with the GC:
-
-* [Go GC and maps with pointers](https://www.komu.engineer/blogs/go-gc-maps)
-* [GC is bad but you shouldn’t feel bad](https://syslog.ravelin.com/gc-is-bad-and-you-should-feel-bad-e9bdd9324f0)
-
-Olric already uses `map[uint64][]byte` as underlying data structure. It should work fine for most of the cases.
-
-I have implemented an off-heap hash table with [mmap](http://man7.org/linux/man-pages/man2/mmap.2.html). We may add an option to use it in the future but 
-my implementation needs too much effort to be used in production.
-
 ## Contributions
 
 Please don't hesitate to fork the project and send a pull request or just e-mail me to ask questions and share ideas.

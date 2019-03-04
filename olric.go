@@ -416,7 +416,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	db.wg.Wait()
 
-	// Free allocated memory by mmap.
+	// Free allocated memory.
 	purgeDMaps := func(part *partition) {
 		part.m.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
