@@ -15,4 +15,3 @@ for PKG in $(go list ./...|grep -v -E 'vendor' | grep -v -E 'cmd' |
   tail -n +2 $TMP >> $OUT
 done
 
-popd &> /dev/null
