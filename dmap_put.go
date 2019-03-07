@@ -107,9 +107,9 @@ func (db *Olric) put(name, key string, value []byte, timeout time.Duration) erro
 			Key:   key,
 			Value: value,
 		}
-		opcode := protocol.OpExPut
+		opcode := protocol.OpPut
 		if timeout != nilTimeout {
-			opcode = protocol.OpExPutEx
+			opcode = protocol.OpPutEx
 			req.Extra = protocol.PutExExtra{TTL: timeout.Nanoseconds()}
 		}
 		_, err = db.requestTo(member.String(), opcode, req)

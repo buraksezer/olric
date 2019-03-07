@@ -90,8 +90,6 @@ type Config struct {
 	// for a server in the cluster. Keep it small.
 	LoadFactor float64
 
-	MaxValueSize int
-
 	// Default hasher is github.com/cespare/xxhash. You may want to use a different
 	// hasher which implements Hasher interface.
 	Hasher Hasher

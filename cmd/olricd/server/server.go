@@ -107,7 +107,6 @@ func New(c *Config) (*Olricd, error) {
 		Hasher:           olric.NewDefaultHasher(),
 		Serializer:       serializer,
 		KeepAlivePeriod:  keepAlivePeriod,
-		MaxValueSize:     c.Olricd.MaxValueSize,
 	}
 	if c.Snapshot.Enabled {
 		s.config.OperationMode = olric.OpInMemoryWithSnapshot

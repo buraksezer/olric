@@ -90,7 +90,7 @@ func (d *DMap) Get(key string) (interface{}, error) {
 		DMap: d.name,
 		Key:  key,
 	}
-	resp, err := d.client.Request(protocol.OpExGet, m)
+	resp, err := d.client.Request(protocol.OpGet, m)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (d *DMap) Put(key string, value interface{}) error {
 		Key:   key,
 		Value: data,
 	}
-	_, err = d.client.Request(protocol.OpExPut, m)
+	_, err = d.client.Request(protocol.OpPut, m)
 	return err
 }
 
@@ -134,7 +134,7 @@ func (d *DMap) PutEx(key string, value interface{}, timeout time.Duration) error
 		Extra: protocol.PutExExtra{TTL: timeout.Nanoseconds()},
 		Value: data,
 	}
-	_, err = d.client.Request(protocol.OpExPutEx, m)
+	_, err = d.client.Request(protocol.OpPutEx, m)
 	return err
 }
 
@@ -145,7 +145,7 @@ func (d *DMap) Delete(key string) error {
 		DMap: d.name,
 		Key:  key,
 	}
-	_, err := d.client.Request(protocol.OpExDelete, m)
+	_, err := d.client.Request(protocol.OpDelete, m)
 	return err
 }
 
@@ -162,7 +162,7 @@ func (d *DMap) LockWithTimeout(key string, timeout time.Duration) error {
 		Key:   key,
 		Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
 	}
-	_, err := d.client.Request(protocol.OpExLockWithTimeout, m)
+	_, err := d.client.Request(protocol.OpLockWithTimeout, m)
 	return err
 }
 
@@ -172,7 +172,7 @@ func (d *DMap) Unlock(key string) error {
 		DMap: d.name,
 		Key:  key,
 	}
-	resp, err := d.client.Request(protocol.OpExUnlock, m)
+	resp, err := d.client.Request(protocol.OpUnlock, m)
 	if resp.Status == protocol.StatusNoSuchLock {
 		return olric.ErrNoSuchLock
 	}
@@ -185,7 +185,7 @@ func (d *DMap) Destroy() error {
 	m := &protocol.Message{
 		DMap: d.name,
 	}
-	_, err := d.client.Request(protocol.OpExDestroy, m)
+	_, err := d.client.Request(protocol.OpDestroy, m)
 	return err
 }
 
@@ -210,12 +210,12 @@ func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int,
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (d *DMap) Incr(key string, delta int) (int, error) {
-	return d.incrDecr(protocol.OpExIncr, d.name, key, delta)
+	return d.incrDecr(protocol.OpIncr, d.name, key, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (d *DMap) Decr(key string, delta int) (int, error) {
-	return d.incrDecr(protocol.OpExDecr, d.name, key, delta)
+	return d.incrDecr(protocol.OpDecr, d.name, key, delta)
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
@@ -229,7 +229,7 @@ func (d *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 		Key:   key,
 		Value: data,
 	}
-	resp, err := d.client.Request(protocol.OpExGetPut, m)
+	resp, err := d.client.Request(protocol.OpGetPut, m)
 	if err != nil {
 		return nil, err
 	}

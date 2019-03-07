@@ -38,7 +38,6 @@ type olricd struct {
 	LoadFactor      float64 `toml:"loadFactor"`
 	Serializer      string  `toml:"serializer"`
 	KeepAlivePeriod string  `toml:"keepAlivePeriod"`
-	MaxValueSize    int     `toml:"maxValueSize"`
 }
 
 type snapshot struct {

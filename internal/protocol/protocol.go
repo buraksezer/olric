@@ -25,18 +25,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-// MaxValueSize is 1MB by default.
-var MaxValueSize = 1 << 20
-
-// ErrValueTooBig means that the value from sender is too big to receive.
-var ErrValueTooBig = errors.New("value too big")
-
+// pool is good for recycling memory while reading messages from the socket.
 var pool *bufpool.BufPool = bufpool.New()
 
 // Operation defines an operation handler for Olric Binary Protocol.
 type Operation func(in *Message) (out *Message)
 
-// MagicCode ...
+// MagicCode defines an unique code to distinguish a request message from a response message in Olric Binary Protocol.
 type MagicCode uint8
 
 const (
@@ -47,21 +42,20 @@ const (
 	MagicRes MagicCode = 0xE3
 )
 
-// Opcode ...
 type OpCode uint8
 
 // ops
 const (
-	OpExPut OpCode = OpCode(iota)
-	OpExPutEx
-	OpExGet
-	OpExDelete
-	OpExDestroy
-	OpExLockWithTimeout
-	OpExUnlock
-	OpExIncr
-	OpExDecr
-	OpExGetPut
+	OpPut OpCode = OpCode(iota)
+	OpPutEx
+	OpGet
+	OpDelete
+	OpDestroy
+	OpLockWithTimeout
+	OpUnlock
+	OpIncr
+	OpDecr
+	OpGetPut
 	OpUpdateRouting
 	OpPutBackup
 	OpDeletePrev
@@ -160,23 +154,19 @@ func (m *Message) Read(conn io.Reader) error {
 		return fmt.Errorf("invalid message")
 	}
 
-	vlen := int(m.BodyLen) - int(m.ExtraLen) - int(m.KeyLen) - int(m.DMapLen)
-	if vlen > MaxValueSize {
-		return ErrValueTooBig
-	}
-
+	// Read Key, DMap name and message extras here.
 	_, err = io.CopyN(buf, conn, int64(m.BodyLen))
 	if err != nil {
 		return filterNetworkErrors(err)
 	}
-	// TODO: Move this block outside this function
+	// TODO: This looks bad. Move this block outside this function
 	if m.Magic == MagicReq && m.ExtraLen > 0 {
 		raw := buf.Next(int(m.ExtraLen))
-		if m.Op == OpExPutEx {
+		if m.Op == OpPutEx {
 			p := PutExExtra{}
 			err = binary.Read(bytes.NewReader(raw), binary.BigEndian, &p)
 			m.Extra = p
-		} else if m.Op == OpExLockWithTimeout || m.Op == OpLockPrev {
+		} else if m.Op == OpLockWithTimeout || m.Op == OpLockPrev {
 			p := LockWithTimeoutExtra{}
 			err = binary.Read(bytes.NewReader(raw), binary.BigEndian, &p)
 			m.Extra = p
@@ -191,6 +181,11 @@ func (m *Message) Read(conn io.Reader) error {
 	}
 	m.DMap = string(buf.Next(int(m.DMapLen)))
 	m.Key = string(buf.Next(int(m.KeyLen)))
+
+	// There is no maximum value for BodyLen which includes ValueLen.
+	// So our limit is available memory amount at the time of operation.
+	// Please note that maximum partition size should not exceed 50MB for a smooth operation.
+	vlen := int(m.BodyLen) - int(m.ExtraLen) - int(m.KeyLen) - int(m.DMapLen)
 	if vlen != 0 {
 		m.Value = make([]byte, vlen)
 		copy(m.Value, buf.Next(vlen))

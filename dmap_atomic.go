@@ -141,7 +141,7 @@ func (db *Olric) exIncrDecrOperation(req *protocol.Message) *protocol.Message {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 	op := "incr"
-	if req.Op == protocol.OpExDecr {
+	if req.Op == protocol.OpDecr {
 		op = "decr"
 	}
 	newval, err := db.atomicIncrDecr(req.DMap, req.Key, op, delta.(int))

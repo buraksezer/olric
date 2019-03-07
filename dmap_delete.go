@@ -123,7 +123,7 @@ func (db *Olric) deleteKey(name, key string) error {
 			DMap: name,
 			Key:  key,
 		}
-		_, err := db.requestTo(member.String(), protocol.OpExDelete, msg)
+		_, err := db.requestTo(member.String(), protocol.OpDelete, msg)
 		return err
 	}
 

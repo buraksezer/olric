@@ -8,8 +8,6 @@ tcpAddr = "0.0.0.0:3422"
 #keyFile = "/home/burak/Projects/server.key"
 serializer = "msgpack"
 keepAlivePeriod = "300s"
-# 1MB by default
-maxValueSize = 1048576 
 
 [snapshot]
 enabled = false

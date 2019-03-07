@@ -175,10 +175,6 @@ func New(c *Config) (*Olric, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	bctx, bcancel := context.WithTimeout(context.Background(), bootstrapTimeoutDuration)
 
-	// TODO: That's not a good think. We need to change design of the protocol package to improve this.
-	if c.MaxValueSize != 0 {
-		protocol.MaxValueSize = c.MaxValueSize
-	}
 	cc := &transport.ClientConfig{
 		DialTimeout: c.DialTimeout,
 		KeepAlive:   c.KeepAlivePeriod,
@@ -354,35 +350,35 @@ func (db *Olric) Start() error {
 
 func (db *Olric) registerOperations() {
 	// Put
-	db.server.RegisterOperation(protocol.OpExPut, db.exPutOperation)
-	db.server.RegisterOperation(protocol.OpExPutEx, db.exPutExOperation)
+	db.server.RegisterOperation(protocol.OpPut, db.exPutOperation)
+	db.server.RegisterOperation(protocol.OpPutEx, db.exPutExOperation)
 	db.server.RegisterOperation(protocol.OpPutBackup, db.putBackupOperation)
 
 	// Get
-	db.server.RegisterOperation(protocol.OpExGet, db.exGetOperation)
+	db.server.RegisterOperation(protocol.OpGet, db.exGetOperation)
 	db.server.RegisterOperation(protocol.OpGetPrev, db.getPrevOperation)
 	db.server.RegisterOperation(protocol.OpGetBackup, db.getBackupOperation)
 
 	// Delete
-	db.server.RegisterOperation(protocol.OpExDelete, db.exDeleteOperation)
+	db.server.RegisterOperation(protocol.OpDelete, db.exDeleteOperation)
 	db.server.RegisterOperation(protocol.OpDeleteBackup, db.deleteBackupOperation)
 	db.server.RegisterOperation(protocol.OpDeletePrev, db.deletePrevOperation)
 
 	// Lock/Unlock
-	db.server.RegisterOperation(protocol.OpExLockWithTimeout, db.exLockWithTimeoutOperation)
-	db.server.RegisterOperation(protocol.OpExUnlock, db.exUnlockOperation)
+	db.server.RegisterOperation(protocol.OpLockWithTimeout, db.exLockWithTimeoutOperation)
+	db.server.RegisterOperation(protocol.OpUnlock, db.exUnlockOperation)
 	db.server.RegisterOperation(protocol.OpFindLock, db.findLockOperation)
 	db.server.RegisterOperation(protocol.OpLockPrev, db.lockPrevOperation)
 	db.server.RegisterOperation(protocol.OpUnlockPrev, db.unlockPrevOperation)
 
 	// Destroy
-	db.server.RegisterOperation(protocol.OpExDestroy, db.exDestroyOperation)
+	db.server.RegisterOperation(protocol.OpDestroy, db.exDestroyOperation)
 	db.server.RegisterOperation(protocol.OpDestroyDMap, db.destroyDMapOperation)
 
 	// Atomic
-	db.server.RegisterOperation(protocol.OpExIncr, db.exIncrDecrOperation)
-	db.server.RegisterOperation(protocol.OpExDecr, db.exIncrDecrOperation)
-	db.server.RegisterOperation(protocol.OpExGetPut, db.exGetPutOperation)
+	db.server.RegisterOperation(protocol.OpIncr, db.exIncrDecrOperation)
+	db.server.RegisterOperation(protocol.OpDecr, db.exIncrDecrOperation)
+	db.server.RegisterOperation(protocol.OpGetPut, db.exGetPutOperation)
 
 	// Internal
 	db.server.RegisterOperation(protocol.OpUpdateRouting, db.updateRoutingOperation)

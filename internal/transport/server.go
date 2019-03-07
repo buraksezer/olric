@@ -48,8 +48,7 @@ type Server struct {
 	operations      operations
 	logger          *log.Logger
 	wg              sync.WaitGroup
-	listener        *net.TCPListener
-	connCh          chan net.Conn
+	listener        net.Listener
 	StartCh         chan struct{}
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -66,7 +65,6 @@ func NewServer(addr string, logger *log.Logger, keepalivePeriod time.Duration) *
 		addr:            addr,
 		keepAlivePeriod: keepalivePeriod,
 		logger:          logger,
-		connCh:          make(chan net.Conn),
 		StartCh:         make(chan struct{}),
 		ctx:             ctx,
 		cancel:          cancel,
@@ -78,8 +76,8 @@ func (s *Server) RegisterOperation(op protocol.OpCode, e protocol.Operation) {
 	s.operations.m[op] = e
 }
 
-// waitForRequest waits for a new request, handles it and returns the appropriate response.
-func (s *Server) waitForRequest(req *protocol.Message, conn io.ReadWriter, connStatus *uint32) error {
+// processRequest waits for a new request, handles it and returns the appropriate response.
+func (s *Server) processRequest(req *protocol.Message, conn io.ReadWriter, connStatus *uint32) error {
 	defer atomic.StoreUint32(connStatus, idleConn) // Mark connection as idle before start waiting a new request
 	err := req.Read(conn)
 	if err != nil {
@@ -97,26 +95,32 @@ func (s *Server) waitForRequest(req *protocol.Message, conn io.ReadWriter, connS
 	return errors.WithMessage(err, "failed to write response")
 }
 
-// handleConn reads from TCP socket and calls related functions to generate a response.
-func (s *Server) handleConn(conn net.Conn) {
+// processConn waits for requests and calls request handlers to generate a response. The connections are reusable.
+func (s *Server) processConn(conn net.Conn) {
 	defer s.wg.Done()
 
+	// connStatus is useful for closing the server gracefully.
 	var connStatus uint32
 	done := make(chan struct{})
 	defer close(done)
 
+	// Control connection state and close it.
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		select {
 		case <-s.ctx.Done():
+			// The server is down.
 		case <-done:
+			// The following loop is quit. TCP socket may be closed or a protocol error occured.
 		}
 
 		if atomic.LoadUint32(&connStatus) != idleConn {
 			s.logger.Printf("[DEBUG] Connection is busy, waiting")
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
+
+			// Wait for the current request. When it mark the connection as idle, break the loop.
 			for {
 				<-ticker.C
 				if atomic.LoadUint32(&connStatus) == idleConn {
@@ -126,6 +130,7 @@ func (s *Server) handleConn(conn net.Conn) {
 			}
 		}
 
+		// Close the connection and quit.
 		if err := conn.Close(); err != nil {
 			s.logger.Printf("[DEBUG] Failed to close TCP connection: %v", err)
 		}
@@ -133,7 +138,9 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	for {
 		var req protocol.Message
-		err := s.waitForRequest(&req, conn, &connStatus)
+		// processRequest waits to read a message from the TCP socket.
+		// Then calls its handler to generate a response.
+		err := s.processRequest(&req, conn, &connStatus)
 		if err != nil {
 			// The socket probably would have been closed by the client.
 			if errors.Cause(err) == io.EOF || errors.Cause(err) == protocol.ErrConnClosed {
@@ -154,32 +161,16 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 }
 
-func (s *Server) handleConns() {
-	defer s.wg.Done()
-
-	for {
-		select {
-		case conn := <-s.connCh:
-			s.wg.Add(1)
-			go s.handleConn(conn)
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-// waitForConnections calls Accept on given net.Listener.
-func (s *Server) waitForConnections(l net.Listener) error {
-	s.listener = l.(*net.TCPListener)
-
-	s.wg.Add(1)
-	go s.handleConns()
+// listenAndServe calls Accept on given net.Listener.
+func (s *Server) listenAndServe() error {
 	close(s.StartCh)
+
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			select {
 			case <-s.ctx.Done():
+				// the server is closed. just quit.
 				return nil
 			default:
 			}
@@ -196,7 +187,8 @@ func (s *Server) waitForConnections(l net.Listener) error {
 				return err
 			}
 		}
-		s.connCh <- conn
+		s.wg.Add(1)
+		go s.processConn(conn)
 	}
 }
 
@@ -220,7 +212,8 @@ func (s *Server) ListenAndServeTLS(cert, key string) error {
 	if err != nil {
 		return err
 	}
-	return s.waitForConnections(l)
+	s.listener = l
+	return s.listenAndServe()
 }
 
 // ListenAndServe listens on the TCP network address addr.
@@ -238,7 +231,8 @@ func (s *Server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	return s.waitForConnections(l)
+	s.listener = l
+	return s.listenAndServe()
 }
 
 // Shutdown gracefully shuts down the server without interrupting any active connections.

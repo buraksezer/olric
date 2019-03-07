@@ -16,7 +16,6 @@ package transport
 
 import (
 	"log"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -30,9 +29,10 @@ import (
 type Client struct {
 	mu sync.RWMutex
 
-	dialer *net.Dialer
-	config *ClientConfig
-	pools  map[string]pool.Pool
+	dialer     *net.Dialer
+	config     *ClientConfig
+	roundrobin *RoundRobin
+	pools      map[string]pool.Pool
 }
 
 // ClientConfig configuration parameters of the client.
@@ -56,9 +56,10 @@ func NewClient(cc *ClientConfig) *Client {
 	}
 
 	c := &Client{
-		dialer: dialer,
-		config: cc,
-		pools:  make(map[string]pool.Pool),
+		roundrobin: NewRoundRobin(cc.Addrs),
+		dialer:     dialer,
+		config:     cc,
+		pools:      make(map[string]pool.Pool),
 	}
 	return c
 }
@@ -83,32 +84,25 @@ func (c *Client) CloseWithAddr(addr string) {
 	}
 }
 
+// getPool creates a new pool for a given addr or returns an exiting one.
 func (c *Client) getPool(addr string) (pool.Pool, error) {
 	factory := func() (net.Conn, error) {
 		return c.dialer.Dial("tcp", addr)
 	}
 
-	c.mu.RLock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	cpool, ok := c.pools[addr]
-	c.mu.RUnlock()
 	if ok {
 		return cpool, nil
 	}
 
-	newpool, err := pool.NewChannelPool(c.config.MinConn, c.config.MaxConn, factory)
+	cpool, err := pool.NewChannelPool(c.config.MinConn, c.config.MaxConn, factory)
 	if err != nil {
 		return nil, err
 	}
-	c.mu.Lock()
-	tmp, ok := c.pools[addr]
-	if ok {
-		newpool.Close()
-		cpool = tmp
-	} else {
-		c.pools[addr] = newpool
-		cpool = newpool
-	}
-	c.mu.Unlock()
+	c.pools[addr] = cpool
 	return cpool, nil
 }
 
@@ -148,8 +142,6 @@ func (c *Client) RequestTo(addr string, op protocol.OpCode, req *protocol.Messag
 
 // Request initiates a request-response cycle to randomly selected host.
 func (c *Client) Request(op protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
-	// TODO: use an algorithm to distribute load fairly. Check out round-robin alg.
-	i := rand.Intn(len(c.config.Addrs))
-	addr := c.config.Addrs[i]
+	addr := c.roundrobin.Get()
 	return c.RequestTo(addr, op, req)
 }

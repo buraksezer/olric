@@ -99,7 +99,7 @@ func (db *Olric) get(name, key string) ([]byte, error) {
 			DMap: name,
 			Key:  key,
 		}
-		resp, err := db.requestTo(member.String(), protocol.OpExGet, req)
+		resp, err := db.requestTo(member.String(), protocol.OpGet, req)
 		if err != nil {
 			return nil, err
 		}

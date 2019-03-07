@@ -128,7 +128,7 @@ func (db *Olric) lockWithTimeout(name, key string, timeout time.Duration) error 
 			Key:   key,
 			Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
 		}
-		_, err = db.requestTo(member.String(), protocol.OpExLockWithTimeout, req)
+		_, err = db.requestTo(member.String(), protocol.OpLockWithTimeout, req)
 		return err
 	}
 	return db.lockKey(hkey, name, key, timeout)
@@ -180,7 +180,7 @@ func (db *Olric) unlock(name, key string) error {
 			DMap: name,
 			Key:  key,
 		}
-		_, err = db.requestTo(member.String(), protocol.OpExUnlock, req)
+		_, err = db.requestTo(member.String(), protocol.OpUnlock, req)
 		return err
 	}
 	return db.unlockKey(hkey, name, key)
