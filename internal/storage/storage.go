@@ -201,8 +201,8 @@ func (s *Storage) Get(hkey uint64) (*VData, error) {
 
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
 func (s *Storage) Delete(hkey uint64) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
