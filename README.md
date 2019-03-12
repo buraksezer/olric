@@ -2,8 +2,25 @@
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Distributed and in-memory key/value database that persists on disk. It can be used both as an embedded Go library and as 
-a language-independent service. Built with [Go](https://golang.org).
+Distributed and in-memory key/value database. It can be used both as an embedded Go library and as a language-independent service. Built with [Go](https://golang.org).
+
+## At a glance
+
+* Designed to share some transient, approximate, fast-changing data between servers,
+* In-memory with optional on-disk snapshot,
+* Embeddable but can be used as a language-independent service with olricd,
+* Supports different key eviction algorithms,
+* Fast binary protocol,
+* Highly available and horizontally scalable,
+* Provides best-effort consistency guarantees without being a complete CP solution,
+* Supports replication by default(with sync and async options),
+* Supports atomic operations,
+
+## Use cases
+* Key/Value store,
+* Caching,
+* Scale your cloud application, 
+* Service discovery.
 
 ## WIP
 
@@ -51,7 +68,7 @@ This project is a work in progress. The implementation is incomplete. The docume
 * In-memory with optional persistence,
 * Implements a fast and simple binary protocol,
 * Embeddable but can be used as a language-independent service with olricd,
-* Stores values in off-heap memory, which is memory within the runtime that is not subject to Go garbage collection.
+* GC-friendly data storage,
 * Supports atomic operations,
 * Provides a single-node lock implementation which can be used for non-critical purposes,
 * Time-To-Live(TTL) eviction policy,
