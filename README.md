@@ -14,13 +14,15 @@ Distributed and in-memory key/value database. It can be used both as an embedded
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
 * Supports replication by default(with sync and async options),
-* Supports atomic operations,
+* Supports atomic operations.
 
-## Use cases
+## Possible use cases
 * Key/Value store,
 * Caching,
 * Scale your cloud application, 
 * Service discovery.
+
+See [Sample Code](https://github.com/buraksezer/olric#sample-code) section for a quick experimentation.
 
 ## WIP
 
@@ -259,7 +261,7 @@ Olric uses:
 * [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for cluster membership and failure detection,
 * [buraksezer/consistent](https://github.com/buraksezer/consistent) for consistent hashing and load balancing,
 * [Golang's TCP implementation](https://golang.org/pkg/net/#TCPConn) as transport layer,
-* [encoding/gob](https://golang.org/pkg/encoding/gob/), [encoding/json](https://golang.org/pkg/encoding/json/) or [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack)for serialization, optionally. 
+* [encoding/gob](https://golang.org/pkg/encoding/gob/), [encoding/json](https://golang.org/pkg/encoding/json/) or [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack) for serialization, optionally. 
 
 Olric distributes data among partitions. Every partition is owned by a cluster member and may has one or more backup for redundancy. 
 When you read or write a map entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a
