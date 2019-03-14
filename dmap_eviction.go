@@ -58,11 +58,6 @@ func (db *Olric) evictKeys() {
 	wg.Wait()
 }
 
-type expiredKey struct {
-	hkey uint64
-	key  string
-}
-
 func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *sync.WaitGroup) {
 	/*
 		1- Test 20 random keys from the set of keys with an associated expire.
@@ -75,8 +70,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 	defer dm.Unlock()
 	var totalCount, maxKcount = 0, 20
 	janitor := func() bool {
-		kcount := 0
-		expiredKeys := []expiredKey{}
+		dcount, kcount := 0, 0
 		dm.str.Range(func(hkey uint64, vdata *storage.VData) bool {
 			kcount++
 			if kcount >= maxKcount {
@@ -84,26 +78,16 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 				return false
 			}
 			if isKeyExpired(vdata.TTL) {
-				// Workaround to eleminate a deadlock. We cannot call storage.Delete in a storage.Range.
-				ex := expiredKey{
-					hkey: hkey,
-					key:  vdata.Key,
+				err := db.delKeyVal(dm, hkey, name, vdata.Key)
+				if err != nil {
+					// It will be tried again.
+					db.log.Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v", hkey, name, err)
+					return true // this means 'continue'
 				}
-				expiredKeys = append(expiredKeys, ex)
+				dcount++
 			}
 			return true
 		})
-
-		dcount := 0
-		for _, ex := range expiredKeys {
-			err := db.delKeyVal(dm, ex.hkey, name, ex.key)
-			if err != nil {
-				// It will be tried again.
-				db.log.Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v", ex.hkey, name, err)
-				continue
-			}
-			dcount++
-		}
 		totalCount += dcount
 		return dcount >= maxKcount/4
 	}
@@ -113,6 +97,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 	for {
 		select {
 		case <-db.ctx.Done():
+			// The server has gone.
 			return
 		default:
 		}
