@@ -100,7 +100,6 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 	// Delete moved dmap object. the gc will free the allocated memory.
 	part.m.Delete(name)
 	atomic.AddInt32(&part.count, -1)
-	dm.str.Close()
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dkey := snapshot.PrimaryDMapKey
 		if part.backup {
@@ -117,14 +116,14 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 }
 
 func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
-	str, err := storage.Import(data.Payload)
+	fresh, err := storage.Import(data.Payload)
 	if err != nil {
 		return err
 	}
 
 	tmp, ok := part.m.Load(data.Name)
 	if !ok {
-		dm := &dmap{str: str}
+		dm := &dmap{str: fresh}
 		if !part.backup {
 			// Create this on the owners, not backups.
 			dm.locker = newLocker()
@@ -138,12 +137,18 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 	defer dm.Unlock()
 
 	var merr error
-	str.Range(func(hkey uint64, vdata *storage.VData) bool {
-		if !dm.str.Check(hkey) {
-			merr = dm.str.Put(hkey, vdata)
-			if merr != nil {
-				return false
-			}
+	fresh.Range(func(hkey uint64, vdata *storage.VData) bool {
+		if dm.str.Check(hkey) {
+			return true
+		}
+		merr = dm.str.Put(hkey, vdata)
+		if merr == storage.ErrFragmented {
+			db.wg.Add(1)
+			go db.compactTables(dm)
+			merr = nil
+		}
+		if merr != nil {
+			return false
 		}
 		return true
 	})

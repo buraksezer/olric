@@ -15,11 +15,14 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/cespare/xxhash"
 )
+
+var storageTestLock sync.RWMutex
 
 func bkey(i int) string {
 	return fmt.Sprintf("%09d", i)
@@ -31,7 +34,6 @@ func bval(i int) []byte {
 
 func Test_Put(t *testing.T) {
 	s := New(0)
-	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -49,7 +51,6 @@ func Test_Put(t *testing.T) {
 
 func Test_Get(t *testing.T) {
 	s := New(0)
-	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -84,7 +85,6 @@ func Test_Get(t *testing.T) {
 
 func Test_Delete(t *testing.T) {
 	s := New(0)
-	defer s.Close()
 
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -118,11 +118,19 @@ func Test_Delete(t *testing.T) {
 	}
 }
 
-func Test_MergeTables(t *testing.T) {
+func Test_CompactTables(t *testing.T) {
 	s := New(0)
-	defer s.Close()
 
-	// Current free space is 1MB. Trigger a merge operation.
+	compaction := func() {
+		storageTestLock.Lock()
+		defer storageTestLock.Unlock()
+		for {
+			if done := s.CompactTables(); done {
+				return
+			}
+		}
+	}
+	// Current free space is 1MB. Trigger a compaction operation.
 	for i := 0; i < 1500; i++ {
 		vdata := &VData{
 			Key:   bkey(i),
@@ -130,7 +138,15 @@ func Test_MergeTables(t *testing.T) {
 			Value: []byte(fmt.Sprintf("%01000d", i)),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
+
+		storageTestLock.Lock()
 		err := s.Put(hkey, vdata)
+		storageTestLock.Unlock()
+
+		if err == ErrFragmented {
+			go compaction()
+			err = nil
+		}
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -138,7 +154,11 @@ func Test_MergeTables(t *testing.T) {
 
 	for i := 0; i < 1500; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
+
+		storageTestLock.RLock()
 		vdata, err := s.Get(hkey)
+		storageTestLock.RUnlock()
+
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -155,23 +175,31 @@ func Test_MergeTables(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		s.mu.Lock()
+		storageTestLock.Lock()
 		if len(s.tables) == 1 {
-			s.mu.Unlock()
+			storageTestLock.Unlock()
 			// It's OK.
 			return
 		}
-		s.mu.Unlock()
+		storageTestLock.Unlock()
 		<-time.After(100 * time.Millisecond)
 	}
-	t.Error("Tables cannot be merged.")
+	t.Error("Tables cannot be compacted.")
 }
 
 func Test_PurgeTables(t *testing.T) {
 	s := New(0)
-	defer s.Close()
 
-	// Current free space is 1MB. Trigger a merge operation.
+	compaction := func() {
+		storageTestLock.Lock()
+		defer storageTestLock.Unlock()
+		for {
+			if done := s.CompactTables(); done {
+				return
+			}
+		}
+	}
+	// Current free space is 1MB. Trigger a compaction operation.
 	for i := 0; i < 2000; i++ {
 		vdata := &VData{
 			Key:   bkey(i),
@@ -179,7 +207,16 @@ func Test_PurgeTables(t *testing.T) {
 			Value: []byte(fmt.Sprintf("%01000d", i)),
 		}
 		hkey := xxhash.Sum64([]byte(vdata.Key))
+
+		// Simulate the real-world case.
+		storageTestLock.Lock()
 		err := s.Put(hkey, vdata)
+		storageTestLock.Unlock()
+
+		if err == ErrFragmented {
+			go compaction()
+			err = nil
+		}
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
@@ -187,21 +224,30 @@ func Test_PurgeTables(t *testing.T) {
 
 	for i := 0; i < 2000; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		s.Delete(hkey)
+
+		// Simulate the real-world case.
+		storageTestLock.Lock()
+		err := s.Delete(hkey)
+		storageTestLock.Unlock()
+		if err == ErrFragmented {
+			go compaction()
+			err = nil
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
 	}
 
 	for i := 0; i < 10; i++ {
-		// Trigger garbage collection
-		s.Delete(1)
-		s.mu.Lock()
+		storageTestLock.Lock()
 		if len(s.tables) == 1 {
 			// Only has 1 table with minimum size.
 			if s.tables[0].allocated == minimumSize {
-				s.mu.Unlock()
+				storageTestLock.Unlock()
 				return
 			}
 		}
-		s.mu.Unlock()
+		storageTestLock.Unlock()
 		<-time.After(100 * time.Millisecond)
 	}
 	t.Fatal("Tables cannot be purged.")
@@ -209,7 +255,6 @@ func Test_PurgeTables(t *testing.T) {
 
 func Test_ExportImport(t *testing.T) {
 	s := New(0)
-	defer s.Close()
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
 			Key:   bkey(i),
@@ -250,8 +295,6 @@ func Test_ExportImport(t *testing.T) {
 
 func Test_Len(t *testing.T) {
 	s := New(0)
-	defer s.Close()
-
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
 			Key:   bkey(i),
@@ -272,8 +315,6 @@ func Test_Len(t *testing.T) {
 
 func Test_Range(t *testing.T) {
 	s := New(0)
-	defer s.Close()
-
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
 		vdata := &VData{
@@ -299,8 +340,6 @@ func Test_Range(t *testing.T) {
 
 func Test_Check(t *testing.T) {
 	s := New(0)
-	defer s.Close()
-
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
 		vdata := &VData{

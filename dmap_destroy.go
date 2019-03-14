@@ -63,12 +63,6 @@ func (db *Olric) exDestroyOperation(req *protocol.Message) *protocol.Message {
 func (db *Olric) destroyDMapOperation(req *protocol.Message) *protocol.Message {
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
 	destroy := func(part *partition) error {
-		tmp, ok := part.m.Load(req.DMap)
-		if !ok {
-			return nil
-		}
-		dm := tmp.(*dmap)
-		dm.str.Close()
 		if db.config.OperationMode == OpInMemoryWithSnapshot {
 			dkey := snapshot.PrimaryDMapKey
 			if part.backup {

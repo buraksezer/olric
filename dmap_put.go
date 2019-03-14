@@ -84,6 +84,11 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 		Value: value,
 	}
 	err = dm.str.Put(hkey, val)
+	if err == storage.ErrFragmented {
+		db.wg.Add(1)
+		go db.compactTables(dm)
+		err = nil
+	}
 	if err != nil {
 		return err
 	}
@@ -173,6 +178,11 @@ func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 	}
 
 	err = dm.str.Put(hkey, vdata)
+	if err == storage.ErrFragmented {
+		db.wg.Add(1)
+		go db.compactTables(dm)
+		err = nil
+	}
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
@@ -226,4 +236,22 @@ func (db *Olric) putKeyValBackup(hkey uint64, name, key string, value []byte, ti
 		return nil
 	}
 	return werr
+}
+
+func (db *Olric) compactTables(dm *dmap) {
+	defer db.wg.Done()
+	for {
+		select {
+		case <-time.After(50 * time.Millisecond):
+			dm.Lock()
+			if done := dm.str.CompactTables(); done {
+				// Fragmented tables are merged. Quit.
+				dm.Unlock()
+				return
+			}
+			dm.Unlock()
+		case <-db.ctx.Done():
+			return
+		}
+	}
 }

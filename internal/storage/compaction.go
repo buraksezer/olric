@@ -16,35 +16,9 @@ package storage
 
 import (
 	"log"
-	"sync/atomic"
-	"time"
 )
 
-func (s *Storage) mergeTables() {
-	defer s.wg.Done()
-	defer atomic.StoreInt32(&s.merging, 0)
-	// Run immediately. The ticker will trigger that function
-	// every 100 milliseconds to prevent blocking the storage instance.
-	if done := s.chunkedMergeTables(); done {
-		// Fragmented tables are merged. Quit.
-		return
-	}
-	for {
-		select {
-		case <-time.After(50 * time.Millisecond):
-			if done := s.chunkedMergeTables(); done {
-				// Fragmented tables are merged. Quit.
-				return
-			}
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *Storage) chunkedMergeTables() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Storage) CompactTables() bool {
 	if len(s.tables) == 1 {
 		return true
 	}
@@ -63,7 +37,7 @@ func (s *Storage) chunkedMergeTables() bool {
 				return false
 			}
 			if err != nil {
-				log.Printf("[ERROR] Failed to merge tables. HKey: %d: %v", hkey, err)
+				log.Printf("[ERROR] Failed to compact tables. HKey: %d: %v", hkey, err)
 			}
 
 			// Dont check the returned val, it's useless because

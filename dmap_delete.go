@@ -20,6 +20,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/snapshot"
+	"github.com/buraksezer/olric/internal/storage"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -48,7 +49,6 @@ func (db *Olric) deleteStaleDMaps() {
 				// Continue scanning.
 				return true
 			}
-			d.str.Close()
 			// Unregister DMap from snapshot.
 			if db.config.OperationMode == OpInMemoryWithSnapshot {
 				dkey := snapshot.PrimaryDMapKey
@@ -109,8 +109,13 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Delete(hkey)
 	}
-	dm.str.Delete(hkey)
-	return nil
+	err := dm.str.Delete(hkey)
+	if err == storage.ErrFragmented {
+		db.wg.Add(1)
+		go db.compactTables(dm)
+		err = nil
+	}
+	return err
 }
 
 func (db *Olric) deleteKey(name, key string) error {
@@ -159,7 +164,16 @@ func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	dm.Lock()
 	defer dm.Unlock()
 
-	dm.str.Delete(hkey)
+	err = dm.str.Delete(hkey)
+	if err == storage.ErrFragmented {
+		db.wg.Add(1)
+		go db.compactTables(dm)
+		err = nil
+	}
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Delete(hkey)
 	}
@@ -176,7 +190,15 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 	dm.Lock()
 	defer dm.Unlock()
 
-	dm.str.Delete(hkey)
+	err = dm.str.Delete(hkey)
+	if err == storage.ErrFragmented {
+		db.wg.Add(1)
+		go db.compactTables(dm)
+		err = nil
+	}
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Delete(hkey)
 	}

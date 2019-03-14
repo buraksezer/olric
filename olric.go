@@ -83,7 +83,7 @@ type Olric struct {
 }
 
 type dmap struct {
-	sync.Mutex
+	sync.RWMutex
 
 	locker *locker
 	oplog  *snapshot.OpLog
@@ -411,21 +411,6 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	}
 
 	db.wg.Wait()
-
-	// Free allocated memory.
-	purgeDMaps := func(part *partition) {
-		part.m.Range(func(name, dm interface{}) bool {
-			d := dm.(*dmap)
-			d.str.Close()
-			return true
-		})
-	}
-	for _, part := range db.partitions {
-		purgeDMaps(part)
-	}
-	for _, part := range db.backups {
-		purgeDMaps(part)
-	}
 
 	// The GC will flush all the data.
 	db.partitions = nil

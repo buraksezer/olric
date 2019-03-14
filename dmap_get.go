@@ -36,6 +36,9 @@ func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	dm.RLock()
+	defer dm.RUnlock()
+
 	value, err := dm.str.Get(hkey)
 	if err == nil {
 		if isKeyExpired(value.TTL) {
