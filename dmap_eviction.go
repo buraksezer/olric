@@ -24,23 +24,25 @@ import (
 
 func (db *Olric) evictKeysAtBackground() {
 	defer db.wg.Done()
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
 
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-db.ctx.Done():
 			return
 		case <-ticker.C:
-			db.evictKeys()
+			db.wg.Add(1)
+			go db.evictKeys()
 		}
 	}
 }
 
 func (db *Olric) evictKeys() {
+	defer db.wg.Done()
+
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.partitions[partID]
-
 	var wg sync.WaitGroup
 	part.m.Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
@@ -54,9 +56,13 @@ func (db *Olric) evictKeys() {
 		go db.scanDMapForEviction(partID, name.(string), dm, &wg)
 		return true
 	})
-
 	wg.Wait()
 }
+
+const (
+	maxKcount     = 20
+	maxTotalCount = 100
+)
 
 func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *sync.WaitGroup) {
 	/*
@@ -68,8 +74,13 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 
 	dm.Lock()
 	defer dm.Unlock()
-	var totalCount, maxKcount = 0, 20
+	var totalCount = 0
 	janitor := func() bool {
+		if totalCount > maxTotalCount {
+			// Release the lock. Eviction will be triggered again.
+			return false
+		}
+
 		dcount, kcount := 0, 0
 		dm.str.Range(func(hkey uint64, vdata *storage.VData) bool {
 			kcount++
@@ -92,7 +103,9 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 		return dcount >= maxKcount/4
 	}
 	defer func() {
-		db.log.Printf("[DEBUG] Evicted key count is %d on PartID: %d", totalCount, partID)
+		if totalCount > 0 {
+			db.log.Printf("[DEBUG] Evicted key count is %d on PartID: %d", totalCount, partID)
+		}
 	}()
 	for {
 		select {
