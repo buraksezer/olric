@@ -804,7 +804,10 @@ func TestDMap_TTLEviction(t *testing.T) {
 	// Update currentUnixNano to evict the key now.
 	atomic.StoreInt64(&currentUnixNano, time.Now().UnixNano())
 	for i := 0; i < 100; i++ {
+		db1.wg.Add(1)
 		db1.evictKeys()
+
+		db2.wg.Add(1)
 		db2.evictKeys()
 	}
 	length := 0
