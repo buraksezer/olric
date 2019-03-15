@@ -18,13 +18,12 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/cmd/olric-cli/cli"
+	"github.com/sean-/seed"
 )
 
 const (
@@ -69,7 +68,11 @@ var (
 )
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
+	// available, MustInit will panic() with an error indicating why reading from
+	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
+	// call to Init() failed in the past.
+	seed.MustInit()
 }
 
 func main() {
