@@ -2,14 +2,14 @@
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Distributed and in-memory key/value database. It can be used both as an embedded Go library and as a language-independent service. Built with [Go](https://golang.org).
+Distributed, eventually consistent and in-memory key/value database. It can be used both as an embedded Go library and as a language-independent service. Built with [Go](https://golang.org).
 
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
 * In-memory with optional on-disk snapshot,
 * Embeddable but can be used as a language-independent service with olricd,
-* Supports different key eviction algorithms,
+* Supports different eviction algorithms,
 * Fast binary protocol,
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
@@ -17,8 +17,8 @@ Distributed and in-memory key/value database. It can be used both as an embedded
 * Supports atomic operations.
 
 ## Possible use cases
-* Key/Value store,
-* Caching,
+* Distributed key/value data store,
+* Distributed cache,
 * Scale your cloud application, 
 * Service discovery.
 
@@ -58,6 +58,9 @@ This project is a work in progress. The implementation is incomplete. The docume
   * [Overview](#overview)
   * [Consistency and Replication Model](#consistency-and-replication-model)
   * [Eviction](#eviction)
+    * [Expire with TTL](#expire-with-ttl)
+    * [Expire with MaxIdleDuration](#expire-with-maxidleduration)
+    * [Expire with LRU](#expire-with-lru)
   * [Lock Implementation](#lock-implementation)
 * [Sample Code](#sample-code)
 * [To-Do](#to-do)
@@ -73,7 +76,7 @@ This project is a work in progress. The implementation is incomplete. The docume
 * GC-friendly data storage,
 * Supports atomic operations,
 * Provides a single-node lock implementation which can be used for non-critical purposes,
-* Time-To-Live(TTL) eviction policy,
+* Different eviction policies: LRU, MaxIdleDuration and Time-To-Live(TTL) eviction policy,
 * Highly available,
 * Horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
@@ -89,7 +92,6 @@ This project is a work in progress. The implementation is incomplete. The docume
 ## Planned Features
 
 * Anti-entropy system to repair inconsistencies in DMaps,
-* LRU eviction policy,
 * Publish/Subscribe for messaging,
 * Eviction listeners by using Pub/Sub,
 * Memcached interface,
@@ -325,8 +327,10 @@ model.
 An anti-entropy system has been planned to deal with inconsistencies in DMaps.
 
 ### Eviction
+Olric supports different policies to evict keys from distributed maps. 
 
-Olric only implements TTL eviction policy. It shares the same algorithm with [Redis](https://redis.io/commands/expire#appendix-redis-expires):
+#### Expire with TTL
+Olric implements TTL eviction policy. It shares the same algorithm with [Redis](https://redis.io/commands/expire#appendix-redis-expires):
 
 > Periodically Redis tests a few keys at random among keys with an expire set. All the keys that are already expired are deleted from the keyspace.
 >
@@ -340,7 +344,9 @@ Olric only implements TTL eviction policy. It shares the same algorithm with [Re
 
 When a client tries to access a key, Olric returns `ErrKeyNotFound` if the key is found to be timed out. A background task evicts keys with the algorithm described above.
 
-LRU eviction policy implementation has been planned.
+#### Expire with MaxIdleDuration
+
+#### Expire with LRU
 
 ### Lock Implementation
 

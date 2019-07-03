@@ -43,6 +43,53 @@ type Olricd struct {
 	errgr  errgroup.Group
 }
 
+func prepareCacheConfig(c *Config) (*olric.CacheConfig, error) {
+	res := &olric.CacheConfig{}
+	if c.Cache.MaxIdleDuration != "" {
+		maxIdleDuration, err := time.ParseDuration(c.Cache.MaxIdleDuration)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse cache.MaxIdleDuration")
+		}
+		res.MaxIdleDuration = maxIdleDuration
+	}
+	if c.Cache.TTLDuration != "" {
+		ttlDuration, err := time.ParseDuration(c.Cache.TTLDuration)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse cache.TTLDuration")
+		}
+		res.TTLDuration = ttlDuration
+	}
+	res.MaxKeys = c.Cache.MaxKeys
+	res.EvictionPolicy = olric.EvictionPolicy(c.Cache.EvictionPolicy)
+	res.LRUSamples = c.Cache.LRUSamples
+	if c.DMaps != nil {
+		res.DMapConfigs = make(map[string]olric.DMapConfig)
+		for name, dc := range c.DMaps {
+			cc := olric.DMapConfig{
+				MaxKeys:        dc.MaxKeys,
+				EvictionPolicy: olric.EvictionPolicy(dc.EvictionPolicy),
+				LRUSamples:     dc.LRUSamples,
+			}
+			if dc.MaxIdleDuration != "" {
+				maxIdleDuration, err := time.ParseDuration(dc.MaxIdleDuration)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "failed to parse cache.%s.MaxIdleDuration", name)
+				}
+				cc.MaxIdleDuration = maxIdleDuration
+			}
+			if dc.TTLDuration != "" {
+				ttlDuration, err := time.ParseDuration(dc.TTLDuration)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "failed to parse cache.%s.TTLDuration", name)
+				}
+				cc.TTLDuration = ttlDuration
+			}
+			res.DMapConfigs[name] = cc
+		}
+	}
+	return res, nil
+}
+
 // New creates a new Server instance
 func New(c *Config) (*Olricd, error) {
 	s := &Olricd{}
@@ -92,6 +139,10 @@ func New(c *Config) (*Olricd, error) {
 				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
+	cacheConfig, err := prepareCacheConfig(c)
+	if err != nil {
+		return nil, err
+	}
 	s.config = &olric.Config{
 		Name:             c.Olricd.Name,
 		MemberlistConfig: mc,
@@ -107,6 +158,7 @@ func New(c *Config) (*Olricd, error) {
 		Hasher:           olric.NewDefaultHasher(),
 		Serializer:       serializer,
 		KeepAlivePeriod:  keepAlivePeriod,
+		Cache:            cacheConfig,
 	}
 	if c.Snapshot.Enabled {
 		s.config.OperationMode = olric.OpInMemoryWithSnapshot

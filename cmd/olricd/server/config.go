@@ -15,9 +15,8 @@
 package server
 
 import (
-	"os"
-
 	"github.com/BurntSushi/toml"
+	"os"
 )
 
 const (
@@ -70,12 +69,26 @@ type memberlist struct {
 	GossipToTheDeadTime string   `toml:"gossipToTheDeadTime"`
 }
 
+type cache struct {
+	MaxIdleDuration string `toml:"maxIdleDuration"`
+	TTLDuration     string `toml:"ttlDuration"`
+	MaxKeys         int    `toml:"maxKeys"`
+	LRUSamples      int    `toml:"lruSamples"`
+	EvictionPolicy  string `toml:"evictionPolicy"`
+}
+
+type dmap struct {
+	cache
+}
+
 // Config is the main configuration struct
 type Config struct {
 	Memberlist memberlist
 	Logging    logging
 	Olricd     olricd
 	Snapshot   snapshot
+	Cache      cache
+	DMaps      map[string]dmap
 }
 
 // NewConfig creates a new configuration object of olricd

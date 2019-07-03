@@ -35,26 +35,26 @@ func (db *Olric) atomicIncrDecr(name, key, opr string, delta int) (int, error) {
 	}()
 
 	rawval, err := db.get(name, key)
-	if err != nil && err != ErrKeyNotFound {
+	if err == ErrKeyNotFound {
+		err = nil
+	}
+	if err != nil {
 		return 0, err
 	}
 
 	var newval, curval int
-	if err == ErrKeyNotFound {
-		err = nil
-	} else {
+	if len(rawval) != 0 {
 		var value interface{}
 		if err = db.serializer.Unmarshal(rawval, &value); err != nil {
 			return 0, err
 		}
-		// switch is faster than reflect.
-		switch value.(type) {
-		case int:
-			curval = value.(int)
-		default:
+
+		// only accept integer and increase/decrease it. if the value is not integer, return an error.
+		var ok bool
+		curval, ok = value.(int)
+		if !ok {
 			return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(value).Name())
 		}
-
 	}
 
 	if opr == "incr" {

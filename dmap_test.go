@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -823,6 +823,132 @@ func TestDMap_TTLEviction(t *testing.T) {
 	}
 	if length == 100 {
 		t.Fatalf("Expected key count is different than 100")
+	}
+}
+
+func TestDMap_TTLDuration(t *testing.T) {
+	db, err := newOlric(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	// This is not recommended but forgivable for testing.
+	db.config.Cache = &CacheConfig{TTLDuration: 10 * time.Millisecond}
+
+	dm := db.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+	time.Sleep(20 * time.Millisecond)
+	// Update currentUnixNano to evict the key now.
+	atomic.StoreInt64(&currentUnixNano, time.Now().UnixNano())
+	db.wg.Add(1)
+	db.evictKeys()
+
+	length := 0
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		part := db.partitions[partID]
+		part.m.Range(func(k, v interface{}) bool {
+			dm := v.(*dmap)
+			length += dm.str.Len()
+			return true
+		})
+	}
+
+	if length == 100 {
+		t.Fatalf("Expected key count is different than 100")
+	}
+}
+
+func TestDMap_TTLMaxIdleDuration(t *testing.T) {
+	db, err := newOlric(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	// This is not recommended but forgivable for testing.
+	db.config.Cache = &CacheConfig{MaxIdleDuration: 10 * time.Millisecond}
+
+	dm := db.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+	time.Sleep(20 * time.Millisecond)
+	// Update currentUnixNano to evict the key now.
+	atomic.StoreInt64(&currentUnixNano, time.Now().UnixNano())
+	db.wg.Add(1)
+	db.evictKeys()
+
+	length := 0
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		part := db.partitions[partID]
+		part.m.Range(func(k, v interface{}) bool {
+			dm := v.(*dmap)
+			length += dm.str.Len()
+			return true
+		})
+	}
+
+	if length == 100 {
+		t.Fatalf("Expected key count is different than 100")
+	}
+}
+
+func TestDMap_EvictionPolicyLRU(t *testing.T) {
+	db, err := newOlric(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	// This is not recommended but forgivable for testing.
+	// We have 7 partitions in test setup. So MaxKeys is 10 for every partition.
+	db.config.Cache = &CacheConfig{MaxKeys: 70, EvictionPolicy: LRUEviction}
+
+	dm := db.NewDMap("mymap")
+	for i := 0; i < 100; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		<-time.After(time.Millisecond)
+	}
+
+	keyCount := 0
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		part := db.partitions[partID]
+		part.m.Range(func(k, v interface{}) bool {
+			dm := v.(*dmap)
+			keyCount += dm.str.Len()
+			return true
+		})
+	}
+	// We have 7 partitions and a partition may have only 10 keys.
+	if keyCount != 70 {
+		t.Fatalf("Expected key count is different than 50")
 	}
 }
 

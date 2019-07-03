@@ -41,9 +41,15 @@ func (db *Olric) getKeyVal(hkey uint64, name, key string) ([]byte, error) {
 
 	value, err := dm.str.Get(hkey)
 	if err == nil {
-		if isKeyExpired(value.TTL) {
+		if isKeyExpired(value.TTL) || dm.isKeyIdle(hkey) {
 			return nil, ErrKeyNotFound
 		}
+		// LRU and MaxIdleDuration eviction policies are only valid on
+		// the partition owner. Normally, we shouldn't need to retrieve the keys
+		// from the backup or the previous owners. When the fsck merge
+		// a fragmented partition or recover keys from a backup, Olric
+		// continue maintaining a reliable access log.
+		dm.updateAccessLog(hkey)
 		return value.Value, nil
 	}
 

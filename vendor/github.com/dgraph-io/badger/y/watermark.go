@@ -38,14 +38,15 @@ func (u *uint64Heap) Pop() interface{} {
 	return x
 }
 
-// mark contains raft proposal id and a done boolean. It is used to
-// update the WaterMark struct about the status of a proposal.
+// mark contains one of more indices, along with a done boolean to indicate the
+// status of the index: begin or done. It also contains waiters, who could be
+// waiting for the watermark to reach >= a certain index.
 type mark struct {
 	// Either this is an (index, waiter) pair or (index, done) or (indices, done).
 	index   uint64
 	waiter  chan struct{}
 	indices []uint64
-	done    bool // Set to true if the pending mutation is done.
+	done    bool // Set to true if the index is done.
 }
 
 // WaterMark is used to keep track of the minimum un-finished index.  Typically, an index k becomes
@@ -67,41 +68,52 @@ type WaterMark struct {
 }
 
 // Init initializes a WaterMark struct. MUST be called before using it.
-func (w *WaterMark) Init() {
+func (w *WaterMark) Init(closer *Closer) {
 	w.markCh = make(chan mark, 100)
 	w.elog = trace.NewEventLog("Watermark", w.Name)
-	go w.process()
+	go w.process(closer)
 }
 
+// Begin sets the last index to the given value.
 func (w *WaterMark) Begin(index uint64) {
 	atomic.StoreUint64(&w.lastIndex, index)
 	w.markCh <- mark{index: index, done: false}
 }
+
+// BeginMany works like Begin but accepts multiple indices.
 func (w *WaterMark) BeginMany(indices []uint64) {
 	atomic.StoreUint64(&w.lastIndex, indices[len(indices)-1])
 	w.markCh <- mark{index: 0, indices: indices, done: false}
 }
 
+// Done sets a single index as done.
 func (w *WaterMark) Done(index uint64) {
 	w.markCh <- mark{index: index, done: true}
 }
+
+// DoneMany works like Done but accepts multiple indices.
 func (w *WaterMark) DoneMany(indices []uint64) {
 	w.markCh <- mark{index: 0, indices: indices, done: true}
 }
 
-// DoneUntil returns the maximum index until which all tasks are done.
+// DoneUntil returns the maximum index that has the property that all indices
+// less than or equal to it are done.
 func (w *WaterMark) DoneUntil() uint64 {
 	return atomic.LoadUint64(&w.doneUntil)
 }
 
+// SetDoneUntil sets the maximum index that has the property that all indices
+// less than or equal to it are done.
 func (w *WaterMark) SetDoneUntil(val uint64) {
 	atomic.StoreUint64(&w.doneUntil, val)
 }
 
+// LastIndex returns the last index for which Begin has been called.
 func (w *WaterMark) LastIndex() uint64 {
 	return atomic.LoadUint64(&w.lastIndex)
 }
 
+// WaitForMark waits until the given index is marked as done.
 func (w *WaterMark) WaitForMark(ctx context.Context, index uint64) error {
 	if w.DoneUntil() >= index {
 		return nil
@@ -125,7 +137,9 @@ func (w *WaterMark) WaitForMark(ctx context.Context, index uint64) error {
 // if no watermark is emitted at index 101 then waiter would get stuck indefinitely as it
 // can't decide whether the task at 101 has decided not to emit watermark or it didn't get
 // scheduled yet.
-func (w *WaterMark) process() {
+func (w *WaterMark) process(closer *Closer) {
+	defer closer.Done()
+
 	var indices uint64Heap
 	// pending maps raft proposal index to the number of pending mutations for this proposal.
 	pending := make(map[uint64]int)
@@ -189,25 +203,30 @@ func (w *WaterMark) process() {
 		}
 	}
 
-	for mark := range w.markCh {
-		if mark.waiter != nil {
-			doneUntil := atomic.LoadUint64(&w.doneUntil)
-			if doneUntil >= mark.index {
-				close(mark.waiter)
-			} else {
-				ws, ok := waiters[mark.index]
-				if !ok {
-					waiters[mark.index] = []chan struct{}{mark.waiter}
+	for {
+		select {
+		case <-closer.HasBeenClosed():
+			return
+		case mark := <-w.markCh:
+			if mark.waiter != nil {
+				doneUntil := atomic.LoadUint64(&w.doneUntil)
+				if doneUntil >= mark.index {
+					close(mark.waiter)
 				} else {
-					waiters[mark.index] = append(ws, mark.waiter)
+					ws, ok := waiters[mark.index]
+					if !ok {
+						waiters[mark.index] = []chan struct{}{mark.waiter}
+					} else {
+						waiters[mark.index] = append(ws, mark.waiter)
+					}
 				}
-			}
-		} else {
-			if mark.index > 0 {
-				processOne(mark.index, mark.done)
-			}
-			for _, index := range mark.indices {
-				processOne(index, mark.done)
+			} else {
+				if mark.index > 0 {
+					processOne(mark.index, mark.done)
+				}
+				for _, index := range mark.indices {
+					processOne(index, mark.done)
+				}
 			}
 		}
 	}

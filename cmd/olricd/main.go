@@ -16,7 +16,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -27,7 +26,7 @@ import (
 	"github.com/sean-/seed"
 )
 
-var usage = `olricd is the default standalone server for Olric
+var usage = `olricd -- Distributed, eventually consistent and in-memory key/value data store and cache.
 
 Usage: 
   olricd [flags] ...
@@ -61,6 +60,9 @@ func init() {
 }
 
 func main() {
+	// No need for timestamp and etc in this function. Just log it.
+	log.SetFlags(0)
+
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
@@ -72,33 +74,28 @@ func main() {
 	f.StringVar(&cpath, "c", server.DefaultConfigFile, "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
-		log.Printf("Failed to parse flags: %v", err)
-		os.Exit(1)
+		log.Fatalf("Failed to parse flags: %v", err)
 	}
 
 	if showVersion {
-		fmt.Printf("olricd %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
+		log.Printf("olricd %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
-		msg := fmt.Sprintf(usage, runtime.Version())
-		fmt.Println(msg)
+		log.Printf(usage, runtime.Version())
 		return
 	}
 
 	c, err := server.NewConfig(cpath)
 	if err != nil {
-		log.Printf("Failed to parse config file: %v", err)
-		os.Exit(1)
+		log.Fatalf("Failed to parse config file:\n%v", err)
 	}
 	s, err := server.New(c)
 	if err != nil {
-		log.Printf("Failed to create a new olricd instance: %v", err)
-		os.Exit(1)
+		log.Fatalf("Failed to create a new olricd instance:\n%v", err)
 	}
 
 	if err = s.Start(); err != nil {
-		log.Printf("olricd returned an error: %v", err)
-		os.Exit(1)
+		log.Fatalf("olricd returned an error:\n%v", err)
 	}
 	log.Print("Quit!")
 }

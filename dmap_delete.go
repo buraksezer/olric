@@ -115,6 +115,12 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 		go db.compactTables(dm)
 		err = nil
 	}
+
+	// Delete it from access log if everything is ok.
+	// If we delete the hkey when err is not nil, LRU/MaxIdleDuration may not work properly.
+	if err == nil {
+		dm.deleteAccessLog(hkey)
+	}
 	return err
 }
 

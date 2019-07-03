@@ -25,9 +25,9 @@
 #   unused-packages = true
 
 
-[[constraint]]
-  branch = "master"
-  name = "github.com/hashicorp/memberlist"
+# [[constraint]]
+#  branch = "master"
+#  name = "github.com/hashicorp/memberlist"
 
 
 [[constraint]]

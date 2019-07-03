@@ -52,7 +52,7 @@ func newTable(size int) *table {
 		hkeys:     make(map[uint64]int),
 		allocated: size,
 	}
-	t.memory = make([]byte, size, size)
+	t.memory = make([]byte, size)
 	return t
 }
 

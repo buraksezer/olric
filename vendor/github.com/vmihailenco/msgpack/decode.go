@@ -69,8 +69,9 @@ func (d *Decoder) SetDecodeMapFunc(fn func(*Decoder) (interface{}, error)) {
 
 // UseDecodeInterfaceLoose causes decoder to use DecodeInterfaceLoose
 // to decode msgpack value into Go interface{}.
-func (d *Decoder) UseDecodeInterfaceLoose(flag bool) {
+func (d *Decoder) UseDecodeInterfaceLoose(flag bool) *Decoder {
 	d.useLoose = flag
+	return d
 }
 
 // UseJSONTag causes the Decoder to use json struct tag as fallback option
@@ -287,7 +288,10 @@ func (d *Decoder) DecodeInterface() (interface{}, error) {
 		return int8(c), nil
 	}
 	if codes.IsFixedMap(c) {
-		_ = d.s.UnreadByte()
+		err = d.s.UnreadByte()
+		if err != nil {
+			return nil, err
+		}
 		return d.DecodeMap()
 	}
 	if codes.IsFixedArray(c) {
@@ -329,7 +333,10 @@ func (d *Decoder) DecodeInterface() (interface{}, error) {
 	case codes.Array16, codes.Array32:
 		return d.decodeSlice(c)
 	case codes.Map16, codes.Map32:
-		d.s.UnreadByte()
+		err = d.s.UnreadByte()
+		if err != nil {
+			return nil, err
+		}
 		return d.DecodeMap()
 	case codes.FixExt1, codes.FixExt2, codes.FixExt4, codes.FixExt8, codes.FixExt16,
 		codes.Ext8, codes.Ext16, codes.Ext32:
@@ -353,7 +360,10 @@ func (d *Decoder) DecodeInterfaceLoose() (interface{}, error) {
 		return int64(c), nil
 	}
 	if codes.IsFixedMap(c) {
-		d.s.UnreadByte()
+		err = d.s.UnreadByte()
+		if err != nil {
+			return nil, err
+		}
 		return d.DecodeMap()
 	}
 	if codes.IsFixedArray(c) {
@@ -381,7 +391,10 @@ func (d *Decoder) DecodeInterfaceLoose() (interface{}, error) {
 	case codes.Array16, codes.Array32:
 		return d.decodeSlice(c)
 	case codes.Map16, codes.Map32:
-		d.s.UnreadByte()
+		err = d.s.UnreadByte()
+		if err != nil {
+			return nil, err
+		}
 		return d.DecodeMap()
 	case codes.FixExt1, codes.FixExt2, codes.FixExt4, codes.FixExt8, codes.FixExt16,
 		codes.Ext8, codes.Ext16, codes.Ext32:

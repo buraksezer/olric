@@ -59,13 +59,41 @@ const (
 	OpInMemoryWithSnapshot
 )
 
-// Config is the configuration for creating a Olric instance.
+type EvictionPolicy string
+
+const (
+	DefaultLRUSamples int            = 5
+	LRUEviction       EvictionPolicy = "LRU"
+)
+
+// note on DMapConfig and CacheConfig:
+// golang doesn't provide the typical notion of inheritance.
+// because of that I preferred to define the types explicitly.
+
+type DMapConfig struct {
+	MaxIdleDuration time.Duration
+	TTLDuration     time.Duration
+	MaxKeys         int
+	LRUSamples      int
+	EvictionPolicy  EvictionPolicy
+}
+
+type CacheConfig struct {
+	MaxIdleDuration time.Duration
+	TTLDuration     time.Duration
+	MaxKeys         int
+	LRUSamples      int
+	EvictionPolicy  EvictionPolicy
+	DMapConfigs     map[string]DMapConfig // For fine grained configuration.
+}
+
+// Config is the configuration to create a Olric instance.
 type Config struct {
 	LogLevel string
 	// Name of this node in the cluster. This must be unique in the cluster. If this is not set,
 	// Olric will set it to the hostname of the running machine. Example: node1.my-cluster.net
 	//
-	// Name is also used by the TCP server as Addr. It should be an IP adress or domain name of the server.
+	// Name is also used by the TCP server as Addr. It should be an IP address or domain name of the server.
 	Name string
 
 	OperationMode OpMode
@@ -118,6 +146,8 @@ type Config struct {
 	GCInterval       time.Duration
 	GCDiscardRatio   float64
 	BadgerOptions    *badger.Options
+
+	Cache *CacheConfig
 
 	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some

@@ -39,7 +39,7 @@
 //	c := consistent.New(members, cfg)
 //
 //      // myMember struct just needs to implement a String method.
-//      // New/Add/Remove distributes partitions among membes using the algorithm
+//      // New/Add/Remove distributes partitions among members using the algorithm
 //      // defined on Google Research Blog.
 //	c.Add(myMember)
 //
@@ -232,6 +232,7 @@ func (c *Consistent) delSlice(val uint64) {
 	for i := 0; i < len(c.sortedSet); i++ {
 		if c.sortedSet[i] == val {
 			c.sortedSet = append(c.sortedSet[:i], c.sortedSet[i+1:]...)
+			break
 		}
 	}
 }

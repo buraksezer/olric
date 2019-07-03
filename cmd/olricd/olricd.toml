@@ -4,8 +4,8 @@ backupCount = 0
 backupMode = 0
 name = "0.0.0.0:3320"
 tcpAddr = "0.0.0.0:3422"
-#certFile = "/home/burak/Projects/server.pem"
-#keyFile = "/home/burak/Projects/server.key"
+certFile = ""
+keyFile = ""
 serializer = "msgpack"
 keepAlivePeriod = "300s"
 
@@ -20,11 +20,6 @@ gcDiscardRatio = 0.7
 level = "DEBUG"
 output = "stderr"
 
-[httpClient]
-dialerTimeout       = "5s"
-insecureSkipVerify  = true
-timeout             = "60s"
-
 [memberlist]
 environment = "local"
 addr = "0.0.0.0:3322"
@@ -32,3 +27,19 @@ enableCompression = false
 peers = [
   "localhost:3325"
 ]
+
+#[cache]
+#maxIdleDuration = ""
+#ttlDuration = "100s"
+#maxKeys = 100000
+#lRUSamples = 10
+#evictionPolicy = "LRU"
+
+[dmaps]
+[dmaps.foobar]
+maxIdleDuration = "60s"
+#ttlDuration = "300s"
+#maxKeys = 500000
+#lRUSamples = 20
+#evictionPolicy = "NONE"
+

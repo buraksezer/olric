@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -82,10 +82,22 @@ type Olric struct {
 	bcancel context.CancelFunc
 }
 
+type cache struct {
+	sync.RWMutex // protects accessLog
+
+	maxIdleDuration time.Duration
+	ttlDuration     time.Duration
+	maxKeys         int
+	accessLog       map[uint64]int64
+	lruSamples      int
+	evictionPolicy  EvictionPolicy
+}
+
 type dmap struct {
 	sync.RWMutex
 
 	locker *locker
+	cache  *cache
 	oplog  *snapshot.OpLog
 	str    *storage.Storage
 }
@@ -477,7 +489,47 @@ func (db *Olric) locateKey(name, key string) (host, uint64, error) {
 	return member, hkey, nil
 }
 
-func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
+func (db *Olric) setCacheConfiguration(dm *dmap, name string) {
+	// Try to set cache configuration for this DMap.
+	dm.cache = &cache{}
+	dm.cache.maxIdleDuration = db.config.Cache.MaxIdleDuration
+	dm.cache.ttlDuration = db.config.Cache.TTLDuration
+	dm.cache.maxKeys = db.config.Cache.MaxKeys / int(db.config.PartitionCount)
+	dm.cache.lruSamples = db.config.Cache.LRUSamples
+	dm.cache.evictionPolicy = db.config.Cache.EvictionPolicy
+
+	if db.config.Cache.DMapConfigs != nil {
+		// config.DMapConfig struct can be used for fine-grained control.
+		c, ok := db.config.Cache.DMapConfigs[name]
+		if ok {
+			if dm.cache.maxIdleDuration != c.MaxIdleDuration {
+				dm.cache.maxIdleDuration = c.MaxIdleDuration
+			}
+			if dm.cache.ttlDuration != c.TTLDuration {
+				dm.cache.ttlDuration = c.TTLDuration
+			}
+			if dm.cache.evictionPolicy != c.EvictionPolicy {
+				dm.cache.evictionPolicy = c.EvictionPolicy
+			}
+			if dm.cache.maxKeys != c.MaxKeys {
+				dm.cache.maxKeys = c.MaxKeys / int(db.config.PartitionCount)
+			}
+			if dm.cache.lruSamples != c.LRUSamples {
+				dm.cache.lruSamples = c.LRUSamples
+			}
+		}
+	}
+
+	if dm.cache.evictionPolicy == LRUEviction || dm.cache.maxIdleDuration != 0 {
+		dm.cache.accessLog = make(map[uint64]int64)
+	}
+	// set the default value.
+	if dm.cache.lruSamples == 0 {
+		dm.cache.lruSamples = DefaultLRUSamples
+	}
+}
+
+func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) (*dmap, error) {
 	// We need to protect snapshot.RegisterDMap and storage.New
 	part.Lock()
 	defer part.Unlock()
@@ -487,25 +539,41 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	str := storage.New(0)
-	fresh := &dmap{
-		locker: newLocker(),
-		str:    str,
+
+	// create a new map here.
+	nm := &dmap{
+		str: str,
+	}
+
+	// fsck code may send a strorage instange for the new DMap. Just use it.
+	if nm.str != nil {
+		nm.str = str
+	} else {
+		nm.str = storage.New(0)
+	}
+
+	if !part.backup {
+		// Create this on the owners, not backups.
+		nm.locker = newLocker()
+	}
+
+	if db.config.Cache != nil {
+		db.setCacheConfiguration(nm, name)
 	}
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dkey := snapshot.PrimaryDMapKey
 		if part.backup {
 			dkey = snapshot.BackupDMapKey
 		}
-		oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, str)
+		oplog, err := db.snapshot.RegisterDMap(dkey, part.id, name, nm.str)
 		if err != nil {
 			return nil, err
 		}
-		fresh.oplog = oplog
+		nm.oplog = oplog
 	}
-	part.m.Store(name, fresh)
+	part.m.Store(name, nm)
 	atomic.AddInt32(&part.count, 1)
-	return fresh, nil
+	return nm, nil
 }
 
 func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
@@ -514,7 +582,7 @@ func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	return db.createDMap(part, name)
+	return db.createDMap(part, name, nil)
 }
 
 func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
@@ -523,7 +591,7 @@ func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	return db.createDMap(part, name)
+	return db.createDMap(part, name, nil)
 }
 
 // hostCmp returns true if o1 and o2 is the same.

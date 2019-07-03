@@ -27,7 +27,7 @@ var (
 
 	// ErrValueThreshold is returned when ValueThreshold is set to a value close to or greater than
 	// uint16.
-	ErrValueThreshold = errors.New("Invalid ValueThreshold, must be lower than uint16.")
+	ErrValueThreshold = errors.New("Invalid ValueThreshold, must be lower than uint16")
 
 	// ErrKeyNotFound is returned when key isn't found on a txn.Get.
 	ErrKeyNotFound = errors.New("Key not found")
@@ -97,9 +97,9 @@ var (
 
 	// ErrTruncateNeeded is returned when the value log gets corrupt, and requires truncation of
 	// corrupt data to allow Badger to run properly.
-	ErrTruncateNeeded = errors.New("Value log truncate required to run DB. This might result in data loss.")
+	ErrTruncateNeeded = errors.New("Value log truncate required to run DB. This might result in data loss")
 
 	// ErrBlockedWrites is returned if the user called DropAll. During the process of dropping all
 	// data from Badger, we stop accepting new writes, by returning this error.
-	ErrBlockedWrites = errors.New("Writes are blocked possibly due to DropAll")
+	ErrBlockedWrites = errors.New("Writes are blocked, possibly due to DropAll or Close")
 )

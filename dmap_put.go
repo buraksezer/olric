@@ -56,6 +56,19 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 	dm.Lock()
 	defer dm.Unlock()
 
+	if dm.cache != nil && dm.cache.evictionPolicy == LRUEviction {
+		if dm.str.Len() >= dm.cache.maxKeys {
+			err := db.evictKeyWithLRU(dm, name)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if dm.cache != nil && dm.cache.ttlDuration.Seconds() != 0 && timeout.Seconds() == 0 {
+		timeout = dm.cache.ttlDuration
+	}
+
 	if db.config.BackupCount != 0 {
 		if db.config.BackupMode == AsyncBackupMode {
 			db.wg.Add(1)
@@ -93,6 +106,7 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 		return err
 	}
 
+	dm.updateAccessLog(hkey)
 	if db.config.OperationMode == OpInMemoryWithSnapshot {
 		dm.oplog.Put(hkey)
 	}
