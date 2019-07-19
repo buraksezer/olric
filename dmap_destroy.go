@@ -18,7 +18,6 @@ import (
 	"context"
 
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/snapshot"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -62,32 +61,14 @@ func (db *Olric) exDestroyOperation(req *protocol.Message) *protocol.Message {
 
 func (db *Olric) destroyDMapOperation(req *protocol.Message) *protocol.Message {
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
-	destroy := func(part *partition) error {
-		if db.config.OperationMode == OpInMemoryWithSnapshot {
-			dkey := snapshot.PrimaryDMapKey
-			if part.backup {
-				dkey = snapshot.BackupDMapKey
-			}
-			if err := db.snapshot.DestroyDMap(dkey, part.id, req.DMap); err != nil {
-				return err
-			}
-		}
-		part.m.Delete(req.DMap)
-		return nil
-	}
-	// Fail early. The caller may want to call again if one of the steps have failed.
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		// Delete primary copies
 		part := db.partitions[partID]
-		if err := destroy(part); err != nil {
-			return req.Error(protocol.StatusInternalServerError, err)
-		}
+		part.m.Delete(req.DMap)
 		// Delete from Backups
 		if db.config.BackupCount != 0 {
 			bpart := db.backups[partID]
-			if err := destroy(bpart); err != nil {
-				return req.Error(protocol.StatusInternalServerError, err)
-			}
+			bpart.m.Delete(req.DMap)
 		}
 	}
 	return req.Success()

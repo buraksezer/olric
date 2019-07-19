@@ -19,7 +19,6 @@ import (
 	"sync/atomic"
 
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/snapshot"
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/vmihailenco/msgpack"
 )
@@ -107,19 +106,6 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 	// Delete moved dmap object. the gc will free the allocated memory.
 	part.m.Delete(name)
 	atomic.AddInt32(&part.count, -1)
-	if db.config.OperationMode == OpInMemoryWithSnapshot {
-		dkey := snapshot.PrimaryDMapKey
-		if part.backup {
-			dkey = snapshot.BackupDMapKey
-		}
-		err = db.snapshot.DestroyDMap(dkey, part.id, name)
-		if err != nil {
-			db.log.Printf(
-				"[ERROR] Failed to destroy moved DMap instance on BadgerDB. PartID(backup: %t): %d, name: %s, error: %v",
-				part.backup, data.PartID, data.Name, err,
-			)
-		}
-	}
 }
 
 func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {

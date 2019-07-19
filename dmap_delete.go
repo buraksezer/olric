@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/snapshot"
 	"github.com/buraksezer/olric/internal/storage"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,20 +47,6 @@ func (db *Olric) deleteStaleDMaps() {
 			if d.str.Len() != 0 {
 				// Continue scanning.
 				return true
-			}
-			// Unregister DMap from snapshot.
-			if db.config.OperationMode == OpInMemoryWithSnapshot {
-				dkey := snapshot.PrimaryDMapKey
-				if part.backup {
-					dkey = snapshot.BackupDMapKey
-				}
-				err := db.snapshot.UnregisterDMap(dkey, part.id, name.(string))
-				if err != nil {
-					db.log.Printf("[ERROR] Failed to unregister dmap from snapshot %s on PartID: %d: %v",
-						name, part.id, err)
-					// Try again later.
-					return true
-				}
 			}
 			part.m.Delete(name)
 			atomic.AddInt32(&part.count, -1)
@@ -105,9 +90,6 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 		if err != nil {
 			return err
 		}
-	}
-	if db.config.OperationMode == OpInMemoryWithSnapshot {
-		dm.oplog.Delete(hkey)
 	}
 	err := dm.str.Delete(hkey)
 	if err == storage.ErrFragmented {
@@ -179,10 +161,6 @@ func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
-
-	if db.config.OperationMode == OpInMemoryWithSnapshot {
-		dm.oplog.Delete(hkey)
-	}
 	return req.Success()
 }
 
@@ -204,9 +182,6 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 	}
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	if db.config.OperationMode == OpInMemoryWithSnapshot {
-		dm.oplog.Delete(hkey)
 	}
 	return req.Success()
 }

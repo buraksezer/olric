@@ -107,9 +107,6 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 	}
 
 	dm.updateAccessLog(hkey)
-	if db.config.OperationMode == OpInMemoryWithSnapshot {
-		dm.oplog.Put(hkey)
-	}
 	// TODO: Consider running this at background.
 	db.purgeOldVersions(hkey, name, key)
 	return nil
@@ -199,10 +196,6 @@ func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 	}
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
-	}
-
-	if db.config.OperationMode == OpInMemoryWithSnapshot {
-		dm.oplog.Put(hkey)
 	}
 	return req.Success()
 }
