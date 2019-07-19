@@ -2,14 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  digest = "1:6716c9fe6333591128e72848f246fc01dc72240e1e64185d8b4e124e7280b35d"
-  name = "github.com/AndreasBriese/bbloom"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "e2d15f34fcf99d5dbb871c820ec73f710fca9815"
-
-[[projects]]
   digest = "1:9f3b30d9f8e0d7040f729b82dcbc8f0dead820a133b3147ce355fc451f32d761"
   name = "github.com/BurntSushi/toml"
   packages = ["."]
@@ -56,37 +48,6 @@
   pruneopts = "UT"
   revision = "62c6fe6193755f722b8b8788aa7357be55a50ff1"
   version = "v1.4"
-
-[[projects]]
-  branch = "master"
-  digest = "1:02047c136c0ccff3a4c52eaacf4f626aba33df9ee4d665099dd63d18ecc0e1da"
-  name = "github.com/dgraph-io/badger"
-  packages = [
-    ".",
-    "options",
-    "pb",
-    "skl",
-    "table",
-    "y",
-  ]
-  pruneopts = "UT"
-  revision = "deee8c7ae70bab412e4f10cfa068e0be61a8d0eb"
-
-[[projects]]
-  branch = "master"
-  digest = "1:ea678afd6431e09f84a56fc6915ccab9189ddd1379fed997e1433ead9586c50b"
-  name = "github.com/dgryski/go-farm"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "3adb47b1fb0f6d9efcc5051a6c62e2e413ac85a9"
-
-[[projects]]
-  digest = "1:6f9339c912bbdda81302633ad7e99a28dfa5a639c864061f1929510a9a64aa74"
-  name = "github.com/dustin/go-humanize"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "9f541cc9db5d55bce703bd99987c9d5cb8eea45e"
-  version = "v1.0.0"
 
 [[projects]]
   digest = "1:318f1c959a8a740366fce4b1e1eb2fd914036b4af58fbd0a003349b305f118ad"
@@ -224,17 +185,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:538c089dc2942bcc4a3bb1ae3cf0a014fe5afe2b69182e154326d078afc9e196"
+  digest = "1:efd6d77a475d93a867b35e6440c940c84cea180befd33fb73e9e72074104f14b"
   name = "golang.org/x/net"
   packages = [
     "bpf",
     "context",
     "internal/iana",
     "internal/socket",
-    "internal/timeseries",
     "ipv4",
     "ipv6",
-    "trace",
   ]
   pruneopts = "UT"
   revision = "9f648a60d9775ef5c977e7669d1673a7a67bef33"
@@ -282,7 +241,6 @@
     "github.com/buraksezer/pool",
     "github.com/cespare/xxhash",
     "github.com/chzyer/readline",
-    "github.com/dgraph-io/badger",
     "github.com/hashicorp/go-multierror",
     "github.com/hashicorp/logutils",
     "github.com/hashicorp/memberlist",
@@ -290,7 +248,6 @@
     "github.com/sean-/seed",
     "github.com/vmihailenco/msgpack",
     "golang.org/x/sync/errgroup",
-    "golang.org/x/sys/unix",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

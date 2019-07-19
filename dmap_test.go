@@ -23,9 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/snapshot"
 	"github.com/buraksezer/olric/internal/storage"
-	"github.com/dgraph-io/badger"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -51,7 +49,7 @@ func getRandomAddr() (string, error) {
 	return l.Addr().String(), nil
 }
 
-func newTestOlric(peers []string, mc *memberlist.Config, snapshotDir string) (*Olric, error) {
+func newTestOlric(peers []string, mc *memberlist.Config) (*Olric, error) {
 	addr, err := getRandomAddr()
 	if err != nil {
 		return nil, err
@@ -68,27 +66,9 @@ func newTestOlric(peers []string, mc *memberlist.Config, snapshotDir string) (*O
 		Peers:            peers,
 		MemberlistConfig: mc,
 	}
-	if len(snapshotDir) != 0 {
-		opt := badger.DefaultOptions
-		opt.Dir = snapshotDir
-		opt.ValueDir = snapshotDir
-		cfg.BadgerOptions = &opt
-		cfg.OperationMode = OpInMemoryWithSnapshot
-	}
 	db, err := New(cfg)
 	if err != nil {
 		return nil, err
-	}
-
-	if cfg.OperationMode == OpInMemoryWithSnapshot {
-		err := db.restoreFromSnapshot(snapshot.PrimaryDMapKey)
-		if err != nil {
-			return nil, err
-		}
-		err = db.restoreFromSnapshot(snapshot.BackupDMapKey)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	db.wg.Add(1)
@@ -114,15 +94,11 @@ func newOlricWithCustomMemberlist(peers []string) (*Olric, error) {
 	mc.SuspicionMult = 1
 	mc.TCPTimeout = 50 * time.Millisecond
 	mc.ProbeInterval = 10 * time.Millisecond
-	return newTestOlric(peers, mc, "")
+	return newTestOlric(peers, mc)
 }
 
 func newOlric(peers []string) (*Olric, error) {
-	return newTestOlric(peers, nil, "")
-}
-
-func newOlricWithSnapshot(peers []string, snapshotDir string) (*Olric, error) {
-	return newTestOlric(peers, nil, snapshotDir)
+	return newTestOlric(peers, nil)
 }
 
 func TestDMap_Standalone(t *testing.T) {

@@ -7,7 +7,6 @@ Distributed, eventually consistent and in-memory key/value database. It can be u
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
-* In-memory with optional on-disk snapshot,
 * Embeddable but can be used as a language-independent service with olricd,
 * Supports different eviction algorithms,
 * Fast binary protocol,
@@ -45,7 +44,6 @@ This project is a work in progress. The implementation is incomplete. The docume
     * [Incr](#incr)
     * [Decr](#decr)
     * [GetPut](#getput)
-* [Persistence](#persistence)
 * [Serialization](#serialization)
 * [Golang Client](#golang-client)
 * [Standalone Server](#standalone-server)
@@ -70,7 +68,7 @@ This project is a work in progress. The implementation is incomplete. The docume
 
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Accepts arbitrary types as value,
-* In-memory with optional persistence,
+* Only in-memory,
 * Implements a fast and simple binary protocol,
 * Embeddable but can be used as a language-independent service with olricd,
 * GC-friendly data storage,
@@ -140,7 +138,7 @@ When you want to leave the cluster, just need to call **Shutdown** method:
 err := db.Shutdown(context.Background())
 ```
 
-This will stop background tasks and servers, synchronizes in-memory data to the disk if persistence is enabled. Finally purges in-memory data and quits.
+This will stop background tasks and servers. Finally purges in-memory data and quits.
 
 ### Put
 
@@ -259,7 +257,6 @@ db2, err := olric.New(c2)
 ### Overview
 
 Olric uses:
-* [dgraph-io/badger](https://github.com/dgraph-io/badger) for persistence,
 * [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for cluster membership and failure detection,
 * [buraksezer/consistent](https://github.com/buraksezer/consistent) for consistent hashing and load balancing,
 * [Golang's TCP implementation](https://golang.org/pkg/net/#TCPConn) as transport layer,

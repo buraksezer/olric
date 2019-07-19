@@ -15,8 +15,9 @@
 package server
 
 import (
-	"github.com/BurntSushi/toml"
 	"os"
+
+	"github.com/BurntSushi/toml"
 )
 
 const (
@@ -37,14 +38,6 @@ type olricd struct {
 	LoadFactor      float64 `toml:"loadFactor"`
 	Serializer      string  `toml:"serializer"`
 	KeepAlivePeriod string  `toml:"keepAlivePeriod"`
-}
-
-type snapshot struct {
-	Enabled        bool    `toml:"enabled"`
-	Interval       string  `toml:"interval"`
-	Dir            string  `toml:"dir"`
-	GCInterval     string  `toml:"gcInterval"`
-	GCDiscardRatio float64 `toml:"gcDiscardRatio"`
 }
 
 // logging contains configuration variables of logging section of config file.
@@ -86,7 +79,6 @@ type Config struct {
 	Memberlist memberlist
 	Logging    logging
 	Olricd     olricd
-	Snapshot   snapshot
 	Cache      cache
 	DMaps      map[string]dmap
 }

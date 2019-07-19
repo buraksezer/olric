@@ -111,8 +111,7 @@ func (s *Storage) Put(hkey uint64, value *VData) error {
 	return res
 }
 
-// GetRaw extracts un-decoded value for the given hkey. This is useful for merging tables or
-// snapshots.
+// GetRaw extracts un-decoded value for the given hkey. This is useful for merging tables.
 func (s *Storage) GetRaw(hkey uint64) ([]byte, error) {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
