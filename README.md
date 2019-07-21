@@ -32,6 +32,7 @@ This project is a work in progress. The implementation is incomplete. The docume
 * [Features](#features)
 * [Planned Features](#planned-features)
 * [Installing](#installing)
+  * [Try with Docker](#try-with-docker)
 * [Usage](#usage)
   * [Put](#put)
   * [PutEx](#putex)
@@ -74,7 +75,7 @@ This project is a work in progress. The implementation is incomplete. The docume
 * GC-friendly data storage,
 * Supports atomic operations,
 * Provides a single-node lock implementation which can be used for non-critical purposes,
-* Different eviction policies: LRU, MaxIdleDuration and Time-To-Live(TTL) eviction policy,
+* Different eviction policies: LRU, MaxIdleDuration and Time-To-Live(TTL),
 * Highly available,
 * Horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
@@ -104,6 +105,23 @@ With a correctly configured Golang environment:
 ```
 go get -u github.com/buraksezer/olric
 ```
+
+### Try with Docker
+
+This repository includes a Dockerfile. So you can build and run ```olricd``` in a Docker container without effort. Use 
+the following commands respectively in the project folder:
+
+```
+docker build -t olricd .
+```
+
+This command will build ```olricd``` in a container. Then you can start ```olricd``` by using the following command:
+
+```
+docker run -p 3320:3320 olricd
+```
+
+Your programs can use ```3320``` port to interact with ```olricd```. 
 
 ## Usage
 
