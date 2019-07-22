@@ -305,7 +305,7 @@ func (c *Consistent) getClosestN(partID, count int) ([]Member, error) {
 	defer c.mu.RUnlock()
 
 	res := []Member{}
-	if count > len(c.members)-1 {
+	if count > len(c.members) {
 		return res, ErrInsufficientMemberCount
 	}
 
