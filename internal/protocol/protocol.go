@@ -70,6 +70,7 @@ const (
 	OpBackupMoveDMap
 	OpIsPartEmpty
 	OpIsBackupEmpty
+	OpPipeline
 )
 
 // StatusCode ...
