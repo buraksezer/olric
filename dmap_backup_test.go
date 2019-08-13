@@ -73,7 +73,7 @@ func TestDMap_PutBackup(t *testing.T) {
 			t.Fatalf("mymap could not be found")
 		}
 		data.Lock()
-		vdata, err := data.str.Get(hkey)
+		vdata, err := data.storage.Get(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -151,7 +151,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 			// dmap object is deleted, everything is ok.
 			continue
 		}
-		if data.str.Check(hkey) {
+		if data.storage.Check(hkey) {
 			t.Fatalf("key: %s found on backup", key)
 		}
 	}
@@ -207,7 +207,7 @@ func TestDMap_GetBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		m.str.Delete(hkey)
+		m.storage.Delete(hkey)
 		value, err := dm.Get(key)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

@@ -69,7 +69,7 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner host, wg
 		}
 	}
 
-	payload, err := dm.str.Export()
+	payload, err := dm.storage.Export()
 	if err != nil {
 		db.log.Printf("[ERROR] Failed to call Export on dmap. partID: %d, name: %s, error: %v", part.id, name, err)
 		return
@@ -146,10 +146,10 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 
 	var merr error
 	str.Range(func(hkey uint64, vdata *storage.VData) bool {
-		if dm.str.Check(hkey) {
+		if dm.storage.Check(hkey) {
 			return true
 		}
-		merr = dm.str.Put(hkey, vdata)
+		merr = dm.storage.Put(hkey, vdata)
 		if merr == storage.ErrFragmented {
 			db.wg.Add(1)
 			go db.compactTables(dm)

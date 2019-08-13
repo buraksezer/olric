@@ -87,7 +87,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 		}
 
 		count, keyCount := 0, 0
-		dm.str.Range(func(hkey uint64, vdata *storage.VData) bool {
+		dm.storage.Range(func(hkey uint64, vdata *storage.VData) bool {
 			keyCount++
 			if keyCount >= maxKeyCount {
 				// this means 'break'.
@@ -191,7 +191,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 	sort.Slice(items, func(i, j int) bool { return items[i].AccessedAt < items[j].AccessedAt })
 	// Pick the first item to delete. It's the least recently used item in the sample.
 	item := items[0]
-	vdata, err := dm.str.Get(item.HKey)
+	vdata, err := dm.storage.Get(item.HKey)
 	if err != nil {
 		return err
 	}

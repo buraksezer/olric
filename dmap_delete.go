@@ -44,7 +44,7 @@ func (db *Olric) deleteStaleDMaps() {
 			d := dm.(*dmap)
 			d.Lock()
 			defer d.Unlock()
-			if d.str.Len() != 0 {
+			if d.storage.Len() != 0 {
 				// Continue scanning.
 				return true
 			}
@@ -91,7 +91,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 			return err
 		}
 	}
-	err := dm.str.Delete(hkey)
+	err := dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
@@ -152,7 +152,7 @@ func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	dm.Lock()
 	defer dm.Unlock()
 
-	err = dm.str.Delete(hkey)
+	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
@@ -174,7 +174,7 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 	dm.Lock()
 	defer dm.Unlock()
 
-	err = dm.str.Delete(hkey)
+	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)

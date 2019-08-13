@@ -93,9 +93,9 @@ type cache struct {
 type dmap struct {
 	sync.RWMutex
 
-	locker *locker
-	cache  *cache
-	str    *storage.Storage
+	locker  *locker
+	cache   *cache
+	storage *storage.Storage
 }
 
 type partition struct {
@@ -462,14 +462,14 @@ func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) 
 
 	// create a new map here.
 	nm := &dmap{
-		str: str,
+		storage: str,
 	}
 
 	// fsck code may send a strorage instange for the new DMap. Just use it.
-	if nm.str != nil {
-		nm.str = str
+	if nm.storage != nil {
+		nm.storage = str
 	} else {
-		nm.str = storage.New(0)
+		nm.storage = storage.New(0)
 	}
 
 	if !part.backup {

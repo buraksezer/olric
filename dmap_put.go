@@ -57,7 +57,7 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 	defer dm.Unlock()
 
 	if dm.cache != nil && dm.cache.evictionPolicy == LRUEviction {
-		if dm.str.Len() >= dm.cache.maxKeys {
+		if dm.storage.Len() >= dm.cache.maxKeys {
 			err := db.evictKeyWithLRU(dm, name)
 			if err != nil {
 				return err
@@ -96,7 +96,7 @@ func (db *Olric) putKeyVal(hkey uint64, name, key string, value []byte, timeout 
 		TTL:   ttl,
 		Value: value,
 	}
-	err = dm.str.Put(hkey, val)
+	err = dm.storage.Put(hkey, val)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
@@ -188,7 +188,7 @@ func (db *Olric) putBackupOperation(req *protocol.Message) *protocol.Message {
 		Value: req.Value,
 	}
 
-	err = dm.str.Put(hkey, vdata)
+	err = dm.storage.Put(hkey, vdata)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
@@ -251,7 +251,7 @@ func (db *Olric) compactTables(dm *dmap) {
 		select {
 		case <-time.After(50 * time.Millisecond):
 			dm.Lock()
-			if done := dm.str.CompactTables(); done {
+			if done := dm.storage.CompactTables(); done {
 				// Fragmented tables are merged. Quit.
 				dm.Unlock()
 				return
