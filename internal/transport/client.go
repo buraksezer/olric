@@ -50,6 +50,10 @@ func NewClient(cc *ClientConfig) *Client {
 		panic("ClientConfig cannot be nil")
 	}
 
+	if cc.MaxConn == 0 {
+		cc.MaxConn = 1
+	}
+
 	dialer := &net.Dialer{
 		Timeout:   cc.DialTimeout,
 		KeepAlive: cc.KeepAlive,

@@ -318,6 +318,9 @@ func (db *Olric) registerOperations() {
 	db.server.RegisterOperation(protocol.OpDecr, db.exIncrDecrOperation)
 	db.server.RegisterOperation(protocol.OpGetPut, db.exGetPutOperation)
 
+	// Pipeline
+	db.server.RegisterOperation(protocol.OpPipeline, db.pipelineOperation)
+
 	// Internal
 	db.server.RegisterOperation(protocol.OpUpdateRouting, db.updateRoutingOperation)
 	db.server.RegisterOperation(protocol.OpMoveDMap, db.moveDMapOperation)

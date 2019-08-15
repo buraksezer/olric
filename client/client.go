@@ -173,10 +173,13 @@ func (d *DMap) Unlock(key string) error {
 		Key:  key,
 	}
 	resp, err := d.client.Request(protocol.OpUnlock, m)
+	if err != nil {
+		return err
+	}
 	if resp.Status == protocol.StatusNoSuchLock {
 		return olric.ErrNoSuchLock
 	}
-	return err
+	return nil
 }
 
 // Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps.

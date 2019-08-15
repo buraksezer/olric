@@ -20,6 +20,8 @@ package pipeline
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"sync"
 	"time"
 
 	"github.com/buraksezer/olric"
@@ -29,6 +31,7 @@ import (
 )
 
 type Pipeline struct {
+	m          sync.Mutex
 	buf        *bytes.Buffer
 	client     *transport.Client
 	serializer olric.Serializer
@@ -52,7 +55,6 @@ func New(c *Config) (*Pipeline, error) {
 		c.Serializer = olric.NewGobSerializer()
 	}
 
-	// TODO: Check MaxConn
 	cc := &transport.ClientConfig{
 		Addrs:       []string{c.Addr},
 		DialTimeout: c.DialTimeout,
@@ -66,6 +68,9 @@ func New(c *Config) (*Pipeline, error) {
 }
 
 func (p *Pipeline) Put(dmap, key string, value interface{}) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	data, err := p.serializer.Marshal(value)
 	if err != nil {
 		return err
@@ -73,7 +78,7 @@ func (p *Pipeline) Put(dmap, key string, value interface{}) error {
 	m := &protocol.Message{
 		Header: protocol.Header{
 			Magic: protocol.MagicReq,
-			Op: protocol.OpPut,
+			Op:    protocol.OpPut,
 		},
 		DMap:  dmap,
 		Key:   key,
@@ -83,6 +88,9 @@ func (p *Pipeline) Put(dmap, key string, value interface{}) error {
 }
 
 func (p *Pipeline) PutEx(dmap, key string, value interface{}, timeout time.Duration) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	data, err := p.serializer.Marshal(value)
 	if err != nil {
 		return err
@@ -90,7 +98,7 @@ func (p *Pipeline) PutEx(dmap, key string, value interface{}, timeout time.Durat
 	m := &protocol.Message{
 		Header: protocol.Header{
 			Magic: protocol.MagicReq,
-			Op: protocol.OpPutEx,
+			Op:    protocol.OpPutEx,
 		},
 		DMap:  dmap,
 		Key:   key,
@@ -100,7 +108,48 @@ func (p *Pipeline) PutEx(dmap, key string, value interface{}, timeout time.Durat
 	return m.Write(p.buf)
 }
 
-func (p *Pipeline) Flush() error {
-	p.client.RequestTo()
-	return nil
+func (p *Pipeline) Get(dmap, key string) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpGet,
+		},
+		DMap:  dmap,
+		Key:   key,
+	}
+	return m.Write(p.buf)
+}
+
+func (p *Pipeline) Flush() ([]protocol.Message, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	req := &protocol.Message{
+		Value: p.buf.Bytes(),
+	}
+	resp, err := p.client.Request(protocol.OpPipeline, req)
+	if err != nil {
+		return nil, err
+	}
+
+	conn := bytes.NewBuffer(resp.Value)
+	var responses []protocol.Message
+	for {
+		var pres protocol.Message
+		err := pres.Read(conn)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			// append
+			continue
+		}
+		responses = append(responses, pres)
+	}
+	return responses, nil
+
+
 }

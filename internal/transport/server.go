@@ -71,9 +71,18 @@ func NewServer(addr string, logger *log.Logger, keepalivePeriod time.Duration) *
 	}
 }
 
-// RegisterOperation registers a function for given OpCode.
+// RegisterOperation registers a function for the given OpCode.
 func (s *Server) RegisterOperation(op protocol.OpCode, e protocol.Operation) {
 	s.operations.m[op] = e
+}
+
+// GetOperation returns the function for the given OpCode.
+func (s *Server) GetOperation(op protocol.OpCode) (protocol.Operation, error) {
+	f, ok := s.operations.m[op]
+	if !ok {
+		return nil, fmt.Errorf("unknown operation")
+	}
+	return f, nil
 }
 
 // processRequest waits for a new request, handles it and returns the appropriate response.

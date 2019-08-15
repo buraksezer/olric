@@ -17,6 +17,7 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol"
 	"log"
 	"net"
 	"strconv"
@@ -87,15 +88,84 @@ func TestPipeline_Put(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	fmt.Println(p)
 	dmap := "mydmap"
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		key := "key-" + strconv.Itoa(i)
 		err = p.Put(dmap, key, i)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-
-	fmt.Println(p.buf.Len())
+	responses, err := p.Flush()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for _, res := range responses {
+		if res.Op != protocol.OpPut {
+			t.Fatalf("Expected Op: %v. Got: %v", protocol.OpPut, res.Op)
+		}
+		if res.Status != protocol.StatusOK {
+			t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.Status)
+		}
+	}
 }
+
+func TestPipeline_Get(t *testing.T) {
+	db, done, err := newOlric()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	p, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	dmap := "mydmap"
+	key := "key-" + strconv.Itoa(1)
+
+	// Put the key
+	err = p.Put(dmap, key, 1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Get the key
+	err = p.Get(dmap, key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Flush commands
+	responses, err := p.Flush()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for index, res := range responses {
+		fmt.Println(index)
+		if index == 0 {
+			if res.Op != protocol.OpPut {
+				t.Fatalf("Expected Op: %v. Got: %v", protocol.OpPut, res.Op)
+			}
+			if res.Status != protocol.StatusOK {
+				t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.Status)
+			}
+		}
+		if index == 1 {
+			if res.Op != protocol.OpGet {
+				t.Fatalf("Expected Op: %v. Got: %v", protocol.OpGet, res.Op)
+			}
+			if res.Status != protocol.StatusOK {
+				t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.Status)
+			}
+			fmt.Println(res.Value)
+		}
+	}
+}
+
