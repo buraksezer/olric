@@ -33,6 +33,7 @@ type Client struct {
 // Config includes configuration parameters for the Client.
 type Config struct {
 	Addrs       []string
+	Serializer olric.Serializer
 	DialTimeout time.Duration
 	KeepAlive   time.Duration
 	MaxConn     int
@@ -45,15 +46,15 @@ type DMap struct {
 }
 
 // New returns a new Client object. The second parameter is serializer, it can be nil.
-func New(c *Config, s olric.Serializer) (*Client, error) {
+func New(c *Config) (*Client, error) {
 	if c == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	if len(c.Addrs) == 0 {
 		return nil, fmt.Errorf("addrs list cannot be empty")
 	}
-	if s == nil {
-		s = olric.NewGobSerializer()
+	if c.Serializer == nil {
+		c.Serializer = olric.NewGobSerializer()
 	}
 	if c.MaxConn == 0 {
 		c.MaxConn = 1
@@ -66,7 +67,7 @@ func New(c *Config, s olric.Serializer) (*Client, error) {
 	}
 	return &Client{
 		client:     transport.NewClient(cc),
-		serializer: s,
+		serializer: c.Serializer,
 	}, nil
 }
 

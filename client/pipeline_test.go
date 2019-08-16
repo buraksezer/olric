@@ -12,63 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package pipeline
+package client
 
 import (
 	"context"
 	"github.com/buraksezer/olric/internal/protocol"
-	"log"
-	"net"
 	"strconv"
 	"testing"
-	"time"
 
-	"github.com/buraksezer/olric"
 )
-
-var testConfig = &Config{
-	DialTimeout: time.Second,
-	KeepAlive:   time.Second,
-}
-
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
-func newOlric() (*olric.Olric, chan struct{}, error) {
-	port, err := getFreePort()
-	if err != nil {
-		return nil, nil, err
-	}
-	addr := "127.0.0.1:" + strconv.Itoa(port)
-	cfg := &olric.Config{Name: addr}
-	db, err := olric.New(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	done := make(chan struct{})
-	go func() {
-		rerr := db.Start()
-		if rerr != nil {
-			log.Printf("[ERROR] Expected nil. Got %v", rerr)
-		}
-		close(done)
-	}()
-	time.Sleep(100 * time.Millisecond)
-	testConfig.Addr = addr
-	return db, done, nil
-}
 
 func TestPipeline_Put(t *testing.T) {
 	db, done, err := newOlric()
@@ -83,10 +35,13 @@ func TestPipeline_Put(t *testing.T) {
 		<-done
 	}()
 
-	p, err := New(testConfig)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	p := c.NewPipeline()
+
+	// Put some keys
 	dmap := "mydmap"
 	for i := 0; i < 10; i++ {
 		key := "key-" + strconv.Itoa(i)
@@ -95,10 +50,13 @@ func TestPipeline_Put(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
+
+	// Flush them
 	responses, err := p.Flush()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	// Read responses
 	for _, res := range responses {
 		if res.response.Op != protocol.OpPut {
 			t.Fatalf("Expected Op: %v. Got: %v", protocol.OpPut, res.response.Op)
@@ -122,10 +80,12 @@ func TestPipeline_Get(t *testing.T) {
 		<-done
 	}()
 
-	p, err := New(testConfig)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	p := c.NewPipeline()
+
 	dmap := "mydmap"
 	key := "key-" + strconv.Itoa(1)
 

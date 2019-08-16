@@ -85,7 +85,7 @@ func TestClient_Get(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestClient_Put(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestClient_PutEx(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestClient_Delete(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestClient_LockWithTimeout(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestClient_Unlock(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestClient_Destroy(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestClient_Incr(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestClient_Decr(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -448,7 +448,7 @@ func TestClient_GetPut(t *testing.T) {
 		<-done
 	}()
 
-	c, err := New(testConfig, nil)
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
