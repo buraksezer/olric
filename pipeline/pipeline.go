@@ -20,6 +20,8 @@ package pipeline
 import (
 	"bytes"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 	"io"
 	"sync"
 	"time"
@@ -29,6 +31,8 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 )
+
+var ErrInternalServerError = errors.New("internal server error")
 
 type Pipeline struct {
 	m          sync.Mutex
@@ -123,7 +127,48 @@ func (p *Pipeline) Get(dmap, key string) error {
 	return m.Write(p.buf)
 }
 
-func (p *Pipeline) Flush() ([]protocol.Message, error) {
+type PipelineResponse struct {
+	serializer olric.Serializer
+	response protocol.Message
+}
+
+func (pr *PipelineResponse) Operation() string {
+	switch {
+	case pr.response.Op == protocol.OpPut:
+		return "Put"
+	case pr.response.Op == protocol.OpGet:
+		return "Get"
+	case pr.response.Op == protocol.OpPutEx:
+		return "PutEx"
+	case pr.response.Op == protocol.OpDelete:
+		return "Delete"
+	case pr.response.Op == protocol.OpIncr:
+		return "Incr"
+	default:
+		return "unknown"
+	}
+}
+
+func (pr *PipelineResponse) Get() (interface{}, error) {
+	if pr.response.Status == protocol.StatusKeyNotFound {
+		return nil, olric.ErrKeyNotFound
+	}
+	var value interface{}
+	err := pr.serializer.Unmarshal(pr.response.Value, &value)
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func (pr *PipelineResponse) Put() error {
+	if pr.response.Status == protocol.StatusOK {
+		return nil
+	}
+	return errors.Wrap(ErrInternalServerError, string(pr.response.Value))
+}
+
+func (p *Pipeline) Flush() ([]PipelineResponse, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
 
@@ -136,7 +181,8 @@ func (p *Pipeline) Flush() ([]protocol.Message, error) {
 	}
 
 	conn := bytes.NewBuffer(resp.Value)
-	var responses []protocol.Message
+	var responses []PipelineResponse
+	var resErr error
 	for {
 		var pres protocol.Message
 		err := pres.Read(conn)
@@ -144,12 +190,14 @@ func (p *Pipeline) Flush() ([]protocol.Message, error) {
 			break
 		}
 		if err != nil {
-			// append
+			resErr = multierror.Append(resErr, err)
 			continue
 		}
-		responses = append(responses, pres)
+		pr := PipelineResponse{
+			serializer: p.serializer,
+			response: pres,
+		}
+		responses = append(responses, pr)
 	}
 	return responses, nil
-
-
 }

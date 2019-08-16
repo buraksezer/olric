@@ -16,7 +16,6 @@ package pipeline
 
 import (
 	"context"
-	"fmt"
 	"github.com/buraksezer/olric/internal/protocol"
 	"log"
 	"net"
@@ -101,11 +100,11 @@ func TestPipeline_Put(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	for _, res := range responses {
-		if res.Op != protocol.OpPut {
-			t.Fatalf("Expected Op: %v. Got: %v", protocol.OpPut, res.Op)
+		if res.response.Op != protocol.OpPut {
+			t.Fatalf("Expected Op: %v. Got: %v", protocol.OpPut, res.response.Op)
 		}
-		if res.Status != protocol.StatusOK {
-			t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.Status)
+		if res.response.Status != protocol.StatusOK {
+			t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.response.Status)
 		}
 	}
 }
@@ -147,24 +146,21 @@ func TestPipeline_Get(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	for index, res := range responses {
-		fmt.Println(index)
-		if index == 0 {
-			if res.Op != protocol.OpPut {
-				t.Fatalf("Expected Op: %v. Got: %v", protocol.OpPut, res.Op)
-			}
-			if res.Status != protocol.StatusOK {
-				t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.Status)
+	for _, res := range responses {
+		if res.Operation() == "Put" {
+			err := res.Put()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
 			}
 		}
-		if index == 1 {
-			if res.Op != protocol.OpGet {
-				t.Fatalf("Expected Op: %v. Got: %v", protocol.OpGet, res.Op)
+		if res.Operation() == "Get" {
+			val, err := res.Get()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			if res.Status != protocol.StatusOK {
-				t.Fatalf("Expected Status: %v. Got: %v", protocol.StatusOK, res.Status)
+			if val.(int) != 1 {
+				t.Fatalf("Expected 1. Got: %v", val)
 			}
-			fmt.Println(res.Value)
 		}
 	}
 }
