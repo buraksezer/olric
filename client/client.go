@@ -17,6 +17,7 @@ package client
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"time"
 
 	"github.com/buraksezer/olric"
@@ -84,6 +85,30 @@ func (c *Client) NewDMap(name string) *DMap {
 	}
 }
 
+func checkStatusCode(resp *protocol.Message) error {
+	switch {
+	case resp.Status == protocol.StatusOK:
+		return nil
+	case resp.Status == protocol.StatusInternalServerError:
+		return errors.Wrap(ErrInternalServerError, string(resp.Value))
+	case resp.Status == protocol.StatusNoSuchLock:
+		return olric.ErrNoSuchLock
+	case resp.Status == protocol.StatusKeyNotFound:
+		return olric.ErrKeyNotFound
+	default:
+		return fmt.Errorf("unknown status: %v", resp.Status)
+	}
+}
+
+func (c *Client) processGetResponse(resp *protocol.Message) (interface{}, error) {
+	var value interface{}
+	if err := checkStatusCode(resp); err != nil {
+		return value, err
+	}
+	err := c.serializer.Unmarshal(resp.Value, &value)
+	return value, err
+}
+
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key. It's thread-safe.
 // It is safe to modify the contents of the returned value. It is safe to modify the contents of the argument after Get returns.
 func (d *DMap) Get(key string) (interface{}, error) {
@@ -95,15 +120,7 @@ func (d *DMap) Get(key string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.Status == protocol.StatusKeyNotFound {
-		return nil, olric.ErrKeyNotFound
-	}
-	var value interface{}
-	err = d.serializer.Unmarshal(resp.Value, &value)
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
+	return d.processGetResponse(resp)
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
@@ -118,8 +135,11 @@ func (d *DMap) Put(key string, value interface{}) error {
 		Key:   key,
 		Value: data,
 	}
-	_, err = d.client.Request(protocol.OpPut, m)
-	return err
+	resp, err := d.client.Request(protocol.OpPut, m)
+	if err != nil {
+		return err
+	}
+	return checkStatusCode(resp)
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
@@ -135,8 +155,11 @@ func (d *DMap) PutEx(key string, value interface{}, timeout time.Duration) error
 		Extra: protocol.PutExExtra{TTL: timeout.Nanoseconds()},
 		Value: data,
 	}
-	_, err = d.client.Request(protocol.OpPutEx, m)
-	return err
+	resp, err := d.client.Request(protocol.OpPutEx, m)
+	if err != nil {
+		return err
+	}
+	return checkStatusCode(resp)
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
@@ -146,8 +169,11 @@ func (d *DMap) Delete(key string) error {
 		DMap: d.name,
 		Key:  key,
 	}
-	_, err := d.client.Request(protocol.OpDelete, m)
-	return err
+	resp, err := d.client.Request(protocol.OpDelete, m)
+	if err != nil {
+		return err
+	}
+	return checkStatusCode(resp)
 }
 
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
@@ -163,8 +189,11 @@ func (d *DMap) LockWithTimeout(key string, timeout time.Duration) error {
 		Key:   key,
 		Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
 	}
-	_, err := d.client.Request(protocol.OpLockWithTimeout, m)
-	return err
+	resp, err := d.client.Request(protocol.OpLockWithTimeout, m)
+	if err != nil {
+		return err
+	}
+	return checkStatusCode(resp)
 }
 
 // Unlock releases an acquired lock for the given key. It returns olric.ErrNoSuchLock if there is no lock for the given key.
@@ -177,10 +206,7 @@ func (d *DMap) Unlock(key string) error {
 	if err != nil {
 		return err
 	}
-	if resp.Status == protocol.StatusNoSuchLock {
-		return olric.ErrNoSuchLock
-	}
-	return nil
+	return checkStatusCode(resp)
 }
 
 // Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps.
@@ -189,8 +215,20 @@ func (d *DMap) Destroy() error {
 	m := &protocol.Message{
 		DMap: d.name,
 	}
-	_, err := d.client.Request(protocol.OpDestroy, m)
-	return err
+	resp, err := d.client.Request(protocol.OpDestroy, m)
+	if err != nil {
+		return err
+	}
+	return checkStatusCode(resp)
+}
+
+func (c *Client) processIncrDecrResponse(resp *protocol.Message) (int, error) {
+	if err := checkStatusCode(resp); err != nil {
+		return 0, err
+	}
+	var res interface{}
+	err := c.serializer.Unmarshal(resp.Value, &res)
+	return res.(int), err
 }
 
 func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int, error) {
@@ -207,9 +245,7 @@ func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int,
 	if err != nil {
 		return 0, err
 	}
-	var res interface{}
-	err = c.serializer.Unmarshal(resp.Value, &res)
-	return res.(int), err
+	return c.processIncrDecrResponse(resp)
 }
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
@@ -220,6 +256,20 @@ func (d *DMap) Incr(key string, delta int) (int, error) {
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (d *DMap) Decr(key string, delta int) (int, error) {
 	return d.incrDecr(protocol.OpDecr, d.name, key, delta)
+}
+
+func (c *Client) processGetPutResponse(resp *protocol.Message) (interface{}, error) {
+	if err := checkStatusCode(resp); err != nil {
+		return nil, err
+	}
+	var oldval interface{}
+	if len(resp.Value) != 0 {
+		err := c.serializer.Unmarshal(resp.Value, &oldval)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return oldval, nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
@@ -237,12 +287,5 @@ func (d *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	var oldval interface{}
-	if len(resp.Value) != 0 {
-		err = d.serializer.Unmarshal(resp.Value, &oldval)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return oldval, nil
+	return d.processGetPutResponse(resp)
 }

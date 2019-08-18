@@ -102,9 +102,59 @@ func (p *Pipeline) Get(dmap, key string) error {
 	return m.Write(p.buf)
 }
 
+func (p *Pipeline) Delete(dmap, key string) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpDelete,
+		},
+		DMap: dmap,
+		Key:  key,
+	}
+	return m.Write(p.buf)
+}
+
 type PipelineResponse struct {
-	serializer olric.Serializer
-	response   protocol.Message
+	*Client
+	response protocol.Message
+}
+
+func (p *Pipeline) Flush() ([]PipelineResponse, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+	defer p.buf.Reset()
+
+	req := &protocol.Message{
+		Value: p.buf.Bytes(),
+	}
+	resp, err := p.c.client.Request(protocol.OpPipeline, req)
+	if err != nil {
+		return nil, err
+	}
+
+	conn := bytes.NewBuffer(resp.Value)
+	var responses []PipelineResponse
+	var resErr error
+	for {
+		var pres protocol.Message
+		err := pres.Read(conn)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			resErr = multierror.Append(resErr, err)
+			continue
+		}
+		pr := PipelineResponse{
+			Client:   p.c,
+			response: pres,
+		}
+		responses = append(responses, pr)
+	}
+	return responses, nil
 }
 
 func (pr *PipelineResponse) Operation() string {
@@ -131,70 +181,21 @@ func (pr *PipelineResponse) Operation() string {
 		return "Destroy"
 	default:
 		return "unknown"
-
 	}
-	/*
-		OpPutEx
-		OpGet
-		OpDelete
-		OpDestroy
-		OpLockWithTimeout
-		OpUnlock
-		OpIncr
-		OpDecr
-		OpGetPut
-	 */
 }
 
 func (pr *PipelineResponse) Get() (interface{}, error) {
-	if pr.response.Status == protocol.StatusKeyNotFound {
-		return nil, olric.ErrKeyNotFound
-	}
-	var value interface{}
-	err := pr.serializer.Unmarshal(pr.response.Value, &value)
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
+	return pr.processGetResponse(&pr.response)
 }
 
 func (pr *PipelineResponse) Put() error {
-	if pr.response.Status == protocol.StatusOK {
-		return nil
-	}
-	return errors.Wrap(ErrInternalServerError, string(pr.response.Value))
+	return checkStatusCode(&pr.response)
 }
 
-func (p *Pipeline) Flush() ([]PipelineResponse, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+func (pr *PipelineResponse) PutEx() error {
+	return checkStatusCode(&pr.response)
+}
 
-	req := &protocol.Message{
-		Value: p.buf.Bytes(),
-	}
-	resp, err := p.c.client.Request(protocol.OpPipeline, req)
-	if err != nil {
-		return nil, err
-	}
-
-	conn := bytes.NewBuffer(resp.Value)
-	var responses []PipelineResponse
-	var resErr error
-	for {
-		var pres protocol.Message
-		err := pres.Read(conn)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			resErr = multierror.Append(resErr, err)
-			continue
-		}
-		pr := PipelineResponse{
-			serializer: p.c.serializer,
-			response:   pres,
-		}
-		responses = append(responses, pr)
-	}
-	return responses, nil
+func (pr *PipelineResponse) Delete() error {
+	return checkStatusCode(&pr.response)
 }
