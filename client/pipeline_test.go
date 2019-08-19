@@ -231,7 +231,6 @@ func TestPipeline_Delete(t *testing.T) {
 		}
 	}
 
-
 	// Try to get the keys
 	for i := 0; i < 10; i++ {
 		key := "key-" + strconv.Itoa(i)
@@ -250,6 +249,269 @@ func TestPipeline_Delete(t *testing.T) {
 		_, err := res.Get()
 		if err != olric.ErrKeyNotFound {
 			t.Fatalf("Expected olric.ErrKeyNotFound. Got: %v", err)
+		}
+	}
+}
+
+func TestPipeline_IncrDecr(t *testing.T) {
+	db, done, err := newOlric()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	p := c.NewPipeline()
+
+	// Incr
+	dmap := "mydmap"
+	key := "mykey"
+	for i := 0; i < 10; i++ {
+		err = p.Incr(dmap, key, 1)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	// Decr
+	for i := 0; i < 10; i++ {
+		err = p.Decr(dmap, key, 1)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	// Flush them
+	responses, err := p.Flush()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Read responses
+	for index, res := range responses {
+		if res.Operation() == "Incr" {
+			val, err := res.Incr()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if index+1 != val {
+				t.Fatalf("Expected %v. Got: %v", index+1, val)
+			}
+		}
+		if res.Operation() == "Decr" {
+			val, err := res.Decr()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if len(responses)-(index+1) != val {
+				t.Fatalf("Expected %v. Got: %v", len(responses)-(index+1), val)
+			}
+		}
+	}
+}
+
+func TestPipeline_GetPut(t *testing.T) {
+	db, done, err := newOlric()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	p := c.NewPipeline()
+
+	dmap := "mydmap"
+	key := "key-" + strconv.Itoa(1)
+
+	// Put the key
+	err = p.Put(dmap, key, 1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Call GetPut to update the key
+	err = p.GetPut(dmap, key, 100)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Get the current value with Get
+	err = p.Get(dmap, key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Flush commands
+	responses, err := p.Flush()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for _, res := range responses {
+		if res.Operation() == "Put" {
+			err := res.Put()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+		}
+		if res.Operation() == "GetPut" {
+			val, err := res.GetPut()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if val.(int) != 1 {
+				t.Fatalf("Expected 1. Got: %v", val)
+			}
+		}
+
+		if res.Operation() == "Get" {
+			val, err := res.Get()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if val.(int) != 100 {
+				t.Fatalf("Expected 100. Got: %v", val)
+			}
+		}
+	}
+}
+
+func TestPipeline_Destroy(t *testing.T) {
+	db, done, err := newOlric()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	p := c.NewPipeline()
+
+	dmap := "mydmap"
+	key := "key"
+	// Put the key
+	err = p.Put(dmap, key, 1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Call GetPut to update the key
+	err = p.Destroy(dmap)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Get the current value with Get
+	err = p.Get(dmap, key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Flush commands
+	responses, err := p.Flush()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for _, res := range responses {
+		if res.Operation() == "Put" {
+			err := res.Put()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+		}
+		if res.Operation() == "Destroy" {
+			err := res.Destroy()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+		}
+
+		if res.Operation() == "Get" {
+			_, err := res.Get()
+			if err != olric.ErrKeyNotFound {
+				t.Fatalf("Expected olric.ErrKeyNotFound. Got: %v", err)
+			}
+
+		}
+	}
+}
+
+func TestPipeline_LockWithTimeoutAndUnlock(t *testing.T) {
+	db, done, err := newOlric()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	p := c.NewPipeline()
+
+	dmap := "mydmap"
+	key := "key"
+
+	// Lock the key
+	err = p.LockWithTimeout(dmap, key, time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Unlock the key
+	err = p.Unlock(dmap, key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	// Flush commands
+	responses, err := p.Flush()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for _, res := range responses {
+		if res.Operation() == "LockWithTimeout" {
+			err := res.LockWithTimeout()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+		}
+		if res.Operation() == "Unlock" {
+			err := res.Unlock()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
 		}
 	}
 }

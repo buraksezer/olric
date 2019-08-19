@@ -117,9 +117,97 @@ func (p *Pipeline) Delete(dmap, key string) error {
 	return m.Write(p.buf)
 }
 
-type PipelineResponse struct {
-	*Client
-	response protocol.Message
+func (p *Pipeline) incrOrDecr(opcode protocol.OpCode, dmap, key string, delta int) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	value, err := p.c.serializer.Marshal(delta)
+	if err != nil {
+		return err
+	}
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    opcode,
+		},
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
+	}
+	return m.Write(p.buf)
+}
+
+func (p *Pipeline) Incr(dmap, key string, delta int) error {
+	return p.incrOrDecr(protocol.OpIncr, dmap, key, delta)
+}
+
+func (p *Pipeline) Decr(dmap, key string, delta int) error {
+	return p.incrOrDecr(protocol.OpDecr, dmap, key, delta)
+}
+
+func (p *Pipeline) GetPut(dmap, key string, value interface{}) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	data, err := p.c.serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpGetPut,
+		},
+		DMap:  dmap,
+		Key:   key,
+		Value: data,
+	}
+	return m.Write(p.buf)
+}
+
+func (p *Pipeline) Destroy(dmap string) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpDestroy,
+		},
+		DMap: dmap,
+	}
+	return m.Write(p.buf)
+}
+
+func (p *Pipeline) LockWithTimeout(dmap, key string, timeout time.Duration) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpLockWithTimeout,
+		},
+		DMap:  dmap,
+		Key:   key,
+		Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
+	}
+	return m.Write(p.buf)
+}
+
+func (p *Pipeline) Unlock(dmap, key string) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpUnlock,
+		},
+		DMap: dmap,
+		Key:  key,
+	}
+	return m.Write(p.buf)
 }
 
 func (p *Pipeline) Flush() ([]PipelineResponse, error) {
@@ -155,47 +243,4 @@ func (p *Pipeline) Flush() ([]PipelineResponse, error) {
 		responses = append(responses, pr)
 	}
 	return responses, nil
-}
-
-func (pr *PipelineResponse) Operation() string {
-	switch {
-	case pr.response.Op == protocol.OpPut:
-		return "Put"
-	case pr.response.Op == protocol.OpGet:
-		return "Get"
-	case pr.response.Op == protocol.OpPutEx:
-		return "PutEx"
-	case pr.response.Op == protocol.OpDelete:
-		return "Delete"
-	case pr.response.Op == protocol.OpIncr:
-		return "Incr"
-	case pr.response.Op == protocol.OpDecr:
-		return "Decr"
-	case pr.response.Op == protocol.OpGetPut:
-		return "GetPut"
-	case pr.response.Op == protocol.OpLockWithTimeout:
-		return "LockWithTimeout"
-	case pr.response.Op == protocol.OpUnlock:
-		return "Unlock"
-	case pr.response.Op == protocol.OpDestroy:
-		return "Destroy"
-	default:
-		return "unknown"
-	}
-}
-
-func (pr *PipelineResponse) Get() (interface{}, error) {
-	return pr.processGetResponse(&pr.response)
-}
-
-func (pr *PipelineResponse) Put() error {
-	return checkStatusCode(&pr.response)
-}
-
-func (pr *PipelineResponse) PutEx() error {
-	return checkStatusCode(&pr.response)
-}
-
-func (pr *PipelineResponse) Delete() error {
-	return checkStatusCode(&pr.response)
 }
