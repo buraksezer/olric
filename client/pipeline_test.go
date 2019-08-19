@@ -16,11 +16,12 @@ package client
 
 import (
 	"context"
-	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/internal/protocol"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 func TestPipeline_Put(t *testing.T) {

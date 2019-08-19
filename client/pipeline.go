@@ -12,33 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package pipeline implements pipelining for Olric Binary Protocol. It enables to send multiple
-commands to the server without waiting for the replies at all, and finally read the replies
-in a single step.*/
 package client
 
 import (
 	"bytes"
-	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"io"
 	"sync"
 	"time"
 
-	"github.com/buraksezer/olric"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-var ErrInternalServerError = errors.New("internal server error")
-
+// Pipeline implements pipelining feature for Olric Binary Protocol.
+// It enables to send multiple commands to the server without
+// waiting for the replies at all, and finally read the replies
+// in a single step. All methods are thread-safe. So you can call them in
+// different goroutines safely.
 type Pipeline struct {
-	c          *Client
-	m          sync.Mutex
-	buf        *bytes.Buffer
-	serializer olric.Serializer
+	c   *Client
+	m   sync.Mutex
+	buf *bytes.Buffer
 }
 
+// NewPipeline returns a new Pipeline.
 func (c *Client) NewPipeline() *Pipeline {
 	return &Pipeline{
 		c:   c,
@@ -46,6 +44,7 @@ func (c *Client) NewPipeline() *Pipeline {
 	}
 }
 
+// Put appends a Put command to the underlying buffer with the given parameters.
 func (p *Pipeline) Put(dmap, key string, value interface{}) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -66,6 +65,7 @@ func (p *Pipeline) Put(dmap, key string, value interface{}) error {
 	return m.Write(p.buf)
 }
 
+// PutEx appends a PutEx command to the underlying buffer with the given parameters.
 func (p *Pipeline) PutEx(dmap, key string, value interface{}, timeout time.Duration) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -87,6 +87,7 @@ func (p *Pipeline) PutEx(dmap, key string, value interface{}, timeout time.Durat
 	return m.Write(p.buf)
 }
 
+// Get appends a Get command to the underlying buffer with the given parameters.
 func (p *Pipeline) Get(dmap, key string) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -102,6 +103,7 @@ func (p *Pipeline) Get(dmap, key string) error {
 	return m.Write(p.buf)
 }
 
+// Delete appends a Delete command to the underlying buffer with the given parameters.
 func (p *Pipeline) Delete(dmap, key string) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -137,14 +139,17 @@ func (p *Pipeline) incrOrDecr(opcode protocol.OpCode, dmap, key string, delta in
 	return m.Write(p.buf)
 }
 
+// Incr appends an Incr command to the underlying buffer with the given parameters.
 func (p *Pipeline) Incr(dmap, key string, delta int) error {
 	return p.incrOrDecr(protocol.OpIncr, dmap, key, delta)
 }
 
+// Decr appends a Decr command to the underlying buffer with the given parameters.
 func (p *Pipeline) Decr(dmap, key string, delta int) error {
 	return p.incrOrDecr(protocol.OpDecr, dmap, key, delta)
 }
 
+// GetPut appends a GetPut command to the underlying buffer with the given parameters.
 func (p *Pipeline) GetPut(dmap, key string, value interface{}) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -165,6 +170,7 @@ func (p *Pipeline) GetPut(dmap, key string, value interface{}) error {
 	return m.Write(p.buf)
 }
 
+// Destroy appends a Destroy command to the underlying buffer with the given parameters.
 func (p *Pipeline) Destroy(dmap string) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -179,6 +185,7 @@ func (p *Pipeline) Destroy(dmap string) error {
 	return m.Write(p.buf)
 }
 
+// LockWithTimeout appends a LockWithTimeout command to the underlying buffer with the given parameters.
 func (p *Pipeline) LockWithTimeout(dmap, key string, timeout time.Duration) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -195,6 +202,7 @@ func (p *Pipeline) LockWithTimeout(dmap, key string, timeout time.Duration) erro
 	return m.Write(p.buf)
 }
 
+// Unlock appends an Unlock command to the underlying buffer with the given parameters.
 func (p *Pipeline) Unlock(dmap, key string) error {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -210,6 +218,7 @@ func (p *Pipeline) Unlock(dmap, key string) error {
 	return m.Write(p.buf)
 }
 
+// Flush flushes all the commands to the server using a single write call.
 func (p *Pipeline) Flush() ([]PipelineResponse, error) {
 	p.m.Lock()
 	defer p.m.Unlock()

@@ -17,8 +17,9 @@ package client
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -34,7 +35,7 @@ type Client struct {
 // Config includes configuration parameters for the Client.
 type Config struct {
 	Addrs       []string
-	Serializer olric.Serializer
+	Serializer  olric.Serializer
 	DialTimeout time.Duration
 	KeepAlive   time.Duration
 	MaxConn     int
@@ -90,7 +91,7 @@ func checkStatusCode(resp *protocol.Message) error {
 	case resp.Status == protocol.StatusOK:
 		return nil
 	case resp.Status == protocol.StatusInternalServerError:
-		return errors.Wrap(ErrInternalServerError, string(resp.Value))
+		return errors.Wrap(olric.ErrInternalServerError, string(resp.Value))
 	case resp.Status == protocol.StatusNoSuchLock:
 		return olric.ErrNoSuchLock
 	case resp.Status == protocol.StatusKeyNotFound:
