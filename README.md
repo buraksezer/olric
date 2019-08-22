@@ -282,6 +282,31 @@ Otherwise you can get a timeout error.
 
 The `Flush` method returns errors along with success messages. Furhermore, you need to know the command order to match responses with requests.
 
+## Golang Client
+This repo contains the official Golang client for Olric. It implements Olric Binary Protocol(OBP). With this client,
+you can access to Olric clusters in your Golang programs. In order to create a client instance:
+```go
+var clientConfig = &client.Config{
+    Addrs:       []string{"localhost:3320"},
+    DialTimeout: 10 * time.Second,
+    KeepAlive:   10 * time.Second,
+    MaxConn:     100,
+}
+
+client, err := client.New(clientConfig)
+if err != nil {
+    return err
+}
+
+dm := client.NewDMap("foobar")
+err := dm.Put("key", "value")
+// Handle this error
+```
+
+This implementation supports TCP connection pooling. So it recycles the opened TCP connections to avoid wasting resources. 
+The requests distributes among available TCP connections using an algorithm called `round-robin`. In order to see detailed list of
+configuration parameters, see [Olric documentation on GoDoc.org](https://godoc.org/github.com/buraksezer/olric).
+
 ## Configuration
 
 [memberlist configuration](https://godoc.org/github.com/hashicorp/memberlist#Config) can be tricky and and the default configuration set should be tuned for your environment. A detailed deployment and configuration guide will be prepared before stable release.
