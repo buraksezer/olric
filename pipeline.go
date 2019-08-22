@@ -23,12 +23,16 @@ import (
 func (db *Olric) pipelineOperation(req *protocol.Message) *protocol.Message {
 	conn := bytes.NewBuffer(req.Value)
 	response := &bytes.Buffer{}
+	// Read the pipelined messages into an in-memory buffer.
 	for {
 		var preq protocol.Message
 		err := preq.Read(conn)
 		if err == io.EOF {
+			// It's done. The last message has been read.
 			break
 		}
+
+		// Return an error message in pipelined response.
 		if err != nil {
 			err = preq.Error(protocol.StatusInternalServerError, err).Write(response)
 			if err != nil {
@@ -45,12 +49,15 @@ func (db *Olric) pipelineOperation(req *protocol.Message) *protocol.Message {
 			continue
 		}
 
+		// Call its function to prepare a response.
 		pres := f(&preq)
 		err = pres.Write(response)
 		if err != nil {
 			return req.Error(protocol.StatusInternalServerError, err)
 		}
 	}
+
+	// Create a success response and assign pipelined responses as Value.
 	resp := req.Success()
 	resp.Value = response.Bytes()
 	return resp

@@ -232,6 +232,7 @@ func (p *Pipeline) Flush() ([]PipelineResponse, error) {
 		return nil, err
 	}
 
+	// Read the pipelined messages from pipeline response.
 	conn := bytes.NewBuffer(resp.Value)
 	var responses []PipelineResponse
 	var resErr error
@@ -251,5 +252,5 @@ func (p *Pipeline) Flush() ([]PipelineResponse, error) {
 		}
 		responses = append(responses, pr)
 	}
-	return responses, nil
+	return responses, resErr
 }

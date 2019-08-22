@@ -45,6 +45,7 @@ This project is a work in progress. The implementation is incomplete. The docume
     * [Incr](#incr)
     * [Decr](#decr)
     * [GetPut](#getput)
+  * [Pipelining](#pipelining)
 * [Serialization](#serialization)
 * [Golang Client](#golang-client)
 * [Standalone Server](#standalone-server)
@@ -233,6 +234,53 @@ methods concurrently on the cluster, Put/PutEx calls may set new values to the D
 ```go
 err := dm.Destroy()
 ```
+
+### Pipelining
+Olric Binary Protocol(OBP) supports pipelining. All protocol commands can be pushed to a remote Olric server through a pipeline in a single write call. 
+A sample use looks like the following:
+```go
+// Create an ordinary Olric client, not Olric node!
+// ...
+// Create a new pipe and call on it whatever you want.
+pipe := client.NewPipeline()
+for i := 0; i < 10; i++ {
+    key := "key-" + strconv.Itoa(i)
+    err := pipe.Put("mydmap", key, i)
+    if err != nil {
+        fmt.Println("returned an error: ", err)
+    }
+}
+
+for i := 0; i < 10; i++ {
+    key := "key-" + strconv.Itoa(i)
+    err := pipe.Get("mydmap", key)
+    if err != nil {
+        fmt.Println("returned an error: ", err)
+    }
+}
+
+// Flush messages to the server.
+responses, err := pipe.Flush()
+if err != nil {
+    fmt.Println("returned an error: ", err)
+}
+
+// Read responses from the pipeline.
+for _, resp := range responses {
+    if resp.Operation() == "Get" {
+        val, err := resp.Get()
+        if err != nil {
+            fmt.Println("returned an error: ", err)
+        }
+        fmt.Println("Get response: ", val)
+    }
+}
+```
+
+There is no hard-limit on message count in a pipeline. You should set a convenient `KeepAlive` for large pipelines. 
+Otherwise you can get a timeout error.
+
+The `Flush` method returns errors along with success messages. Furhermore, you need to know the command order to match responses with requests.
 
 ## Configuration
 

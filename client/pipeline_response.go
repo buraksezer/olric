@@ -16,11 +16,13 @@ package client
 
 import "github.com/buraksezer/olric/internal/protocol"
 
+// PipelineResponse implements response readers for pipelined requests.
 type PipelineResponse struct {
 	*Client
 	response protocol.Message
 }
 
+// Operation returns the current operation name.
 func (pr *PipelineResponse) Operation() string {
 	switch {
 	case pr.response.Op == protocol.OpPut:
@@ -48,42 +50,66 @@ func (pr *PipelineResponse) Operation() string {
 	}
 }
 
+// Get returns the value for the requested key. It returns ErrKeyNotFound if the DB does not contains the key.
+// It's thread-safe. It is safe to modify the contents of the returned value.
+// It is safe to modify the contents of the argument after Get returns.
 func (pr *PipelineResponse) Get() (interface{}, error) {
 	return pr.processGetResponse(&pr.response)
 }
 
+// Put sets the value for the requested key. It overwrites any previous value for that key and
+// it's thread-safe. It is safe to modify the contents of the arguments after Put returns but not before.
 func (pr *PipelineResponse) Put() error {
 	return checkStatusCode(&pr.response)
 }
 
+// PutEx sets the value for the given key with TTL. It overwrites any previous value for that key.
+// It's thread-safe. It is safe to modify the contents of the arguments after Put returns but not before.
 func (pr *PipelineResponse) PutEx() error {
 	return checkStatusCode(&pr.response)
 }
 
+// Delete deletes the value for the given key. Delete will not return error if key doesn't exist.
+// It's thread-safe. It is safe to modify the contents of the argument after Delete returns.
 func (pr *PipelineResponse) Delete() error {
 	return checkStatusCode(&pr.response)
 }
 
+// Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (pr *PipelineResponse) Incr() (int, error) {
 	return pr.processIncrDecrResponse(&pr.response)
 }
 
+// Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (pr *PipelineResponse) Decr() (int, error) {
 	return pr.processIncrDecrResponse(&pr.response)
 }
 
+// GetPut atomically sets key to value and returns the old value stored at key.
 func (pr *PipelineResponse) GetPut() (interface{}, error) {
 	return pr.processGetPutResponse(&pr.response)
 }
 
+// Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps.
+// So if you call Put/PutEx and Destroy methods concurrently on the cluster, Put/PutEx calls may set
+// new values to the DMap.
 func (pr *PipelineResponse) Destroy() error {
 	return checkStatusCode(&pr.response)
 }
 
+// LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
+// it automatically releases the lock. Acquired lock is only for the key in this map. Please note that, before
+// setting a lock for a key, you should set the key with Put method. Otherwise it returns olric.ErrKeyNotFound error.
+//
+// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until timeout.
+//
+// You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (pr *PipelineResponse) LockWithTimeout() error {
 	return checkStatusCode(&pr.response)
 }
 
+// Unlock releases an acquired lock for the given key. It returns olric.ErrNoSuchLock if there is no lock
+// for the given key.
 func (pr *PipelineResponse) Unlock() error {
 	return checkStatusCode(&pr.response)
 }
