@@ -15,85 +15,135 @@
 package server
 
 import (
+	"fmt"
 	"net"
-	"strconv"
 	"time"
 
-	"github.com/buraksezer/olric"
-	memlist "github.com/hashicorp/memberlist"
+	"github.com/buraksezer/olric/config"
+	m "github.com/hashicorp/memberlist"
 )
 
-// newMemberlistConf creates a new *memberlist.Config by parsing olricd.toml.
-func newMemberlistConf(c *Config) (*memlist.Config, error) {
-	bindAddr, sport, err := net.SplitHostPort(c.Memberlist.Addr)
-	if err != nil {
-		return nil, err
-	}
-	bindPort, err := strconv.Atoi(sport)
+// newMemberlistConf creates a new *memberlist.Config by parsing olricd.yaml
+func newMemberlistConf(c *Config) (*m.Config, error) {
+	mc, err := config.NewMemberlistConfig(c.Memberlist.Environment)
 	if err != nil {
 		return nil, err
 	}
 
-	mc, err := olric.NewMemberlistConfig(c.Memberlist.Environment)
-	if err != nil {
-		return nil, err
+	mc.Name = c.Olricd.Name
+	mc.BindAddr = c.Memberlist.BindAddr
+	mc.BindPort = c.Memberlist.BindPort
+
+	if c.Memberlist.EnableCompression != nil {
+		mc.EnableCompression = *c.Memberlist.EnableCompression
 	}
 
-	mc.BindAddr = bindAddr
-	mc.BindPort = bindPort
-	mc.EnableCompression = c.Memberlist.EnableCompression
-	if len(c.Memberlist.TCPTimeout) != 0 {
-		mc.TCPTimeout, err = time.ParseDuration(c.Memberlist.TCPTimeout)
+	if c.Memberlist.TCPTimeout != nil {
+		mc.TCPTimeout, err = time.ParseDuration(*c.Memberlist.TCPTimeout)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if c.Memberlist.IndirectChecks != 0 {
-		mc.IndirectChecks = c.Memberlist.IndirectChecks
+	if c.Memberlist.IndirectChecks != nil {
+		mc.IndirectChecks = *c.Memberlist.IndirectChecks
 	}
 
-	if c.Memberlist.RetransmitMult != 0 {
-		mc.RetransmitMult = c.Memberlist.RetransmitMult
+	if c.Memberlist.RetransmitMult != nil {
+		mc.RetransmitMult = *c.Memberlist.RetransmitMult
 	}
 
-	if c.Memberlist.SuspicionMult != 0 {
-		mc.SuspicionMult = c.Memberlist.SuspicionMult
+	if c.Memberlist.SuspicionMult != nil {
+		mc.SuspicionMult = *c.Memberlist.SuspicionMult
 	}
 
-	if c.Memberlist.PushPullInterval != "" {
-		mc.PushPullInterval, err = time.ParseDuration(c.Memberlist.PushPullInterval)
+	if c.Memberlist.PushPullInterval != nil {
+		mc.PushPullInterval, err = time.ParseDuration(*c.Memberlist.PushPullInterval)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if c.Memberlist.ProbeTimeout != "" {
-		mc.ProbeTimeout, err = time.ParseDuration(c.Memberlist.ProbeTimeout)
+	if c.Memberlist.ProbeTimeout != nil {
+		mc.ProbeTimeout, err = time.ParseDuration(*c.Memberlist.ProbeTimeout)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.Memberlist.ProbeInterval != nil {
+		mc.ProbeInterval, err = time.ParseDuration(*c.Memberlist.ProbeInterval)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if c.Memberlist.ProbeInterval != "" {
-		mc.ProbeInterval, err = time.ParseDuration(c.Memberlist.ProbeInterval)
+	if c.Memberlist.GossipInterval != nil {
+		mc.GossipInterval, err = time.ParseDuration(*c.Memberlist.GossipInterval)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.Memberlist.GossipToTheDeadTime != nil {
+		mc.GossipToTheDeadTime, err = time.ParseDuration(*c.Memberlist.GossipToTheDeadTime)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if c.Memberlist.GossipInterval != "" {
-		mc.GossipInterval, err = time.ParseDuration(c.Memberlist.GossipInterval)
-		if err != nil {
-			return nil, err
+	if c.Memberlist.AdvertiseAddr != nil {
+		mc.AdvertiseAddr = *c.Memberlist.AdvertiseAddr
+	} else {
+		if ip := net.ParseIP(mc.BindAddr); ip != nil {
+			mc.AdvertiseAddr = ip.String()
+		} else {
+			ans, err := net.LookupIP(mc.BindAddr)
+			if err != nil {
+				return nil, err
+			}
+			// Fail early.
+			if len(ans) == 0 {
+				return nil, fmt.Errorf("no IP address found for %s", mc.BindAddr)
+			}
+			mc.AdvertiseAddr = ans[0].String()
 		}
 	}
+	if c.Memberlist.AdvertisePort != nil {
+		mc.AdvertisePort = *c.Memberlist.AdvertisePort
+	} else {
+		mc.AdvertisePort = mc.BindPort
+	}
 
-	if c.Memberlist.GossipToTheDeadTime != "" {
-		mc.GossipToTheDeadTime, err = time.ParseDuration(c.Memberlist.GossipToTheDeadTime)
-		if err != nil {
-			return nil, err
-		}
+	if c.Memberlist.SuspicionMaxTimeoutMult != nil {
+		mc.SuspicionMaxTimeoutMult = *c.Memberlist.SuspicionMaxTimeoutMult
+	}
+
+	if c.Memberlist.DisableTcpPings != nil {
+		mc.DisableTcpPings = *c.Memberlist.DisableTcpPings
+	}
+
+	if c.Memberlist.AwarenessMaxMultiplier != nil {
+		mc.AwarenessMaxMultiplier = *c.Memberlist.AwarenessMaxMultiplier
+	}
+
+	if c.Memberlist.GossipNodes != nil {
+		mc.GossipNodes = *c.Memberlist.GossipNodes
+	}
+	if c.Memberlist.GossipVerifyIncoming != nil {
+		mc.GossipVerifyIncoming = *c.Memberlist.GossipVerifyIncoming
+	}
+	if c.Memberlist.GossipVerifyOutgoing != nil {
+		mc.GossipVerifyOutgoing = *c.Memberlist.GossipVerifyOutgoing
+	}
+
+	if c.Memberlist.DNSConfigPath != nil {
+		mc.DNSConfigPath = *c.Memberlist.DNSConfigPath
+	}
+
+	if c.Memberlist.HandoffQueueDepth != nil {
+		mc.HandoffQueueDepth = *c.Memberlist.HandoffQueueDepth
+	}
+	if c.Memberlist.UDPBufferSize != nil {
+		mc.UDPBufferSize = *c.Memberlist.UDPBufferSize
 	}
 	return mc, nil
 }

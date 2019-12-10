@@ -1,0 +1,59 @@
+olricd:
+  name: "0.0.0.0:3320"
+  serializer: "msgpack"
+  keepAlivePeriod: "300s"
+  requestTimeout: "5s"
+  partitionCount:  71
+  replicaCount: 1
+  writeQuorum: 1
+  readQuorum: 1
+  readRepair: false
+  backupMode: 0
+  tableSize: 1048576 # 1MB in bytes
+  memberCountQuorum: 1
+
+logging:
+  verbosity: 6
+  level: "DEBUG"
+  output: "stderr"
+
+memberlist:
+  environment: "local"
+  bindAddr: "0.0.0.0"
+  bindPort: 3322
+  enableCompression: false
+  joinRetryInterval: "1ms"
+  maxJoinAttempts: 1
+  peers:
+    - "localhost:3325"
+
+  #advertiseAddr: ""
+  #advertisePort: 3322
+  #suspicionMaxTimeoutMult: 6
+  #disableTcpPings: false
+  #awarenessMaxMultiplier: 8
+  #gossipNodes: 3
+  #gossipVerifyIncoming: true
+  #gossipVerifyOutgoing: true
+  #dnsConfigPath: "/etc/resolv.conf"
+  #handoffQueueDepth: 1024
+  #udpBufferSize: 1400
+
+
+# cache:
+#  numEvictionWorkers: 1
+#  maxIdleDuration: ""
+#  ttlDuration: "100s"
+#  maxKeys: 100000
+#  maxInuse: 1000000
+#  lRUSamples: 10
+#  evictionPolicy: "LRU"
+#
+#dmaps:
+#  foobar:
+#    maxIdleDuration: "60s"
+#    ttlDuration: "300s"
+#    maxKeys: 500000
+#    lRUSamples: 20
+#    evictionPolicy: "NONE"
+

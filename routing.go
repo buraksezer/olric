@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,267 +15,380 @@
 package olric
 
 import (
+	"fmt"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/buraksezer/consistent"
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+
 	"github.com/hashicorp/memberlist"
 	"github.com/vmihailenco/msgpack"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
-var maxBackupCount = 3
+var routingUpdateMtx sync.Mutex
+var routingSignature uint64
 
 type route struct {
-	Owners  []host
-	Backups []host
+	Owners  []discovery.Member
+	Backups []discovery.Member
 }
 
-type routing map[uint64]route
+type routingTable map[uint64]route
 
-func calcMaxBackupCount(backupCount, memCount int) int {
-	// maxBackupCount is 3 now. If the cluster's host count is less than three
-	// re-calculate backupCount. Partition manager will rearrange backup hosts
-	// of a partition when a node join or leave.
-	if backupCount > maxBackupCount {
-		backupCount = maxBackupCount
-	}
-
-	if memCount-1 < backupCount {
-		backupCount = memCount - 1
-	}
-	return backupCount
-}
-
-func (db *Olric) processNodeEvent(event memberlist.NodeEvent) {
-	if event.Event == memberlist.NodeJoin {
-		mt, _ := db.discovery.DecodeMeta(event.Node.Meta)
-		member := host{
-			Name:         event.Node.Name,
-			NodeMetadata: *mt,
+func (db *Olric) getReplicaOwners(partID uint64) ([]consistent.Member, error) {
+	for i := db.config.ReplicaCount; i > 0; i-- {
+		newOwners, err := db.consistent.GetClosestNForPartition(int(partID), i)
+		if err == consistent.ErrInsufficientMemberCount {
+			continue
 		}
-		db.consistent.Add(member)
-		db.log.Printf("[DEBUG] Node joined: %s", member)
-	} else if event.Event == memberlist.NodeLeave {
-		db.consistent.Remove(event.Node.Name)
-		db.log.Printf("[DEBUG] Node leaved: %s", event.Node.Name)
-	} else {
-		db.log.Printf("[ERROR] Unknown event received: %v", event)
+		if err != nil {
+			// Fail early
+			return nil, err
+		}
+		return newOwners, nil
 	}
+	return nil, consistent.ErrInsufficientMemberCount
 }
 
-func (db *Olric) distributeBackups(partID uint64, rt routing, backupCount int) {
-	backups, err := db.consistent.GetClosestNForPartition(int(partID), backupCount)
+func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
+	part := db.backups[partID]
+	owners := make([]discovery.Member, part.ownerCount())
+	copy(owners, part.loadOwners())
+
+	newOwners, err := db.getReplicaOwners(partID)
 	if err != nil {
-		db.log.Printf("[ERROR] Failed to calculate backups for partID: %d: %v", partID, err)
-		return
+		db.log.V(2).Printf("[ERROR] Failed to get replica owners for PartID: %d: %v",
+			partID, err)
+		return nil
 	}
 
-	bpart := db.backups[partID]
-	bpart.Lock()
-	defer bpart.Unlock()
+	// Remove the primary owner
+	newOwners = newOwners[1:]
 
-	data := rt[partID]
-	defer func() {
-		rt[partID] = data
-	}()
-	if len(bpart.owners) == 0 {
-		for _, backup := range backups {
-			bpart.owners = append(bpart.owners, backup.(host))
+	// First run
+	if len(owners) == 0 {
+		for _, owner := range newOwners {
+			owners = append(owners, owner.(discovery.Member))
 		}
-		data.Backups = bpart.owners
-		return
+		return owners
 	}
 
-	// Here add the new partition owner.
-	for _, backup := range backups {
+	// Prune dead nodes
+	for i := 0; i < len(owners); i++ {
+		backup := owners[i]
+		cur, err := db.discovery.FindMemberByName(backup.Name)
+		if err != nil {
+			db.log.V(3).Printf("[ERROR] Failed to find %s in the cluster: %v", backup, err)
+			// Delete it.
+			owners = append(owners[:i], owners[i+1:]...)
+			i--
+			continue
+		}
+		if !hostCmp(backup, cur) {
+			db.log.V(3).Printf("[WARN] One of the backup owners is probably re-joined: %s", cur)
+			// Delete it.
+			owners = append(owners[:i], owners[i+1:]...)
+			i--
+			continue
+		}
+	}
+
+	// Prune empty nodes
+	for i := 0; i < len(owners); i++ {
+		backup := owners[i]
+		req := &protocol.Message{
+			Extra: protocol.KeyCountOnPartExtra{
+				PartID: partID,
+				Backup: true,
+			},
+		}
+		res, err := db.requestTo(backup.String(), protocol.OpKeyCountOnPart, req)
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to check key count on backup "+
+				"partition: %d: %v", partID, err)
+			// Pass it. If the node is down, memberlist package will send a leave event.
+			continue
+		}
+
+		var count int32
+		err = msgpack.Unmarshal(res.Value, &count)
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to unmarshal key count "+
+				"while checking backup partition: %d: %v", partID, err)
+			// This may be a temporary event. Pass it.
+			continue
+		}
+		if count == 0 {
+			// Delete it.
+			db.log.V(5).Printf("[DEBUG] Empty backup partition found. PartID: %d on %s", partID, backup)
+			owners = append(owners[:i], owners[i+1:]...)
+			i--
+		}
+	}
+
+	// Here add the new backup owners.
+	for _, backup := range newOwners {
 		var exists bool
-		for i, bkp := range bpart.owners {
-			if hostCmp(bkp, backup.(host)) {
+		for i, bkp := range owners {
+			if hostCmp(bkp, backup.(discovery.Member)) {
 				exists = true
 				// Remove it from the current position
-				bpart.owners = append(bpart.owners[:i], bpart.owners[i+1:]...)
+				owners = append(owners[:i], owners[i+1:]...)
 				// Append it again to head
-				bpart.owners = append(bpart.owners, backup.(host))
+				owners = append(owners, backup.(discovery.Member))
 				break
 			}
 		}
 		if !exists {
-			bpart.owners = append(bpart.owners, backup.(host))
+			owners = append(owners, backup.(discovery.Member))
 		}
 	}
-
-	// FIXME: What if tmp is empty?
-	// Prune dead nodes
-	tmp := []host{}
-	for _, backup := range bpart.owners {
-		cur, err := db.discovery.findMember(backup.Name)
-		if err != nil {
-			db.log.Printf("[ERROR] Failed to find %s in the cluster: %v", backup, err)
-			continue
-		}
-		if !hostCmp(backup, cur) {
-			db.log.Printf("[WARN] One of the backup owners is probably re-joined: %s", cur)
-			continue
-		}
-		tmp = append(tmp, cur)
-	}
-	// FIXME: What if tmp is empty?
-
-	// Prune empty nodes
-	tbackups := []host{}
-	for _, backup := range tmp[:len(tmp)-backupCount] {
-		if hostCmp(db.this, backup) {
-			if atomic.LoadInt32(&bpart.count) != 0 {
-				tbackups = append(tbackups, backup)
-			}
-			continue
-		}
-		req := &protocol.Message{
-			Extra: protocol.IsPartEmptyExtra{PartID: partID},
-		}
-		_, err := db.requestTo(backup.String(), protocol.OpIsBackupEmpty, req)
-		if err != nil {
-			if err != errBackupNotEmpty {
-				db.log.Printf("[ERROR] Failed to check dmaps in partition backup: %d: %v", partID, err)
-			}
-			tbackups = append(tbackups, backup)
-		}
-	}
-	tbackups = append(tbackups, tmp[len(tmp)-backupCount:]...)
-	bpart.owners = tbackups
-	data.Backups = bpart.owners
+	return owners
 }
 
-func (db *Olric) distributePrimaryCopies(partID uint64, rt routing) {
-	owner := db.consistent.GetPartitionOwner(int(partID))
+func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
+	// First you need to create a copy of the owners list. Don't modify the current list.
 	part := db.partitions[partID]
-	part.Lock()
-	defer part.Unlock()
+	owners := make([]discovery.Member, part.ownerCount())
+	copy(owners, part.loadOwners())
 
-	data := rt[partID]
-	defer func() {
-		rt[partID] = data
-	}()
+	// Find the new partition owner.
+	newOwner := db.consistent.GetPartitionOwner(int(partID))
 
-	if len(part.owners) == 0 {
-		part.owners = append(part.owners, owner.(host))
-		data.Owners = part.owners
-		return
-	}
-	// Here add the new partition owner.
-	var exists bool
-	for i, own := range part.owners {
-		if hostCmp(own, owner.(host)) {
-			exists = true
-			// Remove it from the current position
-			part.owners = append(part.owners[:i], part.owners[i+1:]...)
-			// Append it again to head
-			part.owners = append(part.owners, owner.(host))
-			break
-		}
-	}
-	if !exists {
-		part.owners = append(part.owners, owner.(host))
+	// First run.
+	if len(owners) == 0 {
+		owners = append(owners, newOwner.(discovery.Member))
+		return owners
 	}
 
 	// Prune dead nodes
-	tmp := []host{}
-	for _, own := range part.owners {
-		cur, err := db.discovery.findMember(own.Name)
+	for i := 0; i < len(owners); i++ {
+		owner := owners[i]
+		current, err := db.discovery.FindMemberByName(owner.Name)
 		if err != nil {
-			db.log.Printf("[ERROR] Failed to find %s in the cluster: %v", own, err)
+			db.log.V(5).Printf("[ERROR] Failed to find %s in the cluster: %v", owner, err)
+			owners = append(owners[:i], owners[i+1:]...)
+			i--
 			continue
 		}
-		if !hostCmp(own, cur) {
-			db.log.Printf("[WARN] One of the partitions owners is probably re-joined: %s", cur)
+		if !hostCmp(owner, current) {
+			db.log.V(5).Printf("[WARN] One of the partitions owners is probably re-joined: %s", current)
+			owners = append(owners[:i], owners[i+1:]...)
+			i--
 			continue
 		}
-		tmp = append(tmp, cur)
 	}
+
 	// Prune empty nodes
-	owners := []host{}
-	for _, own := range tmp[:len(tmp)-1] {
-		if hostCmp(db.this, own) {
-			if atomic.LoadInt32(&part.count) != 0 {
-				owners = append(owners, own)
-			}
-			continue
-		}
+	for i := 0; i < len(owners); i++ {
+		owner := owners[i]
 		req := &protocol.Message{
-			Extra: protocol.IsPartEmptyExtra{PartID: partID},
+			Extra: protocol.KeyCountOnPartExtra{PartID: partID},
 		}
-		_, err := db.requestTo(own.String(), protocol.OpIsPartEmpty, req)
+		res, err := db.requestTo(owner.String(), protocol.OpKeyCountOnPart, req)
 		if err != nil {
-			if err != errPartNotEmpty {
-				db.log.Printf("[ERROR] Failed to check dmaps in partition: %d: %v", partID, err)
-			}
-			owners = append(owners, own)
-		}
-	}
-	owners = append(owners, tmp[len(tmp)-1])
-	part.owners = owners
-	data.Owners = part.owners
-}
-
-func (db *Olric) distributePartitions() routing {
-	rt := make(routing)
-	memCount := len(db.consistent.GetMembers())
-	backupCount := calcMaxBackupCount(db.config.BackupCount, memCount)
-	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		db.distributePrimaryCopies(partID, rt)
-		if db.config.BackupCount != 0 && backupCount != 0 {
-			db.distributeBackups(partID, rt, backupCount)
-		}
-	}
-	return rt
-}
-
-func (db *Olric) updateRoutingOnCluster(rt routing) error {
-	data, err := msgpack.Marshal(rt)
-	if err != nil {
-		return nil
-	}
-
-	var g errgroup.Group
-	for _, member := range db.consistent.GetMembers() {
-		mem := member.(host)
-		if hostCmp(mem, db.this) {
+			db.log.V(2).Printf("[ERROR] Failed to check key count on partition: %d: %v", partID, err)
+			// Pass it. If the node is gone, memberlist package will notify us.
 			continue
 		}
+
+		var count int32
+		err = msgpack.Unmarshal(res.Value, &count)
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to unmarshal key count "+
+				"while checking primary partition: %d: %v", partID, err)
+			// This may be a temporary issue.
+			// Pass it. If the node is gone, memberlist package will notify us.
+			continue
+		}
+		if count == 0 {
+			db.log.V(5).Printf("[DEBUG] PartID: %d on %s is empty", partID, owner)
+			// Empty partition. Delete it from ownership list.
+			owners = append(owners[:i], owners[i+1:]...)
+			i--
+		}
+	}
+
+	// Here add the new partition newOwner.
+	for i, owner := range owners {
+		if hostCmp(owner, newOwner.(discovery.Member)) {
+			// Remove it from the current position
+			owners = append(owners[:i], owners[i+1:]...)
+			// Append it again to head
+			return append(owners, newOwner.(discovery.Member))
+		}
+	}
+	return append(owners, newOwner.(discovery.Member))
+}
+
+func (db *Olric) distributePartitions() (routingTable, error) {
+	table := make(routingTable)
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		item := table[partID]
+		item.Owners = db.distributePrimaryCopies(partID)
+		if db.config.ReplicaCount > config.MinimumReplicaCount {
+			item.Backups = db.distributeBackups(partID)
+		}
+		table[partID] = item
+	}
+	return table, nil
+}
+
+func (db *Olric) updateRoutingTableOnCluster(table routingTable) (map[discovery.Member]ownershipReport, error) {
+	data, err := msgpack.Marshal(table)
+	if err != nil {
+		return nil, err
+	}
+
+	var mtx sync.Mutex
+	var g errgroup.Group
+	ownershipReports := make(map[discovery.Member]ownershipReport)
+	num := int64(runtime.NumCPU())
+	sem := semaphore.NewWeighted(num)
+	for _, member := range db.consistent.GetMembers() {
+		mem := member.(discovery.Member)
 		g.Go(func() error {
+			if err := sem.Acquire(db.ctx, 1); err != nil {
+				db.log.V(3).Printf("[ERROR] Failed to acquire semaphore to update routing table on %s: %v", mem, err)
+				return err
+			}
+			defer sem.Release(1)
+
 			msg := &protocol.Message{
 				Value: data,
+				Extra: protocol.UpdateRoutingExtra{
+					CoordinatorId: db.this.ID,
+				},
 			}
-			_, err := db.requestTo(mem.String(), protocol.OpUpdateRouting, msg)
-			return err
+			// TODO: This blocks whole flow. Use timeout for smooth operation.
+			resp, err := db.requestTo(mem.String(), protocol.OpUpdateRouting, msg)
+			if err != nil {
+				db.log.V(3).Printf("[ERROR] Failed to update routing table on %s: %v", mem, err)
+				return err
+			}
+
+			ow := ownershipReport{}
+			err = msgpack.Unmarshal(resp.Value, &ow)
+			if err != nil {
+				db.log.V(3).Printf("[ERROR] Failed to call decode ownership report from %s: %v", mem, err)
+				return err
+			}
+			mtx.Lock()
+			ownershipReports[mem] = ow
+			mtx.Unlock()
+
+			return nil
 		})
 	}
-	return g.Wait()
+	return ownershipReports, g.Wait()
 }
 
 func (db *Olric) updateRouting() {
-	if !db.discovery.isCoordinator() {
+	// This function is only run by the cluster coordinator.
+	if !db.discovery.IsCoordinator() {
 		return
 	}
-	db.routingMx.Lock()
-	defer db.routingMx.Unlock()
-	pm := db.distributePartitions()
-	err := db.updateRoutingOnCluster(pm)
-	if err != nil {
-		db.log.Printf("[ERROR] Failed to update routing table on cluster: %v", err)
+
+	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
+	// as observed by the local member’s cluster membership manager
+	nr := atomic.LoadInt32(&db.numMembers)
+	if db.config.MemberCountQuorum > nr {
+		db.log.V(2).Printf("[ERROR] Impossible to calculate and update routing table: %v", ErrClusterQuorum)
+		return
 	}
-	db.fsck()
+
+	// This function is called by listenMemberlistEvents and updateRoutingPeriodically
+	// So this lock prevents parallel execution.
+	routingMtx.Lock()
+	defer routingMtx.Unlock()
+
+	table, err := db.distributePartitions()
+	if err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to distribute partitions: %v", err)
+		return
+	}
+	reports, err := db.updateRoutingTableOnCluster(table)
+	if err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to update routing table on cluster: %v", err)
+	}
+	db.processOwnershipReports(reports)
 }
 
-func (db *Olric) listenMemberlistEvents(eventCh chan memberlist.NodeEvent) {
+func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipReport) {
+	check := func(member discovery.Member, owners []discovery.Member) bool {
+		for _, owner := range owners {
+			if hostCmp(member, owner) {
+				return true
+			}
+		}
+		return false
+	}
+
+	ensureOwnership := func(member discovery.Member, partID uint64, part *partition) {
+		owners := part.loadOwners()
+		if check(member, owners) {
+			return
+		}
+		// This section is protected by routingMtx against parallel writers.
+		//
+		// Copy owners and append the member to head
+		newOwners := make([]discovery.Member, len(owners))
+		copy(newOwners, owners)
+		// Prepend
+		newOwners = append([]discovery.Member{member}, newOwners...)
+		part.owners.Store(newOwners)
+		db.log.V(2).Printf("[INFO] %s still have some data for PartID (backup:%v): %d", member, part.backup, partID)
+	}
+
+	// data structures in this function is guarded by routingMtx
+	for member, report := range reports {
+		for _, partID := range report.Partitions {
+			part := db.partitions[partID]
+			ensureOwnership(member, partID, part)
+		}
+
+		for _, partID := range report.Backups {
+			part := db.backups[partID]
+			ensureOwnership(member, partID, part)
+		}
+	}
+}
+
+func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
+	if event.Event == memberlist.NodeJoin {
+		member, _ := db.discovery.DecodeNodeMeta(event.NodeMeta)
+		db.consistent.Add(member)
+		db.log.V(1).Printf("[INFO] Node joined: %s", member)
+	} else if event.Event == memberlist.NodeLeave {
+		db.consistent.Remove(event.NodeName)
+		// Don't try to used closed sockets again.
+		db.client.ClosePool(event.NodeName)
+		db.log.V(1).Printf("[INFO] Node leaved: %s", event.NodeName)
+	} else {
+		db.log.V(1).Printf("[ERROR] Unknown event received: %v", event)
+		return
+	}
+
+	// Store the current number of members in the member list.
+	// We need this to implement a simple split-brain protection algorithm.
+	db.storeNumMembers()
+}
+
+func (db *Olric) listenMemberlistEvents(eventCh chan *discovery.ClusterEvent) {
 	defer db.wg.Done()
 	for {
 		select {
 		case <-db.ctx.Done():
 			return
-		case evt := <-eventCh:
-			db.processNodeEvent(evt)
+		case e := <-eventCh:
+			db.processNodeEvent(e)
 			db.updateRouting()
 		}
 	}
@@ -284,7 +397,7 @@ func (db *Olric) listenMemberlistEvents(eventCh chan memberlist.NodeEvent) {
 func (db *Olric) updateRoutingPeriodically() {
 	defer db.wg.Done()
 	// TODO: Make this parametric.
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -297,51 +410,111 @@ func (db *Olric) updateRoutingPeriodically() {
 	}
 }
 
+func (db *Olric) checkAndGetCoordinator(id uint64) (discovery.Member, error) {
+	coordinator, err := db.discovery.FindMemberByID(id)
+	if err != nil {
+		return discovery.Member{}, err
+	}
+
+	myCoordinator := db.discovery.GetCoordinator()
+	if !hostCmp(coordinator, myCoordinator) {
+		return discovery.Member{}, fmt.Errorf("unrecognized cluster coordinator: %s: %s", coordinator, myCoordinator)
+	}
+	return coordinator, nil
+}
+
 func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message {
-	rt := make(routing)
-	err := msgpack.Unmarshal(req.Value, &rt)
+	routingUpdateMtx.Lock()
+	defer routingUpdateMtx.Unlock()
+
+	table := make(routingTable)
+	err := msgpack.Unmarshal(req.Value, &table)
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
-	for partID, data := range rt {
+
+	coordinatorId := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorId
+	coordinator, err := db.checkAndGetCoordinator(coordinatorId)
+	if err != nil {
+		db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	// owners(atomic.Value) is guarded by routingUpdateMtx against parallel writers.
+
+	// Calculate routing signature. This is useful to control rebalancing tasks.
+	atomic.StoreUint64(&routingSignature, db.hasher.Sum64(req.Value))
+	for partID, data := range table {
 		// Set partition(primary copies) owners
 		part := db.partitions[partID]
-		part.Lock()
-		part.owners = data.Owners
-		part.Unlock()
+		part.owners.Store(data.Owners)
 
 		// Set backup owners
 		bpart := db.backups[partID]
-		bpart.Lock()
-		bpart.owners = data.Backups
-		bpart.Unlock()
+		bpart.owners.Store(data.Backups)
 	}
 
-	// Bootstrapped by the coordinator.
-	db.bcancel()
+	// Call rebalancer to rebalance partitions
 	db.wg.Add(1)
 	go func() {
 		defer db.wg.Done()
-		db.fsck()
+		db.rebalancer()
+
+		// Clean stale dmaps
+		db.deleteStaleDMaps()
 	}()
-	return req.Success()
+
+	// Bootstrapped by the coordinator.
+	atomic.StoreInt32(&db.bootstrapped, 1)
+	db.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
+	// Collect report
+	data, err := db.prepareOwnershipReport()
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+	res := req.Success()
+	res.Value = data
+	return res
 }
 
-func (db *Olric) isPartEmptyOperation(req *protocol.Message) *protocol.Message {
-	partID := req.Extra.(protocol.IsPartEmptyExtra).PartID
-	part := db.partitions[partID]
-	if atomic.LoadInt32(&part.count) == 0 {
-		return req.Success()
-	}
-	return req.Error(protocol.StatusPartNotEmpty, "")
+type ownershipReport struct {
+	Partitions []uint64
+	Backups    []uint64
 }
 
-func (db *Olric) isBackupEmptyOperation(req *protocol.Message) *protocol.Message {
-	partID := req.Extra.(protocol.IsPartEmptyExtra).PartID
-	part := db.backups[partID]
+func (db *Olric) prepareOwnershipReport() ([]byte, error) {
+	res := ownershipReport{}
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		part := db.partitions[partID]
+		if part.keyCount() != 0 {
+			res.Partitions = append(res.Partitions, partID)
+		}
 
-	if atomic.LoadInt32(&part.count) == 0 {
-		return req.Success()
+		backup := db.backups[partID]
+		if backup.keyCount() != 0 {
+			res.Backups = append(res.Backups, partID)
+		}
 	}
-	return req.Error(protocol.StatusBackupNotEmpty, "")
+	return msgpack.Marshal(res)
+}
+
+func (db *Olric) keyCountOnPartOperation(req *protocol.Message) *protocol.Message {
+	partID := req.Extra.(protocol.KeyCountOnPartExtra).PartID
+	isBackup := req.Extra.(protocol.KeyCountOnPartExtra).Backup
+
+	var part *partition
+	if isBackup {
+		part = db.backups[partID]
+	} else {
+		part = db.partitions[partID]
+	}
+
+	value, err := msgpack.Marshal(part.keyCount())
+	if err != nil {
+		return req.Error(protocol.StatusInternalServerError, err)
+	}
+
+	res := req.Success()
+	res.Value = value
+	return res
 }

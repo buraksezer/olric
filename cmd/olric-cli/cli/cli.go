@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"regexp"
@@ -27,8 +28,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/client"
+	_serializer "github.com/buraksezer/olric/serializer"
 	"github.com/chzyer/readline"
 )
 
@@ -40,24 +41,32 @@ type CLI struct {
 }
 
 // New returns a new CLI instance.
-func New(addr string, insecureSkipVerify bool, serializer, timeout string) (*CLI, error) {
+func New(addr string, serializer, timeout string, logger *log.Logger) (*CLI, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var s olric.Serializer
+	var s _serializer.Serializer
 	if serializer == "json" {
-		s = olric.NewJSONSerializer()
+		s = _serializer.NewJSONSerializer()
 	} else if serializer == "msgpack" {
-		s = olric.NewMsgpackSerializer()
+		s = _serializer.NewMsgpackSerializer()
 	} else if serializer == "gob" {
-		s = olric.NewGobSerializer()
+		s = _serializer.NewGobSerializer()
 	} else {
 		return nil, fmt.Errorf("invalid serializer: %s", serializer)
 	}
-
-	cc := &client.Config{
-		Addrs: []string{addr},
-	}
-	c, err := client.New(cc, s)
+	dt, err := time.ParseDuration(timeout)
 	if err != nil {
+		return nil, err
+	}
+	cc := &client.Config{
+		Addrs:       []string{addr},
+		Serializer:  s,
+		DialTimeout: dt,
+	}
+	c, err := client.New(cc)
+	if err != nil {
+		return nil, err
+	}
+	if err = c.Ping(addr); err != nil {
 		return nil, err
 	}
 	return &CLI{
@@ -77,6 +86,10 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("incr"),
 	readline.PcItem("decr"),
 )
+
+func help() {
+	fmt.Println("help text")
+}
 
 func extractKey(str string) (string, error) {
 	res := regexp.MustCompile(`"([^"]*)"`).FindStringSubmatch(str)
@@ -113,12 +126,136 @@ func parseLine(tmp string) (string, string, error) {
 	return key, value, nil
 }
 
-// Start waits for new input from stdin.
-func (c *CLI) Start() error {
+func (c *CLI) evaluate(dmap, line string) error {
+	var err error
+	line = strings.TrimSpace(line)
+
+	dm := c.client.NewDMap(dmap)
+	switch {
+	case strings.HasPrefix(line, "put "):
+		tmp := strings.TrimLeft(line, "put ")
+		tmp = strings.TrimSpace(tmp)
+		key, value, err := parseLine(tmp)
+		if err != nil {
+			return err
+		}
+		if err := dm.Put(key, value); err != nil {
+			return err
+		}
+	case strings.HasPrefix(line, "putex "):
+		tmp := strings.TrimLeft(line, "putex ")
+		tmp = strings.TrimSpace(tmp)
+		var key, value, tval, tt string
+		if strings.HasPrefix(tmp, "\"") {
+			key, err = extractKey(tmp)
+			if err != nil {
+				return err
+			}
+			rval := strings.Split(tmp, fmt.Sprintf("\"%s\"", key))
+			if len(rval) < 1 {
+				return fmt.Errorf("invalid command: %s\n", line)
+			}
+			tval = rval[0]
+		} else {
+			res := strings.SplitN(tmp, " ", 2)
+			if len(res) < 2 {
+				return fmt.Errorf("invalid command: %s\n", line)
+			}
+			key, tval = res[0], res[1]
+		}
+
+		tval = strings.TrimSpace(tval)
+		res := strings.SplitN(tval, " ", 2)
+		if len(res) < 2 {
+			return fmt.Errorf("invalid command: %s\n", line)
+		}
+		tt, value = res[0], res[1]
+		ttl, err := time.ParseDuration(tt)
+		if err != nil {
+			return err
+		}
+
+		if err := dm.PutEx(key, value, ttl); err != nil {
+			return err
+		}
+	case strings.HasPrefix(line, "get "):
+		key := strings.TrimLeft(line, "get ")
+		if strings.HasPrefix(key, "\"") {
+			key, err = extractKey(key)
+			if err != nil {
+				return err
+			}
+		}
+		value, err := dm.Get(key)
+		if err != nil {
+			return err
+		}
+		c.print(fmt.Sprintf("%v\n", value))
+	case strings.HasPrefix(line, "delete "):
+		key := strings.TrimLeft(line, "delete ")
+		if strings.HasPrefix(key, "\"") {
+			key, err = extractKey(key)
+			if err != nil {
+				return err
+			}
+		}
+		err := dm.Delete(key)
+		if err != nil {
+			return err
+		}
+	case strings.HasPrefix(line, "destroy"):
+		err := dm.Destroy()
+		if err != nil {
+			return err
+		}
+	case strings.HasPrefix(line, "incr "):
+		tmp := strings.TrimLeft(line, "incr ")
+		key, value, err := parseLine(tmp)
+		if err != nil {
+			return err
+		}
+		delta, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid delta: %s", err)
+		}
+		current, err := dm.Incr(key, delta)
+		if err != nil {
+			return err
+		}
+		c.print(fmt.Sprintf("%d\n", current))
+	case strings.HasPrefix(line, "decr "):
+		tmp := strings.TrimLeft(line, "decr ")
+		key, value, err := parseLine(tmp)
+		if err != nil {
+			return fmt.Errorf("invalid delta: %s", err)
+		}
+		delta, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("invalid delta: %s", err)
+		}
+		current, err := dm.Decr(key, delta)
+		if err != nil {
+			return err
+		}
+		c.print(fmt.Sprintf("%d\n", current))
+	default:
+		return fmt.Errorf("invalid command")
+	}
+	return nil
+}
+
+// RunCommand runs the given command on dmap.
+func (c *CLI) RunCommand(dmap, cmd string) error {
+	c.output = os.Stderr
+	return c.evaluate(dmap, cmd)
+}
+
+// WaitForCommand waits for new input from stdin.
+func (c *CLI) WaitForCommand(dmap string) error {
 	var historyFile string
 	home := os.Getenv("HOME")
 	if home != "" {
-		historyFile = path.Join(home, ".olriccli_history")
+		historyFile = path.Join(home, ".olric-cli_history")
 	} else {
 		c.print("[WARN] $HOME is empty.\n")
 	}
@@ -135,12 +272,11 @@ func (c *CLI) Start() error {
 	defer func() {
 		err = l.Close()
 		if err != nil {
-			c.print(fmt.Sprintf("[ERROR] Failed to close readline: %v\n", err))
+			c.print(fmt.Sprintf("Failed to close readline: %v\n", err))
 		}
 	}()
 	c.output = l.Stderr()
 
-	var dmap string
 	for {
 		line, err := l.Readline()
 		if err != nil {
@@ -157,9 +293,9 @@ func (c *CLI) Start() error {
 			}
 		}
 
-		line = strings.TrimSpace(line)
 		switch {
 		case strings.HasPrefix(line, "exit"):
+			c.print("Quit\n")
 			return nil
 		case strings.HasPrefix(line, "use "):
 			tmp := strings.Split(line, "use")[1]
@@ -167,158 +303,20 @@ func (c *CLI) Start() error {
 			if strings.HasPrefix(dmap, "\"") {
 				dmap, err = extractKey(dmap)
 				if err != nil {
-					c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-					continue
+					c.print(fmt.Sprintf("Failed to get database name: %s: %v\n", line, err))
 				}
 			}
 			c.print(fmt.Sprintf("use %s\n", dmap))
-			continue
-		}
-
-		dm := c.client.NewDMap(dmap)
-		if len(dmap) == 0 {
-			c.print("[ERROR] Call 'use' command before accessing database.\n")
-			continue
-		}
-
-		switch {
-		case strings.HasPrefix(line, "put "):
-			tmp := strings.TrimLeft(line, "put ")
-			tmp = strings.TrimSpace(tmp)
-			key, value, err := parseLine(tmp)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-				continue
-			}
-			if err := dm.Put(key, value); err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call Put on %s with key %s: %v\n", dmap, key, err))
-				continue
-			}
-			c.print("OK\n")
-		case strings.HasPrefix(line, "putex "):
-			tmp := strings.TrimLeft(line, "putex ")
-			tmp = strings.TrimSpace(tmp)
-			var key, value, tval, tt string
-			if strings.HasPrefix(tmp, "\"") {
-				key, err = extractKey(tmp)
-				if err != nil {
-					c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-					continue
-				}
-				rval := strings.Split(tmp, fmt.Sprintf("\"%s\"", key))
-				if len(rval) < 1 {
-					c.print(fmt.Sprintf("[ERROR] invalid command: %s\n", line))
-					continue
-				}
-				tval = rval[0]
-			} else {
-				res := strings.SplitN(tmp, " ", 2)
-				if len(res) < 2 {
-					c.print(fmt.Sprintf("[ERROR] invalid command: %s\n", line))
-					continue
-				}
-				key, tval = res[0], res[1]
-			}
-
-			tval = strings.TrimSpace(tval)
-			res := strings.SplitN(tval, " ", 2)
-			if len(res) < 2 {
-				c.print(fmt.Sprintf("[ERROR] invalid command: %s\n", line))
-				continue
-			}
-			tt, value = res[0], res[1]
-			ttl, err := time.ParseDuration(tt)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-				continue
-			}
-
-			if err := dm.PutEx(key, value, ttl); err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call PutEx on %s with key %s: %v\n", dmap, key, err))
-				continue
-			}
-			c.print("OK\n")
-		case strings.HasPrefix(line, "get "):
-			key := strings.TrimLeft(line, "get ")
-			if strings.HasPrefix(key, "\"") {
-				key, err = extractKey(key)
-				if err != nil {
-					c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-					continue
-				}
-			}
-			value, err := dm.Get(key)
-			if err == olric.ErrKeyNotFound {
-				c.print("nil\n")
-				continue
-			}
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call Get on %s with key %s: %v\n", dmap, key, err))
-				continue
-			}
-			c.print(fmt.Sprintf("%v\n", value))
-		case strings.HasPrefix(line, "delete "):
-			key := strings.TrimLeft(line, "delete ")
-			if strings.HasPrefix(key, "\"") {
-				key, err = extractKey(key)
-				if err != nil {
-					c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-					continue
-				}
-			}
-			err := dm.Delete(key)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call Delete on %s with key %s: %v\n", dmap, key, err))
-				continue
-			}
-			c.print("OK\n")
-		case strings.HasPrefix(line, "destroy"):
-			err := dm.Destroy()
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call Destroy on %s: %v\n", dmap, err))
-				continue
-			}
-			c.print("OK\n")
-		case strings.HasPrefix(line, "incr "):
-			tmp := strings.TrimLeft(line, "incr ")
-			key, value, err := parseLine(tmp)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-				continue
-			}
-
-			delta, err := strconv.Atoi(value)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] invalid delta: %s\n", value))
-				continue
-			}
-			current, err := dm.Incr(key, delta)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call Incr on %s with key %s: %v\n", dmap, key, err))
-				continue
-			}
-			c.print(fmt.Sprintf("%d\n", current))
-		case strings.HasPrefix(line, "decr "):
-			tmp := strings.TrimLeft(line, "decr ")
-			key, value, err := parseLine(tmp)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] %v: %s\n", err, line))
-				continue
-			}
-
-			delta, err := strconv.Atoi(value)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] invalid delta: %s\n", value))
-				continue
-			}
-			current, err := dm.Decr(key, delta)
-			if err != nil {
-				c.print(fmt.Sprintf("[ERROR] Failed to call Decr on %s with key %s: %v\n", dmap, key, err))
-				continue
-			}
-			c.print(fmt.Sprintf("%d\n", current))
+		case strings.HasPrefix(line, "help"):
+			help()
 		default:
-			c.print("[ERROR] Invalid command. Available commands: put, putex, get, delete, destroy and exit.\n")
+			if len(dmap) == 0 {
+				c.print("Call 'use <database-name>' command before accessing the database.\n")
+			} else {
+				if err := c.evaluate(dmap, line); err != nil {
+					c.print(fmt.Sprintf("Failed to call %s on %s: %v\n", line, dmap, err))
+				}
+			}
 		}
 	}
 	return nil

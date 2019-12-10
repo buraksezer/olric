@@ -27,6 +27,10 @@ func (pr *PipelineResponse) Operation() string {
 	switch {
 	case pr.response.Op == protocol.OpPut:
 		return "Put"
+	case pr.response.Op == protocol.OpPutIf:
+		return "PutIf"
+	case pr.response.Op == protocol.OpPutIfEx:
+		return "PutIfEx"
 	case pr.response.Op == protocol.OpGet:
 		return "Get"
 	case pr.response.Op == protocol.OpPutEx:
@@ -97,19 +101,16 @@ func (pr *PipelineResponse) Destroy() error {
 	return checkStatusCode(&pr.response)
 }
 
-// LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
-// it automatically releases the lock. Acquired lock is only for the key in this map. Please note that, before
-// setting a lock for a key, you should set the key with Put method. Otherwise it returns olric.ErrKeyNotFound error.
-//
-// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until timeout.
-//
-// You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (pr *PipelineResponse) LockWithTimeout() error {
+// Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
+// DB does not contains the key. It's thread-safe.
+func (pr *PipelineResponse) Expire() error {
 	return checkStatusCode(&pr.response)
 }
 
-// Unlock releases an acquired lock for the given key. It returns olric.ErrNoSuchLock if there is no lock
-// for the given key.
-func (pr *PipelineResponse) Unlock() error {
+func (pr *PipelineResponse) PutIf() error {
+	return checkStatusCode(&pr.response)
+}
+
+func (pr *PipelineResponse) PutIfEx() error {
 	return checkStatusCode(&pr.response)
 }

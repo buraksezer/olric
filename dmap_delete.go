@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,28 +15,10 @@
 package olric
 
 import (
-	"sync/atomic"
-	"time"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
 	"golang.org/x/sync/errgroup"
 )
-
-func (db *Olric) deleteStaleDMapsAtBackground() {
-	defer db.wg.Done()
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-db.ctx.Done():
-			return
-		case <-ticker.C:
-			db.deleteStaleDMaps()
-		}
-	}
-}
 
 func (db *Olric) deleteStaleDMaps() {
 	janitor := func(part *partition) {
@@ -49,8 +31,8 @@ func (db *Olric) deleteStaleDMaps() {
 				return true
 			}
 			part.m.Delete(name)
-			atomic.AddInt32(&part.count, -1)
-			db.log.Printf("[DEBUG] Stale DMap has been deleted: %s on PartID: %d", name, part.id)
+			db.log.V(2).Printf("[INFO] Stale DMap (backup: %v) has been deleted: %s on PartID: %d",
+				part.backup, name, part.id)
 			return true
 		})
 	}
@@ -70,12 +52,9 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 		panic("partition owners list cannot be empty")
 	}
 
-	// Remove the key/value pair on the other owners
-	owners = owners[:len(owners)-1]
-	for i := 1; i <= len(owners); i++ {
-		// Traverse in reverse order.
-		idx := len(owners) - i
-		owner := owners[idx]
+	// Traverse in reverse order. Except from the latest host, this one.
+	for i := len(owners) - 2; i >= 0; i-- {
+		owner := owners[i]
 		msg := &protocol.Message{
 			DMap: name,
 			Key:  key,
@@ -85,7 +64,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 			return err
 		}
 	}
-	if db.config.BackupCount != 0 {
+	if db.config.ReplicaCount != 0 {
 		err := db.deleteKeyValBackup(hkey, name, key)
 		if err != nil {
 			return err
@@ -107,10 +86,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 }
 
 func (db *Olric) deleteKey(name, key string) error {
-	member, hkey, err := db.locateKey(name, key)
-	if err != nil {
-		return err
-	}
+	member, hkey := db.findPartitionOwner(name, key)
 	if !hostCmp(member, db.this) {
 		msg := &protocol.Message{
 			DMap: name,
@@ -137,17 +113,14 @@ func (dm *DMap) Delete(key string) error {
 
 func (db *Olric) exDeleteOperation(req *protocol.Message) *protocol.Message {
 	err := db.deleteKey(req.DMap, req.Key)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	return req.Success()
+	return db.prepareResponse(req, err)
 }
 
 func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 	hkey := db.getHKey(req.DMap, req.Key)
 	dm, err := db.getDMap(req.DMap, hkey)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		return db.prepareResponse(req, err)
 	}
 	dm.Lock()
 	defer dm.Unlock()
@@ -158,18 +131,14 @@ func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 		go db.compactTables(dm)
 		err = nil
 	}
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	return req.Success()
+	return db.prepareResponse(req, err)
 }
 
 func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message {
-	// TODO: We may need to check backup ownership
 	hkey := db.getHKey(req.DMap, req.Key)
 	dm, err := db.getBackupDMap(req.DMap, hkey)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		return db.prepareResponse(req, err)
 	}
 	dm.Lock()
 	defer dm.Unlock()
@@ -180,10 +149,7 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 		go db.compactTables(dm)
 		err = nil
 	}
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	return req.Success()
+	return db.prepareResponse(req, err)
 }
 
 func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
@@ -199,7 +165,7 @@ func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
 			}
 			_, err := db.requestTo(mem.String(), protocol.OpDeleteBackup, req)
 			if err != nil {
-				db.log.Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
+				db.log.V(2).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
 			}
 			return err
 		})

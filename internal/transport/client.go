@@ -15,8 +15,9 @@
 package transport
 
 import (
-	"log"
+	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -110,6 +111,21 @@ func (c *Client) getPool(addr string) (pool.Pool, error) {
 	return cpool, nil
 }
 
+// ClosePool closes the underlying connections in a pool,
+// deletes from Olric's pools map and frees resources.
+func (c *Client) ClosePool(addr string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	p, ok := c.pools[addr]
+	if ok {
+		// Close the pool. This closes the underlying connections.
+		p.Close()
+		// Delete from Olric.
+		delete(c.pools, addr)
+	}
+}
+
 // RequestTo initiates a request-response cycle to given host.
 func (c *Client) RequestTo(addr string, op protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
 	cpool, err := c.getPool(addr)
@@ -124,21 +140,34 @@ func (c *Client) RequestTo(addr string, op protocol.OpCode, req *protocol.Messag
 	if err != nil {
 		return nil, err
 	}
+
+	var deadConn bool
 	defer func() {
-		err = conn.Close()
-		if err != nil {
-			log.Printf("[ERROR] Failed to close connection: %v", err)
+		var connErr error
+		if !(deadConn) {
+			// The conn returns to the pool
+			connErr = conn.Close()
+		} else {
+			// marks the connection not usable any more, to let the pool close it instead of returning it to pool.
+			pc, _ := conn.(*pool.PoolConn)
+			pc.MarkUnusable()
+			connErr = pc.Close()
+		}
+		if connErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "[ERROR] Failed to close connection: %v", connErr)
 		}
 	}()
 
 	err = req.Write(conn)
 	if err != nil {
+		deadConn = true
 		return nil, err
 	}
 
 	var resp protocol.Message
 	err = resp.Read(conn)
 	if err != nil {
+		deadConn = true
 		return nil, err
 	}
 	return &resp, err

@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,27 +22,27 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/buraksezer/olric"
-	"github.com/hashicorp/logutils"
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/hasher"
+	"github.com/buraksezer/olric/serializer"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 // Olricd represents a new Olricd instance.
 type Olricd struct {
-	logger *log.Logger
-	config *olric.Config
+	log    *log.Logger
+	config *config.Config
 	db     *olric.Olric
 	errgr  errgroup.Group
 }
 
-func prepareCacheConfig(c *Config) (*olric.CacheConfig, error) {
-	res := &olric.CacheConfig{}
+func prepareCacheConfig(c *Config) (*config.CacheConfig, error) {
+	res := &config.CacheConfig{}
 	if c.Cache.MaxIdleDuration != "" {
 		maxIdleDuration, err := time.ParseDuration(c.Cache.MaxIdleDuration)
 		if err != nil {
@@ -57,15 +57,18 @@ func prepareCacheConfig(c *Config) (*olric.CacheConfig, error) {
 		}
 		res.TTLDuration = ttlDuration
 	}
+	res.NumEvictionWorkers = c.Cache.NumEvictionWorkers
 	res.MaxKeys = c.Cache.MaxKeys
-	res.EvictionPolicy = olric.EvictionPolicy(c.Cache.EvictionPolicy)
+	res.MaxInuse = c.Cache.MaxInuse
+	res.EvictionPolicy = config.EvictionPolicy(c.Cache.EvictionPolicy)
 	res.LRUSamples = c.Cache.LRUSamples
 	if c.DMaps != nil {
-		res.DMapConfigs = make(map[string]olric.DMapConfig)
+		res.DMapConfigs = make(map[string]config.DMapCacheConfig)
 		for name, dc := range c.DMaps {
-			cc := olric.DMapConfig{
+			cc := config.DMapCacheConfig{
+				MaxInuse:       dc.MaxInuse,
 				MaxKeys:        dc.MaxKeys,
-				EvictionPolicy: olric.EvictionPolicy(dc.EvictionPolicy),
+				EvictionPolicy: config.EvictionPolicy(dc.EvictionPolicy),
 				LRUSamples:     dc.LRUSamples,
 			}
 			if dc.MaxIdleDuration != "" {
@@ -91,35 +94,26 @@ func prepareCacheConfig(c *Config) (*olric.CacheConfig, error) {
 // New creates a new Server instance
 func New(c *Config) (*Olricd, error) {
 	s := &Olricd{}
-	var logDest io.Writer
+	var logOutput io.Writer
 	if c.Logging.Output == "stderr" {
-		logDest = os.Stderr
+		logOutput = os.Stderr
 	} else if c.Logging.Output == "stdout" {
-		logDest = os.Stdout
+		logOutput = os.Stdout
 	} else {
-		logDest = os.Stderr
+		logOutput = os.Stderr
 	}
-
 	if c.Logging.Level == "" {
-		c.Logging.Level = olric.DefaultLogLevel
+		c.Logging.Level = config.DefaultLogLevel
 	}
-
-	filter := &logutils.LevelFilter{
-		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
-		MinLevel: logutils.LogLevel(strings.ToUpper(c.Logging.Level)),
-		Writer:   logDest,
-	}
-	s.logger = log.New(logDest, "", log.LstdFlags)
-	s.logger.SetOutput(filter)
 
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var serializer olric.Serializer
+	var sr serializer.Serializer
 	if c.Olricd.Serializer == "json" {
-		serializer = olric.NewJSONSerializer()
+		sr = serializer.NewJSONSerializer()
 	} else if c.Olricd.Serializer == "msgpack" {
-		serializer = olric.NewMsgpackSerializer()
+		sr = serializer.NewMsgpackSerializer()
 	} else if c.Olricd.Serializer == "gob" {
-		serializer = olric.NewGobSerializer()
+		sr = serializer.NewGobSerializer()
 	} else {
 		return nil, fmt.Errorf("invalid serializer: %s", c.Olricd.Serializer)
 	}
@@ -129,7 +123,7 @@ func New(c *Config) (*Olricd, error) {
 		return nil, err
 	}
 
-	var keepAlivePeriod time.Duration
+	var joinRetryInterval, keepAlivePeriod, requestTimeout time.Duration
 	if c.Olricd.KeepAlivePeriod != "" {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
@@ -137,26 +131,51 @@ func New(c *Config) (*Olricd, error) {
 				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
+	if c.Olricd.RequestTimeout != "" {
+		requestTimeout, err = time.ParseDuration(c.Olricd.RequestTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.requestTimeout: '%s'", c.Olricd.RequestTimeout))
+		}
+	}
+	if c.Memberlist.JoinRetryInterval != "" {
+		joinRetryInterval, err = time.ParseDuration(c.Memberlist.JoinRetryInterval)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse memberlist.joinRetryInterval: '%s'",
+					c.Memberlist.JoinRetryInterval))
+		}
+	}
 	cacheConfig, err := prepareCacheConfig(c)
 	if err != nil {
 		return nil, err
 	}
-	s.config = &olric.Config{
-		Name:             c.Olricd.Name,
-		MemberlistConfig: mc,
-		KeyFile:          c.Olricd.KeyFile,
-		CertFile:         c.Olricd.CertFile,
-		LogLevel:         c.Logging.Level,
-		Peers:            c.Memberlist.Peers,
-		PartitionCount:   c.Olricd.PartitionCount,
-		BackupCount:      c.Olricd.BackupCount,
-		BackupMode:       c.Olricd.BackupMode,
-		LoadFactor:       c.Olricd.LoadFactor,
-		Logger:           s.logger,
-		Hasher:           olric.NewDefaultHasher(),
-		Serializer:       serializer,
-		KeepAlivePeriod:  keepAlivePeriod,
-		Cache:            cacheConfig,
+
+	s.log = log.New(logOutput, "", log.LstdFlags)
+	s.config = &config.Config{
+		Name:              c.Olricd.Name,
+		MemberlistConfig:  mc,
+		LogLevel:          c.Logging.Level,
+		JoinRetryInterval: joinRetryInterval,
+		MaxJoinAttempts:   c.Memberlist.MaxJoinAttempts,
+		Peers:             c.Memberlist.Peers,
+		PartitionCount:    c.Olricd.PartitionCount,
+		ReplicaCount:      c.Olricd.ReplicaCount,
+		WriteQuorum:       c.Olricd.WriteQuorum,
+		ReadQuorum:        c.Olricd.ReadQuorum,
+		ReplicationMode:   c.Olricd.ReplicationMode,
+		ReadRepair:        c.Olricd.ReadRepair,
+		LoadFactor:        c.Olricd.LoadFactor,
+		MemberCountQuorum: c.Olricd.MemberCountQuorum,
+		Logger:            s.log,
+		LogOutput:         logOutput,
+		LogVerbosity:      c.Logging.Verbosity,
+		Hasher:            hasher.NewDefaultHasher(),
+		Serializer:        sr,
+		KeepAlivePeriod:   keepAlivePeriod,
+		RequestTimeout:    requestTimeout,
+		Cache:             cacheConfig,
+		TableSize:         c.Olricd.TableSize,
 	}
 	return s, nil
 }
@@ -165,16 +184,29 @@ func (s *Olricd) waitForInterrupt() {
 	shutDownChan := make(chan os.Signal, 1)
 	signal.Notify(shutDownChan, syscall.SIGTERM, syscall.SIGINT)
 	ch := <-shutDownChan
-	s.logger.Printf("[INFO] Signal catched: %s", ch.String())
+	s.log.Printf("[olricd] Signal catched: %s", ch.String())
+
+	// Awaits for shutdown
 	s.errgr.Go(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		if err := s.db.Shutdown(ctx); err != nil {
-			s.logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			s.log.Printf("[olricd] Failed to shutdown Olric: %v", err)
 			return err
 		}
 		return nil
 	})
+
+	// This is not a goroutine leak. The process will quit.
+	go func() {
+		s.log.Printf("[olricd] Press CTRL+C or send SIGTERM/SIGINT to quit immediately")
+		forceQuitCh := make(chan os.Signal, 1)
+		signal.Notify(forceQuitCh, syscall.SIGTERM, syscall.SIGINT)
+		ch := <-forceQuitCh
+		s.log.Printf("[olricd] Signal catched: %s", ch.String())
+		s.log.Printf("[olricd] Quits with exit code 1")
+		os.Exit(1)
+	}()
 }
 
 // Start starts a new olricd server instance and blocks until the server is closed.
@@ -187,10 +219,10 @@ func (s *Olricd) Start() error {
 		return err
 	}
 	s.db = db
-	s.logger.Printf("[INFO] olricd (pid: %d) has been started on %s", os.Getpid(), s.config.Name)
+	s.log.Printf("[olricd] pid: %d has been started on %s", os.Getpid(), s.config.Name)
 	s.errgr.Go(func() error {
 		if err = s.db.Start(); err != nil {
-			s.logger.Printf("[ERROR] Failed to run Olric: %v", err)
+			s.log.Printf("[olricd] Failed to run Olric: %v", err)
 			return err
 		}
 		return nil

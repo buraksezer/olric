@@ -17,40 +17,56 @@ package olric
 import (
 	"fmt"
 	"math/rand"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/internal/storage"
+	"golang.org/x/sync/semaphore"
 )
 
 func (db *Olric) evictKeysAtBackground() {
 	defer db.wg.Done()
 
-	// Scan keys at background, 10 times per second.
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	num := int64(runtime.NumCPU())
+	if db.config.Cache != nil && db.config.Cache.NumEvictionWorkers != 0 {
+		num = db.config.Cache.NumEvictionWorkers
+	}
+	sem := semaphore.NewWeighted(num)
 	for {
-		select {
-		case <-db.ctx.Done():
+		if !db.isAlive() {
 			return
-		case <-ticker.C:
-			db.wg.Add(1)
-			go db.evictKeys()
 		}
+
+		if err := sem.Acquire(db.ctx, 1); err != nil {
+			db.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
+			return
+		}
+
+		db.wg.Add(1)
+		go func() {
+			defer db.wg.Done()
+			defer sem.Release(1)
+			// Good for developing tests.
+			db.evictKeys()
+			select {
+			case <-time.After(100 * time.Millisecond):
+			case <-db.ctx.Done():
+				return
+			}
+		}()
 	}
 }
 
 func (db *Olric) evictKeys() {
-	defer db.wg.Done()
-
 	dmCount := 0
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.partitions[partID]
 	var wg sync.WaitGroup
 	part.m.Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
-		// Picks 20 dmap objects randomly to check out expired keys. Then waits until all the goroutines done.
+		// Picks 20 dmap instances randomly to check out expired keys. Then waits until all the goroutines done.
 		dmCount++
 		if dmCount >= 20 {
 			return false
@@ -97,7 +113,8 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 				err := db.delKeyVal(dm, hkey, name, vdata.Key)
 				if err != nil {
 					// It will be tried again.
-					db.log.Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v", hkey, name, err)
+					db.log.V(2).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
+						hkey, name, err)
 					return true // this means 'continue'
 				}
 				count++
@@ -109,7 +126,9 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *s
 	}
 	defer func() {
 		if totalCount > 0 {
-			db.log.Printf("[DEBUG] Evicted key count is %d on PartID: %d", totalCount, partID)
+			if db.log.V(6).Ok() {
+				db.log.V(6).Printf("[DEBUG] Evicted key count is %d on PartID: %d", totalCount, partID)
+			}
 		}
 	}()
 	for {
@@ -146,7 +165,10 @@ func (dm *dmap) deleteAccessLog(hkey uint64) {
 }
 
 func (dm *dmap) isKeyIdle(hkey uint64) bool {
-	if dm.cache == nil || dm.cache.accessLog == nil {
+	if dm.cache == nil {
+		return false
+	}
+	if dm.cache.accessLog == nil || dm.cache.maxIdleDuration.Nanoseconds() == 0 {
 		return false
 	}
 	// Maximum time in seconds for each entry to stay idle in the map.
@@ -169,7 +191,7 @@ type lruItem struct {
 }
 
 func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
-	idx := 0
+	idx := 1
 	items := []lruItem{}
 	dm.cache.RLock()
 	// Pick random items from the distributed map and sort them by accessedAt.
@@ -177,6 +199,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 		if idx >= dm.cache.lruSamples {
 			break
 		}
+		idx++
 		i := lruItem{
 			HKey:       hkey,
 			AccessedAt: accessedAt,
@@ -191,9 +214,15 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 	sort.Slice(items, func(i, j int) bool { return items[i].AccessedAt < items[j].AccessedAt })
 	// Pick the first item to delete. It's the least recently used item in the sample.
 	item := items[0]
-	vdata, err := dm.storage.Get(item.HKey)
+	key, err := dm.storage.GetKey(item.HKey)
 	if err != nil {
+		if err == storage.ErrKeyNotFound {
+			err = ErrKeyNotFound
+		}
 		return err
 	}
-	return db.delKeyVal(dm, item.HKey, name, vdata.Key)
+	if db.log.V(6).Ok() {
+		db.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, Key: %s with LRU", name, key)
+	}
+	return db.delKeyVal(dm, item.HKey, name, key)
 }

@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,14 +71,14 @@ func (t *table) putRaw(hkey uint64, value []byte) error {
 
 // In-memory layout for entry:
 //
-// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 func (t *table) put(hkey uint64, value *VData) error {
 	if len(value.Key) >= maxKeyLen {
 		return ErrKeyTooLarge
 	}
 
 	// Check empty space on allocated memory area.
-	inuse := len(value.Key) + len(value.Value) + 13
+	inuse := len(value.Key) + len(value.Value) + 21 // TTL + Timestamp + Value-Length + Key-Length
 	if inuse+t.offset >= t.allocated {
 		return errNotEnoughSpace
 	}
@@ -104,6 +104,10 @@ func (t *table) put(hkey uint64, value *VData) error {
 	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.TTL))
 	t.offset += 8
 
+	// Set the Timestamp. It's 8 bytes.
+	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.Timestamp))
+	t.offset += 8
+
 	// Set the value length. It's 4 bytes.
 	binary.BigEndian.PutUint32(t.memory[t.offset:], uint32(len(value.Value)))
 	t.offset += 4
@@ -122,12 +126,13 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 	start, end := offset, offset
 
 	// In-memory structure:
-	// 1                 | klen       | 8           | 4                    | vlen
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	// 1                 | klen       | 8           | 8                  | 4                    | vlen
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := int(uint8(t.memory[end]))
 	end++       // One byte to keep key length
 	end += klen // Key length
 	end += 8    // For bytes for TTL
+	end += 8    // For bytes for Timestamp
 
 	vlen := binary.BigEndian.Uint32(t.memory[end : end+4])
 	end += 4         // 4 bytes to keep value length
@@ -139,6 +144,31 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 	return rawval, false
 }
 
+func (t *table) getKey(hkey uint64) (string, bool) {
+	offset, ok := t.hkeys[hkey]
+	if !ok {
+		return "", true
+	}
+
+	klen := int(uint8(t.memory[offset]))
+	offset++
+	key := string(t.memory[offset : offset+klen])
+	return key, false
+}
+
+func (t *table) getTTL(hkey uint64) (int64, bool) {
+	offset, ok := t.hkeys[hkey]
+	if !ok {
+		return 0, true
+	}
+
+	klen := int(uint8(t.memory[offset]))
+	offset++
+	offset += klen
+	ttl := int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
+	return ttl, false
+}
+
 func (t *table) get(hkey uint64) (*VData, bool) {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
@@ -148,7 +178,7 @@ func (t *table) get(hkey uint64) (*VData, bool) {
 	vdata := &VData{}
 	// In-memory structure:
 	//
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := int(uint8(t.memory[offset]))
 	offset++
 
@@ -156,6 +186,9 @@ func (t *table) get(hkey uint64) (*VData, bool) {
 	offset += klen
 
 	vdata.TTL = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
+	offset += 8
+
+	vdata.Timestamp = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
@@ -181,6 +214,10 @@ func (t *table) delete(hkey uint64) bool {
 	offset += 8
 	garbage += 8
 
+	// Timestamp, skip it.
+	offset += 8
+	garbage += 8
+
 	// Value len and its header.
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
 	garbage += 4 + int(vlen)
@@ -190,5 +227,25 @@ func (t *table) delete(hkey uint64) bool {
 
 	t.garbage += garbage
 	t.inuse -= garbage
+	return false
+}
+
+func (t *table) updateTTL(hkey uint64, value *VData) bool {
+	offset, ok := t.hkeys[hkey]
+	if !ok {
+		// Try the previous table.
+		return true
+	}
+
+	// Key, 1 byte for key size, klen for key's actual length.
+	klen := int(uint8(t.memory[offset]))
+	offset += 1 + klen
+
+	// Set the new TTL. It's 8 bytes.
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.TTL))
+	offset += 8
+
+	// Set the new Timestamp. It's 8 bytes.
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.Timestamp))
 	return false
 }

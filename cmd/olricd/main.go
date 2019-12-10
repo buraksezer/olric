@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Server implementation for Olric. Olricd basically manages configuration for you.
 
 package main
 
@@ -26,9 +28,7 @@ import (
 	"github.com/sean-/seed"
 )
 
-var usage = `olricd -- Distributed, eventually consistent and in-memory key/value data store and cache.
-
-Usage: 
+var usage = `Usage: 
   olricd [flags] ...
 
 Flags:
@@ -39,7 +39,7 @@ Flags:
       Shows version information.
 
   -c -config                    
-      Sets configuration file path. Default is /etc/olricd.toml
+      Sets configuration file path. Default is olricd.yaml in the current folder.
       Set OLRICD_CONFIG to overwrite it.
 
 The Go runtime version %s
@@ -87,7 +87,7 @@ func main() {
 
 	c, err := server.NewConfig(cpath)
 	if err != nil {
-		log.Fatalf("Failed to parse config file:\n%v", err)
+		log.Fatalf("Failed to read or parse configuration file: %v", err)
 	}
 	s, err := server.New(c)
 	if err != nil {
@@ -95,7 +95,7 @@ func main() {
 	}
 
 	if err = s.Start(); err != nil {
-		log.Fatalf("olricd returned an error:\n%v", err)
+		log.Fatalf("Olric quits prematurely:\n%v", err)
 	}
 	log.Print("Quit!")
 }

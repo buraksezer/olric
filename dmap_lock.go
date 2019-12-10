@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,241 +15,199 @@
 package olric
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (db *Olric) findLockKey(hkey uint64, name, key string) (host, error) {
-	part := db.getPartition(hkey)
-	part.RLock()
-	defer part.RUnlock()
-	if len(part.owners) == 0 {
-		panic("partition owners list cannot be empty")
-	}
+var (
+	// ErrLockNotAcquired is returned when the requested lock could not be acquired
+	ErrLockNotAcquired = errors.New("lock not acquired")
 
-	if len(part.owners) == 1 {
-		if hostCmp(db.this, part.owners[0]) {
-			return db.this, nil
-		}
-	}
-	for i := 1; i <= len(part.owners); i++ {
-		// Traverse in reverse order.
-		idx := len(part.owners) - i
-		owner := part.owners[idx]
-		if hostCmp(db.this, owner) {
-			continue
-		}
-		req := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
-		_, err := db.requestTo(owner.String(), protocol.OpFindLock, req)
-		if err == nil {
-			return owner, nil
-		}
-		if err == ErrNoSuchLock {
-			err = nil
-		}
+	// ErrNoSuchLock is returned when the requested lock does not exist
+	ErrNoSuchLock = errors.New("no such lock")
+)
+
+// LockContext is returned by Lock and LockWithTimeout methods.
+// It should be stored in a proper way to release the lock.
+type LockContext struct {
+	name  string
+	key   string
+	token []byte
+	db    *Olric
+}
+
+// unlockKey tries to unlock the lock by verifying the lock with token.
+func (db *Olric) unlockKey(name, key string, token []byte) error {
+	lkey := name + key
+	// Only one unlockKey should work for a given key.
+	db.locker.Lock(lkey)
+	defer func() {
+		err := db.locker.Unlock(lkey)
 		if err != nil {
-			return host{}, err
+			db.log.V(2).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
 		}
-	}
-	return db.this, nil
-}
+	}()
 
-// Wait until the timeout is exceeded and background and release the key if it's still locked.
-func (db *Olric) waitLockForTimeout(dm *dmap, key string, timeout time.Duration) {
-	defer db.wg.Done()
-	unlockCh := dm.locker.unlockNotifier(key)
-	select {
-	case <-time.After(timeout):
-	case <-db.ctx.Done():
-	case <-unlockCh:
-		// It's already unlocked
-		return
-	}
-	err := dm.locker.unlock(key)
-	if err == ErrNoSuchLock {
-		err = nil
-	}
-	if err != nil {
-		db.log.Printf("[ERROR] Failed to unlock key: %s", key)
-	}
-}
-
-func (db *Olric) lockKey(hkey uint64, name, key string, timeout time.Duration) error {
-	dm, err := db.getDMap(name, hkey)
-	if err != nil {
-		return err
-	}
-	if dm.locker.check(key) {
-		dm.locker.lock(key)
-		db.wg.Add(1)
-		go db.waitLockForTimeout(dm, key, timeout)
-		return nil
+	// get the key to check its value
+	rawval, err := db.get(name, key)
+	if err == ErrKeyNotFound {
+		return ErrNoSuchLock
 	}
 
-	// Find the key or lock among previous owners, if any.
-	owner, err := db.findLockKey(hkey, name, key)
+	val, err := db.unmarshalValue(rawval)
 	if err != nil {
 		return err
 	}
 
-	// One of the previous owners has the key, redirect the call.
-	if !hostCmp(db.this, owner) {
-		req := &protocol.Message{
-			DMap:  name,
-			Key:   key,
-			Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
-		}
-		_, err := db.requestTo(owner.String(), protocol.OpLockPrev, req)
-		return err
+	// the locks is released by the node(timeout) or the user
+	if !bytes.Equal(val.([]byte), token) {
+		return ErrNoSuchLock
 	}
 
-	// This node owns the key/lock. Try to acquire it.
-	dm.locker.lock(key)
-	// Wait until the timeout is exceeded and background and release the key if
-	// it's still locked.
-	db.wg.Add(1)
-	go db.waitLockForTimeout(dm, key, timeout)
+	// release it.
+	err = db.deleteKey(name, key)
+	if err != nil {
+		return fmt.Errorf("unlock failed because of delete: %w", err)
+	}
 	return nil
 }
 
-func (db *Olric) lockWithTimeout(name, key string, timeout time.Duration) error {
-	member, hkey, err := db.locateKey(name, key)
-	if err != nil {
+// unlock takes key and token and tries to unlock the key.
+// It redirects the request to the partition owner, if required.
+func (db *Olric) unlock(name, key string, token []byte) error {
+	member, _ := db.findPartitionOwner(name, key)
+	if hostCmp(member, db.this) {
+		return db.unlockKey(name, key, token)
+	}
+	msg := &protocol.Message{
+		DMap:  name,
+		Key:   key,
+		Value: token,
+	}
+	_, err := db.requestTo(member.String(), protocol.OpUnlock, msg)
+	return err
+}
+
+// Unlock releases the lock.
+func (l *LockContext) Unlock() error {
+	return l.db.unlock(l.name, l.key, l.token)
+}
+
+// tryLock takes a deadline and writeop and sets a key-value pair by using
+// PutIf or PutIfEx commands. It tries to acquire the lock 100 times per second
+// if the lock is already acquired. It returns ErrLockNotAcquired if the deadline exceeds.
+func (db *Olric) tryLock(w *writeop, deadline time.Duration) error {
+	err := db.put(w)
+	if err == nil {
+		return nil
+	}
+	// If it returns ErrKeyFound, the lock is already acquired.
+	if err != ErrKeyFound {
+		// something went wrong
 		return err
 	}
-	if !hostCmp(member, db.this) {
-		req := &protocol.Message{
-			DMap:  name,
-			Key:   key,
-			Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
+
+	ctx, cancel := context.WithTimeout(context.Background(), deadline)
+	defer cancel()
+
+	// Try to acquire lock.
+LOOP:
+	for {
+		select {
+		case <-time.After(10 * time.Millisecond):
+			err = db.put(w)
+			if err == ErrKeyFound {
+				// not released by the other process/goroutine. try again.
+				continue
+			}
+			if err != nil {
+				// something went wrong.
+				return err
+			}
+			// Acquired! Quit without error.
+			break LOOP
+		case <-ctx.Done():
+			// Deadline exceeded. Quit with an error.
+			return ErrLockNotAcquired
+		case <-db.ctx.Done():
+			return fmt.Errorf("server is gone")
 		}
-		_, err = db.requestTo(member.String(), protocol.OpLockWithTimeout, req)
-		return err
 	}
-	return db.lockKey(hkey, name, key, timeout)
+	return nil
+}
+
+// lockKey prepares a token and writeop calls tryLock
+func (db *Olric) lockKey(opcode protocol.OpCode, name, key string,
+	timeout, deadline time.Duration) (*LockContext, error) {
+	token := make([]byte, 16)
+	_, err := rand.Read(token)
+	if err != nil {
+		return nil, err
+	}
+	w, err := db.prepareWriteop(opcode, name, key, token, timeout, IfNotFound)
+	if err != nil {
+		return nil, err
+	}
+	err = db.tryLock(w, deadline)
+	if err != nil {
+		return nil, err
+	}
+	return &LockContext{
+		name:  name,
+		key:   key,
+		token: token,
+		db:    db,
+	}, nil
 }
 
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
-// it automatically releases the lock. Acquired lock is only for the key in this map.
+// it automatically releases the lock. Acquired lock is only for the key in this DMap.
 //
-// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until timeout.
-// The timeout is determined by http.Client which can be configured via Config structure.
+// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMap) LockWithTimeout(key string, timeout time.Duration) error {
-	return dm.db.lockWithTimeout(dm.name, key, timeout)
+func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
+	return dm.db.lockKey(protocol.OpPutIfEx, dm.name, key, timeout, deadline)
 }
 
-func (db *Olric) unlockKey(hkey uint64, name, key string) error {
-	owner, err := db.findLockKey(hkey, name, key)
-	if err != nil {
-		return err
-	}
-	if !hostCmp(db.this, owner) {
-		req := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
-		_, err = db.requestTo(owner.String(), protocol.OpUnlockPrev, req)
-		return err
-	}
-	dm, err := db.getDMap(name, hkey)
-	if err != nil {
-		return err
-	}
-	return dm.locker.unlock(key)
-}
-
-func (db *Olric) unlock(name, key string) error {
-	<-db.bcx.Done()
-	if db.bcx.Err() == context.DeadlineExceeded {
-		return ErrOperationTimeout
-	}
-
-	member, hkey, err := db.locateKey(name, key)
-	if err != nil {
-		return err
-	}
-	if !hostCmp(member, db.this) {
-		req := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
-		_, err = db.requestTo(member.String(), protocol.OpUnlock, req)
-		return err
-	}
-	return db.unlockKey(hkey, name, key)
-}
-
-// Unlock releases an acquired lock for the given key. It returns ErrNoSuchLock if there is no lock for the given key.
-func (dm *DMap) Unlock(key string) error {
-	return dm.db.unlock(dm.name, key)
+// Lock sets a lock for the given key. Acquired lock is only for the key in this DMap.
+//
+// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+//
+// You should know that the locks are approximate, and only to be used for non-critical purposes.
+func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
+	return dm.db.lockKey(protocol.OpPutIf, dm.name, key, nilTimeout, deadline)
 }
 
 func (db *Olric) exLockWithTimeoutOperation(req *protocol.Message) *protocol.Message {
-	ttl := req.Extra.(protocol.LockWithTimeoutExtra).TTL
-	err := db.lockWithTimeout(req.DMap, req.Key, time.Duration(ttl))
+	timeout := req.Extra.(protocol.LockWithTimeoutExtra).Timeout
+	deadline := req.Extra.(protocol.LockWithTimeoutExtra).Deadline
+	ctx, err := db.lockKey(protocol.OpPutIfEx, req.DMap, req.Key, time.Duration(timeout), time.Duration(deadline))
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		return db.prepareResponse(req, err)
 	}
-	return req.Success()
+	resp := req.Success()
+	resp.Value = ctx.token
+	return resp
+}
+
+func (db *Olric) exLockOperation(req *protocol.Message) *protocol.Message {
+	deadline := req.Extra.(protocol.LockExtra).Deadline
+	ctx, err := db.lockKey(protocol.OpPutIf, req.DMap, req.Key, nilTimeout, time.Duration(deadline))
+	if err != nil {
+		return db.prepareResponse(req, err)
+	}
+	resp := req.Success()
+	resp.Value = ctx.token
+	return resp
 }
 
 func (db *Olric) exUnlockOperation(req *protocol.Message) *protocol.Message {
-	err := db.unlock(req.DMap, req.Key)
-	if err == ErrNoSuchLock {
-		return req.Error(protocol.StatusNoSuchLock, "")
-	}
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	return req.Success()
-}
-
-func (db *Olric) findLockOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getDMap(req.DMap, hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	if dm.locker.check(req.Key) {
-		return req.Success()
-	}
-	return req.Error(protocol.StatusNoSuchLock, "")
-}
-
-func (db *Olric) unlockPrevOperation(req *protocol.Message) *protocol.Message {
-	key := req.Key
-	hkey := db.getHKey(req.DMap, key)
-	dm, err := db.getDMap(req.DMap, hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	err = dm.locker.unlock(key)
-	if err == ErrNoSuchLock {
-		return req.Error(protocol.StatusNoSuchLock, "")
-	}
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	return req.Success()
-}
-
-func (db *Olric) lockPrevOperation(req *protocol.Message) *protocol.Message {
-	key := req.Key
-	hkey := db.getHKey(req.DMap, key)
-	dm, err := db.getDMap(req.DMap, hkey)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	dm.locker.lock(key)
-	db.wg.Add(1)
-	ttl := req.Extra.(protocol.LockWithTimeoutExtra).TTL
-	go db.waitLockForTimeout(dm, key, time.Duration(ttl))
-	return req.Success()
+	return db.prepareResponse(req, db.unlock(req.DMap, req.Key, req.Value))
 }

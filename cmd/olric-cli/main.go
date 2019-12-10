@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Command line interface for Olric
+
 package main
 
 import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"runtime"
 
@@ -31,9 +34,7 @@ const (
 	defaultAddr       string = "127.0.0.1:3320"
 )
 
-var usage = `olric-cli is a CLI interface for Olric
-
-Usage: 
+var usage = `Usage: 
   olric-cli [flags] ...
 
 Flags:
@@ -42,9 +43,12 @@ Flags:
 
   -v -version                   
       Shows version information.
-  
-  -k -insecure      
-      Allow insecure server connections when using SSL
+
+  -d -dmap
+      DMap to access.
+
+  -c -command
+      Command to run. Available commands: put, put, get, delete, destroy, incr, decr.
   
   -s -serializer
       Specifies serialization format. Available formats: gob, json, msgpack. Default: %s
@@ -61,7 +65,8 @@ Report bugs to https://github.com/buraksezer/olric/issues`
 var (
 	showHelp    bool
 	showVersion bool
-	insecure    bool
+	dmap        string
+	command     string
 	addr        string
 	timeout     string
 	serializer  string
@@ -85,8 +90,11 @@ func main() {
 	f.BoolVar(&showVersion, "v", false, "")
 	f.BoolVar(&showVersion, "version", false, "")
 
-	f.BoolVar(&insecure, "k", false, "")
-	f.BoolVar(&insecure, "insecure", false, "")
+	f.StringVar(&command, "c", "", "")
+	f.StringVar(&command, "command", "", "")
+
+	f.StringVar(&dmap, "d", "", "")
+	f.StringVar(&dmap, "dmap", "", "")
 
 	f.StringVar(&timeout, "t", "10s", "")
 	f.StringVar(&timeout, "timeout", "10s", "")
@@ -97,27 +105,34 @@ func main() {
 	f.StringVar(&serializer, "s", defaultSerializer, "")
 	f.StringVar(&serializer, "serializer", defaultSerializer, "")
 
+	logger := log.New(os.Stderr, "", log.LstdFlags)
+	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+
 	if err := f.Parse(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse flags: %v", err)
-		os.Exit(1)
+		logger.Fatalf("Failed to parse flags: %v", err)
 	}
 
 	if showVersion {
-		fmt.Printf("olric-cli %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
+		logger.Printf("olric-cli %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
 	} else if showHelp {
-		msg := fmt.Sprintf(usage, defaultSerializer, defaultAddr, runtime.Version())
-		fmt.Println(msg)
+		logger.Println(fmt.Sprintf(usage, defaultSerializer, defaultAddr, runtime.Version()))
 		return
 	}
 
-	c, err := cli.New(addr, insecure, serializer, timeout)
+	c, err := cli.New(addr, serializer, timeout, logger)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] Failed to create olric-cli instance: %v", err)
-		os.Exit(1)
+		logger.Fatalf("Failed to create olric-cli instance: %v\n", err)
 	}
-	if err := c.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "[ERROR] olric-cli has returned an error: %v", err)
-		os.Exit(1)
+
+	if len(command) != 0 {
+		if err := c.RunCommand(dmap, command); err != nil {
+			logger.Fatalf("olric-cli has returned an error: %v\n", err)
+		}
+		return
+	}
+
+	if err := c.WaitForCommand(dmap); err != nil {
+		logger.Fatalf("olric-cli has returned an error: %v\n", err)
 	}
 }

@@ -2,30 +2,31 @@
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Distributed, eventually consistent and in-memory key/value database. It can be used both as an embedded Go library and as a language-independent service. Built with [Go](https://golang.org).
+Distributed, eventually consistent and in-memory key/value data store and cache. It can be used both as an embedded Go 
+library and as a language-independent service.
 
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
-* Embeddable but can be used as a language-independent service with olricd,
+* Embeddable but can be used as a language-independent service with *olricd*,
 * Supports different eviction algorithms,
 * Fast binary protocol,
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
 * Supports replication by default(with sync and async options),
-* Supports atomic operations.
-
-## Possible use cases
-* Distributed key/value data store,
-* Distributed cache,
-* Scale your cloud application, 
-* Service discovery.
+* Supports atomic operations,
+* Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
 
 See [Sample Code](https://github.com/buraksezer/olric#sample-code) section for a quick experimentation.
 
-## WIP
+## Possible Use Cases
 
-This project is a work in progress. The implementation is incomplete. The documentation may be inaccurate.
+With this feature set, Olric is pretty suitable to use as a distributed cache. But it also provides data replication, failure 
+detection and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
+
+## Project Status
+
+Olric is in early stages of development. The package API and client protocol may change without notification. 
 
 ## Table of Contents
 
@@ -33,14 +34,29 @@ This project is a work in progress. The implementation is incomplete. The docume
 * [Planned Features](#planned-features)
 * [Installing](#installing)
   * [Try with Docker](#try-with-docker)
+* [Operation Modes](#operation-modes)
+  * [Embedded Member](#embedded-member)
+  * [Client-Server](#client-server)
+* [Tooling](#tooling)
+  * [olricd](#olricd)
+  * [olric-cli](#olric-cli)
+  * [olric-stats](#olric-stats)
+  * [olric-load](#olric-load)
+* [Performance](#performance)
 * [Usage](#usage)
   * [Put](#put)
+  * [PutIf](#putif)
   * [PutEx](#putex)
+  * [PutIfEx](#putifex)
   * [Get](#get)
+  * [Expire](#expire)
   * [Delete](#delete)
   * [LockWithTimeout](#lockwithtimeout)
+  * [Lock](#lock)
   * [Unlock](#unlock)
   * [Destroy](#destroy)
+  * [Stats](#stats)
+  * [Ping](#ping)
   * [Atomic Operations](#atomic-operations)
     * [Incr](#incr)
     * [Decr](#decr)
@@ -48,11 +64,6 @@ This project is a work in progress. The implementation is incomplete. The docume
   * [Pipelining](#pipelining)
 * [Serialization](#serialization)
 * [Golang Client](#golang-client)
-* [Standalone Server](#standalone-server)
-* [Command Line Interface](#command-line-interface)
-* [Operation Modes](#operation-modes)
-  * [Embedded member](#embedded-member)
-  * [Client plus member](#client-plus-member)
 * [Configuration](#configuration)
 * [Architecture](#architecture)
   * [Overview](#overview)
@@ -62,9 +73,12 @@ This project is a work in progress. The implementation is incomplete. The docume
     * [Expire with MaxIdleDuration](#expire-with-maxidleduration)
     * [Expire with LRU](#expire-with-lru)
   * [Lock Implementation](#lock-implementation)
+  * [Storage Engine](#storage-engine)
 * [Sample Code](#sample-code)
-* [To-Do](#to-do)
-* [Caveats](#caveats)
+* [Contributions](#contributions)
+* [License](#license)
+* [About the name](#about-the-name)
+
 
 ## Features
 
@@ -73,9 +87,9 @@ This project is a work in progress. The implementation is incomplete. The docume
 * Only in-memory,
 * Implements a fast and simple binary protocol,
 * Embeddable but can be used as a language-independent service with olricd,
-* GC-friendly data storage,
+* GC-friendly storage engine,
 * Supports atomic operations,
-* Provides a single-node lock implementation which can be used for non-critical purposes,
+* Provides a lock implementation which can be used for non-critical purposes,
 * Different eviction policies: LRU, MaxIdleDuration and Time-To-Live(TTL),
 * Highly available,
 * Horizontally scalable,
@@ -91,13 +105,13 @@ This project is a work in progress. The implementation is incomplete. The docume
 
 ## Planned Features
 
+* On-disk persistence mode to work beyond RAM,
 * Anti-entropy system to repair inconsistencies in DMaps,
 * Publish/Subscribe for messaging,
-* Eviction listeners by using Pub/Sub,
-* Memcached interface,
-* Python client.
-
-We may implement different data structures such as list, queue or bitmap in Olric. It's highly depends on attention of the Golang community.
+* Eviction listeners by using Publish/Subscribe,
+* Memcache interface,
+* Client implementations for different languages: Java, Python and JavaScript,
+* REST API.
 
 ## Installing
 
@@ -107,10 +121,25 @@ With a correctly configured Golang environment:
 go get -u github.com/buraksezer/olric
 ```
 
+Then, install olricd and its siblings:
+
+```
+go install -v ./cmd/*
+```
+
+Now you should access **olricd**, **olric-stats**, **olric-cli** and **olric-load** on your path. You can just run olricd
+to start experimenting: 
+
+```
+olricd -c cmd/olricd/olricd.yaml
+```
+
+See [Configuration](#configuration) section to setup your cluster properly.
+
 ### Try with Docker
 
-This repository includes a Dockerfile. So you can build and run ```olricd``` in a Docker container without effort. Use 
-the following commands respectively in the project folder:
+This repository includes a Dockerfile. So you can build and run ```olricd``` in a Docker container. Use the following commands 
+respectively in the project folder:
 
 ```
 docker build -t olricd .
@@ -123,6 +152,132 @@ docker run -p 3320:3320 olricd
 ```
 
 Your programs can use ```3320``` port to interact with ```olricd```. 
+
+## Operation Modes
+
+Olric has two different operation modes. 
+
+### Embedded Member
+
+In Embedded Member Mode, members include both the application and Olric data and services. The advantage of the Embedded 
+Member Mode is having a low-latency data access. 
+
+### Client-Server
+
+In the Client-Server deployment, Olric data and services are centralized in one or more server members and they are 
+accessed by the application through clients. You can have a cluster of server members that can be independently created 
+and scaled. Your clients communicate with these members to reach to Olric data and services on them.
+
+Client-Server deployment has advantages including more predictable and reliable performance, easier identification 
+of problem causes and, most importantly, better scalability. When you need to scale in this deployment type, just add more 
+Olric server members. You can address client and server scalability concerns separately. 
+
+See [olricd](#olricd) section to get started.
+
+Currently we only have the official Golang client. A possible Python implementation is on the way. After stabilizing the
+Olric Binary Protocol, the others may appear quickly.
+
+## Tooling
+
+Olric comes with some useful tools to interact with the cluster. 
+
+### olricd
+
+Olric is an embeddable, single-hop DHT implementation. So a cluster member includes both the application and Olric data 
+and services in **embedded member mode**. olricd handles configuration in YAML format and graceful process shutdown for 
+you **in client-server mode**.
+
+Start it with the following command:
+
+```
+olricd -c <YOUR_CONFIG_FILE_PATH>
+```
+
+olricd also supports `OLRICD_CONFIG` environment variable to set configuration. Just like that: 
+
+```
+OLRICD_CONFIG=<YOUR_CONFIG_FILE_PATH> olricd
+```
+
+You can find a sample configuration file under `cmd/olricd/olricd.yaml`. 
+
+### olric-cli
+
+olric-cli is the Olric command line interface, a simple program that allows to send commands to Olric, and read the replies 
+sent by the server, directly from the terminal.
+
+olric-cli has an interactive (REPL) mode just like `redis-cli`:
+
+```
+olric-cli
+[127.0.0.1:3320] >> use mydmap
+use mydmap
+[127.0.0.1:3320] >> get mykey
+myvalue
+[127.0.0.1:3320] >>
+```
+
+The interactive mode also keeps command history. 
+
+
+It's possible to send protocol commands as command line arguments:
+
+```
+olric-cli -d mydmap -c "put mykey myvalue"
+```
+
+Then, retrieve the key:
+
+```
+olric-cli -d mydmap -c "get mykey"
+```
+
+It'll print `myvalue`.
+
+
+In order to get more details about the options, call `olric-cli -h` in your shell.
+
+### olric-stats 
+
+olric-stats calls `Stats` command on a cluster member and prints the result. The returned data from the member includes the Go runtime 
+metrics and statistics from hosted primary and backup partitions. 
+
+Statistics about a partition:
+
+```
+olric-stats -p 69
+PartID: 69
+  Owner: olric.node:3320
+  Previous Owners: not found
+  Backups: not found
+  DMap count: 1
+  DMaps:
+    Name: olric-load-test
+    Length: 1374
+    Allocated: 1048576
+    Inuse: 47946
+    Garbage: 0
+```
+
+Without giving a partition number, it will print everything about the cluster and hosted primary/backup partitions. In order to get more details about 
+the command, call `olric-stats -h`.
+
+### olric-load
+
+olric-load simulates running commands done by N clients at the same time sending M total queries. It measures response time. 
+
+```
+olric-load -c put -s msgpack -k 100000
+### STATS FOR COMMAND: PUT ###
+Serializer is msgpack
+100000 requests completed in 1.209334678s
+50 parallel clients
+
+  93%  <=  1 milliseconds
+   5%  <=  2 milliseconds
+```
+
+In order to get more details about the command, call `olric-load -h`.
 
 ## Usage
 
@@ -145,11 +300,11 @@ configuration.
 Create a **DMap** object to access the cluster:
 
 ```go
-dm := db.NewDMap("my-dmap")
+dm, err := db.NewDMap("my-dmap")
 ```
 
-DMap object has *Put*, *PutEx*, *Get*, *Delete*, *LockWithTimeout*, *Unlock* and *Destroy* methods to access and modify data in Olric. 
-We may add more methods for finer control but first, I'm willing to stabilize this set of features.
+DMap object has *Put*, *PutEx*, *PutIf*, *PutIfEx*, *Get*, *Delete*, *Expire*, *LockWithTimeout* and *Destroy* methods to access 
+and modify data in Olric. We may add more methods for finer control but first, I'm willing to stabilize this set of features.
 
 When you want to leave the cluster, just need to call **Shutdown** method:
 
@@ -159,6 +314,9 @@ err := db.Shutdown(context.Background())
 
 This will stop background tasks and servers. Finally purges in-memory data and quits.
 
+***Please note that this section aims to document DMap API in embedded member mode.*** If you prefer to use Olric in 
+Client-Server mode, please jump to [Golang Client](#golang-client) section. 
+ 
 ### Put
 
 Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
@@ -170,9 +328,32 @@ err := dm.Put("my-key", "my-value")
 The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after
 Put returns but not before.
 
+### PutIf
+
+PutIf sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
+
+```go
+err := dm.PutIf("my-key", "my-value", flags)
+```
+
+The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after
+PutIf returns but not before.
+
+Flag argument currently has two different options:
+
+* **IfNotFound**: Only set the key if it does not already exist. It returns `ErrFound` if the key already exist.
+
+* **IfFound**: Only set the key if it already exist.It returns `ErrKeyNotFound` if the key does not exist.
+
+Sample use:
+
+```go
+err := dm.PutIfEx("my-key", "my-value", time.Second, IfNotFound)
+```
+
 ### PutEx
 
-Put sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
+PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
 
 ```go
 err := dm.PutEx("my-key", "my-value", time.Second)
@@ -180,6 +361,30 @@ err := dm.PutEx("my-key", "my-value", time.Second)
 
 The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutEx 
 returns but not before.
+
+### PutIfEx
+
+PutIfEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
+
+```go
+err := dm.PutIfEx("my-key", "my-value", time.Second, flags)
+```
+
+The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutEx 
+returns but not before.
+
+
+Flag argument currently has two different options:
+
+* **IfNotFound**: Only set the key if it does not already exist. It returns `ErrFound` if the key already exist.
+
+* **IfFound**: Only set the key if it already exist.It returns `ErrKeyNotFound` if the key does not exist.
+
+Sample use:
+
+```go
+err := dm.PutIfEx("my-key", "my-value", time.Second, IfNotFound)
+```
 
 ### Get
 
@@ -190,6 +395,16 @@ value, err := dm.Get("my-key")
 ```
 
 It is safe to modify the contents of the returned value. It is safe to modify the contents of the argument after Get returns.
+
+### Expire
+
+Expire updates the expiry for the given key. It returns `ErrKeyNotFound` if the DB does not contains the key. It's thread-safe.
+
+```go
+err := dm.Expire("my-key", time.Second)
+```
+
+The key has to be `string`. The second parameter is `time.Duration`.
 
 ### Delete
 
@@ -204,26 +419,42 @@ It is safe to modify the contents of the argument after Delete returns.
 ### LockWithTimeout
 
 LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time, it automatically releases the
-lock. Acquired lock is only for the key in this map. Please note that, before setting a lock for a key, you should set the key with **Put** method. 
-Otherwise it returns `ErrKeyNotFound` error.
+lock. Acquired lock is only for the key in this DMap.
 
 ```go
-err := dm.LockWithTimeout("my-key", time.Second)
+ctx, err := dm.LockWithTimeout("lock.foo", time.Millisecond, time.Second)
 ```
 
-It returns immediately if it acquires the lock for the given key. Otherwise, it waits until timeout. The timeout is determined by `http.Client`
-which can be configured via `Config` structure.
+It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline. You should keep `LockContext` (as ctx) 
+value to call **Unlock** method to release the lock.
+
+Creating a seperated DMap to keep locks may be a good idea.
 
 **You should know that the locks are approximate, and only to be used for non-critical purposes.**
 
 Please take a look at [Lock Implementation](#lock-implementation) section for implementation details.
+
+### Lock
+Lock sets a lock for the given key. Acquired lock is only for the key in this DMap.
+
+It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+
+
+```go
+ctx, err := dm.Lock("lock.foo", time.Second)
+```
+
+It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline. You should keep `LockContext` (as ctx) 
+value to call **Unlock** method to release the lock.
+
+**You should know that the locks are approximate, and only to be used for non-critical purposes.**
 
 ### Unlock
 
 Unlock releases an acquired lock for the given key. It returns `ErrNoSuchLock` if there is no lock for the given key.
 
 ```go
-err := dm.Unlock("my-key")
+err := ctx.Unlock()
 ```
 
 ### Destroy
@@ -234,6 +465,65 @@ methods concurrently on the cluster, Put/PutEx calls may set new values to the D
 ```go
 err := dm.Destroy()
 ```
+
+### Stats
+
+Stats exposes some useful metrics to monitor an Olric node. It includes memory allocation metrics from partitions and the Go runtime metrics.
+
+```go
+data, err := db.Stats()
+```
+
+See `stats/stats.go` for detailed info about the metrics.
+
+### Ping 
+
+
+Ping sends a dummy protocol messsage to the given host. This is useful to measure RTT between hosts. It also can be used as aliveness check.
+
+```go
+err := db.Ping()
+```
+
+## Atomic Operations
+
+Normally, write operations in Olric is performed by the partition owners. However, atomic operations are guarded by a fine-grained lock 
+implementation which can be found under `internal/locker`. 
+
+You should know that Olric is an AP product. So Olric may return inconsistent results in the case of network partitioning. 
+
+`internal/locker` is provided by the [Docker](https://github.com/moby/moby).
+
+### Incr
+
+Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
+
+```go
+nr, err := dm.Incr("atomic-key", 3)
+```
+
+The returned value is `int`.
+
+### Decr
+
+Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
+
+```go
+nr, err := dm.Decr("atomic-key", 1)
+```
+
+The returned value is `int`.
+
+
+### GetPut
+
+GetPut atomically sets key to value and returns the old value stored at key.
+
+```go
+value, err := dm.GetPut("atomic-key", someType{})
+```
+
+The returned value is an arbitrary type.
 
 ### Pipelining
 Olric Binary Protocol(OBP) supports pipelining. All protocol commands can be pushed to a remote Olric server through a pipeline in a single write call. 
@@ -438,20 +728,32 @@ When a client tries to access a key, Olric returns `ErrKeyNotFound` if the key i
 
 ### Lock Implementation
 
-DMap implementation is already thread-safe to meet your thread safety requirements. When you want to have more control on the
-concurrency, you can use LockWithTimeout method. It's slightly modified version of [Moby's(formerly Docker) locker package](https://github.com/moby/moby/tree/master/pkg/locker). It utilizes `sync.Mutex`. Take a look at the code for details.
+The DMap implementation is already thread-safe to meet your thread safety requirements. When you want to have more control on the
+concurrency, you can use LockWithTimeout and Lock methods. Olric borrows the locking algorithm from Redis. Redis authors propose
+the following algorithm:
 
-Please note that the lock implementation has no backup. So if the node, which the lock belongs to, crashed, the acquired lock is dropped.
+> The command <SET resource-name anystring NX EX max-lock-time> is a simple way to implement a locking system with Redis.
+>
+> A client can acquire the lock if the above command returns OK (or retry after some time if the command returns Nil), and remove the lock just using DEL.
+>
+> The lock will be auto-released after the expire time is reached.
+>
+> It is possible to make this system more robust modifying the unlock schema as follows:
+>
+> Instead of setting a fixed string, set a non-guessable large random string, called token.
+> Instead of releasing the lock with DEL, send a script that only removes the key if the value matches.
+> This avoids that a client will try to release the lock after the expire time deleting the key created by another client that acquired the lock later.
+
+Equivalent of`SETNX` command in Olric is `PutIf(key, value, IfNotFound)`. Lock and LockWithTimeout commands are properly implements
+the algorithm which is proposed above. 
+
+You should know that this implementation is a subject of the clustering algorithm. Olric is an AP product. So there is no guarantee about reliability. 
 
 **I recommend the lock implementation to be used for efficiency purposes in general, instead of correctness.**
 
-## Client
+### Storage Engine
 
-Olric is mainly designed to be used as an embedded [DHT](https://en.wikipedia.org/wiki/Distributed_hash_table). So if you are running long-lived servers,
-Olric is pretty suitable to share some transient, approximate, fast-changing data between them. What if you want to access the cluster in a short-lived
-process? Fortunately, Olric has an external API which can be used to access the cluster within any environment. It will be documented soon.
-
-A Golang client is already prepared to access and modify DMaps from outside. [Here is the documentation](https://godoc.org/github.com/buraksezer/olric/client).
+Olric implements an append-only log file, indexed with a builtin map. It creates new tables and evacuates existing data to the new ones if it needs to shrink or expand. 
 
 ## Sample Code
 
@@ -492,7 +794,10 @@ func main() {
 	}()
 
 	// Put 10 items into the DMap object.
-	dm := db.NewDMap("bucket-of-arbitrary-items")
+	dm, err := db.NewDMap("bucket-of-arbitrary-items")
+	if err != nil {
+		log.Fatalf("Failed to call NewDMap: %v", err)
+	}
 	for i := 0; i < 10; i++ {
 		c := customType{}
 		c.Field1 = fmt.Sprintf("num: %d", i)
@@ -520,14 +825,6 @@ func main() {
 	}
 }
 ```
-
-## To-Do
-
-* Document the code,
-* Some parts of FSCK implementation is missing: It currently doesn't repair failed backups,
-* Design & write benchmarks,
-* Document the binary protocol,
-* Build a website for Olric and create extensive documentation.
 
 ## Contributions
 

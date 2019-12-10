@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,299 +16,292 @@ package olric
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 )
 
-func TestDMap_Locker_Standalone(t *testing.T) {
-	r, err := newOlric(nil)
+func TestDMap_LockWithTimeoutStandalone(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r.Shutdown(context.Background())
+		err = db.Shutdown(context.Background())
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	key := "mykey"
-	value := "myvalue"
-	// Create a new DMap object and put a K/V pair.
-	d := r.NewDMap("foobar")
-	err = d.Put(key, value)
+	key := "lock.test.foo"
+	d, err := db.NewDMap("lock.test")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	err = d.LockWithTimeout(key, time.Second)
+	ctx, err := d.LockWithTimeout(key, time.Second, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	err = d.Unlock(key)
+	err = ctx.Unlock()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }
 
-func TestDMap_UnlockWithTwoHosts(t *testing.T) {
-	db1, err := newOlric(nil)
+func TestDMap_UnlockWithTimeoutStandalone(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = db1.Shutdown(context.Background())
+		err = db.Shutdown(context.Background())
 		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	dm := db1.NewDMap("mymap")
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		err = dm.LockWithTimeout(bkey(i), time.Minute)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	key := "lock.test.foo"
+	d, err := db.NewDMap("lock.test")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-
-	db1.updateRouting()
-	dm2 := db2.NewDMap("mymap")
-	for i := 0; i < 100; i++ {
-		key := bkey(i)
-		err := dm2.Unlock(key)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for %s", err, key)
-		}
-	}
-}
-
-func TestDMap_LockWithTwoHosts(t *testing.T) {
-	db1, err := newOlric(nil)
+	ctx, err := d.LockWithTimeout(key, time.Millisecond, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	dm := db1.NewDMap("mymap")
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-	db1.updateRouting()
-	dm2 := db2.NewDMap("mymap")
-	for i := 0; i < 100; i++ {
-		key := bkey(i)
-		err = dm2.LockWithTimeout(key, time.Minute)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for key: %s", err, key)
-		}
-	}
-
-	err = dm2.Unlock("foobar")
+	<-time.After(2 * time.Millisecond)
+	err = ctx.Unlock()
 	if err != ErrNoSuchLock {
 		t.Fatalf("Expected ErrNoSuchLock. Got: %v", err)
 	}
+}
 
-	err = dm.Unlock("foobadb2")
-	if err != ErrNoSuchLock {
-		t.Fatalf("Expected ErrNoSuchLock. Got: %v", err)
+func TestDMap_LockWithTimeoutWaitStandalone(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
 
-	err = dm.Unlock(bkey(1))
+	key := "lock.test.foo"
+	d, err := db.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	_, err = d.LockWithTimeout(key, time.Second, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = dm.LockWithTimeout(bkey(1), time.Second)
+	_, err = d.LockWithTimeout(key, time.Second, time.Millisecond)
+	if err != ErrLockNotAcquired {
+		t.Fatalf("Expected ErrLockNotAcquired. Got: %v", err)
+	}
+}
+
+func TestDMap_LockStandalone(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	key := "lock.test.foo"
+	d, err := db.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	ctx, err := d.Lock(key, time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = ctx.Unlock()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }
 
-func TestDMap_Locker_LockWithTimeout(t *testing.T) {
-	r, err := newOlric(nil)
+func TestDMap_LockWaitStandalone(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r.Shutdown(context.Background())
+		err = db.Shutdown(context.Background())
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	key := "mykey"
-	value := "myvalue"
-	// Create a new DMap object and put a K/V pair.
-	d := r.NewDMap("foobar")
-	err = d.Put(key, value)
+	key := "lock.test.foo"
+	d, err := db.NewDMap("lock.test")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	err = d.LockWithTimeout(key, 100*time.Millisecond)
+	_, err = d.Lock(key, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	time.Sleep(200 * time.Millisecond)
-
-	err = d.Unlock(key)
-	if err != ErrNoSuchLock {
-		t.Fatalf("Expected ErrNoSuchLock. Got: %v", err)
-	}
-
-	err = d.LockWithTimeout(key, time.Second)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	err = d.Unlock(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
+	_, err = d.Lock(key, time.Millisecond)
+	if err != ErrLockNotAcquired {
+		t.Fatalf("Expected ErrLockNotAcquired. Got: %v", err)
 	}
 }
 
-func TestDMap_LockWithTimeoutOnNetwork(t *testing.T) {
-	db1, err := newOlric(nil)
+func TestDMap_LockWithTimeoutCluster(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	dm := db1.NewDMap("mymap")
+	d, err := db1.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	lockContext := []*LockContext{}
 	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
+		key := "lock.test.foo." + strconv.Itoa(i)
+		ctx, err := d.LockWithTimeout(key, time.Second, time.Second)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		lockContext = append(lockContext, ctx)
+	}
+
+	_, err = c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for _, ctx := range lockContext {
+		err = ctx.Unlock()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+}
+
+func TestDMap_LockCluster(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	d, err := db1.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	lockContext := []*LockContext{}
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		ctx, err := d.Lock(key, time.Second)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		lockContext = append(lockContext, ctx)
+	}
+
+	_, err = c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for _, ctx := range lockContext {
+		err = ctx.Unlock()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+}
+
+func TestDMap_LockWithTimeoutWaitCluster(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	d, err := db1.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		_, err = d.LockWithTimeout(key, time.Second, time.Second)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	_, err = c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	//db1.updateRouting()
-
-	// Block fsck and partition manager. The code should inspect the key/lock
-	// on a previous partition owner.
-	db1.fsckMx.Lock()
-	defer db1.fsckMx.Unlock()
-
-	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
-		key := bkey(i)
-		err = dm2.LockWithTimeout(key, 200*time.Millisecond)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for key: %s", err, key)
-		}
-	}
-	// TODO: This is too error prone. Check the lock in a loop.
-	time.Sleep(350 * time.Millisecond)
-	for i := 0; i < 100; i++ {
-		key := bkey(i)
-		err = dm2.Unlock(key)
-		if err != ErrNoSuchLock {
-			t.Fatalf("Expected ErrNoSuchLock. Got: %v for key: %s", err, key)
+		key := "lock.test.foo." + strconv.Itoa(i)
+		_, err = d.LockWithTimeout(key, time.Second, time.Millisecond)
+		if err != ErrLockNotAcquired {
+			t.Fatalf("Expected ErrLockNotAcquired. Got: %v", err)
 		}
 	}
 }
 
-func TestDMap_LockPrevious(t *testing.T) {
-	db1, err := newOlric(nil)
+func TestDMap_LockWithTimeoutLockAgainCluster(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	dm := db1.NewDMap("mymap")
+	d, err := db1.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
 	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
+		key := "lock.test.foo." + strconv.Itoa(i)
+		_, err = d.LockWithTimeout(key, time.Millisecond, time.Second)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	db1.fsckMx.Lock()
-	defer db1.fsckMx.Unlock()
-
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	_, err = c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	dm2 := db2.NewDMap("mymap")
 	for i := 0; i < 100; i++ {
-		key := bkey(i)
-		err = dm2.LockWithTimeout(key, 200*time.Millisecond)
+		key := "lock.test.foo." + strconv.Itoa(i)
+		_, err = d.Lock(key, time.Second)
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for key: %s", err, key)
-		}
-	}
-	// TODO: This is too error prone. Check the lock in a loop.
-	time.Sleep(350 * time.Millisecond)
-	for i := 0; i < 100; i++ {
-		key := bkey(i)
-		err = dm2.Unlock(key)
-		if err != ErrNoSuchLock {
-			t.Fatalf("Expected ErrNoSuchLock. Got: %v for key: %s", err, key)
+			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 }

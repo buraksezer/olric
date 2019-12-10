@@ -61,6 +61,7 @@ func (p *Pipeline) Put(dmap, key string, value interface{}) error {
 		DMap:  dmap,
 		Key:   key,
 		Value: data,
+		Extra: protocol.PutExtra{Timestamp: time.Now().UnixNano()},
 	}
 	return m.Write(p.buf)
 }
@@ -79,9 +80,12 @@ func (p *Pipeline) PutEx(dmap, key string, value interface{}, timeout time.Durat
 			Magic: protocol.MagicReq,
 			Op:    protocol.OpPutEx,
 		},
-		DMap:  dmap,
-		Key:   key,
-		Extra: protocol.PutExExtra{TTL: timeout.Nanoseconds()},
+		DMap: dmap,
+		Key:  key,
+		Extra: protocol.PutExExtra{
+			TTL:       timeout.Nanoseconds(),
+			Timestamp: time.Now().UnixNano(),
+		},
 		Value: data,
 	}
 	return m.Write(p.buf)
@@ -135,6 +139,7 @@ func (p *Pipeline) incrOrDecr(opcode protocol.OpCode, dmap, key string, delta in
 		DMap:  dmap,
 		Key:   key,
 		Value: value,
+		Extra: protocol.AtomicExtra{Timestamp: time.Now().UnixNano()},
 	}
 	return m.Write(p.buf)
 }
@@ -166,6 +171,7 @@ func (p *Pipeline) GetPut(dmap, key string, value interface{}) error {
 		DMap:  dmap,
 		Key:   key,
 		Value: data,
+		Extra: protocol.AtomicExtra{Timestamp: time.Now().UnixNano()},
 	}
 	return m.Write(p.buf)
 }
@@ -185,35 +191,90 @@ func (p *Pipeline) Destroy(dmap string) error {
 	return m.Write(p.buf)
 }
 
-// LockWithTimeout appends a LockWithTimeout command to the underlying buffer with the given parameters.
-func (p *Pipeline) LockWithTimeout(dmap, key string, timeout time.Duration) error {
+// PutIf appends a PutIf command to the underlying buffer.
+//
+// Flag argument currently has two different options:
+//
+// olric.IfNotFound: Only set the key if it does not already exist.
+// It returns olric.ErrFound if the key already exist.
+//
+// olric.IfFound: Only set the key if it already exist.
+// It returns olric.ErrKeyNotFound if the key does not exist.
+func (p *Pipeline) PutIf(dmap, key string, value interface{}, flags int16) error {
 	p.m.Lock()
 	defer p.m.Unlock()
 
+	data, err := p.c.serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
 	m := &protocol.Message{
 		Header: protocol.Header{
 			Magic: protocol.MagicReq,
-			Op:    protocol.OpLockWithTimeout,
+			Op:    protocol.OpPutIf,
 		},
 		DMap:  dmap,
 		Key:   key,
-		Extra: protocol.LockWithTimeoutExtra{TTL: timeout.Nanoseconds()},
+		Value: data,
+		Extra: protocol.PutIfExtra{
+			Flags:     flags,
+			Timestamp: time.Now().UnixNano(),
+		},
 	}
 	return m.Write(p.buf)
 }
 
-// Unlock appends an Unlock command to the underlying buffer with the given parameters.
-func (p *Pipeline) Unlock(dmap, key string) error {
+// PutIfEx appends a PutIfEx command to the underlying buffer.
+//
+// Flag argument currently has two different options:
+//
+// olric.IfNotFound: Only set the key if it does not already exist.
+// It returns olric.ErrFound if the key already exist.
+//
+// olric.IfFound: Only set the key if it already exist.
+// It returns olric.ErrKeyNotFound if the key does not exist.
+func (p *Pipeline) PutIfEx(dmap, key string, value interface{}, timeout time.Duration, flags int16) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	data, err := p.c.serializer.Marshal(value)
+	if err != nil {
+		return err
+	}
+	m := &protocol.Message{
+		Header: protocol.Header{
+			Magic: protocol.MagicReq,
+			Op:    protocol.OpPutIfEx,
+		},
+		DMap:  dmap,
+		Key:   key,
+		Value: data,
+		Extra: protocol.PutIfExExtra{
+			Flags:     flags,
+			TTL:       timeout.Nanoseconds(),
+			Timestamp: time.Now().UnixNano(),
+		},
+	}
+	return m.Write(p.buf)
+}
+
+// Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
+// DB does not contains the key. It's thread-safe.
+func (p *Pipeline) Expire(dmap, key string, timeout time.Duration) error {
 	p.m.Lock()
 	defer p.m.Unlock()
 
 	m := &protocol.Message{
 		Header: protocol.Header{
 			Magic: protocol.MagicReq,
-			Op:    protocol.OpUnlock,
+			Op:    protocol.OpExpire,
 		},
 		DMap: dmap,
 		Key:  key,
+		Extra: protocol.ExpireExtra{
+			TTL:       timeout.Nanoseconds(),
+			Timestamp: time.Now().UnixNano(),
+		},
 	}
 	return m.Write(p.buf)
 }

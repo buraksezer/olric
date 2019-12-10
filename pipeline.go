@@ -16,8 +16,9 @@ package olric
 
 import (
 	"bytes"
-	"github.com/buraksezer/olric/internal/protocol"
 	"io"
+
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 func (db *Olric) pipelineOperation(req *protocol.Message) *protocol.Message {
@@ -40,9 +41,9 @@ func (db *Olric) pipelineOperation(req *protocol.Message) *protocol.Message {
 			}
 			continue
 		}
-		f, err := db.server.GetOperation(preq.Op)
-		if err != nil {
-			err = preq.Error(protocol.StatusInternalServerError, err).Write(response)
+		f, ok := db.operations[preq.Op]
+		if !ok {
+			err = preq.Error(protocol.StatusInternalServerError, ErrUnknownOperation).Write(response)
 			if err != nil {
 				return req.Error(protocol.StatusInternalServerError, err)
 			}

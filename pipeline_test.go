@@ -17,22 +17,24 @@ package olric
 import (
 	"bytes"
 	"context"
-	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
+	"time"
+
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 func TestPipeline(t *testing.T) {
-	db, err := newOlric(nil)
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
 		err = db.Shutdown(context.Background())
 		if err != nil {
-			db.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	
+
 	var buf bytes.Buffer
 	dmap := "test-dmap"
 	key := "test-key"
@@ -45,11 +47,12 @@ func TestPipeline(t *testing.T) {
 	req := protocol.Message{
 		Header: protocol.Header{
 			Magic: protocol.MagicReq,
-			Op: protocol.OpPut,
+			Op:    protocol.OpPut,
 		},
-		DMap:   dmap,
-		Key:    key,
-		Value:  value,
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
+		Extra: protocol.PutExtra{Timestamp: time.Now().UnixNano()},
 	}
 	err = req.Write(&buf)
 	if err != nil {
@@ -59,23 +62,24 @@ func TestPipeline(t *testing.T) {
 	preq := &protocol.Message{
 		Header: protocol.Header{
 			Magic: protocol.MagicReq,
-			Op: protocol.OpPipeline,
+			Op:    protocol.OpPipeline,
 		},
-		Value:  buf.Bytes(),
+		Value: buf.Bytes(),
 	}
 	resp := db.pipelineOperation(preq)
 	if resp.Status != protocol.StatusOK {
 		t.Fatalf("Expected status: %v. Got: %v", protocol.StatusOK, resp.Status)
 	}
 
-	dm := db.NewDMap(dmap)
+	dm, err := db.NewDMap(dmap)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	val, err := dm.Get(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	if val.(string) == rawval {
-		if err != nil {
-			t.Fatalf("Expected value: %v. Got: %v", rawval, val)
-		}
+	if val.(string) != rawval {
+		t.Fatalf("Expected value: %v. Got: %v", rawval, val)
 	}
 }

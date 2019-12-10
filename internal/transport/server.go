@@ -16,25 +16,18 @@ package transport
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
 	"io"
-	"log"
 	"net"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/buraksezer/olric/internal/flog"
 
 	"github.com/buraksezer/olric/internal/protocol"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )
-
-// operations maps OpCodes to functions
-type operations struct {
-	m map[protocol.OpCode]protocol.Operation
-}
 
 const (
 	idleConn uint32 = 0
@@ -45,60 +38,48 @@ const (
 type Server struct {
 	addr            string
 	keepAlivePeriod time.Duration
-	operations      operations
-	logger          *log.Logger
+	log             *flog.Logger
 	wg              sync.WaitGroup
 	listener        net.Listener
+	dispatcher      func(*protocol.Message) *protocol.Message
 	StartCh         chan struct{}
 	ctx             context.Context
 	cancel          context.CancelFunc
 }
 
 // NewServer creates and returns a new Server.
-func NewServer(addr string, logger *log.Logger, keepalivePeriod time.Duration) *Server {
+func NewServer(addr string, logger *flog.Logger, keepalivePeriod time.Duration) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
-	if logger == nil {
-		logger = log.New(os.Stderr, "", log.LstdFlags)
-	}
 	return &Server{
-		operations:      operations{m: make(map[protocol.OpCode]protocol.Operation)},
 		addr:            addr,
 		keepAlivePeriod: keepalivePeriod,
-		logger:          logger,
+		log:             logger,
 		StartCh:         make(chan struct{}),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
 }
 
-// RegisterOperation registers a function for the given OpCode.
-func (s *Server) RegisterOperation(op protocol.OpCode, e protocol.Operation) {
-	s.operations.m[op] = e
-}
-
-// GetOperation returns the function for the given OpCode.
-func (s *Server) GetOperation(op protocol.OpCode) (protocol.Operation, error) {
-	f, ok := s.operations.m[op]
-	if !ok {
-		return nil, fmt.Errorf("unknown operation")
-	}
-	return f, nil
+func (s *Server) SetDispatcher(f func(*protocol.Message) *protocol.Message) {
+	s.dispatcher = f
 }
 
 // processRequest waits for a new request, handles it and returns the appropriate response.
 func (s *Server) processRequest(req *protocol.Message, conn io.ReadWriter, connStatus *uint32) error {
-	defer atomic.StoreUint32(connStatus, idleConn) // Mark connection as idle before start waiting a new request
+	// Read reads the incoming message from the underlying TCP socket and parses
 	err := req.Read(conn)
 	if err != nil {
 		return errors.WithMessage(err, "failed to read request")
 	}
+
 	// Mark connection as busy.
 	atomic.StoreUint32(connStatus, busyConn)
-	opr, ok := s.operations.m[req.Op]
-	if !ok {
-		return fmt.Errorf("unknown operation: %d", req.Op)
-	}
-	resp := opr(req)
+
+	// Mark connection as idle before start waiting a new request
+	defer atomic.StoreUint32(connStatus, idleConn)
+
+	// The dispatcher is defined by olric package and responsible to evaluate the incoming message.
+	resp := s.dispatcher(req)
 	err = resp.Write(conn)
 	// WithMessage returns nil, if the err is nil.
 	return errors.WithMessage(err, "failed to write response")
@@ -121,27 +102,41 @@ func (s *Server) processConn(conn net.Conn) {
 		case <-s.ctx.Done():
 			// The server is down.
 		case <-done:
-			// The following loop is quit. TCP socket may be closed or a protocol error occured.
+			// The main loop is quit. TCP socket may be closed or a protocol error occured.
 		}
 
 		if atomic.LoadUint32(&connStatus) != idleConn {
-			s.logger.Printf("[DEBUG] Connection is busy, waiting")
+			s.log.V(2).Printf("[DEBUG] Connection is busy, waiting")
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
 
-			// Wait for the current request. When it mark the connection as idle, break the loop.
+			//
+			// WARNING: I added this context to fix a deadlock issue when an Olric node is being closed.
+			// Debugging such an error is pretty hard and it blocks me. Normally I expect that SetDeadline
+			// should fix the problem but It doesn't work. I don't know why. But this hack works well.
+			//
+			// TODO: Make this parametric.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+		loop:
 			for {
-				<-ticker.C
-				if atomic.LoadUint32(&connStatus) == idleConn {
-					s.logger.Printf("[DEBUG] Connection is idle, closing")
-					break
+				select {
+				// Wait for the current request. When it mark the connection as idle, break the loop.
+				case <-ticker.C:
+					if atomic.LoadUint32(&connStatus) == idleConn {
+						s.log.V(2).Printf("[DEBUG] Connection is idle, closing")
+						break loop
+					}
+				case <-ctx.Done():
+					s.log.V(2).Printf("[DEBUG] Connection is still in-use. Aborting.")
+					break loop
 				}
 			}
 		}
 
 		// Close the connection and quit.
 		if err := conn.Close(); err != nil {
-			s.logger.Printf("[DEBUG] Failed to close TCP connection: %v", err)
+			s.log.V(2).Printf("[DEBUG] Failed to close TCP connection: %v", err)
 		}
 	}()
 
@@ -162,7 +157,7 @@ func (s *Server) processConn(conn net.Conn) {
 			if err != nil {
 				// Failed to write to the socket. Fail early. This should be a bug or
 				// the underlying TCP socket is unstable or unusable.
-				s.logger.Printf("[ERROR] Failed to return error message: %v", err)
+				s.log.V(2).Printf("[ERROR] Failed to return error message: %v", err)
 				break
 			}
 			// Continue waiting for incoming requests.
@@ -183,7 +178,7 @@ func (s *Server) listenAndServe() error {
 				return nil
 			default:
 			}
-			s.logger.Printf("[DEBUG] Failed to accept TCP connection: %v", err)
+			s.log.V(2).Printf("[DEBUG] Failed to accept TCP connection: %v", err)
 			continue
 		}
 		if s.keepAlivePeriod.Seconds() != 0 {
@@ -199,30 +194,6 @@ func (s *Server) listenAndServe() error {
 		s.wg.Add(1)
 		go s.processConn(conn)
 	}
-}
-
-// ListenAndServeTLS acts identically to ListenAndServe, except that it expects TLS connections.
-func (s *Server) ListenAndServeTLS(cert, key string) error {
-	defer func() {
-		select {
-		case <-s.StartCh:
-			return
-		default:
-		}
-		close(s.StartCh)
-	}()
-
-	c, err := tls.LoadX509KeyPair(cert, key)
-	if err != nil {
-		return err
-	}
-	config := &tls.Config{Certificates: []tls.Certificate{c}}
-	l, err := tls.Listen("tcp", s.addr, config)
-	if err != nil {
-		return err
-	}
-	s.listener = l
-	return s.listenAndServe()
 }
 
 // ListenAndServe listens on the TCP network address addr.

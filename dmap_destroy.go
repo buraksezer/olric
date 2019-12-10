@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,28 +15,36 @@
 package olric
 
 import (
-	"context"
+	"runtime"
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 )
 
 func (db *Olric) destroyDMap(name string) error {
-	<-db.bcx.Done()
-	if db.bcx.Err() == context.DeadlineExceeded {
-		return ErrOperationTimeout
-	}
+	num := int64(runtime.NumCPU())
+	sem := semaphore.NewWeighted(num)
 
 	var g errgroup.Group
-	for _, item := range db.discovery.getMembers() {
+	for _, item := range db.discovery.GetMembers() {
 		addr := item.String()
 		g.Go(func() error {
+			if err := sem.Acquire(db.ctx, 1); err != nil {
+				db.log.V(3).
+					Printf("[ERROR] Failed to acquire semaphore to call Destroy command on %s for %s: %v",
+						addr, name, err)
+				return err
+			}
+			defer sem.Release(1)
+
 			msg := &protocol.Message{
 				DMap: name,
 			}
+			db.log.V(5).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
 			_, err := db.requestTo(addr, protocol.OpDestroyDMap, msg)
 			if err != nil {
-				db.log.Printf("[ERROR] Failed to destroy dmap:%s on %s", name, addr)
+				db.log.V(2).Printf("[ERROR] Failed to destroy dmap:%s on %s", name, addr)
 			}
 			return err
 		})
@@ -53,10 +61,7 @@ func (dm *DMap) Destroy() error {
 
 func (db *Olric) exDestroyOperation(req *protocol.Message) *protocol.Message {
 	err := db.destroyDMap(req.DMap)
-	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
-	}
-	return req.Success()
+	return db.prepareResponse(req, err)
 }
 
 func (db *Olric) destroyDMapOperation(req *protocol.Message) *protocol.Message {
@@ -66,7 +71,7 @@ func (db *Olric) destroyDMapOperation(req *protocol.Message) *protocol.Message {
 		part := db.partitions[partID]
 		part.m.Delete(req.DMap)
 		// Delete from Backups
-		if db.config.BackupCount != 0 {
+		if db.config.ReplicaCount != 0 {
 			bpart := db.backups[partID]
 			bpart.m.Delete(req.DMap)
 		}

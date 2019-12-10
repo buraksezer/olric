@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,63 +15,81 @@
 package server
 
 import (
+	"io/ioutil"
 	"os"
 
-	"github.com/BurntSushi/toml"
+	"gopkg.in/yaml.v2"
 )
 
 const (
 	// DefaultConfigFile is the default configuration file path on a Unix-based operating system.
-	DefaultConfigFile = "olricd.toml"
+	DefaultConfigFile = "olricd.yaml"
 
 	// EnvConfigFile is the name of environment variable which can be used to override default configuration file path.
 	EnvConfigFile = "OLRICD_CONFIG"
 )
 
 type olricd struct {
-	Name            string  `toml:"name"`
-	CertFile        string  `toml:"certFile"`
-	KeyFile         string  `toml:"keyFile"`
-	BackupMode      int     `toml:"backupMode"`
-	PartitionCount  uint64  `toml:"partitionCount"`
-	BackupCount     int     `toml:"backupCount"`
-	LoadFactor      float64 `toml:"loadFactor"`
-	Serializer      string  `toml:"serializer"`
-	KeepAlivePeriod string  `toml:"keepAlivePeriod"`
+	Name              string  `yaml:"name"`
+	ReplicationMode   int     `yaml:"replicationMode"`
+	PartitionCount    uint64  `yaml:"partitionCount"`
+	LoadFactor        float64 `yaml:"loadFactor"`
+	Serializer        string  `yaml:"serializer"`
+	KeepAlivePeriod   string  `yaml:"keepAlivePeriod"`
+	RequestTimeout    string  `yaml:"requestTimeout"`
+	ReplicaCount      int     `yaml:"replicaCount"`
+	WriteQuorum       int     `yaml:"writeQuorum"`
+	ReadQuorum        int     `yaml:"readQuorum"`
+	ReadRepair        bool    `yaml:"readRepair"`
+	TableSize         int     `yaml:"tableSize"`
+	MemberCountQuorum int32   `yaml:"memberCountQuorum"`
 }
 
 // logging contains configuration variables of logging section of config file.
 type logging struct {
-	Level  string `toml:"level"`
-	Output string `toml:"output"`
+	Verbosity int32  `yaml:"verbosity"`
+	Level     string `yaml:"level"`
+	Output    string `yaml:"output"`
 }
 
 type memberlist struct {
-	Environment         string   `toml:"environment"`
-	Addr                string   `toml:"addr"`
-	EnableCompression   bool     `toml:"enableCompression"`
-	Peers               []string `toml:"peers"`
-	IndirectChecks      int      `toml:"indirectChecks"`
-	RetransmitMult      int      `toml:"retransmitMult"`
-	SuspicionMult       int      `toml:"suspicionMult"`
-	TCPTimeout          string   `toml:"tcpTimeout"`
-	PushPullInterval    string   `toml:"pushPullInterval"`
-	ProbeTimeout        string   `toml:"probeTimeout"`
-	ProbeInterval       string   `toml:"probeInterval"`
-	GossipInterval      string   `toml:"gossipInterval"`
-	GossipToTheDeadTime string   `toml:"gossipToTheDeadTime"`
+	Environment             string   `yaml:"environment"` // required
+	BindAddr                string   `yaml:"bindAddr"`    // required
+	BindPort                int      `yaml:"bindPort"`    // required
+	EnableCompression       *bool    `yaml:"enableCompression"`
+	JoinRetryInterval       string   `yaml:"joinRetryInterval"` // required
+	MaxJoinAttempts         int      `yaml:"maxJoinAttempts"`   // required
+	Peers                   []string `yaml:"peers"`
+	IndirectChecks          *int     `yaml:"indirectChecks"`
+	RetransmitMult          *int     `yaml:"retransmitMult"`
+	SuspicionMult           *int     `yaml:"suspicionMult"`
+	TCPTimeout              *string  `yaml:"tcpTimeout"`
+	PushPullInterval        *string  `yaml:"pushPullInterval"`
+	ProbeTimeout            *string  `yaml:"probeTimeout"`
+	ProbeInterval           *string  `yaml:"probeInterval"`
+	GossipInterval          *string  `yaml:"gossipInterval"`
+	GossipToTheDeadTime     *string  `yaml:"gossipToTheDeadTime"`
+	AdvertiseAddr           *string  `yaml:"advertiseAddr"`
+	AdvertisePort           *int     `yaml:"advertisePort"`
+	SuspicionMaxTimeoutMult *int     `yaml:"suspicionMaxTimeoutMult"`
+	DisableTcpPings         *bool    `yaml:"disableTcpPings"`
+	AwarenessMaxMultiplier  *int     `yaml:"awarenessMaxMultiplier"`
+	GossipNodes             *int     `yaml:"gossipNodes"`
+	GossipVerifyIncoming    *bool    `yaml:"gossipVerifyIncoming"`
+	GossipVerifyOutgoing    *bool    `yaml:"gossipVerifyOutgoing"`
+	DNSConfigPath           *string  `yaml:"dnsConfigPath"`
+	HandoffQueueDepth       *int     `yaml:"handoffQueueDepth"`
+	UDPBufferSize           *int     `yaml:"udpBufferSize"`
 }
 
 type cache struct {
-	MaxIdleDuration string `toml:"maxIdleDuration"`
-	TTLDuration     string `toml:"ttlDuration"`
-	MaxKeys         int    `toml:"maxKeys"`
-	LRUSamples      int    `toml:"lruSamples"`
-	EvictionPolicy  string `toml:"evictionPolicy"`
-}
-
-type dmap struct {
-	cache
+	NumEvictionWorkers int64  `yaml:"numEvictionWorkers"`
+	MaxIdleDuration    string `yaml:"maxIdleDuration"`
+	TTLDuration        string `yaml:"ttlDuration"`
+	MaxKeys            int    `yaml:"maxKeys"`
+	MaxInuse           int    `yaml:"maxInuse"`
+	LRUSamples         int    `yaml:"lruSamples"`
+	EvictionPolicy     string `yaml:"evictionPolicy"`
 }
 
 // Config is the main configuration struct
@@ -80,19 +98,30 @@ type Config struct {
 	Logging    logging
 	Olricd     olricd
 	Cache      cache
-	DMaps      map[string]dmap
+	DMaps      map[string]cache
 }
 
-// NewConfig creates a new configuration object of olricd
+// NewConfig creates a new configuration instance of olricd
 func NewConfig(path string) (*Config, error) {
-	if len(path) == 0 {
-		path = os.Getenv(EnvConfigFile)
+	envPath := os.Getenv(EnvConfigFile)
+	if len(envPath) != 0 {
+		path = envPath
 	}
 	if len(path) == 0 {
 		path = DefaultConfigFile
 	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
 	var c Config
-	if _, err := toml.DecodeFile(path, &c); err != nil {
+	if err := yaml.Unmarshal(data, &c); err != nil {
 		return nil, err
 	}
 	return &c, nil

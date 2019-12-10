@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2019 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,51 +16,38 @@ package olric
 
 import (
 	"bytes"
-	"context"
 	"testing"
 )
 
 func TestDMap_PutBackup(t *testing.T) {
-	db1, err := newOlric(nil)
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	db2, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-
-	db1.updateRouting()
 
 	mname := "mymap"
-	dm := db1.NewDMap(mname)
-	for i := 0; i < 100; i++ {
+	dm, err := db1.NewDMap(mname)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey, err := dm.db.locateKey(mname, key)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		owner, hkey := dm.db.findPartitionOwner(mname, key)
 		var backup = db1
 		if hostCmp(owner, db1.this) {
 			backup = db2
@@ -68,10 +55,10 @@ func TestDMap_PutBackup(t *testing.T) {
 		partID := db1.getPartitionID(hkey)
 		bpart := backup.backups[partID]
 		tmp, ok := bpart.m.Load(mname)
-		data := tmp.(*dmap)
 		if !ok {
 			t.Fatalf("mymap could not be found")
 		}
+		data := tmp.(*dmap)
 		data.Lock()
 		vdata, err := data.storage.Get(hkey)
 		if err != nil {
@@ -90,54 +77,41 @@ func TestDMap_PutBackup(t *testing.T) {
 }
 
 func TestDMap_DeleteBackup(t *testing.T) {
-	db1, err := newOlric(nil)
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	db2, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-
-	db1.updateRouting()
-	db1.fsck()
 
 	mname := "mymap"
-	dm := db1.NewDMap(mname)
-	for i := 0; i < 100; i++ {
+	dm, err := db1.NewDMap(mname)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		err = dm.Delete(bkey(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey, err := dm.db.locateKey(mname, key)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		owner, hkey := dm.db.findPartitionOwner(mname, key)
 		var backup = db1
 		if hostCmp(owner, db1.this) {
 			backup = db2
@@ -148,7 +122,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 		data := tmp.(*dmap)
 		if !ok {
 			bpart.Unlock()
-			// dmap object is deleted, everything is ok.
+			// dmap instance is deleted, everything is ok.
 			continue
 		}
 		if data.storage.Check(hkey) {
@@ -158,46 +132,34 @@ func TestDMap_DeleteBackup(t *testing.T) {
 }
 
 func TestDMap_GetBackup(t *testing.T) {
-	db1, err := newOlric(nil)
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
 
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	db2, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-
-	db1.updateRouting()
 
 	mname := "mymap"
-	dm := db1.NewDMap(mname)
-	for i := 0; i < 100; i++ {
+	dm, err := db1.NewDMap(mname)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
 		err = dm.Put(bkey(i), bval(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey, err := dm.db.locateKey(mname, key)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		owner, hkey := dm.db.findPartitionOwner(mname, key)
 		var kloc = db1
 		if !hostCmp(owner, db1.this) {
 			kloc = db2
@@ -207,7 +169,12 @@ func TestDMap_GetBackup(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		m.storage.Delete(hkey)
+		m.Lock()
+		err = m.storage.Delete(hkey)
+		m.Unlock()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
 		value, err := dm.Get(key)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -218,31 +185,32 @@ func TestDMap_GetBackup(t *testing.T) {
 	}
 }
 
-func TestDMap_PruneStaleBackups(t *testing.T) {
-	db1, err := newOlric(nil)
+// TODO: This test should be revisited after implementing new backup sync algorithm.
+/* func TestDMap_PruneStaleBackups(t *testing.T) {
+	db1, err := newDB(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
+		db1.log.V(2).Printf("db1 closing")
 		err = db1.Shutdown(context.Background())
 		if err != nil {
-			db1.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db1.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers := []string{db1.discovery.localNode().Address()}
-	db2, err := newOlric(peers)
+	peers := []string{db1.discovery.LocalNode().Address()}
+	db2, err := newDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
+		db2.log.V(2).Printf("db2 closing")
 		err = db2.Shutdown(context.Background())
 		if err != nil {
-			db2.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db2.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-
-	db1.updateRouting()
 
 	mname := "mymap"
 	dm := db1.NewDMap(mname)
@@ -252,33 +220,35 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	peers = append(peers, db2.discovery.localNode().Address())
-	db3, err := newOlric(peers)
+	peers = append(peers, db2.discovery.LocalNode().Address())
+	db3, err := newDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
+		db3.log.V(2).Printf("db3 closing")
 		err = db3.Shutdown(context.Background())
 		if err != nil {
-			db3.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db3.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	peers = append(peers, db3.discovery.localNode().Address())
-	r4, err := newOlric(peers)
+	peers = append(peers, db3.discovery.LocalNode().Address())
+	db4, err := newDB(peers)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r4.Shutdown(context.Background())
+		db4.log.Printf("db4 closing")
+		err = db4.Shutdown(context.Background())
 		if err != nil {
-			r4.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db4.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
-	db1.deleteStaleDMaps()
-	db1.updateRouting()
+	syncClusterMembers(db1, db2)
 
+	db1.rebalancer()
 	for _, bpart := range db1.backups {
 		bpart.RLock()
 		if len(bpart.owners) != 1 {
@@ -286,4 +256,4 @@ func TestDMap_PruneStaleBackups(t *testing.T) {
 		}
 		bpart.RUnlock()
 	}
-}
+}*/

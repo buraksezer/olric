@@ -24,13 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
+
 	"github.com/buraksezer/olric"
 )
 
 var testConfig = &Config{
 	DialTimeout: time.Second,
 	KeepAlive:   time.Second,
-	MaxConn:     100,
+	MaxConn:     10,
 }
 
 func getFreePort() (int, error) {
@@ -47,13 +49,20 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-func newOlric() (*olric.Olric, chan struct{}, error) {
+func newDB() (*olric.Olric, chan struct{}, error) {
 	port, err := getFreePort()
 	if err != nil {
 		return nil, nil, err
 	}
 	addr := "127.0.0.1:" + strconv.Itoa(port)
-	cfg := &olric.Config{Name: addr}
+	cfg := &config.Config{
+		PartitionCount:    7,
+		Name:              addr,
+		ReplicaCount:      config.MinimumReplicaCount,
+		WriteQuorum:       config.MinimumReplicaCount,
+		ReadQuorum:        config.MinimumReplicaCount,
+		MemberCountQuorum: config.MinimumMemberCountQuorum,
+	}
 	db, err := olric.New(cfg)
 	if err != nil {
 		return nil, nil, err
@@ -73,7 +82,7 @@ func newOlric() (*olric.Olric, chan struct{}, error) {
 }
 
 func TestClient_Get(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -91,7 +100,10 @@ func TestClient_Get(t *testing.T) {
 	}
 
 	name := "mymap"
-	dm := db.NewDMap(name)
+	dm, err := db.NewDMap(name)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	key, value := "my-key", "my-value"
 	err = dm.Put(key, value)
 	if err != nil {
@@ -107,7 +119,7 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_Put(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -131,7 +143,10 @@ func TestClient_Put(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dm := db.NewDMap(name)
+	dm, err := db.NewDMap(name)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	val, err := dm.Get(key)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -142,7 +157,7 @@ func TestClient_Put(t *testing.T) {
 }
 
 func TestClient_PutEx(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -161,17 +176,19 @@ func TestClient_PutEx(t *testing.T) {
 
 	name := "mymap"
 	key, value := "my-key", "my-value"
-	err = c.NewDMap(name).PutEx(key, value, 10*time.Millisecond)
+	err = c.NewDMap(name).PutEx(key, value, time.Millisecond)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	// Wait for updating currentUnixNano in Olric.
-	time.Sleep(110 * time.Millisecond)
-	dm := db.NewDMap(name)
+	time.Sleep(time.Millisecond)
+	dm, err := db.NewDMap(name)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	v, err := dm.Get(key)
 	if err != olric.ErrKeyNotFound {
-		t.Fatalf("Expected nil. Got: %v", err)
+		t.Fatalf("Expected olric.ErrKeyNotFound. Got: %v", err)
 	}
 	if v != nil {
 		t.Fatalf("Expected nil. Got: %v", v)
@@ -179,7 +196,7 @@ func TestClient_PutEx(t *testing.T) {
 }
 
 func TestClient_Delete(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -215,7 +232,7 @@ func TestClient_Delete(t *testing.T) {
 }
 
 func TestClient_LockWithTimeout(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -232,27 +249,22 @@ func TestClient_LockWithTimeout(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	name := "mymap"
-	key := "my-key"
-	err = c.NewDMap(name).Put(key, nil)
+	name := "lock.test"
+	key := "lock.test.key"
+	dm := c.NewDMap(name)
+	ctx, err := dm.LockWithTimeout(key, time.Second, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.NewDMap(name).LockWithTimeout(key, time.Second)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	dm := db.NewDMap(name)
-	err = dm.Unlock(key)
+	err = ctx.Unlock()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }
 
-func TestClient_Unlock(t *testing.T) {
-	db, done, err := newOlric()
+func TestClient_LockWithTimeoutAwaitOtherLock(t *testing.T) {
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -269,26 +281,86 @@ func TestClient_Unlock(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	name := "mymap"
-	key := "my-key"
-	err = c.NewDMap(name).Put(key, nil)
+	name := "lock.test"
+	key := "lock.test.key"
+	dm := c.NewDMap(name)
+	_, err = dm.LockWithTimeout(key, time.Second, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.NewDMap(name).LockWithTimeout(key, time.Second)
+	_, err = dm.LockWithTimeout(key, time.Second, time.Millisecond)
+	if err != olric.ErrLockNotAcquired {
+		t.Fatalf("Expected olric.ErrLockNotAcquired. Got: %v", err)
+	}
+}
+
+func TestClient_Lock(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = c.NewDMap(name).Unlock(key)
+	name := "lock.test"
+	key := "lock.test.key"
+	dm := c.NewDMap(name)
+	ctx, err := dm.Lock(key, time.Second)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	err = ctx.Unlock()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+}
+
+func TestClient_LockAwaitOtherLock(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	name := "lock.test"
+	key := "lock.test.key"
+	dm := c.NewDMap(name)
+	_, err = dm.Lock(key, time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	_, err = dm.Lock(key, time.Millisecond)
+	if err != olric.ErrLockNotAcquired {
+		t.Fatalf("Expected olric.ErrLockNotAcquired . Got: %v", err)
 	}
 }
 
 func TestClient_Destroy(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -324,7 +396,7 @@ func TestClient_Destroy(t *testing.T) {
 }
 
 func TestClient_Incr(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -379,7 +451,7 @@ func TestClient_Incr(t *testing.T) {
 }
 
 func TestClient_Decr(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -434,7 +506,7 @@ func TestClient_Decr(t *testing.T) {
 }
 
 func TestClient_GetPut(t *testing.T) {
-	db, done, err := newOlric()
+	db, done, err := newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -491,5 +563,211 @@ func TestClient_GetPut(t *testing.T) {
 	atomic.AddInt64(&total, int64(last.(int)))
 	if atomic.LoadInt64(&total) != final {
 		t.Fatalf("Expected %d. Got: %d", final, atomic.LoadInt64(&total))
+	}
+}
+
+func TestClient_Ping(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	addr := testConfig.Addrs[0]
+	err = c.Ping(addr)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+}
+
+func TestClient_Stats(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	name := "mymap"
+	key := "my-key-"
+	for i := 0; i < 100; i++ {
+		err = c.NewDMap(name).Put(key+strconv.Itoa(i), i)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	addr := testConfig.Addrs[0]
+	s, err := c.Stats(addr)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	var total int
+	for partID, part := range s.Partitions {
+		total += part.TotalKeyCount
+		if _, ok := part.DMaps["mymap"]; !ok {
+			t.Fatalf("Expected DMap check result is true. Got false")
+		}
+		if len(part.PreviousOwners) != 0 {
+			t.Fatalf("Expected PreviosOwners list is empty. "+
+				"Got: %v for PartID: %d", part.PreviousOwners, partID)
+		}
+		if part.KeyCount != 1 {
+			t.Fatalf("Expected DMap count: 1. Got: %d", part.KeyCount)
+		}
+		if part.Owner.String() != addr {
+			t.Fatalf("Expected partition owner: %s. Got: %s", addr, part.Owner)
+		}
+	}
+	if total != 100 {
+		t.Fatalf("Expected total key count in stats is 100. Got: %d", total)
+	}
+}
+
+func TestClient_Expire(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	name := "mymap"
+	dm, err := db.NewDMap(name)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	key, value := "my-key", "my-value"
+	err = dm.Put(key, value)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	err = c.NewDMap(name).Expire(key, time.Millisecond)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	time.Sleep(time.Millisecond)
+
+	v, err := dm.Get(key)
+	if err != olric.ErrKeyNotFound {
+		t.Fatalf("Expected olric.ErrKeyNotFound. Got: %v", err)
+	}
+	if v != nil {
+		t.Fatalf("Expected nil. Got: %v", v)
+	}
+}
+
+func TestClient_PutIf(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	name := "mymap"
+	key, value := "my-key", "my-value"
+	dm := c.NewDMap(name)
+	err = dm.Put(key, value)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = dm.PutIf(key, "new-value", olric.IfNotFound)
+	if err == olric.ErrKeyFound {
+		err = nil
+	}
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	val, err := dm.Get(key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if val.(string) != value {
+		t.Fatalf("Expected value %s. Got: %s", val.(string), value)
+	}
+}
+
+func TestClient_PutIfEx(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	name := "mymap"
+	key, value := "my-key", "my-value"
+	dm := c.NewDMap(name)
+	err = dm.Put(key, value)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = dm.PutIfEx(key, value, time.Millisecond, olric.IfFound)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	<-time.After(100 * time.Millisecond)
+	v, err := dm.Get(key)
+	if err != olric.ErrKeyNotFound {
+		t.Fatalf("Expected olric.ErrKeyNotFound. Got: %v", err)
+	}
+	if v != nil {
+		t.Fatalf("Expected nil. Got: %v", v)
 	}
 }

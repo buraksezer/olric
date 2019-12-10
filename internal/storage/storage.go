@@ -12,31 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package storage implements a GC friently data store by using map and byte array. It also supports compaction.*/
+/*Package storage implements a GC friendly in-memory storage engine by using map and byte array. It also supports compaction.*/
 package storage
 
 import (
-	"encoding/binary"
-
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack"
 )
 
 const (
 	maxGarbageRatio = 0.40
-	// 1MB
-	minimumSize = 1 << 20
+	// 65kb
+	minimumSize = 1 << 16
 )
 
 // ErrFragmented is an error that indicates this storage instance is currently
 // fragmented and it cannot be serialized.
 var ErrFragmented = errors.New("storage fragmented")
 
+// SlabInfo is used to expose internal data usage of a storage instance.
+type SlabInfo struct {
+	Allocated int
+	Inuse     int
+	Garbage   int
+}
+
 // VData represents a value with its metadata.
 type VData struct {
-	Key   string
-	TTL   int64
-	Value []byte
+	Key       string
+	Value     []byte
+	TTL       int64
+	Timestamp int64
 }
 
 // Storage implements a new off-heap data store which uses built-in map to
@@ -111,7 +117,7 @@ func (s *Storage) Put(hkey uint64, value *VData) error {
 	return res
 }
 
-// GetRaw extracts un-decoded value for the given hkey. This is useful for merging tables.
+// GetRaw extracts encoded value for the given hkey. This is useful for merging tables.
 func (s *Storage) GetRaw(hkey uint64) ([]byte, error) {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
@@ -156,6 +162,50 @@ func (s *Storage) Get(hkey uint64) (*VData, error) {
 	return nil, ErrKeyNotFound
 }
 
+// GetTTL gets the timeout for the given key. It returns ErrKeyNotFound if the DB
+// does not contains the key.
+func (s *Storage) GetTTL(hkey uint64) (int64, error) {
+	if len(s.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+
+	// Scan available tables by starting the last added table.
+	for i := len(s.tables) - 1; i >= 0; i-- {
+		t := s.tables[i]
+		ttl, prev := t.getTTL(hkey)
+		if prev {
+			// Try out the other tables.
+			continue
+		}
+		// Found the key, return its ttl
+		return ttl, nil
+	}
+	// Nothing here.
+	return 0, ErrKeyNotFound
+}
+
+// GetKey gets the key for the given hkey. It returns ErrKeyNotFound if the DB
+// does not contains the key.
+func (s *Storage) GetKey(hkey uint64) (string, error) {
+	if len(s.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+
+	// Scan available tables by starting the last added table.
+	for i := len(s.tables) - 1; i >= 0; i-- {
+		t := s.tables[i]
+		key, prev := t.getKey(hkey)
+		if prev {
+			// Try out the other tables.
+			continue
+		}
+		// Found the key, return its ttl
+		return key, nil
+	}
+	// Nothing here.
+	return "", ErrKeyNotFound
+}
+
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
 func (s *Storage) Delete(hkey uint64) error {
 	if len(s.tables) == 0 {
@@ -189,6 +239,27 @@ func (s *Storage) Delete(hkey uint64) error {
 		return ErrFragmented
 	}
 	return nil
+}
+
+// UpdateTTL updates the expiry for the given key.
+func (s *Storage) UpdateTTL(hkey uint64, data *VData) error {
+	if len(s.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+
+	// Scan available tables by starting the last added table.
+	for i := len(s.tables) - 1; i >= 0; i-- {
+		t := s.tables[i]
+		prev := t.updateTTL(hkey, data)
+		if prev {
+			// Try out the other tables.
+			continue
+		}
+		// Found the key, return the stored value with its metadata.
+		return nil
+	}
+	// Nothing here.
+	return ErrKeyNotFound
 }
 
 type transport struct {
@@ -248,6 +319,29 @@ func (s *Storage) Len() int {
 	return total
 }
 
+// SlabInfo is a function which provides memory allocation
+// and garbage ratio of a storage instance.
+func (s *Storage) SlabInfo() SlabInfo {
+	si := SlabInfo{}
+	for _, t := range s.tables {
+		si.Allocated += t.allocated
+		si.Inuse += t.inuse
+		si.Garbage += t.garbage
+	}
+	return si
+}
+
+// Inuse returns total in-use space by the tables.
+func (s *Storage) Inuse() int {
+	// SlabInfo does the same thing but we need
+	// to eliminate useless calls.
+	inuse := 0
+	for _, t := range s.tables {
+		inuse += t.inuse
+	}
+	return inuse
+}
+
 // Check checks the key existence.
 func (s *Storage) Check(hkey uint64) bool {
 	if len(s.tables) == 0 {
@@ -285,26 +379,4 @@ func (s *Storage) Range(f func(hkey uint64, vdata *VData) bool) {
 			}
 		}
 	}
-}
-
-// DecodeRaw creates VData for given byte slice. It assumes that the given data is valid. Never returns an error.
-func DecodeRaw(raw []byte) *VData {
-	offset := 0
-	vdata := &VData{}
-	// In-memory structure:
-	//
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
-	klen := int(uint8(raw[offset]))
-	offset++
-
-	vdata.Key = string(raw[offset : offset+klen])
-	offset += klen
-
-	vdata.TTL = int64(binary.BigEndian.Uint64(raw[offset : offset+8]))
-	offset += 8
-
-	vlen := binary.BigEndian.Uint32(raw[offset : offset+4])
-	offset += 4
-	vdata.Value = raw[offset : offset+int(vlen)]
-	return vdata
 }

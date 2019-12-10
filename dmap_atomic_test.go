@@ -21,15 +21,15 @@ import (
 	"testing"
 )
 
-func TestDMap_Incr(t *testing.T) {
-	r, err := newOlric(nil)
+func TestDMap_AtomicIncr(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r.Shutdown(context.Background())
+		err = db.Shutdown(context.Background())
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -43,12 +43,15 @@ func TestDMap_Incr(t *testing.T) {
 
 		_, err := dm.Incr(key, 1)
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to call Incr: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to call Incr: %v", err)
 			return
 		}
 	}
 
-	dm := r.NewDMap("atomic_test")
+	dm, err := db.NewDMap("atomic_test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	start = make(chan struct{})
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
@@ -66,15 +69,15 @@ func TestDMap_Incr(t *testing.T) {
 	}
 }
 
-func TestDMap_Decr(t *testing.T) {
-	r, err := newOlric(nil)
+func TestDMap_AtomicDecr(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r.Shutdown(context.Background())
+		err = db.Shutdown(context.Background())
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -88,12 +91,15 @@ func TestDMap_Decr(t *testing.T) {
 
 		_, err := dm.Decr(key, 1)
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to call Decr: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
 	}
 
-	dm := r.NewDMap("atomic_test")
+	dm, err := db.NewDMap("atomic_test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	start = make(chan struct{})
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
@@ -112,15 +118,15 @@ func TestDMap_Decr(t *testing.T) {
 
 }
 
-func TestDMap_GetPut(t *testing.T) {
-	r, err := newOlric(nil)
+func TestDMap_AtomicGetPut(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = r.Shutdown(context.Background())
+		err = db.Shutdown(context.Background())
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
 
@@ -134,7 +140,7 @@ func TestDMap_GetPut(t *testing.T) {
 
 		oldval, err := dm.GetPut(key, i)
 		if err != nil {
-			r.log.Printf("[ERROR] Failed to call Decr: %v", err)
+			db.log.V(2).Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
 		if oldval != nil {
@@ -142,7 +148,10 @@ func TestDMap_GetPut(t *testing.T) {
 		}
 	}
 
-	dm := r.NewDMap("atomic_test")
+	dm, err := db.NewDMap("atomic_test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	start = make(chan struct{})
 	var final int64
 	for i := 0; i < 100; i++ {
