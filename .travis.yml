@@ -5,11 +5,7 @@ sudo: false
 language: go
 
 go:
-    - "1.12"
-
-# Skip the install step. Don't `go get` dependencies. Only build with the code
-# in vendor/
-install: true
+    - "1.13.5"
 
 # Don't email me the results of the test runs.
 notifications:
