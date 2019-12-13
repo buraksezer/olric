@@ -73,7 +73,7 @@ func (s *Storage) PutRaw(hkey uint64, value []byte) error {
 		err := t.putRaw(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(t.inuse * 2)
+			nt := newTable(s.Inuse() * 2)
 			s.tables = append(s.tables, nt)
 			res = ErrFragmented
 			// try again
@@ -102,7 +102,7 @@ func (s *Storage) Put(hkey uint64, value *VData) error {
 		err := t.put(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(t.inuse * 2)
+			nt := newTable(s.Inuse() * 2)
 			s.tables = append(s.tables, nt)
 			res = ErrFragmented
 			// try again
@@ -229,12 +229,7 @@ func (s *Storage) Delete(hkey uint64) error {
 	t := s.tables[0]
 	if float64(t.allocated)*maxGarbageRatio <= float64(t.garbage) {
 		// Create a new table here.
-		newSize := t.inuse * 2
-		if newSize > t.allocated {
-			// Don't grow up.
-			newSize = t.allocated
-		}
-		nt := newTable(newSize)
+		nt := newTable(s.Inuse() * 2)
 		s.tables = append(s.tables, nt)
 		return ErrFragmented
 	}

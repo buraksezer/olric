@@ -19,7 +19,6 @@ import (
 	"math/rand"
 	"runtime"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/internal/storage"
@@ -60,32 +59,22 @@ func (db *Olric) evictKeysAtBackground() {
 }
 
 func (db *Olric) evictKeys() {
-	dmCount := 0
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.partitions[partID]
-	var wg sync.WaitGroup
 	part.m.Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
-		// Picks 20 dmap instances randomly to check out expired keys. Then waits until all the goroutines done.
-		dmCount++
-		if dmCount >= 20 {
-			return false
-		}
-		wg.Add(1)
-		go db.scanDMapForEviction(partID, name.(string), dm, &wg)
+		db.scanDMapForEviction(partID, name.(string), dm)
 		return true
 	})
-	wg.Wait()
 }
 
-func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap, wg *sync.WaitGroup) {
+func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 	/*
 		From Redis Docs:
 			1- Test 20 random keys from the set of keys with an associated expire.
 			2- Delete all the keys found expired.
 			3- If more than 25% of keys were expired, start again from step 1.
 	*/
-	defer wg.Done()
 
 	// We need limits to prevent CPU starvation. delKeyVal does some network operation
 	// to delete keys from the backup nodes and the previous owners.

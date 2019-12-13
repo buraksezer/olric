@@ -52,6 +52,14 @@ func newTable(size int) *table {
 		hkeys:     make(map[uint64]int),
 		allocated: size,
 	}
+	//  From builtin.go:
+	//
+	//  The size specifies the length. The capacity of the slice is
+	//	equal to its length. A second integer argument may be provided to
+	//	specify a different capacity; it must be no smaller than the
+	//	length. For example, make([]int, 0, 10) allocates an underlying array
+	//	of size 10 and returns a slice of length 0 and capacity 10 that is
+	//	backed by this underlying array.
 	t.memory = make([]byte, size)
 	return t
 }
@@ -127,7 +135,7 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 
 	// In-memory structure:
 	// 1                 | klen       | 8           | 8                  | 4                    | vlen
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64)  | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := int(uint8(t.memory[end]))
 	end++       // One byte to keep key length
 	end += klen // Key length

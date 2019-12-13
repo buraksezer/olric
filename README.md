@@ -5,6 +5,8 @@
 Distributed, eventually consistent and in-memory key/value data store and cache. It can be used both as an embedded Go 
 library and as a language-independent service.
 
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
+
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
@@ -88,6 +90,7 @@ Olric is in early stages of development. The package API and client protocol may
 * Implements a fast and simple binary protocol,
 * Embeddable but can be used as a language-independent service with olricd,
 * GC-friendly storage engine,
+* O(1) running time for lookups,
 * Supports atomic operations,
 * Provides a lock implementation which can be used for non-critical purposes,
 * Different eviction policies: LRU, MaxIdleDuration and Time-To-Live(TTL),
@@ -96,12 +99,14 @@ Olric is in early stages of development. The package API and client protocol may
 * Provides best-effort consistency guarantees without being a complete CP solution,
 * Distributes load fairly among cluster members with a [consistent hash function](https://github.com/buraksezer/consistent),
 * Supports replication by default(with sync and async options),
+* Quorum-based voting for replica control,
+* Repairs itself after a network partitioning,
 * Thread-safe by default,
 * Provides a command-line-interface to access the cluster directly from the terminal,
-* Very simple package API,
-* Offers a built-in Go client,
-* Gob, JSON and MessagePack are supportted by default as serialization format,
-* Simplicity as a key concept with a small set of features.
+* Supports different serialization formats. Gob, JSON and MessagePack are supported out of the box,
+* Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
+
+See [Architecture](#architecture) section to see details.
 
 ## Planned Features
 
@@ -109,7 +114,7 @@ Olric is in early stages of development. The package API and client protocol may
 * Anti-entropy system to repair inconsistencies in DMaps,
 * Publish/Subscribe for messaging,
 * Eviction listeners by using Publish/Subscribe,
-* Memcache interface,
+* Memcached interface,
 * Client implementations for different languages: Java, Python and JavaScript,
 * REST API.
 
