@@ -81,6 +81,9 @@ func (w *writeop) fromReq(req *protocol.Message) {
 		w.flags = req.Extra.(protocol.PutIfExExtra).Flags
 		w.timestamp = req.Extra.(protocol.PutIfExExtra).Timestamp
 		w.timeout = time.Duration(req.Extra.(protocol.PutIfExExtra).TTL)
+	case protocol.OpExpire:
+		w.timestamp = req.Extra.(protocol.ExpireExtra).Timestamp
+		w.timeout = time.Duration(req.Extra.(protocol.ExpireExtra).TTL)
 	}
 }
 
@@ -111,6 +114,11 @@ func (w *writeop) toReq(opcode protocol.OpCode) *protocol.Message {
 	case protocol.OpPutIfEx, protocol.OpPutIfExReplica:
 		req.Extra = protocol.PutIfExExtra{
 			Flags:     w.flags,
+			Timestamp: w.timestamp,
+			TTL:       w.timeout.Nanoseconds(),
+		}
+	case protocol.OpExpire:
+		req.Extra = protocol.ExpireExtra{
 			Timestamp: w.timestamp,
 			TTL:       w.timeout.Nanoseconds(),
 		}

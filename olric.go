@@ -205,7 +205,13 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 // New creates a new Olric instance, otherwise returns an error.
 func New(c *config.Config) (*Olric, error) {
 	if c == nil {
-		c = &config.Config{}
+		c = &config.Config{
+			Name:              ":0",
+			ReplicaCount:      1,
+			WriteQuorum:       1,
+			ReadQuorum:        1,
+			MemberCountQuorum: 1,
+		}
 	}
 	err := c.Sanitize()
 	if err != nil {

@@ -798,6 +798,9 @@ func main() {
 		}
 	}()
 
+	fmt.Println("Awaiting for background goroutines")
+	<-time.After(time.Second)
+
 	// Put 10 items into the DMap object.
 	dm, err := db.NewDMap("bucket-of-arbitrary-items")
 	if err != nil {
