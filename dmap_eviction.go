@@ -64,7 +64,8 @@ func (db *Olric) evictKeys() {
 	part.m.Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
 		db.scanDMapForEviction(partID, name.(string), dm)
-		return true
+		// this breaks the loop, we only scan one DMap instance per call
+		return false
 	})
 }
 

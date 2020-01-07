@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -241,19 +242,41 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 		}
 	}
 
+	// MaxKeys and MaxInuse properties of LRU can be used in the same time.
+	// But I think that it's good to use only one of time in a production system.
+	// Because it should be easy to understand and debug.
+
 	// Try to make room for the new item, if it's required.
 	if dm.cache != nil && dm.cache.evictionPolicy == config.LRUEviction {
-		if dm.cache.maxKeys > 0 && dm.storage.Len() >= dm.cache.maxKeys {
-			err := db.evictKeyWithLRU(dm, w.dmap)
-			if err != nil {
-				return err
+		// This works for every request if you enabled LRU.
+		// But loading a number from memory should be very cheap.
+		// ownedPartitionCount changes in the case of node join or leave.
+		ownedPartitionCount := atomic.LoadUint64(&db.ownedPartitionCount)
+
+		if dm.cache.maxKeys > 0 {
+			// MaxKeys controls maximum key count owned by this node.
+			// We need ownedPartitionCount property because every partition
+			// manages itself independently. So if you set MaxKeys=70 and
+			// your partition count is 7, every partition 10 keys at maximum.
+			if dm.storage.Len() >= dm.cache.maxKeys/int(ownedPartitionCount) {
+				err := db.evictKeyWithLRU(dm, w.dmap)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
-		if dm.cache.maxInuse > 0 && dm.storage.Inuse() >= dm.cache.maxInuse {
-			err := db.evictKeyWithLRU(dm, w.dmap)
-			if err != nil {
-				return err
+		if dm.cache.maxInuse > 0 {
+			// MaxInuse controls maximum in-use memory of partitions on this node.
+			// We need ownedPartitionCount property because every partition
+			// manages itself independently. So if you set MaxInuse=70M(in bytes) and
+			// your partition count is 7, every partition consumes 10M in-use space at maximum.
+			// WARNING: Actual allocated memory can be different.
+			if dm.storage.Inuse() >= dm.cache.maxInuse/int(ownedPartitionCount) {
+				err := db.evictKeyWithLRU(dm, w.dmap)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

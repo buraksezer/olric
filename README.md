@@ -2,7 +2,7 @@
 
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Distributed, eventually consistent and in-memory key/value data store and cache. It can be used both as an embedded Go 
+Distributed, eventually consistent, in-memory key/value data store and cache. It can be used both as an embedded Go 
 library and as a language-independent service.
 
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
@@ -16,6 +16,7 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP solution,
 * Supports replication by default(with sync and async options),
+* Quorum-based voting for replica control(Read/Write quorums),
 * Supports atomic operations,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
 
@@ -100,7 +101,6 @@ Olric is in early stages of development. The package API and client protocol may
 * Distributes load fairly among cluster members with a [consistent hash function](https://github.com/buraksezer/consistent),
 * Supports replication by default(with sync and async options),
 * Quorum-based voting for replica control,
-* Repairs itself after a network partitioning,
 * Thread-safe by default,
 * Provides a command-line-interface to access the cluster directly from the terminal,
 * Supports different serialization formats. Gob, JSON and MessagePack are supported out of the box,
@@ -165,7 +165,7 @@ Olric has two different operation modes.
 ### Embedded Member
 
 In Embedded Member Mode, members include both the application and Olric data and services. The advantage of the Embedded 
-Member Mode is having a low-latency data access. 
+Member Mode is having a low-latency data access and locality.
 
 ### Client-Server
 
@@ -188,11 +188,7 @@ Olric comes with some useful tools to interact with the cluster.
 
 ### olricd
 
-Olric is an embeddable, single-hop DHT implementation. So a cluster member includes both the application and Olric data 
-and services in **embedded member mode**. olricd handles configuration in YAML format and graceful process shutdown for 
-you **in client-server mode**.
-
-Start it with the following command:
+With olricd, you can create an Olric cluster with a few commands. Let's create a cluster with the following:
 
 ```
 olricd -c <YOUR_CONFIG_FILE_PATH>
@@ -203,6 +199,10 @@ olricd also supports `OLRICD_CONFIG` environment variable to set configuration. 
 ```
 OLRICD_CONFIG=<YOUR_CONFIG_FILE_PATH> olricd
 ```
+
+Olric nodes discovers the others automatically. You just need to maintain an accurate list of peers as much as possible.
+Currently we only support a static peer list in the configuration file. The other methods will be implemented in the future. 
+You should know that a single alive peer in the list is enough to discover the whole cluster. 
 
 You can find a sample configuration file under `cmd/olricd/olricd.yaml`. 
 
@@ -264,8 +264,10 @@ PartID: 69
     Garbage: 0
 ```
 
-Without giving a partition number, it will print everything about the cluster and hosted primary/backup partitions. In order to get more details about 
-the command, call `olric-stats -h`.
+In order to get detailed statistics about the Go runtime, you should call `olric-stats -a <ADDRESS> -r`.
+
+Without giving a partition number, it will print everything about the cluster and hosted primary/backup partitions. 
+In order to get more details about the command, call `olric-stats -h`.
 
 ### olric-load
 
@@ -729,12 +731,42 @@ When a client tries to access a key, Olric returns `ErrKeyNotFound` if the key i
 
 #### Expire with MaxIdleDuration
 
+Maximum time for each entry to stay idle in the DMap. It limits the lifetime of the entries relative to the time of the last read 
+or write access performed on them. The entries whose idle period exceeds this limit are expired and evicted automatically. 
+An entry is idle if no Get, Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration feature varies by 
+preferred deployment method. 
+
 #### Expire with LRU
+
+Olric implements LRU eviction method on DMaps. Approximated LRU algorithm is borrowed from Redis. The Redis authors proposes the following algorithm:
+
+> It is important to understand that the eviction process works like this:
+> 
+> * A client runs a new command, resulting in more data added.
+> * Redis checks the memory usage, and if it is greater than the maxmemory limit , it evicts keys according to the policy.
+> * A new command is executed, and so forth.
+>
+> So we continuously cross the boundaries of the memory limit, by going over it, and then by evicting keys to return back under the limits.
+>
+> If a command results in a lot of memory being used (like a big set intersection stored into a new key) for some time the memory 
+> limit can be surpassed by a noticeable amount. 
+>
+> **Approximated LRU algorithm**
+>
+> Redis LRU algorithm is not an exact implementation. This means that Redis is not able to pick the best candidate for eviction, 
+> that is, the access that was accessed the most in the past. Instead it will try to run an approximation of the LRU algorithm, 
+> by sampling a small number of keys, and evicting the one that is the best (with the oldest access time) among the sampled keys.
+
+Olric tracks access time for every DMap instance. Then it picks and sorts some configurable amount of keys to select keys for eviction.
+Every node runs this algorithm independently. The access log is moved along with the partition when a network partition is occured.
+
+#### Configuration of eviction mechanisms
+
 
 ### Lock Implementation
 
 The DMap implementation is already thread-safe to meet your thread safety requirements. When you want to have more control on the
-concurrency, you can use LockWithTimeout and Lock methods. Olric borrows the locking algorithm from Redis. Redis authors propose
+concurrency, you can use **LockWithTimeout** and **Lock** methods. Olric borrows the locking algorithm from Redis. Redis authors propose
 the following algorithm:
 
 > The command <SET resource-name anystring NX EX max-lock-time> is a simple way to implement a locking system with Redis.

@@ -70,7 +70,7 @@ func (q *Query) prettyPrint(partID uint64, part stats.Partition) {
 	if len(part.Backups) != 0 {
 		q.log.Printf("  Backups:")
 		for idx, backup := range part.Backups {
-			q.log.Printf("  %d: %s", idx, backup.Name)
+			q.log.Printf("    %d: %s", idx+1, backup.Name)
 		}
 	} else {
 		q.log.Printf("  Backups: not found")

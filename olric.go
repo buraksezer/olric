@@ -58,7 +58,7 @@ var (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.1.0"
+const ReleaseVersion string = "0.2.0-rc.1"
 
 const nilTimeout = 0 * time.Second
 
@@ -68,6 +68,10 @@ type Olric struct {
 	bootstrapped int32
 	// numMembers is used to check cluster quorum.
 	numMembers int32
+
+	// Currently owned partition count. Approximate LRU implementation
+	// uses that.
+	ownedPartitionCount uint64
 
 	// this defines this Olric node in the cluster.
 	this   discovery.Member
@@ -515,10 +519,14 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	db.wg.Wait()
 
-	// The GC will flush all the data.
-	db.partitions = nil
-	db.backups = nil
-	db.log.V(1).Printf("[INFO] %s is gone", db.this)
+	// If the user kills the server before bootstrapping, db.this is going to empty.
+	var name string
+	if db.this.String() != "" {
+		name = db.this.String()
+	} else {
+		name = db.config.Name
+	}
+	db.log.V(1).Printf("[INFO] %s is gone", name)
 	return result
 }
 
@@ -568,8 +576,8 @@ func (db *Olric) setCacheConfiguration(dm *dmap, name string) error {
 	dm.cache = &cache{}
 	dm.cache.maxIdleDuration = db.config.Cache.MaxIdleDuration
 	dm.cache.ttlDuration = db.config.Cache.TTLDuration
-	dm.cache.maxKeys = db.config.Cache.MaxKeys / int(db.config.PartitionCount)
-	dm.cache.maxInuse = db.config.Cache.MaxInuse / int(db.config.PartitionCount)
+	dm.cache.maxKeys = db.config.Cache.MaxKeys
+	dm.cache.maxInuse = db.config.Cache.MaxInuse
 	dm.cache.lruSamples = db.config.Cache.LRUSamples
 	dm.cache.evictionPolicy = db.config.Cache.EvictionPolicy
 
@@ -587,10 +595,10 @@ func (db *Olric) setCacheConfiguration(dm *dmap, name string) error {
 				dm.cache.evictionPolicy = c.EvictionPolicy
 			}
 			if dm.cache.maxKeys != c.MaxKeys {
-				dm.cache.maxKeys = c.MaxKeys / int(db.config.PartitionCount)
+				dm.cache.maxKeys = c.MaxKeys
 			}
 			if dm.cache.maxInuse != c.MaxInuse {
-				dm.cache.maxInuse = c.MaxInuse / int(db.config.PartitionCount)
+				dm.cache.maxInuse = c.MaxInuse
 			}
 			if dm.cache.lruSamples != c.LRUSamples {
 				dm.cache.lruSamples = c.LRUSamples

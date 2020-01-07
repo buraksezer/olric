@@ -199,6 +199,7 @@ func (s *Olricd) waitForInterrupt() {
 
 	// This is not a goroutine leak. The process will quit.
 	go func() {
+		s.log.Printf("[olricd] Awaiting for background tasks")
 		s.log.Printf("[olricd] Press CTRL+C or send SIGTERM/SIGINT to quit immediately")
 		forceQuitCh := make(chan os.Signal, 1)
 		signal.Notify(forceQuitCh, syscall.SIGTERM, syscall.SIGINT)

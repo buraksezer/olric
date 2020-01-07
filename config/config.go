@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ const (
 )
 
 const (
-	// DefaultPartitionCount determines default partition count in the cluster.
+	// DefaultPartitionCount denotes default partition count in the cluster.
 	DefaultPartitionCount = 271
 
 	// DefaultLoadFactor is used by the consistent hashing function. Keep it small.
@@ -51,57 +51,135 @@ const (
 	// DefaultLogLevel determines the log level without extra configuration. It's DEBUG.
 	DefaultLogLevel = "DEBUG"
 
-	DefaultLogVerbosity = 2
+	// DefaultLogVerbosity denotes default log verbosity level.
+	//
+	// * flog.V(1) - Generally useful for this to ALWAYS be visible to an operator
+	//   * Programmer errors
+	//   * Logging extra info about a panic
+	//   * CLI argument handling
+	// * flog.V(2) - A reasonable default log level if you don't want verbosity.
+	//   * Information about config (listening on X, watching Y)
+	//   * Errors that repeat frequently that relate to conditions that can be corrected (pod detected as unhealthy)
+	// * flog.V(3) - Useful steady state information about the service and important log messages that may correlate to
+	//   significant changes in the system.  This is the recommended default log level for most systems.
+	//   * Logging HTTP requests and their exit code
+	//   * System state changing (killing pod)
+	//   * Controller state change events (starting pods)
+	//   * Scheduler log messages
+	// * flog.V(4) - Extended information about changes
+	//   * More info about system state changes
+	// * flog.V(5) - Debug level verbosity
+	//   * Logging in particularly thorny parts of code where you may want to come back later and check it
+	// * flog.V(6) - Trace level verbosity
+	//   * Context to understand the steps leading up to errors and warnings
+	//   * More information for troubleshooting reported issues
+	DefaultLogVerbosity = 3
 
-	// MinimumReplicaCount determines the default and minimum replica count in an Olric cluster.
+	// MinimumReplicaCount denotes default and minimum replica count in an Olric cluster.
 	MinimumReplicaCount = 1
 
+	// DefaultRequestTimeout denotes default timeout value for a request.
 	DefaultRequestTimeout = 10 * time.Second
 
+	// DefaultJoinRetryInterval denotes a time gap between sequential join attempts.
 	DefaultJoinRetryInterval = time.Second
 
+	// DefaultMaxJoinAttempts denotes a maximum number of failed join attempts
+	// before forming a standalone cluster.
 	DefaultMaxJoinAttempts = 10
 
+	// MinimumMemberCountQuorum denotes minimum required count of members to form a cluster.
 	MinimumMemberCountQuorum = 1
 
+	// DefaultTableSize is 1MB if you don't set your own value.
 	DefaultTableSize = 1 << 20
-)
 
-type EvictionPolicy string
-
-const (
 	DefaultLRUSamples int            = 5
+
 	LRUEviction       EvictionPolicy = "LRU"
 )
+
+// EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
+type EvictionPolicy string
 
 // note on DMapCacheConfig and CacheConfig:
 // golang doesn't provide the typical notion of inheritance.
 // because of that I preferred to define the types explicitly.
 
+// DMapCacheConfig denotes cache configuration for a particular DMap.
 type DMapCacheConfig struct {
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
+	// It limits the lifetime of the entries relative to the time of the last
+	// read or write access performed on them. The entries whose idle period exceeds
+	// this limit are expired and evicted automatically. An entry is idle if no Get,
+	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
+	// feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
+
+	// TTLDuration is useful to set a default TTL for every key/value pair a DMap instance.
 	TTLDuration     time.Duration
+
+	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
+	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
 	MaxKeys         int
+
+	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
+	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
 	MaxInuse        int
+
+	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
+	// Lower values are better for high performance. It's 5 by default.
 	LRUSamples      int
+
+	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
+	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy  EvictionPolicy
 }
 
+// CacheConfig denotes a global cache configuration for DMaps. You can still overwrite it by setting a
+// DMapCacheConfig for a particular DMap. Don't set this if you use Olric as an ordinary key/value store.
 type CacheConfig struct {
+	// NumEvictionWorkers denotes the number of goroutines that's used to find keys for eviction.
 	NumEvictionWorkers int64
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
+	// It limits the lifetime of the entries relative to the time of the last
+	// read or write access performed on them. The entries whose idle period exceeds
+	// this limit are expired and evicted automatically. An entry is idle if no Get,
+	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
+	// feature varies by preferred deployment method.
 	MaxIdleDuration    time.Duration
+
+	// TTLDuration is useful to set a default TTL for every key/value pair a DMap instance.
 	TTLDuration        time.Duration
+
+	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
+	// MaxKeys=100000, max key count in the cluster should around MaxKeys*10=1000000
 	MaxKeys            int
+
+	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
+	// MaxInuse=100M (it has to be in bytes), max amount of in-use memory should be around MaxInuse*10=1G
 	MaxInuse           int
+
+	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
+	// Lower values are better for high performance. It's 5 by default.
 	LRUSamples         int
+
+	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
+	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy     EvictionPolicy
-	DMapConfigs        map[string]DMapCacheConfig // For fine grained configuration.
+
+	// DMapConfigs is useful to set custom cache config per DMap instance.
+	DMapConfigs        map[string]DMapCacheConfig
 }
 
 // Config is the configuration to create a Olric instance.
 type Config struct {
+	// LogVerbosity denotes the level of message verbosity. The default value is 3. Valid values are between 1 to 6.
 	LogVerbosity int32
+
+	// Default LogLevel is DEBUG. Valid ones: "DEBUG", "WARN", "ERROR", "INFO"
 	LogLevel     string
+
 	// Name of this node in the cluster. This must be unique in the cluster. If this is not set,
 	// Olric will set it to the hostname of the running machine. Example: node1.my-cluster.net
 	//
@@ -136,8 +214,7 @@ type Config struct {
 	// for a server in the cluster. Keep it small.
 	LoadFactor float64
 
-	// Default hasher is github.com/cespare/xxhash. You may want to use a different
-	// hasher which implements Hasher interface.
+	// Default hasher is github.com/cespare/xxhash
 	Hasher hasher.Hasher
 
 	// Default Serializer implementation uses gob for encoding/decoding.
