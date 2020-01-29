@@ -377,7 +377,7 @@ PutIfEx sets the value for the given key with TTL. It overwrites any previous va
 err := dm.PutIfEx("my-key", "my-value", time.Second, flags)
 ```
 
-The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutEx 
+The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutIfEx 
 returns but not before.
 
 
