@@ -162,7 +162,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		}
 
 		part := db.partitions[partID]
-		if part.keyCount() == 0 {
+		if part.length() == 0 {
 			// Empty partition. Skip it.
 			continue
 		}
@@ -196,7 +196,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 		}
 
 		part := db.backups[partID]
-		if part.keyCount() == 0 {
+		if part.length() == 0 {
 			// Empty partition. Skip it.
 			continue
 		}

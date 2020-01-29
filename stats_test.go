@@ -48,7 +48,7 @@ func TestStatsStandalone(t *testing.T) {
 	}
 	var total int
 	for partID, part := range s.Partitions {
-		total += part.TotalKeyCount
+		total += part.Length
 		if _, ok := part.DMaps["mymap"]; !ok {
 			t.Fatalf("Expected DMap check result is true. Got false")
 		}
@@ -56,15 +56,15 @@ func TestStatsStandalone(t *testing.T) {
 			t.Fatalf("Expected PreviosOwners list is empty. "+
 				"Got: %v for PartID: %d", part.PreviousOwners, partID)
 		}
-		if part.KeyCount <= 0 {
-			t.Fatalf("Unexpected KeyCount: %d", part.KeyCount)
+		if part.Length <= 0 {
+			t.Fatalf("Unexpected Length: %d", part.Length)
 		}
 		if !hostCmp(part.Owner, db.this) {
 			t.Fatalf("Expected partition owner: %s. Got: %s", db.this, part.Owner)
 		}
 	}
 	if total != 100 {
-		t.Fatalf("Expected total key count in stats is 100. Got: %d", total)
+		t.Fatalf("Expected total length of partition in stats is 100. Got: %d", total)
 	}
 }
 
@@ -110,18 +110,18 @@ func TestStatsCluster(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		for _, part := range s.Partitions {
-			primaryTotal += part.TotalKeyCount
+			primaryTotal += part.Length
 		}
 		for _, part := range s.Backups {
-			backupTotal += part.TotalKeyCount
+			backupTotal += part.Length
 		}
 	}
 	if primaryTotal != 100 {
-		t.Fatalf("Expected total key count on primary "+
+		t.Fatalf("Expected total length of partitions on primary "+
 			"owners in stats is 100. Got: %d", primaryTotal)
 	}
 	if backupTotal != 100 {
-		t.Fatalf("Expected total key count on backup "+
+		t.Fatalf("Expected total length of partitions on backup "+
 			"owners in stats is 100. Got: %d", backupTotal)
 	}
 }

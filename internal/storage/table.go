@@ -136,7 +136,7 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 	// In-memory structure:
 	// 1                 | klen       | 8           | 8                  | 4                    | vlen
 	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64)  | VALUE-LENGTH(uint32) | VALUE(bytes)
-	klen := int(uint8(t.memory[end]))
+	klen := int(t.memory[end])
 	end++       // One byte to keep key length
 	end += klen // Key length
 	end += 8    // For bytes for TTL
@@ -158,7 +158,7 @@ func (t *table) getKey(hkey uint64) (string, bool) {
 		return "", true
 	}
 
-	klen := int(uint8(t.memory[offset]))
+	klen := int(t.memory[offset])
 	offset++
 	key := string(t.memory[offset : offset+klen])
 	return key, false
@@ -170,7 +170,7 @@ func (t *table) getTTL(hkey uint64) (int64, bool) {
 		return 0, true
 	}
 
-	klen := int(uint8(t.memory[offset]))
+	klen := int(t.memory[offset])
 	offset++
 	offset += klen
 	ttl := int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))

@@ -38,7 +38,7 @@ func (r *RoundRobin) Get() string {
 	defer r.Unlock()
 
 	if r.current >= len(r.addrs) {
-		r.current = r.current % len(r.addrs)
+		r.current %= len(r.addrs)
 	}
 
 	addr := r.addrs[r.current]

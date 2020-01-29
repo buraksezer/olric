@@ -51,9 +51,9 @@ func TestRebalance_Merge(t *testing.T) {
 	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
 		part := db1.partitions[partID]
 		if !hostCmp(part.owner(), db1.this) {
-			if part.keyCount() != 0 {
+			if part.length() != 0 {
 				t.Fatalf("Expected key count is 0 for PartID: %d on %s. Got: %d",
-					partID, db1.this, part.keyCount())
+					partID, db1.this, part.length())
 			}
 		}
 	}
@@ -61,7 +61,7 @@ func TestRebalance_Merge(t *testing.T) {
 	for partID := uint64(0); partID < db2.config.PartitionCount; partID++ {
 		part := db2.partitions[partID]
 		if hostCmp(part.owner(), db2.this) {
-			if part.keyCount() == 0 {
+			if part.length() == 0 {
 				t.Fatalf("Expected key count is different than zero for PartID: %d on %s", partID, db2.this)
 			}
 		}

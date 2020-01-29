@@ -75,7 +75,6 @@ func (q *Query) prettyPrint(partID uint64, part stats.Partition) {
 	} else {
 		q.log.Printf("  Backups: not found")
 	}
-	q.log.Printf("  Key count: %d", part.KeyCount)
 	if len(part.DMaps) != 0 {
 		q.log.Printf("  DMaps:")
 		for name, dm := range part.DMaps {
@@ -89,7 +88,7 @@ func (q *Query) prettyPrint(partID uint64, part stats.Partition) {
 	} else {
 		q.log.Printf("  DMaps: not found")
 	}
-	q.log.Printf("  Key count: %d", part.TotalKeyCount)
+	q.log.Printf("  Length of partition: %d", part.Length)
 	q.log.Printf("\n")
 }
 
@@ -98,7 +97,7 @@ func (q *Query) PrintRawStats(backup bool) error {
 	if err != nil {
 		return err
 	}
-	var totalKeyCount int
+	var totalLength int
 	var totalInuse int
 	var totalAllocated int
 	var totalGarbage int
@@ -109,7 +108,7 @@ func (q *Query) PrintRawStats(backup bool) error {
 	for partID := uint64(0); partID < uint64(len(partitions)); partID++ {
 		if part, ok := partitions[partID]; ok {
 			q.prettyPrint(partID, part)
-			totalKeyCount += part.TotalKeyCount
+			totalLength += part.Length
 			for _, dm := range part.DMaps {
 				totalInuse += dm.SlabInfo.Inuse
 				totalAllocated += dm.SlabInfo.Allocated
@@ -118,7 +117,7 @@ func (q *Query) PrintRawStats(backup bool) error {
 		}
 	}
 	q.log.Printf("Summary for %s:\n\n", q.addr)
-	q.log.Printf("Total key count: %d", totalKeyCount)
+	q.log.Printf("Total length of partitions: %d", totalLength)
 	q.log.Printf("Total partition count: %d", len(data.Partitions))
 	q.log.Printf("Total Allocated: %d", totalAllocated)
 	q.log.Printf("Total Inuse: %d", totalInuse)

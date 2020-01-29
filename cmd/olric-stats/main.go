@@ -74,14 +74,6 @@ var (
 	timeout     string
 )
 
-func init() {
-	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
-	// available, MustInit will panic() with an error indicating why reading from
-	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
-	// call to Init() failed in the past.
-	seed.MustInit()
-}
-
 func main() {
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
@@ -124,6 +116,13 @@ func main() {
 		logger.Printf(usage, defaultAddr, runtime.Version())
 		return
 	}
+
+	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
+	// available, MustInit will panic() with an error indicating why reading from
+	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
+	// call to Init() failed in the past.
+	seed.MustInit()
+
 	q, err := query.New(addr, timeout, logger)
 	if err != nil {
 		logger.Fatalf("Failed to run olric-stats: %v", err)

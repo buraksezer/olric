@@ -68,7 +68,7 @@ const (
 	OpDeleteBackup
 	OpDestroyDMap
 	OpMoveDMap
-	OpKeyCountOnPart
+	OpLengthOfPart
 	OpPipeline
 	OpPing
 	OpStats
@@ -76,7 +76,6 @@ const (
 	OpExpireReplica
 )
 
-// StatusCode ...
 type StatusCode uint8
 
 // status codes
@@ -152,8 +151,8 @@ type PutIfExExtra struct {
 	TTL       int64
 }
 
-// KeyCountOnPartExtra defines extra values for this operation.
-type KeyCountOnPartExtra struct {
+// LengthOfPartExtra defines extra values for this operation.
+type LengthOfPartExtra struct {
 	PartID uint64
 	Backup bool
 }
@@ -171,7 +170,7 @@ type ExpireExtra struct {
 
 // UpdateRoutingExtra defines extra values for this operation.
 type UpdateRoutingExtra struct {
-	CoordinatorId uint64
+	CoordinatorID uint64
 }
 
 // ErrConnClosed means that the underlying TCP connection has been closed
@@ -206,8 +205,8 @@ func loadExtras(raw []byte, op OpCode) (interface{}, error) {
 		extra := LockExtra{}
 		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
 		return extra, err
-	case OpKeyCountOnPart:
-		extra := KeyCountOnPartExtra{}
+	case OpLengthOfPart:
+		extra := LengthOfPartExtra{}
 		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
 		return extra, err
 	case OpIncr, OpDecr, OpGetPut:
@@ -326,20 +325,24 @@ func (m *Message) Write(conn io.Writer) error {
 
 // Error generates an error message for the request.
 func (m *Message) Error(status StatusCode, err interface{}) *Message {
-	var value []byte
-	switch err.(type) {
-	case string:
-		value = []byte(err.(string))
-	case error:
-		value = []byte(err.(error).Error())
+	getError := func(err interface{}) string {
+		switch val := err.(type) {
+		case string:
+			return val
+		case error:
+			return val.Error()
+		default:
+			return ""
+		}
 	}
+
 	return &Message{
 		Header: Header{
 			Magic:  MagicRes,
 			Op:     m.Op,
 			Status: status,
 		},
-		Value: value,
+		Value: []byte(getError(err)),
 	}
 }
 

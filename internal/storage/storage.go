@@ -86,7 +86,6 @@ func (s *Storage) PutRaw(hkey uint64, value []byte) error {
 		break
 	}
 	return res
-
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key

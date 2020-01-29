@@ -177,7 +177,7 @@ func TestDMap_LockWithTimeoutCluster(t *testing.T) {
 	lockContext := []*LockContext{}
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := d.LockWithTimeout(key, time.Second, time.Second)
+		ctx, err := d.LockWithTimeout(key, time.Hour, time.Second)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

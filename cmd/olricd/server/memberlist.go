@@ -117,8 +117,8 @@ func newMemberlistConf(c *Config) (*m.Config, error) {
 		mc.SuspicionMaxTimeoutMult = *c.Memberlist.SuspicionMaxTimeoutMult
 	}
 
-	if c.Memberlist.DisableTcpPings != nil {
-		mc.DisableTcpPings = *c.Memberlist.DisableTcpPings
+	if c.Memberlist.DisableTCPPings != nil {
+		mc.DisableTcpPings = *c.Memberlist.DisableTCPPings
 	}
 
 	if c.Memberlist.AwarenessMaxMultiplier != nil {

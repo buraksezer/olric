@@ -447,7 +447,6 @@ func TestClient_Incr(t *testing.T) {
 	if res != 101 {
 		t.Fatalf("Expected 101. Got: %v", res)
 	}
-
 }
 
 func TestClient_Decr(t *testing.T) {
@@ -502,7 +501,6 @@ func TestClient_Decr(t *testing.T) {
 	if res != -101 {
 		t.Fatalf("Expected -101. Got: %v", res)
 	}
-
 }
 
 func TestClient_GetPut(t *testing.T) {
@@ -627,7 +625,7 @@ func TestClient_Stats(t *testing.T) {
 	var totalByKeyCount int
 	var total int
 	for partID, part := range s.Partitions {
-		total += part.TotalKeyCount
+		total += part.Length
 		if _, ok := part.DMaps["mymap"]; !ok {
 			t.Fatalf("Expected DMap check result is true. Got false")
 		}
@@ -635,19 +633,19 @@ func TestClient_Stats(t *testing.T) {
 			t.Fatalf("Expected PreviosOwners list is empty. "+
 				"Got: %v for PartID: %d", part.PreviousOwners, partID)
 		}
-		if part.KeyCount <= 0 {
-			t.Fatalf("Expected KeyCount is bigger than 0. Got: %d", part.KeyCount)
+		if part.Length <= 0 {
+			t.Fatalf("Expected Length is bigger than 0. Got: %d", part.Length)
 		}
-		totalByKeyCount += part.KeyCount
+		totalByKeyCount += part.Length
 		if part.Owner.String() != addr {
 			t.Fatalf("Expected partition owner: %s. Got: %s", addr, part.Owner)
 		}
 	}
 	if totalByKeyCount != 100 {
-		t.Fatalf("Expected total key count in stats is 100. Got: %d", total)
+		t.Fatalf("Expected total length of partitions in stats is 100. Got: %d", total)
 	}
 	if total != 100 {
-		t.Fatalf("Expected total key count in stats is 100. Got: %d", total)
+		t.Fatalf("Expected total length of partitions in stats is 100. Got: %d", total)
 	}
 }
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//Package discovery provides a basic memberlist integration.
+/*Package discovery provides a basic memberlist integration.*/
 package discovery
 
 import (
@@ -45,7 +45,7 @@ type ClusterEvent struct {
 	NodeMeta []byte // Metadata from the delegate for this node.
 }
 
-func (c ClusterEvent) MemberAddr() string {
+func (c *ClusterEvent) MemberAddr() string {
 	port := strconv.Itoa(int(c.NodePort))
 	return net.JoinHostPort(c.NodeAddr.String(), port)
 }
@@ -92,7 +92,7 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 }
 
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
-func New(flog *flog.Logger, c *config.Config) *Discovery {
+func New(log *flog.Logger, c *config.Config) *Discovery {
 	// Calculate host's identity. It's useful to compare hosts.
 	birthdate := time.Now().UnixNano()
 	buf := make([]byte, 8+len(c.Name))
@@ -109,7 +109,7 @@ func New(flog *flog.Logger, c *config.Config) *Discovery {
 	return &Discovery{
 		host:        host,
 		config:      c,
-		log:         flog,
+		log:         log,
 		deadMembers: make(map[string]int64),
 		ctx:         ctx,
 		cancel:      cancel,

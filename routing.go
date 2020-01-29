@@ -104,12 +104,12 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 	for i := 0; i < len(owners); i++ {
 		backup := owners[i]
 		req := &protocol.Message{
-			Extra: protocol.KeyCountOnPartExtra{
+			Extra: protocol.LengthOfPartExtra{
 				PartID: partID,
 				Backup: true,
 			},
 		}
-		res, err := db.requestTo(backup.String(), protocol.OpKeyCountOnPart, req)
+		res, err := db.requestTo(backup.String(), protocol.OpLengthOfPart, req)
 		if err != nil {
 			db.log.V(2).Printf("[ERROR] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
@@ -190,9 +190,9 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 	for i := 0; i < len(owners); i++ {
 		owner := owners[i]
 		req := &protocol.Message{
-			Extra: protocol.KeyCountOnPartExtra{PartID: partID},
+			Extra: protocol.LengthOfPartExtra{PartID: partID},
 		}
-		res, err := db.requestTo(owner.String(), protocol.OpKeyCountOnPart, req)
+		res, err := db.requestTo(owner.String(), protocol.OpLengthOfPart, req)
 		if err != nil {
 			db.log.V(2).Printf("[ERROR] Failed to check key count on partition: %d: %v", partID, err)
 			// Pass it. If the node is gone, memberlist package will notify us.
@@ -264,7 +264,7 @@ func (db *Olric) updateRoutingTableOnCluster(table routingTable) (map[discovery.
 			msg := &protocol.Message{
 				Value: data,
 				Extra: protocol.UpdateRoutingExtra{
-					CoordinatorId: db.this.ID,
+					CoordinatorID: db.this.ID,
 				},
 			}
 			// TODO: This blocks whole flow. Use timeout for smooth operation.
@@ -445,7 +445,7 @@ func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 
-	coordinatorId := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorId
+	coordinatorId := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorID
 	coordinator, err := db.checkAndGetCoordinator(coordinatorId)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
@@ -499,12 +499,12 @@ func (db *Olric) prepareOwnershipReport() ([]byte, error) {
 	res := ownershipReport{}
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		part := db.partitions[partID]
-		if part.keyCount() != 0 {
+		if part.length() != 0 {
 			res.Partitions = append(res.Partitions, partID)
 		}
 
 		backup := db.backups[partID]
-		if backup.keyCount() != 0 {
+		if backup.length() != 0 {
 			res.Backups = append(res.Backups, partID)
 		}
 	}
@@ -512,8 +512,8 @@ func (db *Olric) prepareOwnershipReport() ([]byte, error) {
 }
 
 func (db *Olric) keyCountOnPartOperation(req *protocol.Message) *protocol.Message {
-	partID := req.Extra.(protocol.KeyCountOnPartExtra).PartID
-	isBackup := req.Extra.(protocol.KeyCountOnPartExtra).Backup
+	partID := req.Extra.(protocol.LengthOfPartExtra).PartID
+	isBackup := req.Extra.(protocol.LengthOfPartExtra).Backup
 
 	var part *partition
 	if isBackup {
@@ -522,7 +522,7 @@ func (db *Olric) keyCountOnPartOperation(req *protocol.Message) *protocol.Messag
 		part = db.partitions[partID]
 	}
 
-	value, err := msgpack.Marshal(part.keyCount())
+	value, err := msgpack.Marshal(part.length())
 	if err != nil {
 		return req.Error(protocol.StatusInternalServerError, err)
 	}

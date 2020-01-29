@@ -219,13 +219,13 @@ func TestPipeline_Delete(t *testing.T) {
 	// Read responses
 	for _, res := range responses {
 		if res.Operation() == "Put" {
-			err := res.Put()
+			err = res.Put()
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
 		}
 		if res.Operation() == "Delete" {
-			err := res.Delete()
+			err = res.Delete()
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
@@ -457,7 +457,6 @@ func TestPipeline_Destroy(t *testing.T) {
 			if err != olric.ErrKeyNotFound {
 				t.Fatalf("Expected olric.ErrKeyNotFound. Got: %v", err)
 			}
-
 		}
 	}
 }
@@ -645,7 +644,7 @@ func TestPipeline_PutIfEx(t *testing.T) {
 	}
 
 	// Flush them
-	responses, err := p.Flush()
+	_, err = p.Flush()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -658,7 +657,7 @@ func TestPipeline_PutIfEx(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	responses, err = p.Flush()
+	responses, err := p.Flush()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

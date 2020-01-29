@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/sean-/seed"
 	"io/ioutil"
 	"log"
 	"os"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/cmd/olricd/server"
-	"github.com/sean-/seed"
 )
 
 var usage = `Usage: 
@@ -50,14 +50,6 @@ var (
 	showHelp    bool
 	showVersion bool
 )
-
-func init() {
-	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
-	// available, MustInit will panic() with an error indicating why reading from
-	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
-	// call to Init() failed in the past.
-	seed.MustInit()
-}
 
 func main() {
 	// No need for timestamp and etc in this function. Just log it.
@@ -84,6 +76,12 @@ func main() {
 		log.Printf(usage, runtime.Version())
 		return
 	}
+
+	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
+	// available, MustInit will panic() with an error indicating why reading from
+	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
+	// call to Init() failed in the past.
+	seed.MustInit()
 
 	c, err := server.NewConfig(cpath)
 	if err != nil {

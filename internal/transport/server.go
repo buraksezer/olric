@@ -102,7 +102,7 @@ func (s *Server) processConn(conn net.Conn) {
 		case <-s.ctx.Done():
 			// The server is down.
 		case <-done:
-			// The main loop is quit. TCP socket may be closed or a protocol error occured.
+			// The main loop is quit. TCP socket may be closed or a protocol error occurred.
 		}
 
 		if atomic.LoadUint32(&connStatus) != idleConn {

@@ -62,24 +62,24 @@ type memberlist struct {
 	Peers                   []string `yaml:"peers"`
 	IndirectChecks          *int     `yaml:"indirectChecks"`
 	RetransmitMult          *int     `yaml:"retransmitMult"`
-	SuspicionMult           *int     `yaml:"suspicionMult"`
-	TCPTimeout              *string  `yaml:"tcpTimeout"`
-	PushPullInterval        *string  `yaml:"pushPullInterval"`
-	ProbeTimeout            *string  `yaml:"probeTimeout"`
-	ProbeInterval           *string  `yaml:"probeInterval"`
-	GossipInterval          *string  `yaml:"gossipInterval"`
-	GossipToTheDeadTime     *string  `yaml:"gossipToTheDeadTime"`
-	AdvertiseAddr           *string  `yaml:"advertiseAddr"`
-	AdvertisePort           *int     `yaml:"advertisePort"`
-	SuspicionMaxTimeoutMult *int     `yaml:"suspicionMaxTimeoutMult"`
-	DisableTcpPings         *bool    `yaml:"disableTcpPings"`
-	AwarenessMaxMultiplier  *int     `yaml:"awarenessMaxMultiplier"`
-	GossipNodes             *int     `yaml:"gossipNodes"`
-	GossipVerifyIncoming    *bool    `yaml:"gossipVerifyIncoming"`
-	GossipVerifyOutgoing    *bool    `yaml:"gossipVerifyOutgoing"`
-	DNSConfigPath           *string  `yaml:"dnsConfigPath"`
-	HandoffQueueDepth       *int     `yaml:"handoffQueueDepth"`
-	UDPBufferSize           *int     `yaml:"udpBufferSize"`
+	SuspicionMult           *int    `yaml:"suspicionMult"`
+	TCPTimeout              *string `yaml:"tcpTimeout"`
+	PushPullInterval        *string `yaml:"pushPullInterval"`
+	ProbeTimeout            *string `yaml:"probeTimeout"`
+	ProbeInterval           *string `yaml:"probeInterval"`
+	GossipInterval          *string `yaml:"gossipInterval"`
+	GossipToTheDeadTime     *string `yaml:"gossipToTheDeadTime"`
+	AdvertiseAddr           *string `yaml:"advertiseAddr"`
+	AdvertisePort           *int    `yaml:"advertisePort"`
+	SuspicionMaxTimeoutMult *int    `yaml:"suspicionMaxTimeoutMult"`
+	DisableTCPPings         *bool   `yaml:"disableTCPPings"`
+	AwarenessMaxMultiplier  *int    `yaml:"awarenessMaxMultiplier"`
+	GossipNodes             *int    `yaml:"gossipNodes"`
+	GossipVerifyIncoming    *bool   `yaml:"gossipVerifyIncoming"`
+	GossipVerifyOutgoing    *bool   `yaml:"gossipVerifyOutgoing"`
+	DNSConfigPath           *string `yaml:"dnsConfigPath"`
+	HandoffQueueDepth       *int    `yaml:"handoffQueueDepth"`
+	UDPBufferSize           *int    `yaml:"udpBufferSize"`
 }
 
 type cache struct {
@@ -104,10 +104,10 @@ type Config struct {
 // NewConfig creates a new configuration instance of olricd
 func NewConfig(path string) (*Config, error) {
 	envPath := os.Getenv(EnvConfigFile)
-	if len(envPath) != 0 {
+	if envPath != "" {
 		path = envPath
 	}
-	if len(path) == 0 {
+	if path == "" {
 		path = DefaultConfigFile
 	}
 

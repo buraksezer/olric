@@ -120,6 +120,9 @@ func TestDMap_ExpireOnCluster(t *testing.T) {
 		}
 	}
 
+	// Wait some time to expire keys properly
+	<-time.After(5 * time.Millisecond)
+
 	for i := 0; i < 100; i++ {
 		// Try to evict keys here. 100 is a random number
 		// to make the test less error prone.

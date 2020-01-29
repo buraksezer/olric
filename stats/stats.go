@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package stats exposes structs for Stat command*/
+/*Package stats exposes internal data structures for Stat command*/
 package stats
 
 import (
@@ -35,10 +35,7 @@ type SlabInfo struct {
 
 // DMap denotes a distributed map instance on the cluster.
 type DMap struct {
-	// Name of the DMap.
-	Name string
-
-	// Length of the DMap.
+	Name   string
 	Length int
 
 	// Statistics about memory representation of the DMap.
@@ -50,8 +47,7 @@ type Partition struct {
 	Owner          discovery.Member
 	PreviousOwners []discovery.Member
 	Backups        []discovery.Member
-	KeyCount       int
-	TotalKeyCount  int
+	Length         int
 	DMaps          map[string]DMap
 }
 

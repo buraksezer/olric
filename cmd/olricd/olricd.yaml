@@ -30,7 +30,7 @@ memberlist:
   #advertiseAddr: ""
   #advertisePort: 3322
   #suspicionMaxTimeoutMult: 6
-  #disableTcpPings: false
+  #disableTCPPings: false
   #awarenessMaxMultiplier: 8
   #gossipNodes: 3
   #gossipVerifyIncoming: true

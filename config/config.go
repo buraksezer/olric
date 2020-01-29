@@ -94,9 +94,10 @@ const (
 	// DefaultTableSize is 1MB if you don't set your own value.
 	DefaultTableSize = 1 << 20
 
-	DefaultLRUSamples int            = 5
+	DefaultLRUSamples int = 5
 
-	LRUEviction       EvictionPolicy = "LRU"
+	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
+	LRUEviction EvictionPolicy = "LRU"
 )
 
 // EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
@@ -117,23 +118,23 @@ type DMapCacheConfig struct {
 	MaxIdleDuration time.Duration
 
 	// TTLDuration is useful to set a default TTL for every key/value pair a DMap instance.
-	TTLDuration     time.Duration
+	TTLDuration time.Duration
 
 	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
 	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
-	MaxKeys         int
+	MaxKeys int
 
 	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
 	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
-	MaxInuse        int
+	MaxInuse int
 
 	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
 	// Lower values are better for high performance. It's 5 by default.
-	LRUSamples      int
+	LRUSamples int
 
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
-	EvictionPolicy  EvictionPolicy
+	EvictionPolicy EvictionPolicy
 }
 
 // CacheConfig denotes a global cache configuration for DMaps. You can still overwrite it by setting a
@@ -147,29 +148,29 @@ type CacheConfig struct {
 	// this limit are expired and evicted automatically. An entry is idle if no Get,
 	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
 	// feature varies by preferred deployment method.
-	MaxIdleDuration    time.Duration
+	MaxIdleDuration time.Duration
 
 	// TTLDuration is useful to set a default TTL for every key/value pair a DMap instance.
-	TTLDuration        time.Duration
+	TTLDuration time.Duration
 
 	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
 	// MaxKeys=100000, max key count in the cluster should around MaxKeys*10=1000000
-	MaxKeys            int
+	MaxKeys int
 
 	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
 	// MaxInuse=100M (it has to be in bytes), max amount of in-use memory should be around MaxInuse*10=1G
-	MaxInuse           int
+	MaxInuse int
 
 	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
 	// Lower values are better for high performance. It's 5 by default.
-	LRUSamples         int
+	LRUSamples int
 
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
-	EvictionPolicy     EvictionPolicy
+	EvictionPolicy EvictionPolicy
 
 	// DMapConfigs is useful to set custom cache config per DMap instance.
-	DMapConfigs        map[string]DMapCacheConfig
+	DMapConfigs map[string]DMapCacheConfig
 }
 
 // Config is the configuration to create a Olric instance.
@@ -178,7 +179,7 @@ type Config struct {
 	LogVerbosity int32
 
 	// Default LogLevel is DEBUG. Valid ones: "DEBUG", "WARN", "ERROR", "INFO"
-	LogLevel     string
+	LogLevel string
 
 	// Name of this node in the cluster. This must be unique in the cluster. If this is not set,
 	// Olric will set it to the hostname of the running machine. Example: node1.my-cluster.net
@@ -186,8 +187,14 @@ type Config struct {
 	// Name is also used by the TCP server as Addr. It should be an IP address or domain name of the server.
 	Name string
 
+	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
 	KeepAlivePeriod time.Duration
 
+	// Timeout for TCP dial.
+	//
+	// The timeout includes name resolution, if required. When using TCP, and the host in the address parameter
+	// resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
+	// given an appropriate fraction of the time to connect.
 	DialTimeout time.Duration
 
 	RequestTimeout time.Duration
@@ -201,10 +208,16 @@ type Config struct {
 	// ReplicaCount is 1, by default.
 	ReplicaCount int
 
-	ReadQuorum        int
-	WriteQuorum       int
+	// Minimum number of successful reads to return a response for a read request.
+	ReadQuorum int
+
+	// Minimum number of successful writes to return a response for a write request.
+	WriteQuorum int
+
+	// Minimum number of members to form a cluster and run any query on the cluster.
 	MemberCountQuorum int32
 
+	// Switch to control read-repair algorithm which helps to reduce entropy.
 	ReadRepair bool
 
 	// Default value is SyncReplicationMode.
@@ -231,7 +244,9 @@ type Config struct {
 	// at the same time.
 	Logger *log.Logger
 
-	Cache     *CacheConfig
+	Cache *CacheConfig
+
+	// Minimum size(in-bytes) for append-only file
 	TableSize int
 
 	JoinRetryInterval time.Duration

@@ -44,9 +44,9 @@ func (db *Olric) stats() stats.Stats {
 	collect := func(partID uint64, part *partition) stats.Partition {
 		owners := part.loadOwners()
 		p := stats.Partition{
-			Backups:  db.backups[partID].loadOwners(),
-			KeyCount: part.keyCount(),
-			DMaps:    make(map[string]stats.DMap),
+			Backups: db.backups[partID].loadOwners(),
+			Length:  part.length(),
+			DMaps:   make(map[string]stats.DMap),
 		}
 		if !part.backup {
 			p.Owner = part.owner()
@@ -56,7 +56,6 @@ func (db *Olric) stats() stats.Stats {
 		}
 		part.m.Range(func(name, dm interface{}) bool {
 			dm.(*dmap).Lock()
-			p.TotalKeyCount += dm.(*dmap).storage.Len()
 			tmp := stats.DMap{
 				Length:   dm.(*dmap).storage.Len(),
 				SlabInfo: stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),

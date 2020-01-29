@@ -121,14 +121,21 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 }
 
 func syncClusterMembers(peers ...*Olric) {
-	for _, peer := range peers {
-		if peer.discovery.IsCoordinator() {
-			peer.updateRouting()
+	updateRouting := func () {
+		for _, peer := range peers {
+			if peer.discovery.IsCoordinator() {
+				peer.updateRouting()
+			}
 		}
 	}
+
+	// Update routing table on the cluster before running rebalancer
+	updateRouting()
 	for _, peer := range peers {
 		peer.rebalancer()
 	}
+	// Update routing table again to get correct responses from the high level DMap API.
+	updateRouting()
 }
 
 type testCustomConfig struct {

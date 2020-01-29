@@ -169,7 +169,7 @@ func (p *partition) loadOwners() []discovery.Member {
 	return owners.([]discovery.Member)
 }
 
-func (p *partition) keyCount() int {
+func (p *partition) length() int {
 	var length int
 	p.m.Range(func(_, dm interface{}) bool {
 		d := dm.(*dmap)
@@ -492,7 +492,7 @@ func (db *Olric) registerOperations() {
 	// Internal
 	db.operations[protocol.OpUpdateRouting] = db.updateRoutingOperation
 	db.operations[protocol.OpMoveDMap] = db.moveDMapOperation
-	db.operations[protocol.OpKeyCountOnPart] = db.keyCountOnPartOperation
+	db.operations[protocol.OpLengthOfPart] = db.keyCountOnPartOperation
 
 	// Aliveness
 	db.operations[protocol.OpPing] = db.pingOperation
