@@ -681,8 +681,8 @@ Partitions have a concept called **owners list**. When a node joins or leaves th
 coordinator. At any time, a partition may have one or more partition owners. If a partition has two or more owners, this is called **fragmented partition**. The last added owner is called **primary owner**. Write operation is only done by the primary owner. The previous owners are only
 used for read and delete.
 
-When you read a key, the primary owner tries to find the key on itself, first. Then, queries the previous owners and backups, respectively. 
-A delete operation works the same way.
+When you read a key, the primary owner tries to find the key on itself, first. Then, queries the previous owners and backups, respectively.
+The delete operation works the same way.
 
 The data(distributed map objects) in the fragmented partition is moved slowly to the primary owner by **fsck** goroutine. Until the move is done,
 the data remains available on the previous owners. DMap methods use this list to query data on the cluster.
