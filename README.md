@@ -647,7 +647,7 @@ Olric uses:
 * [Golang's TCP implementation](https://golang.org/pkg/net/#TCPConn) as transport layer,
 * [encoding/gob](https://golang.org/pkg/encoding/gob/), [encoding/json](https://golang.org/pkg/encoding/json/) or [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack) for serialization, optionally. 
 
-Olric distributes data among partitions. Every partition is owned by a cluster member and may has one or more backup for redundancy. 
+Olric distributes data among partitions. Every partition is owned by a cluster member and may have one or more backups for redundancy. 
 When you read or write a map entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a
 particular data entry in a stable cluster.
 
