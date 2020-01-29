@@ -444,9 +444,6 @@ Please take a look at [Lock Implementation](#lock-implementation) section for im
 ### Lock
 Lock sets a lock for the given key. Acquired lock is only for the key in this DMap.
 
-It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
-
-
 ```go
 ctx, err := dm.Lock("lock.foo", time.Second)
 ```
