@@ -377,7 +377,7 @@ PutIfEx sets the value for the given key with TTL. It overwrites any previous va
 err := dm.PutIfEx("my-key", "my-value", time.Second, flags)
 ```
 
-The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutEx 
+The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutIfEx 
 returns but not before.
 
 
@@ -443,9 +443,6 @@ Please take a look at [Lock Implementation](#lock-implementation) section for im
 
 ### Lock
 Lock sets a lock for the given key. Acquired lock is only for the key in this DMap.
-
-It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
-
 
 ```go
 ctx, err := dm.Lock("lock.foo", time.Second)
@@ -650,7 +647,7 @@ Olric uses:
 * [Golang's TCP implementation](https://golang.org/pkg/net/#TCPConn) as transport layer,
 * [encoding/gob](https://golang.org/pkg/encoding/gob/), [encoding/json](https://golang.org/pkg/encoding/json/) or [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack) for serialization, optionally. 
 
-Olric distributes data among partitions. Every partition is owned by a cluster member and may has one or more backup for redundancy. 
+Olric distributes data among partitions. Every partition is owned by a cluster member and may have one or more backups for redundancy. 
 When you read or write a map entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a
 particular data entry in a stable cluster.
 
@@ -663,7 +660,7 @@ partID = MOD(hash result, partition count)
 The partitions are distributed among cluster members by using a consistent hashing algorithm. In order to get details, please see
 [buraksezer/consistent](https://github.com/buraksezer/consistent). The backup owners are also calculated by the same package.
 
-When a new cluster is created, one of the instances elected as the **cluster coordinator**. It manages the partition table: 
+When a new cluster is created, one of the instances is elected as the **cluster coordinator**. It manages the partition table: 
 
 * When a node joins or leaves, it distributes the partitions and their backups among the members again,
 * Removes empty owners from the partition owners list,
@@ -671,7 +668,7 @@ When a new cluster is created, one of the instances elected as the **cluster coo
 * Pushes the the partition table to the cluster periodically.
 
 Members propagates their birthdate(Unix timestamp in nanoseconds) to the cluster. The coordinator is the oldest member in the cluster.
-If the coordinator leaves the cluster, the second oldest member elected as the coordinator.
+If the coordinator leaves the cluster, the second oldest member gets elected as the coordinator.
 
 Olric has a component called **fsck** which is responsible for keeping underlying data structures consistent:
 
@@ -681,18 +678,18 @@ Olric has a component called **fsck** which is responsible for keeping underlyin
 * Runs at background periodically and repairs partitions i.e. creates new backups if required.
 
 Partitions have a concept called **owners list**. When a node joins or leaves the cluster, a new primary owner may be assigned by the 
-coordinator. At any time, a partition may has one or more partition owner. If a partition has two or more owner, this is called **fragmented partition**. The last added owner is called **primary owner**. Write operation is only done by the primary owner. The previous owners are only
+coordinator. At any time, a partition may have one or more partition owners. If a partition has two or more owners, this is called **fragmented partition**. The last added owner is called **primary owner**. Write operation is only done by the primary owner. The previous owners are only
 used for read and delete.
 
-When you read a key, the primary owner tries to find the key on itself, first. Then, queries the previous owners and backups, respectively. 
-Delete operation works with the same way.
+When you read a key, the primary owner tries to find the key on itself, first. Then, queries the previous owners and backups, respectively.
+The delete operation works the same way.
 
 The data(distributed map objects) in the fragmented partition is moved slowly to the primary owner by **fsck** goroutine. Until the move is done,
 the data remains available on the previous owners. DMap methods use this list to query data on the cluster.
 
-*Please note that, multiple partition owner is an undesirable situation and the fsck component is designed to fix that in a short time.*
+*Please note that, 'multiple partition owners' is an undesirable situation and the fsck component is designed to fix that in a short time.*
 
-When you call **Start** method of Olric, it starts background services with a TCP server.
+When you call **Start** method of Olric, it starts a few background services with a TCP server.
 
 ### Consistency and Replication Model
 
@@ -784,7 +781,7 @@ the following algorithm:
 Equivalent of`SETNX` command in Olric is `PutIf(key, value, IfNotFound)`. Lock and LockWithTimeout commands are properly implements
 the algorithm which is proposed above. 
 
-You should know that this implementation is a subject of the clustering algorithm. Olric is an AP product. So there is no guarantee about reliability. 
+You should know that this implementation is subject to the clustering algorithm. Olric is an AP product. So there is no guarantee about reliability. 
 
 **I recommend the lock implementation to be used for efficiency purposes in general, instead of correctness.**
 
