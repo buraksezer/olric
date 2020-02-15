@@ -19,6 +19,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -248,30 +249,21 @@ func TestRebalance_CheckOwnership(t *testing.T) {
 }
 
 func TestSplitBrain_ErrClusterQuorum(t *testing.T) {
-	cfg := newTestCustomConfig()
-	c := newTestCluster(cfg)
-	defer c.teardown()
-
-	db1, err := c.newDB()
+	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+	// It's not good to manipulate numMembers but it's very hard to prepare a test condition
+	// to test ErrClusterQuorum error.
+	atomic.StoreInt32(&db.numMembers, 0)
 
-	db2, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	db1.config.MemberCountQuorum = 3
-	db2.config.MemberCountQuorum = 3
-
-	mname := "mymap"
-	_, err = db1.NewDMap(mname)
-	if err != ErrClusterQuorum {
-		t.Fatalf("Expected ErrClusterQuorum. Got: %v", err)
-	}
-
-	_, err = db2.NewDMap(mname)
+	_, err = db.NewDMap("map")
 	if err != ErrClusterQuorum {
 		t.Fatalf("Expected ErrClusterQuorum. Got: %v", err)
 	}
