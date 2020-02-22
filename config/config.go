@@ -252,6 +252,10 @@ type Config struct {
 	JoinRetryInterval time.Duration
 	MaxJoinAttempts   int
 
+	// Callback function. Olric calls this after
+	// the server is ready to accept new connections.
+	Started func()
+
 	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some
 	// fields in the MemberlistConfig will be overwritten by Olric no

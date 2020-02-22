@@ -102,6 +102,9 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	}
 
 	db.wg.Add(1)
+	go db.callStartedCallback()
+
+	db.wg.Add(1)
 	go func() {
 		defer db.wg.Done()
 		err = db.server.ListenAndServe()
@@ -110,6 +113,7 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 		}
 	}()
 	<-db.server.StartCh
+	db.passCheckpoint()
 
 	err = db.startDiscovery()
 	if err != nil {
@@ -117,6 +121,8 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	}
 	// Wait some time for goroutines
 	<-time.After(100 * time.Millisecond)
+	db.passCheckpoint()
+
 	return db, nil
 }
 

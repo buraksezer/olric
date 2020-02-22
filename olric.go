@@ -60,7 +60,10 @@ var (
 // ReleaseVersion is the current stable version of Olric
 const ReleaseVersion string = "0.2.0-rc.1"
 
-const nilTimeout = 0 * time.Second
+const (
+	nilTimeout                = 0 * time.Second
+	requiredCheckpoints int32 = 2
+)
 
 // Olric implements a distributed, in-memory and embeddable key/value store and cache.
 type Olric struct {
@@ -68,6 +71,9 @@ type Olric struct {
 	bootstrapped int32
 	// numMembers is used to check cluster quorum.
 	numMembers int32
+
+	// Number of successfully passed checkpoints
+	passedCheckpoints int32
 
 	// Currently owned partition count. Approximate LRU implementation
 	// uses that.
@@ -105,6 +111,10 @@ type Olric struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+
+	// Callback function. Olric calls this after
+	// the server is ready to accept new connections.
+	started func()
 }
 
 // cache keeps cache control parameters and access-log for keys in a DMap.
@@ -267,6 +277,7 @@ func New(c *config.Config) (*Olric, error) {
 		backups:    make(map[uint64]*partition),
 		operations: make(map[protocol.OpCode]func(*protocol.Message) *protocol.Message),
 		server:     transport.NewServer(c.Name, flogger, c.KeepAlivePeriod),
+		started:    c.Started,
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
@@ -286,6 +297,10 @@ func New(c *config.Config) (*Olric, error) {
 
 	db.registerOperations()
 	return db, nil
+}
+
+func (db *Olric) passCheckpoint() {
+	atomic.AddInt32(&db.passedCheckpoints, 1)
 }
 
 func (db *Olric) requestDispatcher(req *protocol.Message) *protocol.Message {
@@ -413,7 +428,27 @@ func (db *Olric) startDiscovery() error {
 	return nil
 }
 
-// Start starts background servers and joins the cluster.
+// callStartedCallback checks passed checkpoint count and calls the callback function.
+func (db *Olric) callStartedCallback() {
+	defer db.wg.Done()
+
+	for {
+		select {
+		case <-time.After(10 * time.Millisecond):
+			if requiredCheckpoints == atomic.LoadInt32(&db.passedCheckpoints) {
+				if db.started != nil {
+					db.started()
+				}
+				return
+			}
+		case <-db.ctx.Done():
+			return
+		}
+	}
+}
+
+// Start starts background servers and joins the cluster. You still need to call Shutdown method if
+// Start function returns an early error. 
 func (db *Olric) Start() error {
 	errCh := make(chan error, 1)
 	db.wg.Add(1)
@@ -428,10 +463,14 @@ func (db *Olric) Start() error {
 		return err
 	default:
 	}
+	// TCP server is started
+	db.passCheckpoint()
 
 	if err := db.startDiscovery(); err != nil {
 		return err
 	}
+	// Memberlist is started and this node joined the cluster.
+	db.passCheckpoint()
 
 	// Warn the user about its choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
@@ -444,6 +483,12 @@ func (db *Olric) Start() error {
 	db.wg.Add(2)
 	go db.updateRoutingPeriodically()
 	go db.evictKeysAtBackground()
+
+	if db.started != nil {
+		db.wg.Add(1)
+		go db.callStartedCallback()
+	}
+
 	return <-errCh
 }
 
