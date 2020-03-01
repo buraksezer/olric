@@ -450,6 +450,7 @@ func (c *Config) Sanitize() error {
 // The default configuration is still very conservative and errs on the side of caution.
 func New(env string) *Config {
 	c := &Config{
+		Name:              "0.0.0.0" + ":" + strconv.Itoa(DefaultPort), // this must be unique in the cluster
 		ReadRepair:        false,
 		ReplicaCount:      1,
 		WriteQuorum:       1,
