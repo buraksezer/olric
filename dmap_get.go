@@ -88,7 +88,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 			data := storage.VData{}
 			err = msgpack.Unmarshal(resp.Value, data)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to unmarshal data from the "+
+				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from the "+
 					"previous primary owner: %s: %v", owner, err)
 			} else {
 				ver.Data = &data
@@ -149,7 +149,7 @@ func (db *Olric) lookupOnReplicas(dm *dmap, hkey uint64, name, key string) []*ve
 			value := storage.VData{}
 			err = msgpack.Unmarshal(resp.Value, &value)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to unmarshal data from a replica owner: %s: %v", replica, err)
+				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from a replica owner: %s: %v", replica, err)
 			} else {
 				ver.Data = &value
 			}
@@ -196,13 +196,13 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 			dm.Lock()
 			err := db.localPut(hkey, dm, w)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to synchronize with replica: %v", err)
+				db.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
 			dm.Unlock()
 		} else {
 			_, err := db.requestTo(ver.host.String(), op, req)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
+				db.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
 			}
 		}
 	}

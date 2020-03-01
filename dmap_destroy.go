@@ -41,10 +41,10 @@ func (db *Olric) destroyDMap(name string) error {
 			msg := &protocol.Message{
 				DMap: name,
 			}
-			db.log.V(5).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
+			db.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
 			_, err := db.requestTo(addr, protocol.OpDestroyDMap, msg)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to destroy dmap:%s on %s", name, addr)
+				db.log.V(3).Printf("[ERROR] Failed to destroy dmap: %s on %s", name, addr)
 			}
 			return err
 		})

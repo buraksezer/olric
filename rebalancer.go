@@ -178,7 +178,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 				name, part.backup, partID, owner)
 			err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 			if err != nil {
-				db.log.V(3).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v",
+				db.log.V(2).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v",
 					name, partID, owner, err)
 			}
 			// if this returns true, the iteration continues
@@ -239,7 +239,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 					name, part.backup, partID, owner)
 				err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 				if err != nil {
-					db.log.V(3).Printf("[ERROR] Failed to move backup DMap: %s on PartID: %d to %s: %v",
+					db.log.V(2).Printf("[ERROR] Failed to move backup DMap: %s on PartID: %d to %s: %v",
 						name, partID, owner, err)
 				}
 				// if this returns true, the iteration continues
@@ -254,7 +254,7 @@ func (db *Olric) rebalancer() {
 	defer rebalanceMtx.Unlock()
 
 	if err := db.checkOperationStatus(); err != nil {
-		db.log.V(1).Printf("[WARN] Rebalancer awaits for bootstrapping")
+		db.log.V(2).Printf("[WARN] Rebalancer awaits for bootstrapping")
 		return
 	}
 	db.rebalancePrimaryPartitions()

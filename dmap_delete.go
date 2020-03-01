@@ -31,7 +31,7 @@ func (db *Olric) deleteStaleDMaps() {
 				return true
 			}
 			part.m.Delete(name)
-			db.log.V(2).Printf("[INFO] Stale DMap (backup: %v) has been deleted: %s on PartID: %d",
+			db.log.V(4).Printf("[INFO] Stale DMap (backup: %v) has been deleted: %s on PartID: %d",
 				part.backup, name, part.id)
 			return true
 		})
@@ -165,7 +165,7 @@ func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
 			}
 			_, err := db.requestTo(mem.String(), protocol.OpDeleteBackup, req)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
+				db.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
 			}
 			return err
 		})

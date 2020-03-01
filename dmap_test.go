@@ -127,7 +127,7 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 }
 
 func syncClusterMembers(peers ...*Olric) {
-	updateRouting := func () {
+	updateRouting := func() {
 		for _, peer := range peers {
 			if peer.discovery.IsCoordinator() {
 				peer.updateRouting()

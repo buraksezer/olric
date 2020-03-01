@@ -357,24 +357,24 @@ func (db *Olric) startDiscovery() error {
 		attempts++
 		n, err := db.discovery.Join()
 		if err == nil {
-			db.log.V(1).Printf("[INFO] Join completed. Synced with %d initial nodes: %v", n, d.NumMembers())
+			db.log.V(2).Printf("[INFO] Join completed. Synced with %d initial nodes: %v", n, d.NumMembers())
 			break
 		}
 
-		db.log.V(1).Printf("[ERROR] Join attempt returned error: %s", err)
+		db.log.V(2).Printf("[ERROR] Join attempt returned error: %s", err)
 		if atomic.LoadInt32(&db.bootstrapped) == 1 {
-			db.log.V(1).Printf("[INFO] Bootstrapped by the cluster coordinator")
+			db.log.V(2).Printf("[INFO] Bootstrapped by the cluster coordinator")
 			break
 		}
 
-		db.log.V(1).Printf("[INFO] Awaits for %s to join again (%d/%d)",
+		db.log.V(2).Printf("[INFO] Awaits for %s to join again (%d/%d)",
 			db.config.JoinRetryInterval, attempts, db.config.MaxJoinAttempts)
 		<-time.After(db.config.JoinRetryInterval)
 	}
 
 	this, err := db.discovery.FindMemberByName(db.config.Name)
 	if err != nil {
-		db.log.V(2).Printf("[DEBUG] Failed to get this node in cluster: %v", err)
+		db.log.V(2).Printf("[ERROR] Failed to get this node in cluster: %v", err)
 		serr := db.discovery.Shutdown()
 		if serr != nil {
 			return serr
@@ -424,7 +424,7 @@ func (db *Olric) startDiscovery() error {
 	db.log.V(2).Printf("[INFO] AdvertiseAddr: %s, AdvertisePort: %d",
 		db.config.MemberlistConfig.AdvertiseAddr,
 		db.config.MemberlistConfig.AdvertisePort)
-	db.log.V(1).Printf("[INFO] Cluster coordinator: %s", db.discovery.GetCoordinator())
+	db.log.V(2).Printf("[INFO] Cluster coordinator: %s", db.discovery.GetCoordinator())
 	return nil
 }
 
@@ -448,7 +448,7 @@ func (db *Olric) callStartedCallback() {
 }
 
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
-// Start function returns an early error. 
+// Start function returns an early error.
 func (db *Olric) Start() error {
 	errCh := make(chan error, 1)
 	db.wg.Add(1)
@@ -571,7 +571,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	} else {
 		name = db.config.Name
 	}
-	db.log.V(1).Printf("[INFO] %s is gone", name)
+	db.log.V(2).Printf("[INFO] %s is gone", name)
 	return result
 }
 

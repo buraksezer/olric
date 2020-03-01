@@ -28,7 +28,7 @@ func (db *Olric) atomicIncrDecr(opr string, w *writeop, delta int) (int, error) 
 	defer func() {
 		err := db.locker.Unlock(atomicKey)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", w.key, w.dmap, err)
+			db.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", w.key, w.dmap, err)
 		}
 	}()
 
@@ -105,7 +105,7 @@ func (db *Olric) getPut(w *writeop) ([]byte, error) {
 	defer func() {
 		err := db.locker.Unlock(atomicKey)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to release the lock for key: %s on DMap: %s: %v", w.key, w.dmap, err)
+			db.log.V(3).Printf("[ERROR] Failed to release the lock for key: %s on DMap: %s: %v", w.key, w.dmap, err)
 		}
 	}()
 

@@ -50,7 +50,7 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 	defer func() {
 		err := db.locker.Unlock(lkey)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
+			db.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
 		}
 	}()
 

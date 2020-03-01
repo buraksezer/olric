@@ -25,7 +25,6 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
-
 	"github.com/hashicorp/memberlist"
 	"github.com/vmihailenco/msgpack"
 	"golang.org/x/sync/errgroup"
@@ -64,7 +63,7 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 
 	newOwners, err := db.getReplicaOwners(partID)
 	if err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to get replica owners for PartID: %d: %v",
+		db.log.V(3).Printf("[ERROR] Failed to get replica owners for PartID: %d: %v",
 			partID, err)
 		return nil
 	}
@@ -111,7 +110,7 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 		}
 		res, err := db.requestTo(backup.String(), protocol.OpLengthOfPart, req)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to check key count on backup "+
+			db.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
 			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
@@ -120,7 +119,7 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 		var count int32
 		err = msgpack.Unmarshal(res.Value, &count)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to unmarshal key count "+
+			db.log.V(3).Printf("[ERROR] Failed to unmarshal key count "+
 				"while checking backup partition: %d: %v", partID, err)
 			// This may be a temporary event. Pass it.
 			continue
@@ -173,13 +172,13 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 		owner := owners[i]
 		current, err := db.discovery.FindMemberByName(owner.Name)
 		if err != nil {
-			db.log.V(5).Printf("[ERROR] Failed to find %s in the cluster: %v", owner, err)
+			db.log.V(4).Printf("[ERROR] Failed to find %s in the cluster: %v", owner, err)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
 			continue
 		}
 		if !hostCmp(owner, current) {
-			db.log.V(5).Printf("[WARN] One of the partitions owners is probably re-joined: %s", current)
+			db.log.V(4).Printf("[WARN] One of the partitions owners is probably re-joined: %s", current)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
 			continue
@@ -194,7 +193,7 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 		}
 		res, err := db.requestTo(owner.String(), protocol.OpLengthOfPart, req)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to check key count on partition: %d: %v", partID, err)
+			db.log.V(3).Printf("[ERROR] Failed to check key count on partition: %d: %v", partID, err)
 			// Pass it. If the node is gone, memberlist package will notify us.
 			continue
 		}
@@ -202,14 +201,14 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 		var count int32
 		err = msgpack.Unmarshal(res.Value, &count)
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to unmarshal key count "+
+			db.log.V(3).Printf("[ERROR] Failed to unmarshal key count "+
 				"while checking primary partition: %d: %v", partID, err)
 			// This may be a temporary issue.
 			// Pass it. If the node is gone, memberlist package will notify us.
 			continue
 		}
 		if count == 0 {
-			db.log.V(5).Printf("[DEBUG] PartID: %d on %s is empty", partID, owner)
+			db.log.V(6).Printf("[DEBUG] PartID: %d on %s is empty", partID, owner)
 			// Empty partition. Delete it from ownership list.
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
@@ -311,7 +310,7 @@ func (db *Olric) updateRouting() {
 
 	table, err := db.distributePartitions()
 	if err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to distribute partitions: %v", err)
+		db.log.V(2).Printf("[ERROR] Failed to calculate routing table: %v", err)
 		return
 	}
 	reports, err := db.updateRoutingTableOnCluster(table)
@@ -365,14 +364,14 @@ func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
 	if event.Event == memberlist.NodeJoin {
 		member, _ := db.discovery.DecodeNodeMeta(event.NodeMeta)
 		db.consistent.Add(member)
-		db.log.V(1).Printf("[INFO] Node joined: %s", member)
+		db.log.V(2).Printf("[INFO] Node joined: %s", member)
 	} else if event.Event == memberlist.NodeLeave {
 		db.consistent.Remove(event.NodeName)
 		// Don't try to used closed sockets again.
 		db.client.ClosePool(event.NodeName)
-		db.log.V(1).Printf("[INFO] Node leaved: %s", event.NodeName)
+		db.log.V(2).Printf("[INFO] Node leaved: %s", event.NodeName)
 	} else {
-		db.log.V(1).Printf("[ERROR] Unknown event received: %v", event)
+		db.log.V(2).Printf("[ERROR] Unknown event received: %v", event)
 		return
 	}
 
@@ -448,7 +447,7 @@ func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message
 	coordinatorId := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorID
 	coordinator, err := db.checkAndGetCoordinator(coordinatorId)
 	if err != nil {
-		db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
+			db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 

@@ -106,7 +106,7 @@ func (s *Server) processConn(conn net.Conn) {
 		}
 
 		if atomic.LoadUint32(&connStatus) != idleConn {
-			s.log.V(2).Printf("[DEBUG] Connection is busy, waiting")
+			s.log.V(3).Printf("[DEBUG] Connection is busy, waiting")
 			ticker := time.NewTicker(100 * time.Millisecond)
 			defer ticker.Stop()
 
@@ -124,11 +124,11 @@ func (s *Server) processConn(conn net.Conn) {
 				// Wait for the current request. When it mark the connection as idle, break the loop.
 				case <-ticker.C:
 					if atomic.LoadUint32(&connStatus) == idleConn {
-						s.log.V(2).Printf("[DEBUG] Connection is idle, closing")
+						s.log.V(3).Printf("[DEBUG] Connection is idle, closing")
 						break loop
 					}
 				case <-ctx.Done():
-					s.log.V(2).Printf("[DEBUG] Connection is still in-use. Aborting.")
+					s.log.V(3).Printf("[DEBUG] Connection is still in-use. Aborting.")
 					break loop
 				}
 			}
@@ -136,7 +136,7 @@ func (s *Server) processConn(conn net.Conn) {
 
 		// Close the connection and quit.
 		if err := conn.Close(); err != nil {
-			s.log.V(2).Printf("[DEBUG] Failed to close TCP connection: %v", err)
+			s.log.V(3).Printf("[DEBUG] Failed to close TCP connection: %v", err)
 		}
 	}()
 
@@ -157,7 +157,7 @@ func (s *Server) processConn(conn net.Conn) {
 			if err != nil {
 				// Failed to write to the socket. Fail early. This should be a bug or
 				// the underlying TCP socket is unstable or unusable.
-				s.log.V(2).Printf("[ERROR] Failed to return error message: %v", err)
+				s.log.V(3).Printf("[ERROR] Failed to return error message: %v", err)
 				break
 			}
 			// Continue waiting for incoming requests.
@@ -178,7 +178,7 @@ func (s *Server) listenAndServe() error {
 				return nil
 			default:
 			}
-			s.log.V(2).Printf("[DEBUG] Failed to accept TCP connection: %v", err)
+			s.log.V(3).Printf("[DEBUG] Failed to accept TCP connection: %v", err)
 			continue
 		}
 		if s.keepAlivePeriod.Seconds() != 0 {
