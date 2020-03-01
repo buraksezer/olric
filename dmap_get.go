@@ -56,9 +56,14 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 	ver := &version{host: &db.this}
 	if err == nil {
 		ver.Data = value
+	} else if err != storage.ErrKeyNotFound {
+		db.log.V(3).Printf("[ERROR] Failed to get key: %s on %s could not be found: %s", key, name, err)
 	} else {
-		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to get key from local storage: %v", err)
+		// the requested key can be found on a replica or a previous partition owner.
+		if db.log.V(5).Ok() {
+			db.log.V(5).Printf(
+				"[DEBUG] Key: %s, HKey: %d on DMap: %s could not be found on the local storage: %v",
+				key, hkey, name, err)
 		}
 	}
 	versions = append(versions, ver)
