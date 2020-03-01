@@ -24,10 +24,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/hashicorp/go-multierror"
-	"github.com/hashicorp/logutils"
-	"github.com/pkg/errors"
-
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
@@ -38,6 +34,9 @@ import (
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/serializer"
+	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/logutils"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -219,13 +218,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 // New creates a new Olric instance, otherwise returns an error.
 func New(c *config.Config) (*Olric, error) {
 	if c == nil {
-		c = &config.Config{
-			Name:              ":0",
-			ReplicaCount:      1,
-			WriteQuorum:       1,
-			ReadQuorum:        1,
-			MemberCountQuorum: 1,
-		}
+		return nil, fmt.Errorf("config cannot be nil")
 	}
 	err := c.Sanitize()
 	if err != nil {

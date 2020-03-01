@@ -42,6 +42,10 @@ const (
 )
 
 const (
+	DefaultPort = 3320
+
+	DefaultDiscoveryPort = 3322
+
 	// DefaultPartitionCount denotes default partition count in the cluster.
 	DefaultPartitionCount = 271
 
@@ -385,7 +389,7 @@ func (c *Config) Sanitize() error {
 		if err != nil {
 			return err
 		}
-		c.Name = name + ":0"
+		c.Name = name + ":" + strconv.Itoa(DefaultPort)
 	}
 	if c.LoadFactor == 0 {
 		c.LoadFactor = DefaultLoadFactor
@@ -397,7 +401,11 @@ func (c *Config) Sanitize() error {
 		c.ReplicaCount = MinimumReplicaCount
 	}
 	if c.MemberlistConfig == nil {
-		c.MemberlistConfig = memberlist.DefaultLocalConfig()
+		m := memberlist.DefaultLocalConfig()
+		m.Name = c.Name
+		m.BindPort = DefaultDiscoveryPort
+		m.AdvertisePort = DefaultDiscoveryPort
+		c.MemberlistConfig = m
 	}
 	if c.RequestTimeout == 0*time.Second {
 		c.RequestTimeout = DefaultRequestTimeout
@@ -421,4 +429,47 @@ func (c *Config) Sanitize() error {
 		}
 	}
 	return nil
+}
+
+// DefaultConfig returns a Config with sane defaults.
+// It takes an env parameter used by memberlist: local, lan and wan.
+//
+// local:
+// DefaultLocalConfig works like DefaultConfig, however it returns a configuration that
+// is optimized for a local loopback environments. The default configuration is still very conservative
+// and errs on the side of caution.
+//
+// lan:
+// DefaultLANConfig returns a sane set of configurations for Memberlist. It uses the hostname
+// as the node name, and otherwise sets very conservative values that are sane for most LAN environments.
+// The default configuration errs on the side of caution, choosing values that are optimized for higher convergence
+// at the cost of higher bandwidth usage. Regardless, these values are a good starting point when getting started with memberlist.
+//
+// wan:
+// DefaultWANConfig works like DefaultConfig, however it returns a configuration that is optimized for most WAN environments.
+// The default configuration is still very conservative and errs on the side of caution.
+func New(env string) *Config {
+	c := &Config{
+		ReadRepair:        false,
+		ReplicaCount:      1,
+		WriteQuorum:       1,
+		ReadQuorum:        1,
+		MemberCountQuorum: 1,
+	}
+	if err := c.Sanitize(); err != nil {
+		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))
+	}
+	m, err := NewMemberlistConfig(env)
+	if err != nil {
+		panic(fmt.Sprintf("unable to create a new memberlist config: %v", err))
+	}
+	m.Name = c.Name
+	m.BindPort = DefaultDiscoveryPort
+	m.AdvertisePort = DefaultDiscoveryPort
+	c.MemberlistConfig = m
+
+	if err := c.Validate(); err != nil {
+		panic(fmt.Sprintf("unable to validate Olric config: %v", err))
+	}
+	return c
 }

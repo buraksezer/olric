@@ -291,7 +291,7 @@ In order to get more details about the command, call `olric-load -h`.
 Olric is designed to work efficiently with the minimum amount of configuration. So the default configuration should be enough for experimenting:
 
 ```go
-db, err := olric.New(nil)
+db, err := olric.New(config.New())
 ```
 
 This creates an Olric object without running any server at background. In order to run Olric, you need to call **Start** method.
@@ -805,6 +805,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
 )
 
 type customType struct {
@@ -814,7 +815,19 @@ type customType struct {
 
 func main() {
 	// This creates a single-node Olric cluster. It's good enough for experimenting.
-	db, err := olric.New(nil)
+
+	// config.New returns a new config.Config with sane defaults. Available values for env:
+	// local, lan, wan
+	c := config.New("local")
+
+	// Callback function. It's called when this node is ready to accept connections.
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Started = func() {
+		defer cancel()
+		log.Println("[INFO] Olric is ready to accept connections")
+	}
+
+	db, err := olric.New(c)
 	if err != nil {
 		log.Fatalf("Failed to create Olric object: %v", err)
 	}
@@ -827,8 +840,7 @@ func main() {
 		}
 	}()
 
-	fmt.Println("Awaiting for background goroutines")
-	<-time.After(time.Second)
+	<-ctx.Done()
 
 	// Put 10 items into the DMap object.
 	dm, err := db.NewDMap("bucket-of-arbitrary-items")
@@ -855,12 +867,13 @@ func main() {
 	}
 
 	// Don't forget the call Shutdown when you want to leave the cluster.
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, _ = context.WithTimeout(context.Background(), 10*time.Second)
 	err = db.Shutdown(ctx)
 	if err != nil {
 		log.Printf("Failed to shutdown Olric: %v", err)
 	}
 }
+
 ```
 
 ## Contributions
