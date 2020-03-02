@@ -74,6 +74,8 @@ const (
 	OpStats
 	OpExpire
 	OpExpireReplica
+	OpQuery
+	OpLocalQuery
 )
 
 type StatusCode uint8
@@ -92,6 +94,7 @@ const (
 	StatusErrKeyFound
 	StatusErrClusterQuorum
 	StatusErrUnknownOperation
+	StatusErrEndOfQuery
 )
 
 const headerSize int64 = 12
@@ -173,6 +176,14 @@ type UpdateRoutingExtra struct {
 	CoordinatorID uint64
 }
 
+type LocalQueryExtra struct {
+	PartID uint64
+}
+
+type QueryExtra struct {
+	PartID uint64
+}
+
 // ErrConnClosed means that the underlying TCP connection has been closed
 // by the client or operating system.
 var ErrConnClosed = errors.New("connection closed")
@@ -227,6 +238,14 @@ func loadExtras(raw []byte, op OpCode) (interface{}, error) {
 		return extra, err
 	case OpUpdateRouting:
 		extra := UpdateRoutingExtra{}
+		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
+		return extra, err
+	case OpLocalQuery:
+		extra := LocalQueryExtra{}
+		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
+		return extra, err
+	case OpQuery:
+		extra := QueryExtra{}
 		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
 		return extra, err
 	default:

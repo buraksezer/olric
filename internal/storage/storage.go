@@ -16,6 +16,8 @@
 package storage
 
 import (
+	"regexp"
+
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack"
 )
@@ -373,4 +375,31 @@ func (s *Storage) Range(f func(hkey uint64, vdata *VData) bool) {
 			}
 		}
 	}
+}
+
+// MatchOnKey calls a regular expression on keys and provides an iterator.
+func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, vdata *VData) bool) error {
+	if len(s.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+	r, err := regexp.Compile(expr)
+	if err != nil {
+		return err
+	}
+
+	// Scan available tables by starting the last added table.
+	for i := len(s.tables) - 1; i >= 0; i-- {
+		t := s.tables[i]
+		for hkey := range t.hkeys {
+			key, _ := t.getRawKey(hkey)
+			if !r.Match(key) {
+				continue
+			}
+			data, _ := t.get(hkey)
+			if !f(hkey, data) {
+				return nil
+			}
+		}
+	}
+	return nil
 }

@@ -50,7 +50,10 @@ func (g gobSerializer) Marshal(value interface{}) ([]byte, error) {
 	// memory consumption.
 	var res bytes.Buffer
 	err := gob.NewEncoder(&res).Encode(&value)
-	return res.Bytes(), err
+	if err != nil {
+		return nil, err
+	}
+	return res.Bytes(), nil
 }
 
 func (g gobSerializer) Unmarshal(data []byte, v interface{}) error {

@@ -19,14 +19,15 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/config"
-
 	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/query"
 )
 
 var testConfig = &Config{
@@ -773,5 +774,53 @@ func TestClient_PutIfEx(t *testing.T) {
 	}
 	if v != nil {
 		t.Fatalf("Expected nil. Got: %v", v)
+	}
+}
+
+func TestClient_Query(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	dm := c.NewDMap("mymap")
+	var key string
+	for i := 0; i < 100; i++ {
+		if i%2 == 0 {
+			key = "even:" + strconv.Itoa(i)
+		} else {
+			key = "odd:" + strconv.Itoa(i)
+		}
+		err = dm.Put(key, i)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	q, err := dm.Query(query.M{"$onKey": query.M{"$regexMatch": "even:"}})
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = q.Range(func(key string, value interface{}) bool {
+		if !strings.HasPrefix(key, "even:") {
+			t.Fatalf("Expected prefix: even:. Got: %s", key)
+		}
+		return true
+	})
+
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,16 +16,21 @@
 package client // import "github.com/buraksezer/olric/client"
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
+	"github.com/buraksezer/olric/query"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/buraksezer/olric/stats"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack"
+	"golang.org/x/sync/semaphore"
 )
 
 // Client implements Go client of Olric Binary Protocol and its methods.
@@ -140,6 +145,8 @@ func checkStatusCode(resp *protocol.Message) error {
 		return olric.ErrKeyFound
 	case resp.Status == protocol.StatusErrClusterQuorum:
 		return olric.ErrClusterQuorum
+	case resp.Status == protocol.StatusErrEndOfQuery:
+		return olric.ErrEndOfQuery
 	case resp.Status == protocol.StatusErrUnknownOperation:
 		return olric.ErrUnknownOperation
 	default:
@@ -147,13 +154,23 @@ func checkStatusCode(resp *protocol.Message) error {
 	}
 }
 
-func (c *Client) processGetResponse(resp *protocol.Message) (interface{}, error) {
+func (c *Client) unmarshalValue(rawval interface{}) (interface{}, error) {
 	var value interface{}
-	if err := checkStatusCode(resp); err != nil {
-		return value, err
+	err := c.serializer.Unmarshal(rawval.([]byte), &value)
+	if err != nil {
+		return nil, err
 	}
-	err := c.serializer.Unmarshal(resp.Value, &value)
-	return value, err
+	if _, ok := value.(struct{}); ok {
+		return nil, nil
+	}
+	return value, nil
+}
+
+func (c *Client) processGetResponse(resp *protocol.Message) (interface{}, error) {
+	if err := checkStatusCode(resp); err != nil {
+		return nil, err
+	}
+	return c.unmarshalValue(resp.Value)
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key.
@@ -334,9 +351,11 @@ func (c *Client) processIncrDecrResponse(resp *protocol.Message) (int, error) {
 	if err := checkStatusCode(resp); err != nil {
 		return 0, err
 	}
-	var res interface{}
-	err := c.serializer.Unmarshal(resp.Value, &res)
-	return res.(int), err
+	res, err := c.unmarshalValue(resp.Value)
+	if err != nil {
+		return 0, err
+	}
+	return res.(int), nil
 }
 
 func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int, error) {
@@ -373,12 +392,12 @@ func (c *Client) processGetPutResponse(resp *protocol.Message) (interface{}, err
 	if err := checkStatusCode(resp); err != nil {
 		return nil, err
 	}
-	var oldval interface{}
-	if len(resp.Value) != 0 {
-		err := c.serializer.Unmarshal(resp.Value, &oldval)
-		if err != nil {
-			return nil, err
-		}
+	if len(resp.Value) == 0 {
+		return nil, nil
+	}
+	oldval, err := c.unmarshalValue(resp.Value)
+	if err != nil {
+		return nil, err
 	}
 	return oldval, nil
 }
@@ -481,4 +500,189 @@ func (d *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, fla
 		return err
 	}
 	return checkStatusCode(resp)
+}
+
+// Cursor implements distributed query on DMaps. Call Cursor.Range to iterate over query results.
+type Cursor struct {
+	dm     *DMap
+	query  []byte
+	mu     sync.Mutex
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// Close cancels the underlying context and stops background goroutines.
+func (c *Cursor) Close() {
+	c.cancel()
+}
+
+func (c *Cursor) runQueryOnPartition(partID uint64) (olric.QueryResponse, error) {
+	m := &protocol.Message{
+		DMap:  c.dm.name,
+		Value: c.query,
+		Extra: protocol.QueryExtra{
+			PartID: partID,
+		},
+	}
+	resp, err := c.dm.client.Request(protocol.OpQuery, m)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkStatusCode(resp); err != nil {
+		return nil, err
+	}
+
+	var qr olric.QueryResponse
+	err = msgpack.Unmarshal(resp.Value, &qr)
+	if err != nil {
+		return nil, err
+	}
+	return qr, nil
+}
+
+func (c *Cursor) runQueryOnCluster(results chan olric.QueryResponse, errCh chan error) {
+	defer c.wg.Done()
+	defer close(results)
+
+	var partID uint64
+	var errs error
+	var wg sync.WaitGroup
+
+	appendError := func(e error) error {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return multierror.Append(e, errs)
+	}
+
+	sem := semaphore.NewWeighted(olric.NumParallelQuery)
+	for {
+		err := sem.Acquire(c.ctx, 1)
+		if err == context.Canceled {
+			break
+		}
+		if err != nil {
+			errs = appendError(err)
+			break
+		}
+
+		wg.Add(1)
+		go func(id uint64) {
+			defer wg.Done()
+			defer sem.Release(1)
+
+			resp, err := c.runQueryOnPartition(id)
+			if err == olric.ErrEndOfQuery {
+				c.Close()
+				return
+			}
+			if err != nil {
+				errs = appendError(err)
+				c.Close()
+				return
+			}
+
+			select {
+			case <-c.ctx.Done():
+				// cursor is gone:
+				return
+			default:
+				results <- resp
+			}
+		}(partID)
+		partID++
+	}
+	wg.Wait()
+	errCh <- errs
+}
+
+// Range calls f sequentially for each key and value yielded from the cursor. If f returns false,
+// range stops the iteration.
+func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
+	defer c.Close()
+
+	results := make(chan olric.QueryResponse, olric.NumParallelQuery)
+	errCh := make(chan error, 1)
+
+	c.wg.Add(1)
+	go c.runQueryOnCluster(results, errCh)
+
+	for result := range results {
+		for key, rawval := range result {
+			value, err := c.dm.unmarshalValue(rawval)
+			if err != nil {
+				return err
+			}
+			if !f(key, value) {
+				// This means "break" on the client-side
+				return nil
+			}
+		}
+	}
+	return <-errCh
+}
+
+// Query runs a distributed query on a DMap instance.
+// Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
+// few keywords:
+//
+// $onKey: Runs the given query on keys or manages options on keys for a given query.
+//
+// $onValue: Runs the given query on values or manages options on values for a given query.
+//
+//
+// $options: Useful to modify data returned from a query
+//
+// Keywords for $options:
+//
+// $ignore: Ignores a value.
+//
+// A distributed query looks like the following:
+//
+//   query.M{
+// 	  "$onKey": query.M{
+// 		  "$regexMatch": "^even:",
+// 		  "$options": query.M{
+// 			  "$onValue": query.M{
+// 				  "$ignore": true,
+// 			  },
+// 		  },
+// 	  },
+//   }
+//
+// This query finds the keys starts with "even:", drops the values and returns only keys.
+// If you also want to retrieve the values, just remove the $options directive:
+//
+//   query.M{
+// 	  "$onKey": query.M{
+// 		  "$regexMatch": "^even:",
+// 	  },
+//   }
+//
+// In order to iterate over all the keys:
+//
+//   query.M{
+// 	  "$onKey": query.M{
+// 		  "$regexMatch": "",
+// 	  },
+//   }
+//
+// Query function returns a cursor which has Range and Close methods. Please take look at the Range
+// function for further info.
+func (d *DMap) Query(q query.M) (*Cursor, error) {
+	if err := query.Validate(q); err != nil {
+		return nil, err
+	}
+	qr, err := msgpack.Marshal(q)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Cursor{
+		dm:     d,
+		query:  qr,
+		ctx:    ctx,
+		cancel: cancel,
+	}, nil
 }

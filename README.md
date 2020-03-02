@@ -18,6 +18,7 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 * Supports replication by default(with sync and async options),
 * Quorum-based voting for replica control(Read/Write quorums),
 * Supports atomic operations,
+* Supports distributed queries on keys,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
 
 See [Sample Code](https://github.com/buraksezer/olric#sample-code) section for a quick experimentation.
@@ -60,6 +61,10 @@ Olric is in early stages of development. The package API and client protocol may
   * [Destroy](#destroy)
   * [Stats](#stats)
   * [Ping](#ping)
+  * [Query](#query)
+    * [Cursor](#cursor)
+      * [Range](#range)
+      * [Close](#close)
   * [Atomic Operations](#atomic-operations)
     * [Incr](#incr)
     * [Decr](#decr)
@@ -102,6 +107,7 @@ Olric is in early stages of development. The package API and client protocol may
 * Supports replication by default(with sync and async options),
 * Quorum-based voting for replica control,
 * Thread-safe by default,
+* Supports distributed queries on keys,
 * Provides a command-line-interface to access the cluster directly from the terminal,
 * Supports different serialization formats. Gob, JSON and MessagePack are supported out of the box,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
@@ -482,11 +488,92 @@ See `stats/stats.go` for detailed info about the metrics.
 
 ### Ping 
 
-
 Ping sends a dummy protocol messsage to the given host. This is useful to measure RTT between hosts. It also can be used as aliveness check.
 
 ```go
 err := db.Ping()
+```
+### Query
+
+Query runs a distributed query on a DMap instance. Olric supports a very simple query DSL and now, it only scans keys. 
+The query DSL has very few keywords:
+
+* **$onKey**: Runs the given query on keys or manages options on keys for a given query.
+* **$onValue**: Runs the given query on values or manages options on values for a given query.
+* **$options**: Useful to modify data returned from a query
+
+Keywords for $options:
+
+* **$ignore**: Ignores a value.
+
+A distributed query looks like the following:
+
+```go
+  query.M{
+	  "$onKey": query.M{
+		  "$regexMatch": "^even:",
+		  "$options": query.M{
+			  "$onValue": query.M{
+				  "$ignore": true,
+			  },
+		  },
+	  },
+  }
+```
+
+This query finds the keys starts with *even:*, drops the values and returns only keys. If you also want to retrieve the values, 
+just remove the **$options** directive:
+
+```go
+  query.M{
+	  "$onKey": query.M{
+		  "$regexMatch": "^even:",
+	  },
+  }
+```
+
+In order to iterate over all the keys:
+
+```go
+  query.M{
+	  "$onKey": query.M{
+		  "$regexMatch": "",
+	  },
+  }
+```
+
+This is how you call a distributed query over the cluster:
+
+```go
+c, err := dm.Query(query.M{"$onKey": query.M{"$regexMatch": "",}})
+```
+
+Query function returns a cursor which has `Range` and `Close` methods. Please take look at the `Range` function for further info. 
+
+[Here is a working query example.](https://gist.github.com/buraksezer/045b7ec09463e38b383d0413ad9bcc57)
+
+### Cursor
+
+Cursor implements distributed queries in Olric. It has two methods: `Range` and `Close`
+
+#### Range
+
+Range calls `f` sequentially for each key and value yielded from the cursor. If f returns `false`, range stops the iteration.
+
+```go
+err := c.Range(func(key string, value interface{}) bool {
+		fmt.Printf("KEY: %s, VALUE: %v\n", key, value)
+		return true
+})
+```
+
+#### Close
+
+Close cancels the underlying context and background goroutines stops running. It's a good idea that defer `Close` after getting
+a `Cursor`. By this way, you can ensure that there is no dangling goroutine after your distributed query execution is stopped. 
+
+```go
+c.Close()
 ```
 
 ## Atomic Operations

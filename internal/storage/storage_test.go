@@ -17,6 +17,7 @@ package storage
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -493,5 +494,43 @@ func Test_GetTTL(t *testing.T) {
 
 	if ttl != vdata.TTL {
 		t.Fatalf("Expected TTL %d. Got %d", ttl, vdata.TTL)
+	}
+}
+
+func TestStorage_MatchOnKey(t *testing.T) {
+	s := New(0)
+	hkeys := make(map[uint64]struct{})
+	var key string
+	for i := 0; i < 100; i++ {
+		if i%2 == 0 {
+			key = "even:" + strconv.Itoa(i)
+		} else {
+			key = "odd:" + strconv.Itoa(i)
+		}
+
+		vdata := &VData{
+			Key:       key,
+			TTL:       int64(i),
+			Value:     bval(i),
+			Timestamp: time.Now().UnixNano(),
+		}
+		hkey := xxhash.Sum64([]byte(vdata.Key))
+		err := s.Put(hkey, vdata)
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+		hkeys[hkey] = struct{}{}
+	}
+
+	var count int
+	err := s.MatchOnKey("even:", func(hkey uint64, vdata *VData) bool {
+		count++
+		return true
+	})
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	if count != 50 {
+		t.Fatalf("Expected count is 50. Got: %d", count)
 	}
 }

@@ -152,16 +152,23 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 	return rawval, false
 }
 
-func (t *table) getKey(hkey uint64) (string, bool) {
+func (t *table) getRawKey(hkey uint64) ([]byte, bool) {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
-		return "", true
+		return nil, true
 	}
 
 	klen := int(t.memory[offset])
 	offset++
-	key := string(t.memory[offset : offset+klen])
-	return key, false
+	return t.memory[offset : offset+klen], false
+}
+
+func (t *table) getKey(hkey uint64) (string, bool) {
+	raw, prev := t.getRawKey(hkey)
+	if raw == nil {
+		return "", prev
+	}
+	return string(raw), prev
 }
 
 func (t *table) getTTL(hkey uint64) (int64, bool) {
