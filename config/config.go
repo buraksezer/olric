@@ -26,7 +26,6 @@ import (
 
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/serializer"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/memberlist"
 )
@@ -456,6 +455,8 @@ func New(env string) *Config {
 		WriteQuorum:       1,
 		ReadQuorum:        1,
 		MemberCountQuorum: 1,
+		Peers:             []string{},
+		Cache:             &CacheConfig{},
 	}
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))

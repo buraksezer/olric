@@ -447,7 +447,7 @@ func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message
 	coordinatorId := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorID
 	coordinator, err := db.checkAndGetCoordinator(coordinatorId)
 	if err != nil {
-			db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
+		db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 
