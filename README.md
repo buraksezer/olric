@@ -75,9 +75,11 @@ Olric is in early stages of development. The package API and client protocol may
 * [Architecture](#architecture)
   * [Overview](#overview)
   * [Consistency and Replication Model](#consistency-and-replication-model)
+    * [Last-write-wins conflict resolution](#last-write-wins-conflict-resolution)
     * [PACELC Theorem](#pacelc-theorem)
     * [Read-Repair on DMaps](#read-repair-on-dmaps)
     * [Quorum-based Replica Control](#quorum-based-replica-control)
+    * [Simple Split-Brain Protection](#simple-split-brain-protection)
   * [Eviction](#eviction)
     * [Expire with TTL](#expire-with-ttl)
     * [Expire with MaxIdleDuration](#expire-with-maxidleduration)
@@ -796,6 +798,11 @@ model.
 * **sync**: Blocks until write/delete operation is applied by backup owners.
 * **async**: Just fire & forget.
 
+#### Last-write-wins conflict resolution
+
+Every time a piece of data is written to Olric, a timestamp is attached by the client. Then, when Olric has to deal with conflict data in the case 
+of network partitioning, it simply chooses the data with the most recent timestamp. This called LWW conflict resolution policy.
+
 #### PACELC Theorem
 
 From Wikipedia:
@@ -835,6 +842,15 @@ Olric implements Read/Write quorum to keep the data in a consistent state. When 
 the partition owner tries to write the given key/value pair on its own data storage and on the replica nodes. If the number of successful write operations 
 is below W, the primary owner returns `ErrWriteQuorum`. The read flow is the same: if you have R=2 and the owner only access one of the replicas, 
 it returns `ErrReadQuorum`.
+
+#### Simple Split-Brain Protection
+
+Olric implements a technique called *majority quorum* to manage split-brain conditions. If a network partitioning occurs and some of the members
+lost the connection to rest of the cluster, they immediately stops functioning and return an error to incoming requests. This behaviour is controlled by
+`MemberCountQuorum` parameter. It's default `1`. 
+
+When the network healed, the stopped nodes joins again the cluster and fragmented partitions is merged by their primary owners in accordance with 
+*LWW policy*. Olric also implements an *ownership report* mechanism to fix inconsistencies in partition distribution after a partitioning event. 
 
 ### Eviction
 Olric supports different policies to evict keys from distributed maps. 
