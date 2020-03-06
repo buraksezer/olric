@@ -94,11 +94,12 @@ type cache struct {
 
 // Config is the main configuration struct
 type Config struct {
-	Memberlist memberlist
-	Logging    logging
-	Olricd     olricd
-	Cache      cache
-	DMaps      map[string]cache
+	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
+	Memberlist       memberlist
+	Logging          logging
+	Olricd           olricd
+	Cache            cache
+	DMaps            map[string]cache
 }
 
 // NewConfig creates a new configuration instance of olricd

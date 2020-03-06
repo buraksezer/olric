@@ -19,7 +19,11 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"log"
 	"net"
+	"os"
+	"plugin"
 	"sort"
 	"strconv"
 	"sync"
@@ -34,6 +38,15 @@ import (
 const eventChanCapacity = 256
 
 var ErrHostNotFound = errors.New("host not found")
+
+type ServiceDiscovery interface {
+	SetConfig(c map[string]interface{}) error
+	SetLogger(l *log.Logger)
+	Register() error
+	Deregister() error
+	DiscoverPeers() ([]string, error)
+	Close()
+}
 
 // ClusterEvent is a single event related to node activity in the memberlist.
 // The Node member of this struct must not be directly modified.
@@ -67,6 +80,7 @@ type Discovery struct {
 	deadMemberEvents chan *ClusterEvent
 
 	eventSubscribers []chan *ClusterEvent
+	serviceDiscovery ServiceDiscovery
 
 	// Flow control
 	wg     sync.WaitGroup
@@ -91,6 +105,40 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 	return *res, err
 }
 
+func consul(d *Discovery, c *config.Config) {
+	// load module
+	// 1. open the so file to load the symbols
+	plug, err := plugin.Open("/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so")
+	if err != nil {
+		fmt.Println("open", err)
+		os.Exit(1)
+	}
+
+	// 2. look up a symbol (an exported function or variable)
+	// in this case, variable Greeter
+	symDiscovery, err := plug.Lookup("ServiceDiscovery")
+	if err != nil {
+		fmt.Println("lookup", err)
+		os.Exit(1)
+	}
+
+	// 3. Assert that loaded symbol is of a desired type
+	// in this case interface type Greeter (defined above)
+	sd, ok := symDiscovery.(ServiceDiscovery)
+	if !ok {
+		fmt.Println("unexpected type from module symbol")
+		os.Exit(1)
+	}
+
+	// 4. use the module
+	if err := sd.SetConfig(c.ServiceDiscovery); err != nil {
+		fmt.Println("set config returned an error", err)
+		os.Exit(1)
+	}
+	sd.SetLogger(c.Logger)
+	d.serviceDiscovery = sd
+}
+
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
 func New(log *flog.Logger, c *config.Config) *Discovery {
 	// Calculate host's identity. It's useful to compare hosts.
@@ -106,7 +154,7 @@ func New(log *flog.Logger, c *config.Config) *Discovery {
 		Birthdate: birthdate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Discovery{
+	d := &Discovery{
 		host:        host,
 		config:      c,
 		log:         log,
@@ -114,6 +162,11 @@ func New(log *flog.Logger, c *config.Config) *Discovery {
 		ctx:         ctx,
 		cancel:      cancel,
 	}
+
+	if c.ServiceDiscovery != nil {
+		consul(d, d.config)
+	}
+	return d
 }
 
 func (d *Discovery) dialDeadMember(member string) {
@@ -193,6 +246,11 @@ func (d *Discovery) Start() error {
 		return err
 	}
 	d.memberlist = list
+
+	if d.serviceDiscovery != nil {
+		err = d.serviceDiscovery.Register()
+		fmt.Println(err)
+	}
 
 	d.wg.Add(2)
 	go d.eventLoop(eventsCh)
@@ -299,6 +357,8 @@ func (d *Discovery) Shutdown() error {
 	if err := d.memberlist.Leave(15 * time.Second); err != nil {
 		d.log.V(3).Printf("[ERROR] memberlist.Leave returned an error: %v", err)
 	}
+	err := d.serviceDiscovery.Deregister()
+	fmt.Println(err)
 	return d.memberlist.Shutdown()
 }
 

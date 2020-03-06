@@ -154,6 +154,7 @@ func New(c *Config) (*Olricd, error) {
 	s.log = log.New(logOutput, "", log.LstdFlags)
 	s.config = &config.Config{
 		Name:              c.Olricd.Name,
+		ServiceDiscovery:  c.ServiceDiscovery,
 		MemberlistConfig:  mc,
 		LogLevel:          c.Logging.Level,
 		JoinRetryInterval: joinRetryInterval,

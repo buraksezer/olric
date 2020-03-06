@@ -57,3 +57,9 @@ memberlist:
 #    lRUSamples: 20
 #    evictionPolicy: "NONE"
 
+
+serviceDiscovery:
+  service: "consul"
+  path: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so"
+  url: "http://127.0.0.1:8500"
+  payload: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/sample-payload.json"
