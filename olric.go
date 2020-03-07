@@ -334,8 +334,11 @@ func (db *Olric) bootstrapCoordinator() error {
 
 // startDiscovery initializes and starts discovery subsystem.
 func (db *Olric) startDiscovery() error {
-	d := discovery.New(db.log, db.config)
-	err := d.Start()
+	d, err := discovery.New(db.log, db.config)
+	if err != nil {
+		return err
+	}
+	err = d.Start()
 	if err != nil {
 		return err
 	}

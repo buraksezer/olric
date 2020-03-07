@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"plugin"
 	"sort"
 	"strconv"
@@ -40,6 +39,7 @@ const eventChanCapacity = 256
 var ErrHostNotFound = errors.New("host not found")
 
 type ServiceDiscovery interface {
+	Initialize() error
 	SetConfig(c map[string]interface{}) error
 	SetLogger(l *log.Logger)
 	Register() error
@@ -105,42 +105,8 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 	return *res, err
 }
 
-func consul(d *Discovery, c *config.Config) {
-	// load module
-	// 1. open the so file to load the symbols
-	plug, err := plugin.Open("/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so")
-	if err != nil {
-		fmt.Println("open", err)
-		os.Exit(1)
-	}
-
-	// 2. look up a symbol (an exported function or variable)
-	// in this case, variable Greeter
-	symDiscovery, err := plug.Lookup("ServiceDiscovery")
-	if err != nil {
-		fmt.Println("lookup", err)
-		os.Exit(1)
-	}
-
-	// 3. Assert that loaded symbol is of a desired type
-	// in this case interface type Greeter (defined above)
-	sd, ok := symDiscovery.(ServiceDiscovery)
-	if !ok {
-		fmt.Println("unexpected type from module symbol")
-		os.Exit(1)
-	}
-
-	// 4. use the module
-	if err := sd.SetConfig(c.ServiceDiscovery); err != nil {
-		fmt.Println("set config returned an error", err)
-		os.Exit(1)
-	}
-	sd.SetLogger(c.Logger)
-	d.serviceDiscovery = sd
-}
-
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
-func New(log *flog.Logger, c *config.Config) *Discovery {
+func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 	// Calculate host's identity. It's useful to compare hosts.
 	birthdate := time.Now().UnixNano()
 	buf := make([]byte, 8+len(c.Name))
@@ -164,9 +130,44 @@ func New(log *flog.Logger, c *config.Config) *Discovery {
 	}
 
 	if c.ServiceDiscovery != nil {
-		consul(d, d.config)
+		if err := d.loadServiceDiscoveryPlugin(); err != nil {
+			return nil, err
+		}
 	}
-	return d
+	return d, nil
+}
+
+
+func (d *Discovery) loadServiceDiscoveryPlugin() error {
+	pluginPath, ok := d.config.ServiceDiscovery["path"]
+	if !ok {
+		return fmt.Errorf("plugin path could not be found")
+	}
+	plug, err := plugin.Open(pluginPath.(string))
+	if err != nil {
+		return fmt.Errorf("failed to open plugin: %w", err)
+	}
+
+	symDiscovery, err := plug.Lookup("ServiceDiscovery")
+	if err != nil {
+		return fmt.Errorf("failed to lookup serviceDiscovery symbol: %w", err)
+	}
+
+	sd, ok := symDiscovery.(ServiceDiscovery)
+	if !ok {
+		return fmt.Errorf("unable to assert type to serviceDiscovery")
+	}
+
+	if err := sd.SetConfig(d.config.ServiceDiscovery); err != nil {
+		return err
+	}
+	sd.SetLogger(d.config.Logger)
+	if err := sd.Initialize(); err != nil {
+		return err
+	}
+
+	d.serviceDiscovery = sd
+	return nil
 }
 
 func (d *Discovery) dialDeadMember(member string) {
@@ -248,8 +249,9 @@ func (d *Discovery) Start() error {
 	d.memberlist = list
 
 	if d.serviceDiscovery != nil {
-		err = d.serviceDiscovery.Register()
-		fmt.Println(err)
+		if err := d.serviceDiscovery.Register(); err != nil {
+			return err
+		}
 	}
 
 	d.wg.Add(2)
@@ -263,6 +265,13 @@ func (d *Discovery) Start() error {
 // the Memberlist only contains our own state, so doing this will cause remote
 // nodes to become aware of the existence of this node, effectively joining the cluster.
 func (d *Discovery) Join() (int, error) {
+	if d.serviceDiscovery != nil {
+		peers, err := d.serviceDiscovery.DiscoverPeers()
+		if err != nil {
+			return 0, err
+		}
+		return d.memberlist.Join(peers)
+	}
 	return d.memberlist.Join(d.config.Peers)
 }
 

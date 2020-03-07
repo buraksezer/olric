@@ -59,7 +59,25 @@ memberlist:
 
 
 serviceDiscovery:
-  service: "consul"
+  provider: "consul"
   path: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so"
   url: "http://127.0.0.1:8500"
-  payload: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/sample-payload.json"
+  payload: '
+      {
+          "Name": "olric-cluster",
+          "ID": "olric-node-1",
+          "Tags": [
+            "primary",
+            "v1"
+          ],
+          "Address": "localhost",
+          "Port": 3322,
+          "EnableTagOverride": false,
+          "check": {
+            "name": "Olric node on 3322",
+            "tcp": "0.0.0.0:3322",
+            "interval": "10s",
+            "timeout": "1s"
+          }
+      }
+'
