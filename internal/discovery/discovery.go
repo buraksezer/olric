@@ -36,15 +36,30 @@ import (
 
 const eventChanCapacity = 256
 
+// ErrHostNotFound indicates that the requested host could not be found in the member list.
 var ErrHostNotFound = errors.New("host not found")
 
+// ServiceDiscovery is an interface that defines a unified API for service discovery plugins.
 type ServiceDiscovery interface {
+	// Initialize initializes the plugin: registers some internal data structures, clients etc.
 	Initialize() error
+
+	// SetConfig registers plugin configuration
 	SetConfig(c map[string]interface{}) error
+
+	// SetLogger sets an appropriate
 	SetLogger(l *log.Logger)
+
+	// Register registers this node to a service discovery directory.
 	Register() error
+
+	// Deregister removes this node from a service discovery directory.
 	Deregister() error
+
+	// DiscoverPeers returns a list of known Olric nodes.
 	DiscoverPeers() ([]string, error)
+
+	// Close stops underlying goroutines, if there is any. It should be a blocking call.
 	Close()
 }
 
@@ -136,7 +151,6 @@ func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 	}
 	return d, nil
 }
-
 
 func (d *Discovery) loadServiceDiscoveryPlugin() error {
 	pluginPath, ok := d.config.ServiceDiscovery["path"]
@@ -366,8 +380,13 @@ func (d *Discovery) Shutdown() error {
 	if err := d.memberlist.Leave(15 * time.Second); err != nil {
 		d.log.V(3).Printf("[ERROR] memberlist.Leave returned an error: %v", err)
 	}
-	err := d.serviceDiscovery.Deregister()
-	fmt.Println(err)
+
+	if d.serviceDiscovery != nil {
+		defer d.serviceDiscovery.Close()
+		if err := d.serviceDiscovery.Deregister(); err != nil {
+			d.log.V(3).Printf("[ERROR] ServiceDiscovery.Deregister returned an error: %v", err)
+		}
+	}
 	return d.memberlist.Shutdown()
 }
 

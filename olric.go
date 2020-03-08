@@ -353,7 +353,7 @@ func (db *Olric) startDiscovery() error {
 		attempts++
 		n, err := db.discovery.Join()
 		if err == nil {
-			db.log.V(2).Printf("[INFO] Join completed. Synced with %d initial nodes: %v", n, d.NumMembers())
+			db.log.V(2).Printf("[INFO] Join completed. Synced with %d initial nodes", n)
 			break
 		}
 

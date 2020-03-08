@@ -62,6 +62,9 @@ serviceDiscovery:
   provider: "consul"
   path: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so"
   url: "http://127.0.0.1:8500"
+  passingOnly: true
+  replaceExistingChecks: true
+  insecureSkipVerify: true
   payload: '
       {
           "Name": "olric-cluster",
