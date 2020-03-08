@@ -60,7 +60,7 @@ type ServiceDiscovery interface {
 	DiscoverPeers() ([]string, error)
 
 	// Close stops underlying goroutines, if there is any. It should be a blocking call.
-	Close()
+	Close() error
 }
 
 // ClusterEvent is a single event related to node activity in the memberlist.

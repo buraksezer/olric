@@ -59,12 +59,33 @@ memberlist:
 
 
 serviceDiscovery:
-  provider: "consul"
+  # path is a required property and used by Olric. It has to be a full path.
   path: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so"
-  url: "http://127.0.0.1:8500"
+
+  # provider is just informal,
+  provider: "consul"
+
+  # Plugin specific configuration
+  # Consul server, used by the plugin. It's required
+  address: "http://127.0.0.1:8500"
+
+  # Specifies that the server should return only nodes with all checks in the passing state.
   passingOnly: true
+
+  # Missing health checks from the request will be deleted from the agent. Using this parameter
+  # allows to idempotently register a service and its checks without having to manually deregister
+  # checks.
   replaceExistingChecks: true
+
+  # InsecureSkipVerify controls whether a client verifies the
+  # server's certificate chain and host name.
+  # If InsecureSkipVerify is true, TLS accepts any certificate
+  # presented by the server and any host name in that certificate.
+  # In this mode, TLS is susceptible to man-in-the-middle attacks.
+  # This should be used only for testing.
   insecureSkipVerify: true
+
+  # service record
   payload: '
       {
           "Name": "olric-cluster",
