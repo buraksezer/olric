@@ -159,7 +159,6 @@ func (d *Discovery) loadServiceDiscoveryPlugin() error {
 		if sd, ok = val.(ServiceDiscovery); !ok {
 			return fmt.Errorf("plugin type %T is not a ServiceDiscovery interface", val)
 		}
-
 	} else {
 		pluginPath, ok := d.config.ServiceDiscovery["path"]
 		if !ok {
