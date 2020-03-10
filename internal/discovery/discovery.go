@@ -153,23 +153,31 @@ func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 }
 
 func (d *Discovery) loadServiceDiscoveryPlugin() error {
-	pluginPath, ok := d.config.ServiceDiscovery["path"]
-	if !ok {
-		return fmt.Errorf("plugin path could not be found")
-	}
-	plug, err := plugin.Open(pluginPath.(string))
-	if err != nil {
-		return fmt.Errorf("failed to open plugin: %w", err)
-	}
+	var sd ServiceDiscovery
 
-	symDiscovery, err := plug.Lookup("ServiceDiscovery")
-	if err != nil {
-		return fmt.Errorf("failed to lookup serviceDiscovery symbol: %w", err)
-	}
+	if val, ok := d.config.ServiceDiscovery["plugin"]; ok {
+		if sd, ok = val.(ServiceDiscovery); !ok {
+			return fmt.Errorf("plugin type %T is not a ServiceDiscovery interface", val)
+		}
 
-	sd, ok := symDiscovery.(ServiceDiscovery)
-	if !ok {
-		return fmt.Errorf("unable to assert type to serviceDiscovery")
+	} else {
+		pluginPath, ok := d.config.ServiceDiscovery["path"]
+		if !ok {
+			return fmt.Errorf("plugin path could not be found")
+		}
+		plug, err := plugin.Open(pluginPath.(string))
+		if err != nil {
+			return fmt.Errorf("failed to open plugin: %w", err)
+		}
+
+		symDiscovery, err := plug.Lookup("ServiceDiscovery")
+		if err != nil {
+			return fmt.Errorf("failed to lookup serviceDiscovery symbol: %w", err)
+		}
+
+		if sd, ok = symDiscovery.(ServiceDiscovery); !ok {
+			return fmt.Errorf("unable to assert type to serviceDiscovery")
+		}
 	}
 
 	if err := sd.SetConfig(d.config.ServiceDiscovery); err != nil {
