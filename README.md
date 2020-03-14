@@ -18,6 +18,7 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 * Quorum-based voting for replica control(Read/Write quorums),
 * Supports atomic operations,
 * Supports distributed queries on keys,
+* Provides a plugin interface for service discovery daemons,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
 
 See [Sample Code](https://github.com/buraksezer/olric#sample-code) section for a quick experimentation.
@@ -72,6 +73,7 @@ Olric is in early stages of development. The package API and client protocol may
 * [Serialization](#serialization)
 * [Golang Client](#golang-client)
 * [Configuration](#configuration)
+    * [Service discovery](#service-discovery)
 * [Architecture](#architecture)
   * [Overview](#overview)
   * [Consistency and Replication Model](#consistency-and-replication-model)
@@ -727,6 +729,12 @@ db2, err := olric.New(c2)
 
 // Call Start method for db1 and db2 in a seperate goroutine.
 ```
+
+### Service Discovery
+
+Olric provides a service discovery interface which can be used to implement plugins. We currently have a service discovery 
+plugin for [Consul](https://consul.io). It can be found at [buraksezer/olric-consul-plugin](https://github.com/buraksezer/olric-consul-plugin).
+In order to get more info about installation and configuration of the plugin, see its GitHub page. 
 
 ## Architecture
 
