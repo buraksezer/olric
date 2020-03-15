@@ -24,8 +24,8 @@ memberlist:
   enableCompression: false
   joinRetryInterval: "1ms"
   maxJoinAttempts: 1
-  peers:
-    - "localhost:3325"
+  #peers:
+  #  - "localhost:3325"
 
   #advertiseAddr: ""
   #advertisePort: 3322
@@ -58,50 +58,50 @@ memberlist:
 #    evictionPolicy: "NONE"
 
 
-serviceDiscovery:
-  # path is a required property and used by Olric. It has to be a full path.
-  path: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so"
-
-  # provider is just informal,
-  provider: "consul"
-
-  # Plugin specific configuration
-  # Consul server, used by the plugin. It's required
-  address: "http://127.0.0.1:8500"
-
-  # Specifies that the server should return only nodes with all checks in the passing state.
-  passingOnly: true
-
-  # Missing health checks from the request will be deleted from the agent. Using this parameter
-  # allows to idempotently register a service and its checks without having to manually deregister
-  # checks.
-  replaceExistingChecks: true
-
-  # InsecureSkipVerify controls whether a client verifies the
-  # server's certificate chain and host name.
-  # If InsecureSkipVerify is true, TLS accepts any certificate
-  # presented by the server and any host name in that certificate.
-  # In this mode, TLS is susceptible to man-in-the-middle attacks.
-  # This should be used only for testing.
-  insecureSkipVerify: true
-
-  # service record
-  payload: '
-      {
-          "Name": "olric-cluster",
-          "ID": "olric-node-1",
-          "Tags": [
-            "primary",
-            "v1"
-          ],
-          "Address": "localhost",
-          "Port": 3322,
-          "EnableTagOverride": false,
-          "check": {
-            "name": "Olric node on 3322",
-            "tcp": "0.0.0.0:3322",
-            "interval": "10s",
-            "timeout": "1s"
-          }
-      }
-'
+#serviceDiscovery:
+#  # path is a required property and used by Olric. It has to be a full path.
+#  path: "/home/burak/go/src/github.com/buraksezer/olric-consul-plugin/consul.so"
+#
+#  # provider is just informal,
+#  provider: "consul"
+#
+#  # Plugin specific configuration
+#  # Consul server, used by the plugin. It's required
+#  address: "http://127.0.0.1:8500"
+#
+#  # Specifies that the server should return only nodes with all checks in the passing state.
+#  passingOnly: true
+#
+#  # Missing health checks from the request will be deleted from the agent. Using this parameter
+#  # allows to idempotently register a service and its checks without having to manually deregister
+#  # checks.
+#  replaceExistingChecks: true
+#
+#  # InsecureSkipVerify controls whether a client verifies the
+#  # server's certificate chain and host name.
+#  # If InsecureSkipVerify is true, TLS accepts any certificate
+#  # presented by the server and any host name in that certificate.
+#  # In this mode, TLS is susceptible to man-in-the-middle attacks.
+#  # This should be used only for testing.
+#  insecureSkipVerify: true
+#
+#  # service record
+#  payload: '
+#      {
+#          "Name": "olric-cluster",
+#          "ID": "olric-node-1",
+#          "Tags": [
+#            "primary",
+#            "v1"
+#          ],
+#          "Address": "localhost",
+#          "Port": 3322,
+#          "EnableTagOverride": false,
+#          "check": {
+#            "name": "Olric node on 3322",
+#            "tcp": "0.0.0.0:3322",
+#            "interval": "10s",
+#            "timeout": "1s"
+#          }
+#      }
+#'
