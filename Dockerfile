@@ -1,12 +1,7 @@
-FROM golang:1.14-alpine AS build
+FROM golang:latest
 WORKDIR /src/
 COPY . /src/
-ENV GO111MODULE=on
 RUN go mod download
-RUN CGO_ENABLED=0 go build -o /usr/bin/olricd /src/cmd/olricd
-
-FROM scratch
-COPY --from=build /usr/bin/olricd /usr/bin/olricd
-COPY --from=build /src/cmd/olricd/olricd.yaml /etc/olricd.yaml
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /usr/bin/olricd /src/cmd/olricd
 EXPOSE 3320 3322
-ENTRYPOINT ["/usr/bin/olricd", "-c", "/etc/olricd.yaml"]
+ENTRYPOINT ["/usr/bin/olricd", "-c", "/src/cmd/olricd/olricd.yaml"]
