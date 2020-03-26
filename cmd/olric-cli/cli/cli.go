@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,6 +103,11 @@ func (c *CLI) print(msg string) {
 	io.WriteString(c.output, msg)
 }
 
+func trimPrefix(s, prefix string) string {
+	res := strings.TrimPrefix(s, prefix)
+	return strings.TrimSpace(res)
+}
+
 func parseLine(tmp string) (string, string, error) {
 	tmp = strings.TrimSpace(tmp)
 	var key, value string
@@ -133,8 +138,7 @@ func (c *CLI) evaluate(dmap, line string) error {
 	dm := c.client.NewDMap(dmap)
 	switch {
 	case strings.HasPrefix(line, "put "):
-		tmp := strings.TrimLeft(line, "put ")
-		tmp = strings.TrimSpace(tmp)
+		tmp := trimPrefix(line, "put ")
 		key, value, err := parseLine(tmp)
 		if err != nil {
 			return err
@@ -143,8 +147,7 @@ func (c *CLI) evaluate(dmap, line string) error {
 			return err
 		}
 	case strings.HasPrefix(line, "putex "):
-		tmp := strings.TrimLeft(line, "putex ")
-		tmp = strings.TrimSpace(tmp)
+		tmp := trimPrefix(line, "putex ")
 		var key, value, tval, tt string
 		if strings.HasPrefix(tmp, "\"") {
 			key, err = extractKey(tmp)
@@ -179,7 +182,7 @@ func (c *CLI) evaluate(dmap, line string) error {
 			return err
 		}
 	case strings.HasPrefix(line, "get "):
-		key := strings.TrimLeft(line, "get ")
+		key := trimPrefix(line, "get ")
 		if strings.HasPrefix(key, "\"") {
 			key, err = extractKey(key)
 			if err != nil {
@@ -192,7 +195,7 @@ func (c *CLI) evaluate(dmap, line string) error {
 		}
 		c.print(fmt.Sprintf("%v\n", value))
 	case strings.HasPrefix(line, "delete "):
-		key := strings.TrimLeft(line, "delete ")
+		key := trimPrefix(line, "delete ")
 		if strings.HasPrefix(key, "\"") {
 			key, err = extractKey(key)
 			if err != nil {
@@ -209,7 +212,7 @@ func (c *CLI) evaluate(dmap, line string) error {
 			return err
 		}
 	case strings.HasPrefix(line, "incr "):
-		tmp := strings.TrimLeft(line, "incr ")
+		tmp := trimPrefix(line, "incr ")
 		key, value, err := parseLine(tmp)
 		if err != nil {
 			return err
@@ -224,7 +227,7 @@ func (c *CLI) evaluate(dmap, line string) error {
 		}
 		c.print(fmt.Sprintf("%d\n", current))
 	case strings.HasPrefix(line, "decr "):
-		tmp := strings.TrimLeft(line, "decr ")
+		tmp := trimPrefix(line, "decr ")
 		key, value, err := parseLine(tmp)
 		if err != nil {
 			return fmt.Errorf("invalid delta: %s", err)
@@ -303,7 +306,7 @@ func (c *CLI) WaitForCommand(dmap string) error {
 			if strings.HasPrefix(dmap, "\"") {
 				dmap, err = extractKey(dmap)
 				if err != nil {
-					c.print(fmt.Sprintf("Failed to get database name: %s: %v\n", line, err))
+					c.print(fmt.Sprintf("Failed to get DMap name: %s: %v\n", line, err))
 				}
 			}
 			c.print(fmt.Sprintf("use %s\n", dmap))
@@ -311,7 +314,7 @@ func (c *CLI) WaitForCommand(dmap string) error {
 			help()
 		default:
 			if len(dmap) == 0 {
-				c.print("Call 'use <database-name>' command before accessing the database.\n")
+				c.print("Call 'use <dmap-name>' command before accessing the DMap.\n")
 			} else {
 				if err := c.evaluate(dmap, line); err != nil {
 					c.print(fmt.Sprintf("Failed to call %s on %s: %v\n", line, dmap, err))
