@@ -1,4 +1,4 @@
-FROM golang:latest as BUILD
+FROM golang:latest as build
 WORKDIR /src/
 COPY . /src/
 RUN go mod download
