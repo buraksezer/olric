@@ -1,5 +1,6 @@
 olricd:
-  name: "0.0.0.0:3320"
+  bindAddr: "0.0.0.0"
+  bindPort: 3320
   serializer: "msgpack"
   keepAlivePeriod: "300s"
   requestTimeout: "5s"
@@ -105,3 +106,9 @@ memberlist:
 #          }
 #      }
 #'
+#
+#
+#serviceDiscovery:
+#  provider: "k8s"
+#  path: "/Users/buraksezer/go/src/github.com/buraksezer/olric-cloud-plugin/olric-cloud-plugin.so"
+#  args: 'label_selector="app = olricd-server"'

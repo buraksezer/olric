@@ -190,6 +190,12 @@ type Config struct {
 	// Name is also used by the TCP server as Addr. It should be an IP address or domain name of the server.
 	Name string
 
+	// Addr to bind
+	BindAddr string
+
+	// Port to bind
+	BindPort int
+
 	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
 	KeepAlivePeriod time.Duration
 
@@ -359,6 +365,14 @@ func (c *Config) Validate() error {
 				"smaller than MinimumMemberCountQuorum"))
 	}
 
+	if c.BindAddr == "" {
+		result = multierror.Append(result, fmt.Errorf("BindAddr cannot be empty"))
+	}
+
+	if c.BindPort == 0 {
+		result = multierror.Append(result, fmt.Errorf("BindPort cannot be empty or zero"))
+	}
+
 	return result
 }
 
@@ -385,13 +399,37 @@ func (c *Config) Sanitize() error {
 	if c.Serializer == nil {
 		c.Serializer = serializer.NewGobSerializer()
 	}
-	if c.Name == "" {
+
+	if c.BindAddr == "" {
 		name, err := os.Hostname()
 		if err != nil {
 			return err
 		}
-		c.Name = name + ":" + strconv.Itoa(DefaultPort)
+		c.BindAddr = name
 	}
+	// We currently don't support ephemeral port selection. Because it needs improved flow
+	// control in server initialization stage.
+	if c.BindPort == 0 {
+		c.BindPort = DefaultPort
+	}
+
+	// TODO: Config.Name is deprecated and it will be removed in v0.3.0
+	if c.Name == "" {
+		c.Name = c.BindAddr + ":" + strconv.Itoa(c.BindPort)
+	} else {
+		c.Logger.Printf("[WARN] Config.Name is deprecated. Please use BindAddr and BindPort instead of Config.name")
+		host, _port, err := net.SplitHostPort(c.Name)
+		if err != nil {
+			return err
+		}
+		port, err := strconv.Atoi(_port)
+		if err != nil {
+			return err
+		}
+		c.BindAddr = host
+		c.BindPort = port
+	}
+
 	if c.LoadFactor == 0 {
 		c.LoadFactor = DefaultLoadFactor
 	}
@@ -403,7 +441,8 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MemberlistConfig == nil {
 		m := memberlist.DefaultLocalConfig()
-		m.Name = c.Name
+		// hostname is assigned to memberlist.BindAddr
+		// memberlist.Name is assigned by olric.New
 		m.BindPort = DefaultDiscoveryPort
 		m.AdvertisePort = DefaultDiscoveryPort
 		c.MemberlistConfig = m
@@ -451,7 +490,8 @@ func (c *Config) Sanitize() error {
 // The default configuration is still very conservative and errs on the side of caution.
 func New(env string) *Config {
 	c := &Config{
-		Name:              "0.0.0.0" + ":" + strconv.Itoa(DefaultPort), // this must be unique in the cluster
+		BindAddr:          "0.0.0.0",
+		BindPort:          DefaultPort,
 		ReadRepair:        false,
 		ReplicaCount:      1,
 		WriteQuorum:       1,
@@ -467,7 +507,7 @@ func New(env string) *Config {
 	if err != nil {
 		panic(fmt.Sprintf("unable to create a new memberlist config: %v", err))
 	}
-	m.Name = c.Name
+	// memberlist.Name will be assigned by olric.New
 	m.BindPort = DefaultDiscoveryPort
 	m.AdvertisePort = DefaultDiscoveryPort
 	c.MemberlistConfig = m

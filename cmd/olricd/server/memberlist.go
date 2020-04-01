@@ -17,6 +17,7 @@ package server
 import (
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -30,7 +31,13 @@ func newMemberlistConf(c *Config) (*m.Config, error) {
 		return nil, err
 	}
 
-	mc.Name = c.Olricd.Name
+	if c.Memberlist.BindAddr == "" {
+		name, err := os.Hostname()
+		if err != nil {
+			return nil, err
+		}
+		c.Memberlist.BindAddr = name
+	}
 	mc.BindAddr = c.Memberlist.BindAddr
 	mc.BindPort = c.Memberlist.BindPort
 

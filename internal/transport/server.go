@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,7 +37,8 @@ const (
 
 // Server implements a concurrent TCP server.
 type Server struct {
-	addr            string
+	bindAddr        string
+	bindPort        int
 	keepAlivePeriod time.Duration
 	log             *flog.Logger
 	wg              sync.WaitGroup
@@ -48,10 +50,11 @@ type Server struct {
 }
 
 // NewServer creates and returns a new Server.
-func NewServer(addr string, logger *flog.Logger, keepalivePeriod time.Duration) *Server {
+func NewServer(bindAddr string, bindPort int, keepalivePeriod time.Duration, logger *flog.Logger) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		addr:            addr,
+		bindAddr:        bindAddr,
+		bindPort:        bindPort,
 		keepAlivePeriod: keepalivePeriod,
 		log:             logger,
 		StartCh:         make(chan struct{}),
@@ -207,7 +210,8 @@ func (s *Server) ListenAndServe() error {
 		close(s.StartCh)
 	}()
 
-	l, err := net.Listen("tcp", s.addr)
+	addr := net.JoinHostPort(s.bindAddr, strconv.Itoa(s.bindPort))
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}

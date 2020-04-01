@@ -55,10 +55,10 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	addr := "127.0.0.1:" + strconv.Itoa(port)
 	cfg := &config.Config{
 		PartitionCount:    7,
-		Name:              addr,
+		BindAddr:          "127.0.0.1",
+		BindPort:          port,
 		ReplicaCount:      config.MinimumReplicaCount,
 		WriteQuorum:       config.MinimumReplicaCount,
 		ReadQuorum:        config.MinimumReplicaCount,
@@ -78,7 +78,7 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)
-	testConfig.Addrs = []string{addr}
+	testConfig.Addrs = []string{"127.0.0.1:" + strconv.Itoa(port)}
 	return db, done, nil
 }
 

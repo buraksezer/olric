@@ -338,7 +338,7 @@ func TestDMap_Query(t *testing.T) {
 		Extra: protocol.QueryExtra{PartID: 0},
 	}
 	cc := &transport.ClientConfig{
-		Addrs:   []string{db.config.Name},
+		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	cl := transport.NewClient(cc)
@@ -404,7 +404,7 @@ func TestDMap_QueryEndOfKeySpace(t *testing.T) {
 		Extra: protocol.QueryExtra{PartID: 300},
 	}
 	cc := &transport.ClientConfig{
-		Addrs:   []string{db.config.Name},
+		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	cl := transport.NewClient(cc)

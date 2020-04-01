@@ -18,7 +18,6 @@ package main
 
 import (
 	"flag"
-	"github.com/sean-/seed"
 	"io/ioutil"
 	"log"
 	"os"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/cmd/olricd/server"
+	"github.com/sean-/seed"
 )
 
 var usage = `Usage: 

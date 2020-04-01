@@ -123,14 +123,16 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
 func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 	// Calculate host's identity. It's useful to compare hosts.
+	name := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 	birthdate := time.Now().UnixNano()
-	buf := make([]byte, 8+len(c.Name))
-	binary.BigEndian.PutUint64(buf, uint64(birthdate))
-	buf = append(buf, []byte(c.Name)...)
-	id := c.Hasher.Sum64(buf)
 
+	buf := make([]byte, 8+len(name))
+	binary.BigEndian.PutUint64(buf, uint64(birthdate))
+	buf = append(buf, []byte(name)...)
+
+	id := c.Hasher.Sum64(buf)
 	host := &Member{
-		Name:      c.Name,
+		Name:      name,
 		ID:        id,
 		Birthdate: birthdate,
 	}
@@ -257,7 +259,6 @@ func (d *Discovery) Start() error {
 		return err
 	}
 	eventsCh := make(chan memberlist.NodeEvent, eventChanCapacity)
-	d.config.MemberlistConfig.Name = d.config.Name
 	d.config.MemberlistConfig.Delegate = dl
 	d.config.MemberlistConfig.Logger = d.config.Logger
 	d.config.MemberlistConfig.Events = &memberlist.ChannelEventDelegate{

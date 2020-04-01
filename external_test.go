@@ -42,7 +42,7 @@ func TestExternal_UnknownOperation(t *testing.T) {
 		Value: []byte("myvalue"),
 	}
 	cc := &transport.ClientConfig{
-		Addrs:   []string{db.config.Name},
+		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	c := transport.NewClient(cc)
@@ -80,7 +80,7 @@ func TestExternal_AtomicIncrDecr(t *testing.T) {
 		},
 	}
 	cc := &transport.ClientConfig{
-		Addrs:   []string{db.config.Name},
+		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	c := transport.NewClient(cc)
@@ -111,7 +111,7 @@ func TestExternal_AtomicGetPut(t *testing.T) {
 	}()
 
 	cc := &transport.ClientConfig{
-		Addrs:   []string{db.config.Name},
+		Addrs:   []string{db.name},
 		MaxConn: 100,
 	}
 	c := transport.NewClient(cc)

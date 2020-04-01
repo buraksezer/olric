@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -92,9 +93,17 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	if c.MemberlistConfig == nil {
 		c.MemberlistConfig = memberlist.DefaultLocalConfig()
 	}
-	c.MemberlistConfig.Name = addr
 	c.MemberlistConfig.BindPort = 0
-	c.Name = addr
+	bindAddr, bindPort, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.Atoi(bindPort)
+	if err != nil {
+		return nil, err
+	}
+	c.BindAddr = bindAddr
+	c.BindPort = port
 
 	db, err := New(c)
 	if err != nil {

@@ -18,6 +18,8 @@ package olric
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -66,6 +68,9 @@ const (
 
 // Olric implements a distributed, in-memory and embeddable key/value store and cache.
 type Olric struct {
+	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
+	name string
+
 	// These values is useful to control operation status.
 	bootstrapped int32
 	// numMembers is used to check cluster quorum.
@@ -229,6 +234,10 @@ func New(c *config.Config) (*Olric, error) {
 		return nil, err
 	}
 
+	// Set the name of this node in the cluster
+	name := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
+	c.MemberlistConfig.Name = name
+
 	cfg := consistent.Config{
 		Hasher:            c.Hasher,
 		PartitionCount:    int(c.PartitionCount),
@@ -257,6 +266,7 @@ func New(c *config.Config) (*Olric, error) {
 	}
 
 	db := &Olric{
+		name:       name,
 		ctx:        ctx,
 		cancel:     cancel,
 		log:        flogger,
@@ -269,7 +279,7 @@ func New(c *config.Config) (*Olric, error) {
 		partitions: make(map[uint64]*partition),
 		backups:    make(map[uint64]*partition),
 		operations: make(map[protocol.OpCode]func(*protocol.Message) *protocol.Message),
-		server:     transport.NewServer(c.Name, flogger, c.KeepAlivePeriod),
+		server:     transport.NewServer(c.BindAddr, c.BindPort, c.KeepAlivePeriod, flogger),
 		started:    c.Started,
 	}
 
@@ -368,7 +378,7 @@ func (db *Olric) startDiscovery() error {
 		<-time.After(db.config.JoinRetryInterval)
 	}
 
-	this, err := db.discovery.FindMemberByName(db.config.Name)
+	this, err := db.discovery.FindMemberByName(db.name)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to get this node in cluster: %v", err)
 		serr := db.discovery.Shutdown()
@@ -565,13 +575,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	db.wg.Wait()
 
 	// If the user kills the server before bootstrapping, db.this is going to empty.
-	var name string
-	if db.this.String() != "" {
-		name = db.this.String()
-	} else {
-		name = db.config.Name
-	}
-	db.log.V(2).Printf("[INFO] %s is gone", name)
+	db.log.V(2).Printf("[INFO] %s is gone", db.name)
 	return result
 }
 

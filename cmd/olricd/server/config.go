@@ -31,6 +31,8 @@ const (
 
 type olricd struct {
 	Name              string  `yaml:"name"`
+	BindAddr          string  `yaml:"bindAddr"`
+	BindPort          int     `yaml:"bindPort"`
 	ReplicationMode   int     `yaml:"replicationMode"`
 	PartitionCount    uint64  `yaml:"partitionCount"`
 	LoadFactor        float64 `yaml:"loadFactor"`

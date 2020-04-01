@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -153,7 +153,9 @@ func New(c *Config) (*Olricd, error) {
 
 	s.log = log.New(logOutput, "", log.LstdFlags)
 	s.config = &config.Config{
-		Name:              c.Olricd.Name,
+		Name:              c.Olricd.Name, // deprecated, it will be removed in v0.3.0
+		BindAddr:          c.Olricd.BindAddr,
+		BindPort:          c.Olricd.BindPort,
 		ServiceDiscovery:  c.ServiceDiscovery,
 		MemberlistConfig:  mc,
 		LogLevel:          c.Logging.Level,
@@ -221,7 +223,7 @@ func (s *Olricd) Start() error {
 		return err
 	}
 	s.db = db
-	s.log.Printf("[olricd] pid: %d has been started on %s", os.Getpid(), s.config.Name)
+	s.log.Printf("[olricd] pid: %d has been started on %s:%d", os.Getpid(), s.config.BindAddr, s.config.BindPort)
 	s.errgr.Go(func() error {
 		if err = s.db.Start(); err != nil {
 			s.log.Printf("[olricd] Failed to run Olric: %v", err)
