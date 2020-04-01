@@ -32,6 +32,7 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/locker"
+	"github.com/buraksezer/olric/internal/network"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
@@ -234,9 +235,12 @@ func New(c *config.Config) (*Olric, error) {
 		return nil, err
 	}
 
+	bindAddr, err := network.AddrToIP(c.BindAddr)
+	if err != nil {
+		return nil, err
+	}
 	// Set the name of this node in the cluster
-	name := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
-	c.MemberlistConfig.Name = name
+	c.MemberlistConfig.Name = net.JoinHostPort(bindAddr.String(), strconv.Itoa(c.BindPort))
 
 	cfg := consistent.Config{
 		Hasher:            c.Hasher,
@@ -266,7 +270,7 @@ func New(c *config.Config) (*Olric, error) {
 	}
 
 	db := &Olric{
-		name:       name,
+		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,
 		cancel:     cancel,
 		log:        flogger,
@@ -485,6 +489,8 @@ func (db *Olric) Start() error {
 				db.config.WriteQuorum)
 	}
 
+	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
+	
 	// Start periodic tasks.
 	db.wg.Add(2)
 	go db.updateRoutingPeriodically()

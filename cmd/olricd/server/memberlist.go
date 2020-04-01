@@ -15,12 +15,11 @@
 package server
 
 import (
-	"fmt"
-	"net"
 	"os"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/network"
 	m "github.com/hashicorp/memberlist"
 )
 
@@ -100,19 +99,11 @@ func newMemberlistConf(c *Config) (*m.Config, error) {
 	if c.Memberlist.AdvertiseAddr != nil {
 		mc.AdvertiseAddr = *c.Memberlist.AdvertiseAddr
 	} else {
-		if ip := net.ParseIP(mc.BindAddr); ip != nil {
-			mc.AdvertiseAddr = ip.String()
-		} else {
-			ans, err := net.LookupIP(mc.BindAddr)
-			if err != nil {
-				return nil, err
-			}
-			// Fail early.
-			if len(ans) == 0 {
-				return nil, fmt.Errorf("no IP address found for %s", mc.BindAddr)
-			}
-			mc.AdvertiseAddr = ans[0].String()
+		advertiseAddr, err := network.ParseOrLookupIP(mc.BindAddr)
+		if err != nil {
+			return nil, err
 		}
+		mc.AdvertiseAddr = advertiseAddr.String()
 	}
 	if c.Memberlist.AdvertisePort != nil {
 		mc.AdvertisePort = *c.Memberlist.AdvertisePort

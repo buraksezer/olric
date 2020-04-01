@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -123,16 +123,15 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
 func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 	// Calculate host's identity. It's useful to compare hosts.
-	name := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 	birthdate := time.Now().UnixNano()
 
-	buf := make([]byte, 8+len(name))
+	buf := make([]byte, 8+len(c.MemberlistConfig.Name))
 	binary.BigEndian.PutUint64(buf, uint64(birthdate))
-	buf = append(buf, []byte(name)...)
+	buf = append(buf, []byte(c.MemberlistConfig.Name)...)
 
 	id := c.Hasher.Sum64(buf)
 	host := &Member{
-		Name:      name,
+		Name:      c.MemberlistConfig.Name,
 		ID:        id,
 		Birthdate: birthdate,
 	}
