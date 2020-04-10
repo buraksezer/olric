@@ -25,7 +25,6 @@ import (
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/cmd/olric-cli/cli"
-	"github.com/sean-/seed"
 )
 
 const (
@@ -39,22 +38,16 @@ var usage = `Usage:
 Flags:
   -h -help                      
       Shows this screen.
-
   -v -version                   
       Shows version information.
-
   -d -dmap
       DMap to access.
-
   -c -command
-      Command to run. Available commands: put, put, get, delete, destroy, incr, decr.
-  
+      Command to run. Available commands: put, put, get, delete, destroy, incr, decr, expire.
   -s -serializer
       Specifies serialization format. Available formats: gob, json, msgpack. Default: %s
-
   -a -addr
       Server URI. Default: %s
-
   -t timeout
       Specifies a time limit for requests and dial made by Olric client
 
@@ -70,14 +63,6 @@ var (
 	timeout     string
 	serializer  string
 )
-
-func init() {
-	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
-	// available, MustInit will panic() with an error indicating why reading from
-	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
-	// call to Init() failed in the past.
-	seed.MustInit()
-}
 
 func main() {
 	// Parse command line parameters
@@ -119,12 +104,12 @@ func main() {
 		return
 	}
 
-	c, err := cli.New(addr, serializer, timeout, logger)
+	c, err := cli.New(addr, serializer, timeout)
 	if err != nil {
 		logger.Fatalf("Failed to create olric-cli instance: %v\n", err)
 	}
 
-	if len(command) != 0 {
+	if command != "" {
 		if err := c.RunCommand(dmap, command); err != nil {
 			logger.Fatalf("olric-cli has returned an error: %v\n", err)
 		}

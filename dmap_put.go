@@ -19,12 +19,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
+	"github.com/pkg/errors"
 )
 
 const (
