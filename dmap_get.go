@@ -31,7 +31,7 @@ var ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 type version struct {
 	host *discovery.Member
-	Data *storage.VData
+	data *storage.VData
 }
 
 func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
@@ -69,7 +69,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 
 	ver := &version{
 		host: &db.this,
-		Data: value,
+		data: value,
 	}
 	versions = append(versions, ver)
 
@@ -101,7 +101,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from the "+
 					"previous primary owner: %s: %v", owner, err)
 			} else {
-				ver.Data = &data
+				ver.data = &data
 				// Ignore failed owners. The data on those hosts will be wiped out
 				// by the rebalancer.
 				versions = append(versions, ver)
@@ -114,11 +114,11 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 func (db *Olric) sortVersions(versions []*version) []*version {
 	sort.Slice(versions,
 		func(i, j int) bool {
-			if versions[i].Data.Timestamp == versions[j].Data.Timestamp {
+			if versions[i].data.Timestamp == versions[j].data.Timestamp {
 				// The first one is greater or equal than the second one.
-				return bytes.Compare(versions[i].Data.Value, versions[j].Data.Value) >= 0
+				return bytes.Compare(versions[i].data.Value, versions[j].data.Value) >= 0
 			}
-			return versions[i].Data.Timestamp > versions[j].Data.Timestamp
+			return versions[i].data.Timestamp > versions[j].data.Timestamp
 		},
 	)
 	// Explicit is better than implicit.
@@ -129,7 +129,7 @@ func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
 	var sanitized []*version
 	// We use versions slice for read-repair. Clear nil values first.
 	for _, ver := range versions {
-		if ver.Data != nil {
+		if ver.data != nil {
 			sanitized = append(sanitized, ver)
 		}
 	}
@@ -161,7 +161,7 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from a replica owner: %s: %v", replica, err)
 			} else {
-				ver.Data = &value
+				ver.data = &value
 			}
 		}
 		versions = append(versions, ver)
@@ -171,37 +171,37 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 
 func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*version) {
 	for _, ver := range versions {
-		if ver.Data != nil && winner.Data.Timestamp == ver.Data.Timestamp {
+		if ver.data != nil && winner.data.Timestamp == ver.data.Timestamp {
 			continue
 		}
 
 		// If readRepair is enabled, this function is called by every GET request.
 		req := &protocol.Message{
 			DMap:  name,
-			Key:   winner.Data.Key,
-			Value: winner.Data.Value,
+			Key:   winner.data.Key,
+			Value: winner.data.Value,
 		}
 		var op protocol.OpCode
-		if winner.Data.TTL == 0 {
+		if winner.data.TTL == 0 {
 			op = protocol.OpPutReplica
-			req.Extra = protocol.PutExtra{Timestamp: winner.Data.Timestamp}
+			req.Extra = protocol.PutExtra{Timestamp: winner.data.Timestamp}
 		} else {
 			op = protocol.OpPutExReplica
 			req.Extra = protocol.PutExExtra{
-				Timestamp: winner.Data.Timestamp,
-				TTL:       winner.Data.TTL,
+				Timestamp: winner.data.Timestamp,
+				TTL:       winner.data.TTL,
 			}
 		}
 
 		// Sync
 		if hostCmp(*ver.host, db.this) {
-			hkey := db.getHKey(name, winner.Data.Key)
+			hkey := db.getHKey(name, winner.data.Key)
 			w := &writeop{
 				dmap:      name,
-				key:       winner.Data.Key,
-				value:     winner.Data.Value,
-				timestamp: winner.Data.Timestamp,
-				timeout:   time.Duration(winner.Data.TTL),
+				key:       winner.data.Key,
+				value:     winner.data.Value,
+				timestamp: winner.data.Timestamp,
+				timeout:   time.Duration(winner.data.TTL),
 			}
 			dm.Lock()
 			err := db.localPut(hkey, dm, w)
@@ -250,7 +250,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error)
 
 	// The most up-to-date version of the values.
 	winner := sorted[0]
-	if isKeyExpired(winner.Data.TTL) || dm.isKeyIdle(hkey) {
+	if isKeyExpired(winner.data.TTL) || dm.isKeyIdle(hkey) {
 		dm.RUnlock()
 		return nil, ErrKeyNotFound
 	}
@@ -267,7 +267,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error)
 		// the same key/value pair. The rule is simple: last write wins.
 		db.readRepair(name, dm, winner, versions)
 	}
-	return winner.Data.Value, nil
+	return winner.data.Value, nil
 }
 
 func (db *Olric) get(name, key string) ([]byte, error) {

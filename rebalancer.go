@@ -85,9 +85,9 @@ func (db *Olric) selectVersionForMerge(dm *dmap, hkey uint64, vdata *storage.VDa
 	if err != nil {
 		return nil, err
 	}
-	versions := []*version{{Data: current}, {Data: vdata}}
+	versions := []*version{{data: current}, {data: vdata}}
 	versions = db.sortVersions(versions)
-	return versions[0].Data, nil
+	return versions[0].data, nil
 }
 
 func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
