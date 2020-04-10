@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
@@ -60,7 +59,7 @@ var (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.2.0-rc.1"
+const ReleaseVersion string = "0.2.0-rc.5"
 
 const (
 	nilTimeout                = 0 * time.Second
@@ -120,105 +119,6 @@ type Olric struct {
 	// Callback function. Olric calls this after
 	// the server is ready to accept new connections.
 	started func()
-}
-
-// cache keeps cache control parameters and access-log for keys in a DMap.
-type cache struct {
-	sync.RWMutex // protects accessLog
-
-	maxIdleDuration time.Duration
-	ttlDuration     time.Duration
-	maxKeys         int
-	maxInuse        int
-	accessLog       map[uint64]int64
-	lruSamples      int
-	evictionPolicy  config.EvictionPolicy
-}
-
-// dmap defines the internal representation of a DMap.
-type dmap struct {
-	sync.RWMutex
-
-	cache   *cache
-	storage *storage.Storage
-}
-
-// partition is a basic, logical storage unit in Olric and stores DMaps in a sync.Map.
-type partition struct {
-	sync.RWMutex
-
-	id     uint64
-	backup bool
-	m      sync.Map
-	owners atomic.Value
-}
-
-// owner returns partition owner. It's not thread-safe.
-func (p *partition) owner() discovery.Member {
-	if p.backup {
-		// programming error. it cannot occur at production!
-		panic("cannot call this if backup is true")
-	}
-	owners := p.owners.Load().([]discovery.Member)
-	if len(owners) == 0 {
-		panic("owners list cannot be empty")
-	}
-	return owners[len(owners)-1]
-}
-
-// ownerCount returns the current owner count of a partition.
-func (p *partition) ownerCount() int {
-	owners := p.owners.Load()
-	if owners == nil {
-		return 0
-	}
-	return len(owners.([]discovery.Member))
-}
-
-// loadOwners loads the partition owners from atomic.Value and returns.
-func (p *partition) loadOwners() []discovery.Member {
-	owners := p.owners.Load()
-	if owners == nil {
-		return []discovery.Member{}
-	}
-	return owners.([]discovery.Member)
-}
-
-func (p *partition) length() int {
-	var length int
-	p.m.Range(func(_, dm interface{}) bool {
-		d := dm.(*dmap)
-		d.RLock()
-		defer d.RUnlock()
-
-		length += d.storage.Len()
-		// Continue scanning.
-		return true
-	})
-	return length
-}
-
-// DMap represents a distributed map instance.
-type DMap struct {
-	name string
-	db   *Olric
-}
-
-// NewDMap creates an returns a new DMap instance.
-func (db *Olric) NewDMap(name string) (*DMap, error) {
-	// Check operation status first:
-	//
-	// * Checks member count in the cluster, returns ErrClusterQuorum if
-	//   the quorum value cannot be satisfied,
-	// * Checks bootstrapping status and awaits for a short period before
-	//   returning ErrRequest timeout.
-	if err := db.checkOperationStatus(); err != nil {
-		return nil, err
-	}
-	return &DMap{
-		name: name,
-		db:   db,
-	}, nil
 }
 
 // New creates a new Olric instance, otherwise returns an error.
@@ -457,53 +357,6 @@ func (db *Olric) callStartedCallback() {
 	}
 }
 
-// Start starts background servers and joins the cluster. You still need to call Shutdown method if
-// Start function returns an early error.
-func (db *Olric) Start() error {
-	errCh := make(chan error, 1)
-	db.wg.Add(1)
-	go func() {
-		defer db.wg.Done()
-		errCh <- db.server.ListenAndServe()
-	}()
-
-	<-db.server.StartCh
-	select {
-	case err := <-errCh:
-		return err
-	default:
-	}
-	// TCP server is started
-	db.passCheckpoint()
-
-	if err := db.startDiscovery(); err != nil {
-		return err
-	}
-	// Memberlist is started and this node joined the cluster.
-	db.passCheckpoint()
-
-	// Warn the user about its choice of configuration
-	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
-		db.log.V(2).
-			Printf("[WARN] Olric is running in async replication mode. WriteQuorum (%d) is ineffective",
-				db.config.WriteQuorum)
-	}
-
-	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
-	
-	// Start periodic tasks.
-	db.wg.Add(2)
-	go db.updateRoutingPeriodically()
-	go db.evictKeysAtBackground()
-
-	if db.started != nil {
-		db.wg.Add(1)
-		go db.callStartedCallback()
-	}
-
-	return <-errCh
-}
-
 func (db *Olric) registerOperations() {
 	// Put
 	db.operations[protocol.OpPut] = db.exPutOperation
@@ -560,188 +413,6 @@ func (db *Olric) registerOperations() {
 	// Distributed Query
 	db.operations[protocol.OpLocalQuery] = db.localQueryOperation
 	db.operations[protocol.OpQuery] = db.exQueryOperation
-}
-
-// Shutdown stops background servers and leaves the cluster.
-func (db *Olric) Shutdown(ctx context.Context) error {
-	db.cancel()
-
-	var result error
-	if err := db.server.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
-	}
-
-	if db.discovery != nil {
-		err := db.discovery.Shutdown()
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-
-	db.wg.Wait()
-
-	// If the user kills the server before bootstrapping, db.this is going to empty.
-	db.log.V(2).Printf("[INFO] %s is gone", db.name)
-	return result
-}
-
-// getPartitionID returns partitionID for a given hkey.
-func (db *Olric) getPartitionID(hkey uint64) uint64 {
-	return hkey % db.config.PartitionCount
-}
-
-// getPartition loads the owner partition for a given hkey.
-func (db *Olric) getPartition(hkey uint64) *partition {
-	partID := db.getPartitionID(hkey)
-	return db.partitions[partID]
-}
-
-// getBackupPartition loads the backup partition for a given hkey.
-func (db *Olric) getBackupPartition(hkey uint64) *partition {
-	partID := db.getPartitionID(hkey)
-	return db.backups[partID]
-}
-
-// getBackupOwners returns the backup owners list for a given hkey.
-func (db *Olric) getBackupPartitionOwners(hkey uint64) []discovery.Member {
-	part := db.getBackupPartition(hkey)
-	return part.owners.Load().([]discovery.Member)
-}
-
-// getPartitionOwners loads the partition owners list for a given hkey.
-func (db *Olric) getPartitionOwners(hkey uint64) []discovery.Member {
-	part := db.getPartition(hkey)
-	return part.owners.Load().([]discovery.Member)
-}
-
-// getHKey returns hash-key, a.k.a hkey, for a key on a DMap.
-func (db *Olric) getHKey(name, key string) uint64 {
-	tmp := name + key
-	return db.hasher.Sum64(*(*[]byte)(unsafe.Pointer(&tmp)))
-}
-
-// findPartitionOwner finds the partition owner for a key on a DMap.
-func (db *Olric) findPartitionOwner(name, key string) (discovery.Member, uint64) {
-	hkey := db.getHKey(name, key)
-	return db.getPartition(hkey).owner(), hkey
-}
-
-func (db *Olric) setCacheConfiguration(dm *dmap, name string) error {
-	// Try to set cache configuration for this DMap.
-	dm.cache = &cache{}
-	dm.cache.maxIdleDuration = db.config.Cache.MaxIdleDuration
-	dm.cache.ttlDuration = db.config.Cache.TTLDuration
-	dm.cache.maxKeys = db.config.Cache.MaxKeys
-	dm.cache.maxInuse = db.config.Cache.MaxInuse
-	dm.cache.lruSamples = db.config.Cache.LRUSamples
-	dm.cache.evictionPolicy = db.config.Cache.EvictionPolicy
-
-	if db.config.Cache.DMapConfigs != nil {
-		// config.DMapCacheConfig struct can be used for fine-grained control.
-		c, ok := db.config.Cache.DMapConfigs[name]
-		if ok {
-			if dm.cache.maxIdleDuration != c.MaxIdleDuration {
-				dm.cache.maxIdleDuration = c.MaxIdleDuration
-			}
-			if dm.cache.ttlDuration != c.TTLDuration {
-				dm.cache.ttlDuration = c.TTLDuration
-			}
-			if dm.cache.evictionPolicy != c.EvictionPolicy {
-				dm.cache.evictionPolicy = c.EvictionPolicy
-			}
-			if dm.cache.maxKeys != c.MaxKeys {
-				dm.cache.maxKeys = c.MaxKeys
-			}
-			if dm.cache.maxInuse != c.MaxInuse {
-				dm.cache.maxInuse = c.MaxInuse
-			}
-			if dm.cache.lruSamples != c.LRUSamples {
-				dm.cache.lruSamples = c.LRUSamples
-			}
-			if dm.cache.evictionPolicy != c.EvictionPolicy {
-				dm.cache.evictionPolicy = c.EvictionPolicy
-			}
-		}
-	}
-
-	if dm.cache.evictionPolicy == config.LRUEviction || dm.cache.maxIdleDuration != 0 {
-		dm.cache.accessLog = make(map[uint64]int64)
-	}
-
-	// TODO: Create a new function to verify cache config.
-	if dm.cache.evictionPolicy == config.LRUEviction {
-		if dm.cache.maxInuse <= 0 && dm.cache.maxKeys <= 0 {
-			return fmt.Errorf("maxInuse or maxKeys have to be greater than zero")
-		}
-		// set the default value.
-		if dm.cache.lruSamples == 0 {
-			dm.cache.lruSamples = config.DefaultLRUSamples
-		}
-	}
-	return nil
-}
-
-// createDMap creates and returns a new dmap, internal representation of a DMap.
-func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) (*dmap, error) {
-	// We need to protect storage.New
-	part.Lock()
-	defer part.Unlock()
-
-	// Try to load one more time. Another goroutine may have created the dmap.
-	dm, ok := part.m.Load(name)
-	if ok {
-		return dm.(*dmap), nil
-	}
-
-	// create a new map here.
-	nm := &dmap{
-		storage: str,
-	}
-
-	if db.config.Cache != nil {
-		err := db.setCacheConfiguration(nm, name)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// rebalancer code may send a storage instance for the new DMap. Just use it.
-	if nm.storage != nil {
-		nm.storage = str
-	} else {
-		nm.storage = storage.New(db.config.TableSize)
-	}
-
-	part.m.Store(name, nm)
-	return nm, nil
-}
-
-func (db *Olric) getOrCreateDMap(part *partition, name string) (*dmap, error) {
-	dm, ok := part.m.Load(name)
-	if ok {
-		return dm.(*dmap), nil
-	}
-	return db.createDMap(part, name, nil)
-}
-
-// getDMap loads or creates a dmap.
-func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.getPartition(hkey)
-	return db.getOrCreateDMap(part, name)
-}
-
-func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.getBackupPartition(hkey)
-	dm, ok := part.m.Load(name)
-	if ok {
-		return dm.(*dmap), nil
-	}
-	return db.createDMap(part, name, nil)
-}
-
-// hostCmp returns true if o1 and o2 is the same.
-func hostCmp(o1, o2 discovery.Member) bool {
-	return o1.ID == o2.ID
 }
 
 func (db *Olric) prepareResponse(req *protocol.Message, err error) *protocol.Message {
@@ -812,19 +483,6 @@ func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Me
 	return nil, fmt.Errorf("unknown status code: %d", resp.Status)
 }
 
-func getTTL(timeout time.Duration) int64 {
-	// convert nanoseconds to milliseconds
-	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
-}
-
-func isKeyExpired(ttl int64) bool {
-	if ttl == 0 {
-		return false
-	}
-	// convert nanoseconds to milliseconds
-	return (time.Now().UnixNano() / 1000000) >= ttl
-}
-
 func (db *Olric) isAlive() bool {
 	select {
 	case <-db.ctx.Done():
@@ -885,4 +543,92 @@ func (db *Olric) checkOperationStatus() error {
 	}
 	// An Olric node has to be bootstrapped to function properly.
 	return db.checkBootstrap()
+}
+
+// Start starts background servers and joins the cluster. You still need to call Shutdown method if
+// Start function returns an early error.
+func (db *Olric) Start() error {
+	errCh := make(chan error, 1)
+	db.wg.Add(1)
+	go func() {
+		defer db.wg.Done()
+		errCh <- db.server.ListenAndServe()
+	}()
+
+	<-db.server.StartCh
+	select {
+	case err := <-errCh:
+		return err
+	default:
+	}
+	// TCP server is started
+	db.passCheckpoint()
+
+	if err := db.startDiscovery(); err != nil {
+		return err
+	}
+	// Memberlist is started and this node joined the cluster.
+	db.passCheckpoint()
+
+	// Warn the user about its choice of configuration
+	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
+		db.log.V(2).
+			Printf("[WARN] Olric is running in async replication mode. WriteQuorum (%d) is ineffective",
+				db.config.WriteQuorum)
+	}
+
+	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
+
+	// Start periodic tasks.
+	db.wg.Add(2)
+	go db.updateRoutingPeriodically()
+	go db.evictKeysAtBackground()
+
+	if db.started != nil {
+		db.wg.Add(1)
+		go db.callStartedCallback()
+	}
+
+	return <-errCh
+}
+
+// Shutdown stops background servers and leaves the cluster.
+func (db *Olric) Shutdown(ctx context.Context) error {
+	db.cancel()
+
+	var result error
+	if err := db.server.Shutdown(ctx); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	if db.discovery != nil {
+		err := db.discovery.Shutdown()
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	db.wg.Wait()
+
+	// If the user kills the server before bootstrapping, db.this is going to empty.
+	db.log.V(2).Printf("[INFO] %s is gone", db.name)
+	return result
+}
+
+func getTTL(timeout time.Duration) int64 {
+	// convert nanoseconds to milliseconds
+	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
+}
+
+func isKeyExpired(ttl int64) bool {
+	if ttl == 0 {
+		return false
+	}
+	// convert nanoseconds to milliseconds
+	return (time.Now().UnixNano() / 1000000) >= ttl
+}
+
+// hostCmp returns true if o1 and o2 is the same.
+func hostCmp(o1, o2 discovery.Member) bool {
+	return o1.ID == o2.ID
 }
