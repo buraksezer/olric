@@ -81,31 +81,31 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 		}
 	}()
 
-	dm, err := db1.NewDMap("mymap")
-	if err != nil {
+	if dm, err := db1.NewDMap("mymap"); err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+	} else {
+		for i := 0; i < 100; i++ {
+			err = dm.Put(bkey(i), bval(i))
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
 		}
 	}
 
 	for i := 0; i < 100; i++ {
 		hkey := db1.getHKey("mymap", bkey(i))
-		underlying, err := db1.getDMap("mymap", hkey)
-		if err != nil {
+		if underlying, err := db1.getDMap("mymap", hkey); err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		vdata, err := underlying.storage.Get(hkey)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		vdata.Timestamp = time.Now().Add(60 * time.Minute).UnixNano()
-		err = underlying.storage.Put(hkey, vdata)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+		} else {
+			vdata, err := underlying.storage.Get(hkey)
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			vdata.Timestamp = time.Now().Add(60 * time.Minute).UnixNano()
+			err = underlying.storage.Put(hkey, vdata)
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
 		}
 	}
 

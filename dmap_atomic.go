@@ -43,7 +43,7 @@ func (db *Olric) atomicIncrDecr(opr string, w *writeop, delta int) (int, error) 
 	var newval, curval int
 	if len(rawval) != 0 {
 		var value interface{}
-		if err = db.serializer.Unmarshal(rawval, &value); err != nil {
+		if err := db.serializer.Unmarshal(rawval, &value); err != nil {
 			return 0, err
 		}
 
@@ -144,7 +144,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 
 	var oldval interface{}
 	if rawval != nil {
-		if err = dm.db.serializer.Unmarshal(rawval, &oldval); err != nil {
+		if err := dm.db.serializer.Unmarshal(rawval, &oldval); err != nil {
 			return nil, err
 		}
 	}

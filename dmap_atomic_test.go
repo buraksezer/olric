@@ -115,7 +115,6 @@ func TestDMap_AtomicDecr(t *testing.T) {
 	if res.(int) != -100 {
 		t.Fatalf("Expected 100. Got: %v", res)
 	}
-
 }
 
 func TestDMap_AtomicGetPut(t *testing.T) {

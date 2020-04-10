@@ -46,5 +46,4 @@ func TestOlric_StartedCallback(t *testing.T) {
 			t.Fatalf("context returned an error: %v", ctx.Err())
 		}
 	}
-
 }

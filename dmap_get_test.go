@@ -338,5 +338,4 @@ func TestDMap_ReadRepair(t *testing.T) {
 		}
 		dm3.RUnlock()
 	}
-
 }

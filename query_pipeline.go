@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/query"
 )

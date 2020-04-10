@@ -232,12 +232,8 @@ func (db *Olric) bootstrapCoordinator() error {
 	routingMtx.Lock()
 	defer routingMtx.Unlock()
 
-	table, err := db.distributePartitions()
-	if err != nil {
-		// This may be an consistent.ErrInsufficientMemberCount
-		return err
-	}
-	_, err = db.updateRoutingTableOnCluster(table)
+	table := db.distributePartitions()
+	_, err := db.updateRoutingTableOnCluster(table)
 	if err == nil {
 		// The coordinator bootstraps itself.
 		atomic.StoreInt32(&db.bootstrapped, 1)
@@ -416,8 +412,6 @@ func (db *Olric) registerOperations() {
 }
 
 func (db *Olric) prepareResponse(req *protocol.Message, err error) *protocol.Message {
-	if err == nil {
-	}
 	switch {
 	case err == nil:
 		return req.Success()

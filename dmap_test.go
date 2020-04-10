@@ -51,10 +51,8 @@ func getRandomAddr() (string, error) {
 
 func testConfig(peers []*Olric) *config.Config {
 	var speers []string
-	if peers != nil {
-		for _, peer := range peers {
-			speers = append(speers, peer.discovery.LocalNode().Address())
-		}
+	for _, peer := range peers {
+		speers = append(speers, peer.discovery.LocalNode().Address())
 	}
 	return &config.Config{
 		PartitionCount:    7,

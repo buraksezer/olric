@@ -227,7 +227,7 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 	return append(owners, newOwner.(discovery.Member))
 }
 
-func (db *Olric) distributePartitions() (routingTable, error) {
+func (db *Olric) distributePartitions() routingTable {
 	table := make(routingTable)
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		item := table[partID]
@@ -237,7 +237,7 @@ func (db *Olric) distributePartitions() (routingTable, error) {
 		}
 		table[partID] = item
 	}
-	return table, nil
+	return table
 }
 
 func (db *Olric) updateRoutingTableOnCluster(table routingTable) (map[discovery.Member]ownershipReport, error) {
@@ -308,11 +308,7 @@ func (db *Olric) updateRouting() {
 	routingMtx.Lock()
 	defer routingMtx.Unlock()
 
-	table, err := db.distributePartitions()
-	if err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to calculate routing table: %v", err)
-		return
-	}
+	table := db.distributePartitions()
 	reports, err := db.updateRoutingTableOnCluster(table)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to update routing table on cluster: %v", err)
@@ -444,8 +440,8 @@ func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
 
-	coordinatorId := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorID
-	coordinator, err := db.checkAndGetCoordinator(coordinatorId)
+	coordinatorID := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorID
+	coordinator, err := db.checkAndGetCoordinator(coordinatorID)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
 		return req.Error(protocol.StatusInternalServerError, err)

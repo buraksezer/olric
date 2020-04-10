@@ -1,6 +1,6 @@
 linters-settings:
   govet:
-    check-shadowing: true
+    check-shadowing: false
     settings:
       printf:
         funcs:
@@ -58,7 +58,7 @@ linters:
     - deadcode
     - depguard
     - dogsled
-    - dupl
+    #- dupl
     - errcheck
     - funlen
     - gochecknoinits

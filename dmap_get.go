@@ -53,18 +53,23 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 
 	// Check on localhost, the partition owner.
 	value, err := dm.storage.Get(hkey)
-	ver := &version{host: &db.this}
-	if err == nil {
-		ver.Data = value
-	} else if err != storage.ErrKeyNotFound {
-		db.log.V(3).Printf("[ERROR] Failed to get key: %s on %s could not be found: %s", key, name, err)
-	} else {
-		// the requested key can be found on a replica or a previous partition owner.
-		if db.log.V(5).Ok() {
-			db.log.V(5).Printf(
-				"[DEBUG] Key: %s, HKey: %d on DMap: %s could not be found on the local storage: %v",
-				key, hkey, name, err)
+	if err != nil {
+		// still need to use "ver". just log this error.
+		if err == storage.ErrKeyNotFound {
+			// the requested key can be found on a replica or a previous partition owner.
+			if db.log.V(5).Ok() {
+				db.log.V(5).Printf(
+					"[DEBUG] Key: %s, HKey: %d on DMap: %s could not be found on the local storage: %v",
+					key, hkey, name, err)
+			}
+		} else {
+			db.log.V(3).Printf("[ERROR] Failed to get key: %s on %s could not be found: %s", key, name, err)
 		}
+	}
+
+	ver := &version{
+		host: &db.this,
+		Data: value,
 	}
 	versions = append(versions, ver)
 
@@ -134,7 +139,7 @@ func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
 	return db.sortVersions(sanitized)
 }
 
-func (db *Olric) lookupOnReplicas(dm *dmap, hkey uint64, name, key string) []*version {
+func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	var versions []*version
 	// Check backups.
 	backups := db.getBackupPartitionOwners(hkey)
@@ -225,7 +230,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error)
 
 	versions := db.lookupOnOwners(dm, hkey, name, key)
 	if db.config.ReadQuorum >= config.MinimumReplicaCount {
-		v := db.lookupOnReplicas(dm, hkey, name, key)
+		v := db.lookupOnReplicas(hkey, name, key)
 		versions = append(versions, v...)
 	}
 	if len(versions) < db.config.ReadQuorum {

@@ -96,11 +96,11 @@ type Cursor struct {
 // Query function returns a cursor which has Range and Close methods. Please take look at the Range
 // function for further info.
 func (dm *DMap) Query(q query.M) (*Cursor, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	err := query.Validate(q)
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Cursor{
 		db:     dm.db,
 		name:   dm.name,
@@ -146,7 +146,7 @@ func (db *Olric) localQueryOperation(req *protocol.Message) *protocol.Message {
 	return resp
 }
 
-func (c *Cursor) reconcileResponses(responses []queryResponse) (queryResponse, error) {
+func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
 	result := make(queryResponse)
 	for _, response := range responses {
 		for hkey, val1 := range response {
@@ -159,7 +159,7 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) (queryResponse, e
 			}
 		}
 	}
-	return result, nil
+	return result
 }
 
 func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.VData, error) {
@@ -199,13 +199,9 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.VData, error) {
 		}
 		responses = append(responses, tmp)
 	}
-	res, err := c.reconcileResponses(responses)
-	if err != nil {
-		return nil, err
-	}
 
 	var result []*storage.VData
-	for _, vdata := range res {
+	for _, vdata := range c.reconcileResponses(responses) {
 		result = append(result, vdata)
 	}
 	return result, nil
