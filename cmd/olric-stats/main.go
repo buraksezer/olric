@@ -19,13 +19,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/cmd/olric-stats/query"
-	"github.com/sean-/seed"
 	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
+
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/cmd/olric-stats/query"
+	"github.com/sean-/seed"
 )
 
 const defaultAddr string = "127.0.0.1:3320"
@@ -38,25 +39,18 @@ Usage:
 Flags:
   -h -help                      
       Shows this screen.
-
   -v -version                   
       Shows version information.
-
   -a -addr
       Server URI. Default: %s.
-
   -r -runtime
       Runtime stats, including runtime.MemStats.
-
   -b -backup
       Query backup partitions.
-
   -p -partID
       Partition ID to query.
-
   -d -dump
       Dump stats data in JSON format.
-
   -t -timeout
       Specifies a time limit for requests and dial made by Olric client.
 

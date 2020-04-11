@@ -1,4 +1,4 @@
-// Copyright 2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,25 +44,18 @@ Usage:
 Flags:
   -h -help                      
       Shows this screen.
-
   -v -version                   
       Shows version information.
-  
   -s -serializer
       Specifies serialization format. Available formats: gob, json, msgpack. Default: %s.
-
   -a -addrs
       Comma separated server URIs. Default: %s.
-
   -c -command
       Command to run. Available commands: put, get, delete, incr, decr.
-   
   -k -key-count
       Key count to load into the server.
-
   -n -num-clients
       Number of clients in parallel.
-
   -t -timeout
       Specifies a time limit for requests and dial made by Olric client.
 

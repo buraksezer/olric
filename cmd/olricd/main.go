@@ -34,10 +34,8 @@ var usage = `Usage:
 Flags:
   -h -help                      
       Shows this screen.
-
   -v -version                   
       Shows version information.
-
   -c -config                    
       Sets configuration file path. Default is olricd.yaml in the current folder.
       Set OLRICD_CONFIG to overwrite it.

@@ -367,7 +367,7 @@ Flag argument currently has two different options:
 Sample use:
 
 ```go
-err := dm.PutIfEx("my-key", "my-value", time.Second, IfNotFound)
+err := dm.PutIf("my-key", "my-value", IfNotFound)
 ```
 
 ### PutEx
