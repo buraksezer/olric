@@ -33,7 +33,7 @@ const (
 )
 
 var usage = `Usage: 
-  olric-cli [flags] ...
+  olric-cli [flags] [commands] ...
 
 Flags:
   -h -help                      
@@ -43,9 +43,10 @@ Flags:
   -d -dmap
       DMap to access.
   -c -command
-      Command to run. Available commands: put, put, get, delete, destroy, incr, decr, expire.
+      Command to run.
   -s -serializer
-      Specifies serialization format. Available formats: gob, json, msgpack. Default: %s
+      Specifies serialization format. 
+      Available formats: gob, json, msgpack. Default: %s
   -a -addr
       Server URI. Default: %s
   -t timeout
