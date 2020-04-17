@@ -1,6 +1,6 @@
 # Olric [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Olric%3A+Distributed+and+in-memory+key%2Fvalue+database.+It+can+be+used+both+as+an+embedded+Go+library+and+as+a+language-independent+service.+&url=https://github.com/buraksezer/olric&hashtags=golang,distributed,database)
 
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Gitter](https://badges.gitter.im/olric-/olric.svg)](https://gitter.im/olric-/olric?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Gitter](https://badges.gitter.im/olric-/olric.svg)](https://gitter.im/olric-/olric?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Distributed cache and in-memory key/value data store. It can be used both as an embedded Go library and as a language-independent service.
 
@@ -10,14 +10,15 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Embeddable but can be used as a language-independent service with *olricd*,
+* Cloud-native design: works seamlessly on Kubernetes, Amazon AWS, Google Cloud and Azure, 
 * Supports different eviction algorithms,
 * Fast binary protocol,
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP (indeed PA/EC) solution,
-* Supports replication by default(with sync and async options),
-* Quorum-based voting for replica control(Read/Write quorums),
+* Supports replication by default (with sync and async options),
+* Quorum-based voting for replica control (Read/Write quorums),
 * Supports atomic operations,
-* Supports distributed queries on keys,
+* Supports [distributed queries](#query) on keys,
 * Provides a plugin interface for service discovery daemons,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
 
@@ -106,15 +107,17 @@ Olric is in early stages of development. The package API and client protocol may
 * O(1) running time for lookups,
 * Supports atomic operations,
 * Provides a lock implementation which can be used for non-critical purposes,
-* Different eviction policies: LRU, MaxIdleDuration and Time-To-Live(TTL),
+* Different eviction policies: LRU, MaxIdleDuration and Time-To-Live (TTL),
 * Highly available,
 * Horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP (indeed PA/EC) solution,
 * Distributes load fairly among cluster members with a [consistent hash function](https://github.com/buraksezer/consistent),
-* Supports replication by default(with sync and async options),
+* Supports replication by default (with sync and async options),
 * Quorum-based voting for replica control,
 * Thread-safe by default,
-* Supports distributed queries on keys,
+* Supports [distributed queries](#query) on keys,
+* Cloud-native design: works seamlessly on Kubernetes, Amazon AWS, Google Cloud and Azure,
+* Provides a plugin interface for service discovery daemons and cloud providers,
 * Provides a command-line-interface to access the cluster directly from the terminal,
 * Supports different serialization formats. Gob, JSON and MessagePack are supported out of the box,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
@@ -167,20 +170,29 @@ See [Configuration](#configuration) section to setup your cluster properly.
 
 ### Try with Docker
 
-This repository includes a Dockerfile. So you can build and run ```olricd``` in a Docker container. Use the following commands 
-respectively in the project folder:
+You can launch olricd Docker container by running the following command. 
 
-```
-docker build -t olricd .
+```bash
+docker run -p 3320:3320 olricio/olricd:latest
+``` 
+
+This command will pull olricd Docker image and run a new Olric Instance. You should know that the container exposes 
+`3320` and `3322` ports. 
+
+Now you should access the olricd instance by using olric-cli. So you can build olric-cli by using the following command:
+
+```bash
+go get -u github.com/buraksezer/olric/cmd/olric-cli
 ```
 
-This command will build ```olricd``` in a container. Then you can start ```olricd``` by using the following command:
+Now you are able to connect the olricd server:
 
-```
-docker run -p 3320:3320 olricd
+```bash
+olric-cli
+[127.0.0.1:3320] »
 ```
 
-Your programs can use ```3320``` port to interact with ```olricd```. 
+Give `help` command to see available commands. 
 
 ## Operation Modes
 
