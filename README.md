@@ -1,6 +1,6 @@
 # Olric [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Olric%3A+Distributed+and+in-memory+key%2Fvalue+database.+It+can+be+used+both+as+an+embedded+Go+library+and+as+a+language-independent+service.+&url=https://github.com/buraksezer/olric&hashtags=golang,distributed,database)
 
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Gitter](https://badges.gitter.im/olric-/olric.svg)](https://gitter.im/olric-/olric?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 Distributed cache and in-memory key/value data store. It can be used both as an embedded Go library and as a language-independent service.
 
@@ -36,6 +36,7 @@ Olric is in early stages of development. The package API and client protocol may
 
 * [Features](#features)
 * [Planned Features](#planned-features)
+* [Support](#support)
 * [Installing](#installing)
   * [Try with Docker](#try-with-docker)
 * [Operation Modes](#operation-modes)
@@ -130,6 +131,16 @@ See [Architecture](#architecture) section to see details.
 * Memcached interface,
 * Client implementations for different languages: Java, Python and JavaScript,
 * REST API.
+
+## Support
+
+We have a mail group on Google Groups and a room on Gitter. You feel free to ask any questions about Olric and possible 
+integration problems.
+
+* [Gitter Room](https://gitter.im/olric-/olric?utm_source=share-link&utm_medium=link&utm_campaign=share-link)
+* [Mail group on Google Groups](https://groups.google.com/forum/#!forum/olric-user)
+
+You also feel free to open an issue on GitHub to report bugs and share feature requests.
 
 ## Installing
 
