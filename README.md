@@ -1,6 +1,6 @@
 # Olric [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Olric%3A+Distributed+and+in-memory+key%2Fvalue+database.+It+can+be+used+both+as+an+embedded+Go+library+and+as+a+language-independent+service.+&url=https://github.com/buraksezer/olric&hashtags=golang,distributed,database)
 
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Gitter](https://badges.gitter.im/olric-/olric.svg)](https://gitter.im/olric-/olric?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![Gitter](https://badges.gitter.im/olric-/olric.svg)](https://gitter.im/olric-/olric?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Distributed cache and in-memory key/value data store. It can be used both as an embedded Go library and as a language-independent service.
 
@@ -48,7 +48,6 @@ Olric is in early stages of development. The package API and client protocol may
   * [olric-cli](#olric-cli)
   * [olric-stats](#olric-stats)
   * [olric-load](#olric-load)
-* [Performance](#performance)
 * [Usage](#usage)
   * [Put](#put)
   * [PutIf](#putif)
@@ -166,7 +165,7 @@ to start experimenting:
 olricd -c cmd/olricd/olricd.yaml
 ```
 
-See [Configuration](#configuration) section to setup your cluster properly.
+See [Configuration](#configuration) section to create your cluster properly.
 
 ### Try with Docker
 
@@ -192,7 +191,8 @@ olric-cli
 [127.0.0.1:3320] »
 ```
 
-Give `help` command to see available commands. 
+Give `help` command to see available commands. Olric has a dedicated repository for Docker related resources. Please take a look at
+[buraksezer/olric-docker](https://github.com/buraksezer/olric-docker) for more information.
 
 ## Operation Modes
 
@@ -224,7 +224,13 @@ Olric comes with some useful tools to interact with the cluster.
 
 ### olricd
 
-With olricd, you can create an Olric cluster with a few commands. Let's create a cluster with the following:
+With olricd, you can create an Olric cluster with a few commands. This is how to install olricd:
+
+```bash
+go get -u github.com/buraksezer/olric/cmd/olricd
+```
+
+Let's create a cluster with the following:
 
 ```
 olricd -c <YOUR_CONFIG_FILE_PATH>
@@ -236,16 +242,25 @@ olricd also supports `OLRICD_CONFIG` environment variable to set configuration. 
 OLRICD_CONFIG=<YOUR_CONFIG_FILE_PATH> olricd
 ```
 
-Olric nodes discovers the others automatically. You just need to maintain an accurate list of peers as much as possible.
-Currently we only support a static peer list in the configuration file. The other methods will be implemented in the future. 
-You should know that a single alive peer in the list is enough to discover the whole cluster. 
+Olric uses [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for failure detection and cluster membership. 
+Currently there are different ways to discover peers in a cluster. You can use a static list of nodes in your `olricd.yaml` 
+file. It's ideal for development and test environments. Olric also supports Consul, Kubernetes and well-known cloud providers
+for service discovery. Please take a look at [Service Discovery](#service-discovery) section for further information.
 
 You can find a sample configuration file under `cmd/olricd/olricd.yaml`. 
+
+See [Client-Server](#client-server) section to get more information about this deployment scenario.
 
 ### olric-cli
 
 olric-cli is the Olric command line interface, a simple program that allows to send commands to Olric, and read the replies 
 sent by the server, directly from the terminal.
+
+In order to install `olric-cli`:
+
+```bash
+go get -u github.com/buraksezer/olric/cmd/olric-cli
+```
 
 olric-cli has an interactive (REPL) mode just like `redis-cli`:
 
@@ -258,9 +273,7 @@ myvalue
 [127.0.0.1:3320] >>
 ```
 
-The interactive mode also keeps command history. 
-
-It's possible to send protocol commands as command line arguments:
+The interactive mode also keeps command history.  It's possible to send protocol commands as command line arguments:
 
 ```
 olric-cli -d mydmap -c "put mykey myvalue"
@@ -274,13 +287,18 @@ olric-cli -d mydmap -c "get mykey"
 
 It'll print `myvalue`.
 
-
 In order to get more details about the options, call `olric-cli -h` in your shell.
 
 ### olric-stats 
 
 olric-stats calls `Stats` command on a cluster member and prints the result. The returned data from the member includes the Go runtime 
 metrics and statistics from hosted primary and backup partitions. 
+
+In order to install `olric-stats`:
+
+```bash
+go get -u github.com/buraksezer/olric/cmd/olric-stats
+```
 
 Statistics about a partition:
 
@@ -307,6 +325,14 @@ In order to get more details about the command, call `olric-stats -h`.
 ### olric-load
 
 olric-load simulates running commands done by N clients at the same time sending M total queries. It measures response time. 
+
+In order to install `olric-load`:
+
+```bash
+go get -u github.com/buraksezer/olric/cmd/olric-load
+```
+
+The following command calls `Put` command for 100000 keys on `127.0.0.1:3320` (it's default) and uses `msgpack` for serialization.
 
 ```
 olric-load -c put -s msgpack -k 100000
