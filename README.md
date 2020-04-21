@@ -38,7 +38,8 @@ Olric is in early stages of development. The package API and client protocol may
 * [Planned Features](#planned-features)
 * [Support](#support)
 * [Installing](#installing)
-  * [Try with Docker](#try-with-docker)
+  * [Docker](#docker)
+  * [Kubernetes](#kubernetes)
 * [Operation Modes](#operation-modes)
   * [Embedded Member](#embedded-member)
   * [Client-Server](#client-server)
@@ -193,7 +194,7 @@ Give `help` command to see available commands. Olric has a dedicated repository 
 
 ### Kubernetes
 
-Olric is able to discover peers on Kubernetes platform via [olric-cloud-plugin](https://github.com/buraksezer/olric-cloud-plugin). We have a very simple 
+Olric is able to discover peers automatically on Kubernetes platform via [olric-cloud-plugin](https://github.com/buraksezer/olric-cloud-plugin). We have a very simple 
 Kubernetes setup right now. In the near future, this will be a major development/improvement area for Olric. 
 
 If you have a running Kubernetes cluster, you can use the following command to deploy a new Olric cluster with 3 nodes:
@@ -411,7 +412,7 @@ In order to get more details about the command, call `olric-load -h`.
 Olric is designed to work efficiently with the minimum amount of configuration. So the default configuration should be enough for experimenting:
 
 ```go
-db, err := olric.New(config.New())
+db, err := olric.New(config.New("local"))
 ```
 
 This creates an Olric object without running any server at background. In order to run Olric, you need to call **Start** method.
@@ -804,38 +805,148 @@ configuration parameters, see [Olric documentation on GoDoc.org](https://godoc.o
 
 ## Configuration
 
-[memberlist configuration](https://godoc.org/github.com/hashicorp/memberlist#Config) can be tricky and and the default configuration set should be tuned for your environment. A detailed deployment and configuration guide will be prepared before stable release.
+[memberlist configuration](https://godoc.org/github.com/hashicorp/memberlist#Config) can be tricky and the default configuration set should be tuned for your environment. A detailed deployment and configuration guide will be prepared before stable release.
 
 Please take a look at [Config section at godoc.org](https://godoc.org/github.com/buraksezer/olric#Config)
 
 Here is a sample configuration for a cluster with two hosts:
 
 ```go
-m1, _ := olric.NewMemberlistConfig("local")
-m1.BindAddr = "127.0.0.1"
-m1.BindPort = 5555
-c1 := &olric.Config{
-	Name:          "127.0.0.1:3535", // Unique in the cluster and used by TCP server.
-	Peers:         []string{"127.0.0.1:5656"},
-	MemberlistCfg: m1,
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net"
+	"reflect"
+	"strconv"
+	"time"
+
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
+)
+
+const (
+	bindAddr    string = "0.0.0.0"
+	peerPortOne int    = 5555
+	peerPortTwo int    = 6666
+)
+
+func config1() *config.Config {
+	c := config.New("local")
+	// overwrite default values
+	c.BindPort = 3320
+	c.Name = net.JoinHostPort(bindAddr, strconv.Itoa(c.BindPort))
+
+	// Add the peer
+	c.MemberlistConfig.BindPort = peerPortOne
+	peerTwo := net.JoinHostPort(bindAddr, strconv.Itoa(peerPortTwo))
+	c.Peers = []string{peerTwo}
+	return c
 }
 
-m2, _ := olric.NewMemberlistConfig("local")
-m2.BindAddr = "127.0.0.1"
-m2.BindPort = 5656
-c2 := &olric.Config{
-	Name:          "127.0.0.1:3636",
-	Peers:         []string{"127.0.0.1:5555"},
-	MemberlistCfg: m2,
+func config2() *config.Config {
+	c := config.New("local")
+
+	// overwrite default values
+	c.BindPort = 3322
+	c.Name = net.JoinHostPort(bindAddr, strconv.Itoa(c.BindPort))
+
+	// Add the peer
+	c.MemberlistConfig.BindPort = peerPortTwo
+	peerOne := net.JoinHostPort(bindAddr, strconv.Itoa(peerPortOne))
+	c.Peers = []string{peerOne}
+	return c
 }
 
-db1, err := olric.New(c1)
-// Check error
+func main() {
+	c1 := config1()
+	db1, err := olric.New(c1)
+	if err != nil {
+		log.Fatalf("Failed to create Olric object: %v", err)
+	}
+	go func() {
+		// Call Start at background. It's a blocker call.
+		err = db1.Start()
+		if err != nil {
+			log.Fatalf("Failed to call Start: %v", err)
+		}
+	}()
 
-db2, err := olric.New(c2)
-// Check error
+	c2 := config2()
+	// This creates a single-node Olric cluster. It's good enough for experimenting.
+	db2, err := olric.New(c2)
+	if err != nil {
+		log.Fatalf("Failed to create Olric object: %v", err)
+	}
 
-// Call Start method for db1 and db2 in a seperate goroutine.
+	go func() {
+		// Call Start at background. It's a blocker call.
+		err = db2.Start()
+		if err != nil {
+			log.Fatalf("Failed to call Start: %v", err)
+		}
+	}()
+
+	// You can use `config.Started` callback function to get notified about a server start
+	// for the sake of simplicity, we just call time.After for some time.
+	fmt.Println("Awaiting for background goroutines")
+	<-time.After(time.Second)
+
+	// Put 10 items into the DMap object.
+	dm, err := db1.NewDMap("bucket-of-arbitrary-items")
+	if err != nil {
+		log.Fatalf("Failed to call NewDMap: %v", err)
+	}
+
+	fmt.Println("##")
+	fmt.Println("Operations on a DMap instance:")
+	err = dm.Put("string-key", "buraksezer")
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
+	}
+	stringValue, err := dm.Get("string-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
+	fmt.Printf("Value for string-key: %v, reflect.TypeOf: %s\n", stringValue, reflect.TypeOf(stringValue))
+
+	err = dm.Put("uint64-key", uint64(1988))
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
+	}
+	uint64Value, err := dm.Get("uint64-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
+	fmt.Printf("Value for uint64-key: %v, reflect.TypeOf: %s\n", uint64Value, reflect.TypeOf(uint64Value))
+
+	err = dm.Put("nil-key", nil)
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
+	}
+	nilValue, err := dm.Get("nil-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
+	fmt.Printf("Value for nil-key: %v\n", nilValue)
+	fmt.Println("##")
+
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx1, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = db1.Shutdown(ctx1)
+	if err != nil {
+		log.Printf("Failed to shutdown Olric: %v", err)
+	}
+
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx2, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err = db2.Shutdown(ctx2)
+	if err != nil {
+		log.Printf("Failed to shutdown Olric: %v", err)
+	}
+}
 ```
 
 ### Service Discovery
@@ -1061,17 +1172,11 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"strconv"
 	"time"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
 )
-
-type customType struct {
-	Field1 string
-	Field2 uint64
-}
 
 func main() {
 	// This creates a single-node Olric cluster. It's good enough for experimenting.
@@ -1107,24 +1212,30 @@ func main() {
 	if err != nil {
 		log.Fatalf("olric.NewDMap returned an error: %v", err)
 	}
-	for i := 0; i < 10; i++ {
-		c := customType{}
-		c.Field1 = fmt.Sprintf("num: %d", i)
-		c.Field2 = uint64(i)
-		err = dm.Put(strconv.Itoa(i), c)
-		if err != nil {
-			log.Printf("Put call failed: %v", err)
-		}
-	}
 
-	// Read them again.
-	for i := 0; i < 10; i++ {
-		val, err := dm.Get(strconv.Itoa(i))
-		if err != nil {
-			log.Printf("Get call failed: %v", err)
-		}
-		fmt.Println(val, reflect.TypeOf(val))
+	// Magic starts here!
+	fmt.Println("##")
+	fmt.Println("Operations on a DMap instance:")
+	err = dm.Put("string-key", "buraksezer")
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
 	}
+	stringValue, err := dm.Get("string-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
+	fmt.Printf("Value for string-key: %v, reflect.TypeOf: %s\n", stringValue, reflect.TypeOf(stringValue))
+
+	err = dm.Put("uint64-key", uint64(1988))
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
+	}
+	uint64Value, err := dm.Get("uint64-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
+	fmt.Printf("Value for uint64-key: %v, reflect.TypeOf: %s\n", uint64Value, reflect.TypeOf(uint64Value))
+	fmt.Println("##")
 
 	// Don't forget the call Shutdown when you want to leave the cluster.
 	ctx, _ = context.WithTimeout(context.Background(), 10*time.Second)
@@ -1133,7 +1244,6 @@ func main() {
 		log.Printf("Failed to shutdown Olric: %v", err)
 	}
 }
-
 ```
 
 ## Contributions
