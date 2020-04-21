@@ -114,7 +114,6 @@ Olric is in early stages of development. The package API and client protocol may
 * Quorum-based voting for replica control,
 * Thread-safe by default,
 * Supports [distributed queries](#query) on keys,
-* Cloud-native design: works seamlessly on Kubernetes, Amazon AWS, Google Cloud and Azure,
 * Provides a plugin interface for service discovery daemons and cloud providers,
 * Provides a command-line-interface to access the cluster directly from the terminal,
 * Supports different serialization formats. Gob, JSON and MessagePack are supported out of the box,
@@ -135,8 +134,7 @@ See [Architecture](#architecture) section to see details.
 
 ## Support
 
-We have a mail group on Google Groups and a room on Gitter. You feel free to ask any questions about Olric and possible 
-integration problems.
+You feel free to ask any questions about Olric and possible integration problems.
 
 * [Gitter Room](https://gitter.im/olric-/olric?utm_source=share-link&utm_medium=link&utm_campaign=share-link)
 * [Mail group on Google Groups](https://groups.google.com/forum/#!forum/olric-user)
@@ -166,7 +164,7 @@ olricd -c cmd/olricd/olricd.yaml
 
 See [Configuration](#configuration) section to create your cluster properly.
 
-### Try with Docker
+### Docker
 
 You can launch olricd Docker container by running the following command. 
 
@@ -192,6 +190,68 @@ olric-cli
 
 Give `help` command to see available commands. Olric has a dedicated repository for Docker related resources. Please take a look at
 [buraksezer/olric-docker](https://github.com/buraksezer/olric-docker) for more information.
+
+### Kubernetes
+
+Olric is able to discover peers on Kubernetes platform via [olric-cloud-plugin](https://github.com/buraksezer/olric-cloud-plugin). We have a very simple 
+Kubernetes setup right now. In the near future, this will be a major development/improvement area for Olric. 
+
+If you have a running Kubernetes cluster, you can use the following command to deploy a new Olric cluster with 3 nodes:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/buraksezer/olric-kubernetes/master/olricd.yaml
+``` 
+
+If everything goes well, you should see something like that:
+
+```bash
+kubectl get pods
+NAME                      READY   STATUS    RESTARTS   AGE
+dnsutils                  1/1     Running   0          20d
+olricd-6c7f54d445-ndm8v   1/1     Running   0          34s
+olricd-6c7f54d445-s6g6r   1/1     Running   0          34s
+olricd-6c7f54d445-vjkhf   1/1     Running   0          34s
+```
+
+Now we have an Olric cluster on Kubernetes with 3 nodes. One of them is the cluster coordinator and manages the routing table for rest of the cluster. 
+
+Deploy `olric-debug` to reach the cluster:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/buraksezer/olric-kubernetes/master/olric-debug.yaml
+```
+
+Verify whether `olric-debug` pod works or not:
+
+```bash
+kubectl get pods
+NAME                      READY   STATUS    RESTARTS   AGE
+...
+olric-debug               1/1     Running   0          54s
+...
+```
+
+Get a shell to the running container:
+
+```bash
+kubectl exec -it olric-debug -- /bin/sh
+```
+
+Now you have a running Alpine Linux setup on Kubernetes. It includes `olric-cli`, `olric-load` and `olric-stats` commands. 
+
+```bash
+/go/src/github.com/buraksezer/olric # olric-cli -a olricd.default.svc.cluster.local:3320
+[olricd.default.svc.cluster.local:3320] » use users
+use users
+[olricd.default.svc.cluster.local:3320] » put buraksezer {"_id": "06054057", "name": "Burak", "surname": "Sezer", "job": "Engineer"}
+[olricd.default.svc.cluster.local:3320] » get buraksezer
+{"_id": "06054057", "name": "Burak", "surname": "Sezer", "job": "Engineer"}
+[olricd.default.svc.cluster.local:3320] »
+```
+
+Congrats! 
+
+Bringing Olric into Kubernetes will be my focus point in the next releases.
 
 ## Operation Modes
 
