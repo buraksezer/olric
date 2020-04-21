@@ -15,7 +15,6 @@
 package olric
 
 import (
-	"bytes"
 	"errors"
 	"sort"
 	"time"
@@ -114,11 +113,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 func (db *Olric) sortVersions(versions []*version) []*version {
 	sort.Slice(versions,
 		func(i, j int) bool {
-			if versions[i].data.Timestamp == versions[j].data.Timestamp {
-				// The first one is greater or equal than the second one.
-				return bytes.Compare(versions[i].data.Value, versions[j].data.Value) >= 0
-			}
-			return versions[i].data.Timestamp > versions[j].data.Timestamp
+			return versions[i].data.Timestamp >= versions[j].data.Timestamp
 		},
 	)
 	// Explicit is better than implicit.

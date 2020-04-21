@@ -10,7 +10,6 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Embeddable but can be used as a language-independent service with *olricd*,
-* Cloud-native design: works seamlessly on Kubernetes, Amazon AWS, Google Cloud and Azure, 
 * Supports different eviction algorithms,
 * Fast binary protocol,
 * Highly available and horizontally scalable,
