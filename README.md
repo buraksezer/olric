@@ -4,7 +4,9 @@
 
 Distributed cache and in-memory key/value data store. It can be used both as an embedded Go library and as a language-independent service.
 
-With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers. 
+
+See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 
 ## At a glance
 
@@ -1179,6 +1181,7 @@ import (
 )
 
 func main() {
+	// Deployment scenario: embedded-member
 	// This creates a single-node Olric cluster. It's good enough for experimenting.
 
 	// config.New returns a new config.Config with sane defaults. Available values for env:
