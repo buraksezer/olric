@@ -254,7 +254,7 @@ use users
 
 Congrats! 
 
-Bringing Olric into Kubernetes will be my focus point in the next releases.
+Bringing Olric into Kubernetes will be a major development area in the next releases.
 
 ## Operation Modes
 
@@ -811,6 +811,9 @@ configuration parameters, see [Olric documentation on GoDoc.org](https://godoc.o
 
 Please take a look at [Config section at godoc.org](https://godoc.org/github.com/buraksezer/olric#Config)
 
+It's generally good to use `config.New` function to get the default configuration. It takes `local`, `lan` and `wan` parameters. 
+Please see the [documentation](https://godoc.org/github.com/buraksezer/olric/config#New) to get more information. 
+
 Here is a sample configuration for a cluster with two hosts:
 
 ```go
@@ -953,9 +956,15 @@ func main() {
 
 ### Service Discovery
 
-Olric provides a service discovery interface which can be used to implement plugins. We currently have a service discovery 
-plugin for [Consul](https://consul.io). It can be found at [buraksezer/olric-consul-plugin](https://github.com/buraksezer/olric-consul-plugin).
-In order to get more info about installation and configuration of the plugin, see its GitHub page. 
+Olric provides a service discovery interface which can be used to implement plugins. 
+
+We currently have a bunch of service discovery plugins for automatic peer discovery on cloud environments:
+
+* [buraksezer/olric-consul-plugin](https://github.com/buraksezer/olric-consul-plugin) provides a plugin using Consul.
+* [buraksezer/olric-cloud-plugin](https://github.com/buraksezer/olric-cloud-plugin) provides a plugin for well-known cloud providers. Including Kubernetes.
+* [justinfx/olric-nats-plugin](https://github.com/justinfx/olric-nats-plugin) provides a plugin using nats.io
+
+In order to get more info about installation and configuration of the plugins, see their GitHub page. 
 
 ## Architecture
 
@@ -970,7 +979,7 @@ Olric uses:
     * [encoding/json](https://golang.org/pkg/encoding/json/), 
     * [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack).
 
-Olric distributes data among partitions. Every partition is owned by a cluster member and may have one or more backups for redundancy. 
+Olric distributes data among partitions. Every partition is being owned by a cluster member and may have one or more backups for redundancy. 
 When you read or write a DMap entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a
 particular data entry in a stable cluster.
 
@@ -980,17 +989,16 @@ In order to find the partition which the key belongs to, Olric hashes the key an
 partID = MOD(hash result, partition count)
 ```
 
-The partitions are distributed among cluster members by using a consistent hashing algorithm. In order to get details, please see
-[buraksezer/consistent](https://github.com/buraksezer/consistent). The backup owners are also calculated by the same package.
+The partitions are being distributed among cluster members by using a consistent hashing algorithm. In order to get details, please see [buraksezer/consistent](https://github.com/buraksezer/consistent). 
 
 When a new cluster is created, one of the instances is elected as the **cluster coordinator**. It manages the partition table: 
 
 * When a node joins or leaves, it distributes the partitions and their backups among the members again,
-* Removes empty owners from the partition owners list,
+* Removes empty previous owners from the partition owners list,
 * Pushes the new partition table to all the members,
-* Pushes the the partition table to the cluster periodically.
+* Pushes the partition table to the cluster periodically.
 
-Members propagates their birthdate(Unix timestamp in nanoseconds) to the cluster. The coordinator is the oldest member in the cluster.
+Members propagate their birthdate(POSIX time in nanoseconds) to the cluster. The coordinator is the oldest member in the cluster.
 If the coordinator leaves the cluster, the second oldest member gets elected as the coordinator.
 
 Olric has a component called **rebalancer** which is responsible for keeping underlying data structures consistent:
@@ -1015,7 +1023,7 @@ the data remains available on the previous owners. The DMap methods use this lis
 
 **Olric is an AP product** in the context of [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem), which employs the combination of primary-copy 
 and [optimistic replication](https://en.wikipedia.org/wiki/Optimistic_replication) techniques. With optimistic replication, when the partition owner 
-receives a write or delete operation for a key, applies it locally, and propagates it to backup owners.
+receives a write or delete operation for a key, applies it locally, and propagates it to the backup owners.
 
 This technique enables Olric clusters to offer high throughput. However, due to temporary situations in the system, such as network
 failure, backup owners can miss some updates and diverge from the primary owner. If a partition owner crashes while there is an

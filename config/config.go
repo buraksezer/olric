@@ -475,17 +475,20 @@ func (c *Config) Sanitize() error {
 // It takes an env parameter used by memberlist: local, lan and wan.
 //
 // local:
+//
 // DefaultLocalConfig works like DefaultConfig, however it returns a configuration that
 // is optimized for a local loopback environments. The default configuration is still very conservative
 // and errs on the side of caution.
 //
 // lan:
+//
 // DefaultLANConfig returns a sane set of configurations for Memberlist. It uses the hostname
 // as the node name, and otherwise sets very conservative values that are sane for most LAN environments.
 // The default configuration errs on the side of caution, choosing values that are optimized for higher convergence
 // at the cost of higher bandwidth usage. Regardless, these values are a good starting point when getting started with memberlist.
 //
 // wan:
+//
 // DefaultWANConfig works like DefaultConfig, however it returns a configuration that is optimized for most WAN environments.
 // The default configuration is still very conservative and errs on the side of caution.
 func New(env string) *Config {
