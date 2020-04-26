@@ -41,8 +41,10 @@ const (
 )
 
 const (
+	// DefaultPort is for Olric
 	DefaultPort = 3320
 
+	// DefaultDiscoveryPort is for memberlist
 	DefaultDiscoveryPort = 3322
 
 	// DefaultPartitionCount denotes default partition count in the cluster.
@@ -178,22 +180,20 @@ type CacheConfig struct {
 
 // Config is the configuration to create a Olric instance.
 type Config struct {
+	// Interface denotes a binding interface. It can be used instead of BindAddr if the interface is known but not the address.
+	// If both are provided, then Olric verifies that the interface has the bind address that is provided.
+	Interface string
+
 	// LogVerbosity denotes the level of message verbosity. The default value is 3. Valid values are between 1 to 6.
 	LogVerbosity int32
 
 	// Default LogLevel is DEBUG. Valid ones: "DEBUG", "WARN", "ERROR", "INFO"
 	LogLevel string
 
-	// Name of this node in the cluster. This must be unique in the cluster. If this is not set,
-	// Olric will set it to the hostname of the running machine. Example: node1.my-cluster.net
-	//
-	// Name is also used by the TCP server as Addr. It should be an IP address or domain name of the server.
-	Name string
-
-	// Addr to bind
+	// BindAddr denotes the address that Olric will bind to for communication with other Olric nodes.
 	BindAddr string
 
-	// Port to bind
+	// BindPort denotes the address that Olric will bind to for communication with other Olric nodes.
 	BindPort int
 
 	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
@@ -266,6 +266,11 @@ type Config struct {
 	Started func()
 
 	ServiceDiscovery map[string]interface{}
+
+	// Interface denotes a binding interface. It can be used instead of memberlist.Config.BindAddr if the interface is
+	// known but not the address. If both are provided, then Olric verifies that the interface has the bind address that
+	// is provided.
+	MemberlistInterface string
 
 	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some
@@ -411,23 +416,6 @@ func (c *Config) Sanitize() error {
 	// control in server initialization stage.
 	if c.BindPort == 0 {
 		c.BindPort = DefaultPort
-	}
-
-	// TODO: Config.Name is deprecated and it will be removed in v0.3.0
-	if c.Name == "" {
-		c.Name = c.BindAddr + ":" + strconv.Itoa(c.BindPort)
-	} else {
-		c.Logger.Printf("[WARN] Config.Name is deprecated. Please use BindAddr and BindPort instead of Config.name")
-		host, _port, err := net.SplitHostPort(c.Name)
-		if err != nil {
-			return err
-		}
-		port, err := strconv.Atoi(_port)
-		if err != nil {
-			return err
-		}
-		c.BindAddr = host
-		c.BindPort = port
 	}
 
 	if c.LoadFactor == 0 {

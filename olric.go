@@ -31,7 +31,6 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/locker"
-	"github.com/buraksezer/olric/internal/network"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
@@ -134,13 +133,11 @@ func New(c *config.Config) (*Olric, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	bindAddr, err := network.AddrToIP(c.BindAddr)
+	err = c.SetupNetworkConfig()
 	if err != nil {
 		return nil, err
 	}
-	// Set the name of this node in the cluster
-	c.MemberlistConfig.Name = net.JoinHostPort(bindAddr.String(), strconv.Itoa(c.BindPort))
+	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 
 	cfg := consistent.Config{
 		Hasher:            c.Hasher,
@@ -327,9 +324,22 @@ func (db *Olric) startDiscovery() error {
 		}
 	}
 
-	db.log.V(2).Printf("[INFO] AdvertiseAddr: %s, AdvertisePort: %d",
-		db.config.MemberlistConfig.AdvertiseAddr,
-		db.config.MemberlistConfig.AdvertisePort)
+	if db.config.Interface != "" {
+		db.log.V(2).Printf("[INFO] Olric uses interface: %s", db.config.Interface)
+	}
+
+	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d",
+		db.config.BindAddr,
+		db.config.BindPort)
+
+	if db.config.MemberlistInterface != "" {
+		db.log.V(2).Printf("[INFO] Memberlist uses interface: %s", db.config.MemberlistInterface)
+	}
+
+	db.log.V(2).Printf("[INFO] Memberlist bindAddr: %s, bindPort: %d",
+		db.config.MemberlistConfig.BindAddr,
+		db.config.MemberlistConfig.BindPort)
+
 	db.log.V(2).Printf("[INFO] Cluster coordinator: %s", db.discovery.GetCoordinator())
 	return nil
 }

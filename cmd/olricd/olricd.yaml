@@ -4,7 +4,7 @@ olricd:
   serializer: "msgpack"
   keepAlivePeriod: "300s"
   requestTimeout: "5s"
-  partitionCount:  71
+  partitionCount:  13
   replicaCount: 1
   writeQuorum: 1
   readQuorum: 1

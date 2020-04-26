@@ -76,6 +76,9 @@ Olric is in early stages of development. The package API and client protocol may
 * [Serialization](#serialization)
 * [Golang Client](#golang-client)
 * [Configuration](#configuration)
+    * [Embedded Member Mode](#embedded-member-mode)
+    * [Client-Server Mode](#client-server-mode)
+    * [Network Configuration](#network-configuration)
     * [Service discovery](#service-discovery)
 * [Architecture](#architecture)
   * [Overview](#overview)
@@ -807,152 +810,42 @@ configuration parameters, see [Olric documentation on GoDoc.org](https://godoc.o
 
 ## Configuration
 
-[memberlist configuration](https://godoc.org/github.com/hashicorp/memberlist#Config) can be tricky and the default configuration set should be tuned for your environment. A detailed deployment and configuration guide will be prepared before stable release.
+You should feel free to ask any questions about configuration and integration. Please see [Support](#support) section.
 
-Please take a look at [Config section at godoc.org](https://godoc.org/github.com/buraksezer/olric#Config)
+### Embedded-Member Mode
 
-It's generally good to use `config.New` function to get the default configuration. It takes `local`, `lan` and `wan` parameters. 
-Please see the [documentation](https://godoc.org/github.com/buraksezer/olric/config#New) to get more information. 
-
-Here is a sample configuration for a cluster with two hosts:
+Olric provides a function to generate default configuration to use in embedded-member mode:
 
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"log"
-	"net"
-	"reflect"
-	"strconv"
-	"time"
-
-	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/config"
-)
-
-const (
-	bindAddr    string = "0.0.0.0"
-	peerPortOne int    = 5555
-	peerPortTwo int    = 6666
-)
-
-func config1() *config.Config {
-	c := config.New("local")
-	// overwrite default values
-	c.BindPort = 3320
-	c.Name = net.JoinHostPort(bindAddr, strconv.Itoa(c.BindPort))
-
-	// Add the peer
-	c.MemberlistConfig.BindPort = peerPortOne
-	peerTwo := net.JoinHostPort(bindAddr, strconv.Itoa(peerPortTwo))
-	c.Peers = []string{peerTwo}
-	return c
-}
-
-func config2() *config.Config {
-	c := config.New("local")
-
-	// overwrite default values
-	c.BindPort = 3322
-	c.Name = net.JoinHostPort(bindAddr, strconv.Itoa(c.BindPort))
-
-	// Add the peer
-	c.MemberlistConfig.BindPort = peerPortTwo
-	peerOne := net.JoinHostPort(bindAddr, strconv.Itoa(peerPortOne))
-	c.Peers = []string{peerOne}
-	return c
-}
-
-func main() {
-	c1 := config1()
-	db1, err := olric.New(c1)
-	if err != nil {
-		log.Fatalf("Failed to create Olric object: %v", err)
-	}
-	go func() {
-		// Call Start at background. It's a blocker call.
-		err = db1.Start()
-		if err != nil {
-			log.Fatalf("Failed to call Start: %v", err)
-		}
-	}()
-
-	c2 := config2()
-	// This creates a single-node Olric cluster. It's good enough for experimenting.
-	db2, err := olric.New(c2)
-	if err != nil {
-		log.Fatalf("Failed to create Olric object: %v", err)
-	}
-
-	go func() {
-		// Call Start at background. It's a blocker call.
-		err = db2.Start()
-		if err != nil {
-			log.Fatalf("Failed to call Start: %v", err)
-		}
-	}()
-
-	// You can use `config.Started` callback function to get notified about a server start
-	// for the sake of simplicity, we just call time.After for some time.
-	fmt.Println("Awaiting for background goroutines")
-	<-time.After(time.Second)
-
-	// Put 10 items into the DMap object.
-	dm, err := db1.NewDMap("bucket-of-arbitrary-items")
-	if err != nil {
-		log.Fatalf("Failed to call NewDMap: %v", err)
-	}
-
-	fmt.Println("##")
-	fmt.Println("Operations on a DMap instance:")
-	err = dm.Put("string-key", "buraksezer")
-	if err != nil {
-		log.Fatalf("Failed to call Put: %v", err)
-	}
-	stringValue, err := dm.Get("string-key")
-	if err != nil {
-		log.Fatalf("Failed to call Get: %v", err)
-	}
-	fmt.Printf("Value for string-key: %v, reflect.TypeOf: %s\n", stringValue, reflect.TypeOf(stringValue))
-
-	err = dm.Put("uint64-key", uint64(1988))
-	if err != nil {
-		log.Fatalf("Failed to call Put: %v", err)
-	}
-	uint64Value, err := dm.Get("uint64-key")
-	if err != nil {
-		log.Fatalf("Failed to call Get: %v", err)
-	}
-	fmt.Printf("Value for uint64-key: %v, reflect.TypeOf: %s\n", uint64Value, reflect.TypeOf(uint64Value))
-
-	err = dm.Put("nil-key", nil)
-	if err != nil {
-		log.Fatalf("Failed to call Put: %v", err)
-	}
-	nilValue, err := dm.Get("nil-key")
-	if err != nil {
-		log.Fatalf("Failed to call Get: %v", err)
-	}
-	fmt.Printf("Value for nil-key: %v\n", nilValue)
-	fmt.Println("##")
-
-	// Don't forget the call Shutdown when you want to leave the cluster.
-	ctx1, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = db1.Shutdown(ctx1)
-	if err != nil {
-		log.Printf("Failed to shutdown Olric: %v", err)
-	}
-
-	// Don't forget the call Shutdown when you want to leave the cluster.
-	ctx2, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = db2.Shutdown(ctx2)
-	if err != nil {
-		log.Printf("Failed to shutdown Olric: %v", err)
-	}
-}
+import "github.com/buraksezer/olric/config"
+...
+c := config.New("local")
 ```
+
+The `New` function takes a parameter called `env`. It denotes the network environment and consumed by [hashicorp/memberlist](https://github.com/hashicorp/memberlist). 
+Default configuration is good enough for distributed caching scenario. In order to see all configuration parameters, please take a look at [this](https://godoc.org/github.com/buraksezer/olric/config).
+
+See [Sample Code](#sample-code) section for an introduction.
+
+### Client-Server Mode
+
+Olric provides **olricd** to implement client-server mode. olricd gets a YAML file for the configuration. The most basic  functionality of olricd is that 
+translating YAML configuration into Olric's configuration struct. A sample `olricd.yaml` file  is being provided [here](https://github.com/buraksezer/olric/blob/master/cmd/olricd/olricd.yaml).
+
+### Network Configuration
+
+In an Olric instance, there are two different TCP servers. One for Olric, and the other one is for memberlist. `BindAddr` is very
+critical to deploy a healthy Olric node. There are different scenarios:
+
+* You can freely set a domain name or IP address as `BindAddr` for both Olric and memberlist. Olric will resolve and use it to bind.
+* You can freely set `localhost`, `127.0.0.1` or `::1` as `BindAddr` in development environment for both Olric and memberlist.
+* You can freely set `0.0.0.0` as `BindAddr` for both Olric and memberlist. Olric will pick an IP address, if there is any.
+* If you don't set `BindAddr`, hostname will be used, and it will be resolved to get a valid IP address.
+* You can set a network interface by using `Config.Interface` and `Config.MemberlistInterface` fields. Olric will find an appropriate IP address for the given interfaces, if there is any.
+* You can set both `BindAddr` and interface parameters. In this case Olric will ensure that `BindAddr` is available on the given interface.
+
+You should know that Olric needs a single and stable IP address to function properly. If you don't know the IP address of the host at the deployment time, 
+you can set `BindAddr` as `0.0.0.0`. Olric will very likely to find an IP address for you.
 
 ### Service Discovery
 
@@ -1218,7 +1111,6 @@ func main() {
 
 	<-ctx.Done()
 
-	// Put 10 items into the DMap object.
 	dm, err := db.NewDMap("bucket-of-arbitrary-items")
 	if err != nil {
 		log.Fatalf("olric.NewDMap returned an error: %v", err)

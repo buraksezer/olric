@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/network"
 	m "github.com/hashicorp/memberlist"
 )
 
@@ -98,13 +97,8 @@ func newMemberlistConf(c *Config) (*m.Config, error) {
 
 	if c.Memberlist.AdvertiseAddr != nil {
 		mc.AdvertiseAddr = *c.Memberlist.AdvertiseAddr
-	} else {
-		advertiseAddr, err := network.ParseOrLookupIP(mc.BindAddr)
-		if err != nil {
-			return nil, err
-		}
-		mc.AdvertiseAddr = advertiseAddr.String()
 	}
+
 	if c.Memberlist.AdvertisePort != nil {
 		mc.AdvertisePort = *c.Memberlist.AdvertisePort
 	} else {

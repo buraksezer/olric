@@ -33,6 +33,7 @@ type olricd struct {
 	Name              string  `yaml:"name"`
 	BindAddr          string  `yaml:"bindAddr"`
 	BindPort          int     `yaml:"bindPort"`
+	Interface         string  `yaml:"interface"`
 	ReplicationMode   int     `yaml:"replicationMode"`
 	PartitionCount    uint64  `yaml:"partitionCount"`
 	LoadFactor        float64 `yaml:"loadFactor"`
@@ -58,6 +59,7 @@ type memberlist struct {
 	Environment             string   `yaml:"environment"` // required
 	BindAddr                string   `yaml:"bindAddr"`    // required
 	BindPort                int      `yaml:"bindPort"`    // required
+	Interface               string   `yaml:"interface"`
 	EnableCompression       *bool    `yaml:"enableCompression"`
 	JoinRetryInterval       string   `yaml:"joinRetryInterval"` // required
 	MaxJoinAttempts         int      `yaml:"maxJoinAttempts"`   // required
