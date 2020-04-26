@@ -55,6 +55,9 @@ var (
 
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
 	ErrUnknownOperation = errors.New("unknown operation")
+
+	// ErrBadRequest denotes that request body is invalid.
+	ErrBadRequest = errors.New("bad request")
 )
 
 // ReleaseVersion is the current stable version of Olric
@@ -447,6 +450,8 @@ func (db *Olric) prepareResponse(req *protocol.Message, err error) *protocol.Mes
 		return req.Error(protocol.StatusErrUnknownOperation, err)
 	case err == ErrEndOfQuery:
 		return req.Error(protocol.StatusErrEndOfQuery, err)
+	case  err == ErrBadRequest:
+		return req.Error(protocol.StatusBadRequest, err)
 	default:
 		return req.Error(protocol.StatusInternalServerError, err)
 	}
@@ -483,6 +488,8 @@ func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Me
 		return nil, ErrEndOfQuery
 	case resp.Status == protocol.StatusErrUnknownOperation:
 		return nil, ErrUnknownOperation
+	case resp.Status == protocol.StatusBadRequest:
+		return nil, ErrBadRequest
 	}
 	return nil, fmt.Errorf("unknown status code: %d", resp.Status)
 }

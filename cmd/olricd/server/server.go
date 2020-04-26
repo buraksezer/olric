@@ -153,7 +153,6 @@ func New(c *Config) (*Olricd, error) {
 
 	s.log = log.New(logOutput, "", log.LstdFlags)
 	s.config = &config.Config{
-		Name:                c.Olricd.Name, // deprecated, it will be removed in v0.3.0
 		BindAddr:            c.Olricd.BindAddr,
 		BindPort:            c.Olricd.BindPort,
 		Interface:           c.Olricd.Interface,
