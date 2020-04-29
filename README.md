@@ -698,12 +698,16 @@ c.Close()
 
 ## Atomic Operations
 
-Normally, write operations in Olric is performed by the partition owners. However, atomic operations are guarded by a fine-grained lock 
-implementation which can be found under `internal/locker`. 
+Normally, write operations in Olric is performed by the partition owners. However, atomic operations are being guarded by a fine-grained lock 
+implementation which can be found under `internal/locker`. This package is provided by the [Docker](https://github.com/moby/moby).
 
-You should know that Olric is an AP product. So Olric may return inconsistent results in the case of network partitioning. 
+**Important note about consistency:**
 
-`internal/locker` is provided by the [Docker](https://github.com/moby/moby).
+You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
+pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when your network is stable but it's also important to know that you shouldn't 
+trust a computer network. If you cannot tolerate losing strong consistency under network partitioning, you need to use a different tool for atomic operations.
+
+See [Fallacies of distributed computing](https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing) and [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
 
 ### Incr
 
@@ -737,8 +741,10 @@ value, err := dm.GetPut("atomic-key", someType{})
 The returned value is an arbitrary type.
 
 ### Pipelining
+
 Olric Binary Protocol(OBP) supports pipelining. All protocol commands can be pushed to a remote Olric server through a pipeline in a single write call. 
 A sample use looks like the following:
+
 ```go
 // Create an ordinary Olric client, not Olric node!
 // ...
@@ -778,14 +784,15 @@ for _, resp := range responses {
 }
 ```
 
-There is no hard-limit on message count in a pipeline. You should set a convenient `KeepAlive` for large pipelines. 
-Otherwise you can get a timeout error.
+There is no hard-limit on message count in a pipeline. You should set a convenient `KeepAlive` for large pipelines. Otherwise, you can get a timeout error.
 
-The `Flush` method returns errors along with success messages. Furhermore, you need to know the command order to match responses with requests.
+The `Flush` method returns errors along with success messages. Furthermore, you need to know the command order for matching responses with requests.
 
 ## Golang Client
+
 This repo contains the official Golang client for Olric. It implements Olric Binary Protocol(OBP). With this client,
 you can access to Olric clusters in your Golang programs. In order to create a client instance:
+
 ```go
 var clientConfig = &client.Config{
     Addrs:       []string{"localhost:3320"},
@@ -805,8 +812,10 @@ err := dm.Put("key", "value")
 ```
 
 This implementation supports TCP connection pooling. So it recycles the opened TCP connections to avoid wasting resources. 
-The requests distributes among available TCP connections using an algorithm called `round-robin`. In order to see detailed list of
+The requests are distributed among available TCP connections using an algorithm called `round-robin`. In order to see detailed list of
 configuration parameters, see [Olric documentation on GoDoc.org](https://godoc.org/github.com/buraksezer/olric).
+
+The official Golang client has its dedicated documentation. Please take a look at [this](https://github.com/buraksezer/olric/tree/master/client#golang-client).
 
 ## Configuration
 
@@ -964,7 +973,7 @@ and compares the timestamp values. The latest one is the winner. If there is som
 version of the pair. 
 
 Read-repair is disabled by default for the sake of performance. If you have a use case that requires a more strict consistency control than a distributed caching 
-scenario, you can enable read-repair via configuration. 
+scenario, you can enable read-repair via the configuration. 
 
 #### Quorum-based replica control
 
@@ -975,7 +984,7 @@ it returns `ErrReadQuorum`.
 
 #### Simple Split-Brain Protection
 
-Olric implements a technique called *majority quorum* to manage split-brain conditions. If a network partitioning occurs and some of the members
+Olric implements a technique called *majority quorum* to manage split-brain conditions. If a network partitioning occurs, and some of the members
 lost the connection to rest of the cluster, they immediately stops functioning and return an error to incoming requests. This behaviour is controlled by
 `MemberCountQuorum` parameter. It's default `1`. 
 
@@ -1055,9 +1064,16 @@ the following algorithm:
 Equivalent of`SETNX` command in Olric is `PutIf(key, value, IfNotFound)`. Lock and LockWithTimeout commands are properly implements
 the algorithm which is proposed above. 
 
-You should know that this implementation is subject to the clustering algorithm. Olric is an AP product. So there is no guarantee about reliability. 
+You should know that this implementation is subject to the clustering algorithm. Olric is an AP product. So there is no guarantee about reliability. I recommend the lock implementation to be used for efficiency 
+purposes in general, instead of correctness.
 
-**I recommend the lock implementation to be used for efficiency purposes in general, instead of correctness.**
+**Important note about consistency:**
+
+You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
+pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when your network is stable but it's also important to know that you shouldn't 
+trust a computer network. If you cannot tolerate losing strong consistency under network partitioning, you need to use a different tool for locking.
+
+See [Fallacies of distributed computing](https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing) and [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
 
 ### Storage Engine
 
