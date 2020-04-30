@@ -709,10 +709,11 @@ It's important to know that if you call `Put` and `GetPut` concurrently on the s
 **Important note about consistency:**
 
 You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
-pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when your network is stable but it's also important to know that you shouldn't 
-trust a computer network. If you cannot tolerate losing strong consistency under network partitioning, you need to use a different tool for atomic operations.
+pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when the cluster is stable. It's important to know that computer networks fails 
+occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning, 
+you need to use a different tool for atomic operations.
 
-See [Fallacies of distributed computing](https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing) and [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
+See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
 
 ### Incr
 
@@ -1069,20 +1070,21 @@ the following algorithm:
 Equivalent of`SETNX` command in Olric is `PutIf(key, value, IfNotFound)`. Lock and LockWithTimeout commands are properly implements
 the algorithm which is proposed above. 
 
-You should know that this implementation is subject to the clustering algorithm. Olric is an AP product. So there is no guarantee about reliability. I recommend the lock implementation to be used for efficiency 
-purposes in general, instead of correctness.
+You should know that this implementation is subject to the clustering algorithm. So there is no guarantee about reliability in the case of network partitioning. I recommend the lock implementation to be used for 
+efficiency purposes in general, instead of correctness.
 
 **Important note about consistency:**
 
 You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
-pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when your network is stable but it's also important to know that you shouldn't 
-trust a computer network. If you cannot tolerate losing strong consistency under network partitioning, you need to use a different tool for locking.
+pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when the cluster is stable. It's important to know that computer networks fails 
+occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning, 
+you need to use a different tool for locking.
 
-See [Fallacies of distributed computing](https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing) and [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
-
+See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
+                
 ### Storage Engine
 
-Olric implements an append-only log file, indexed with a builtin map. It creates new tables and evacuates existing data to the new ones if it needs to shrink or expand. 
+Olric implements an append-only log file, indexed with a builtin map (uint64 => uint64). It creates new tables and evacuates existing data to the new ones if it needs to shrink or expand. 
 
 ## Sample Code
 

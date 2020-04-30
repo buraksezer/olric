@@ -122,7 +122,7 @@ func (c *CLI) help(cmd string) error {
 	}
 
 	// Print the help text in order.
-	keys := []string{}
+	var keys []string
 	for key, _ := range commands {
 		keys = append(keys, key)
 	}
