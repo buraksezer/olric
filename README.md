@@ -698,8 +698,13 @@ c.Close()
 
 ## Atomic Operations
 
-Normally, write operations in Olric is performed by the partition owners. However, atomic operations are being guarded by a fine-grained lock 
-implementation which can be found under `internal/locker`. This package is provided by the [Docker](https://github.com/moby/moby).
+Operations on key/value pairs are performed by the partition owner. So there is only one cluster member to perform write/read operations on a key/value pair.
+Furthermore, atomic operations are guarded by a fine-grained lock implementation which can be found under `internal/locker`. It means that all atomic operations on 
+a key/value pair must be sequential.
+
+It's important to know that if you call `Put` and `GetPut` concurrently on the same key, this will break the atomicity. 
+
+`internal/locker` package is provided by [Docker](https://github.com/moby/moby).
 
 **Important note about consistency:**
 
