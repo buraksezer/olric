@@ -162,6 +162,7 @@ func (c *CLI) WaitForCommand(dmap string) error {
 		}
 	}()
 
+	c.print("Type \"help\" or \"help <command-name>\" to learn how to use.\n")
 	for {
 		line, err := reader.Readline()
 		if err != nil {
@@ -191,7 +192,13 @@ func (c *CLI) WaitForCommand(dmap string) error {
 			dmap = strings.Join(fields[1:], " ")
 			c.print(fmt.Sprintf("use %s\n", dmap))
 		case cmd == "help":
-			help()
+			var helpCmd string
+			if len(fields) > 1 {
+				helpCmd = fields[1]
+			}
+			if err := c.help(helpCmd); err != nil {
+				c.error(fmt.Sprintf("%s\n", err))
+			}
 		default:
 			if dmap == "" {
 				c.print("Call 'use <dmap-name>' command before accessing a DMap.\n")

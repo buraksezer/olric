@@ -450,7 +450,7 @@ func (db *Olric) prepareResponse(req *protocol.Message, err error) *protocol.Mes
 		return req.Error(protocol.StatusErrUnknownOperation, err)
 	case err == ErrEndOfQuery:
 		return req.Error(protocol.StatusErrEndOfQuery, err)
-	case  err == ErrBadRequest:
+	case err == ErrBadRequest:
 		return req.Error(protocol.StatusBadRequest, err)
 	default:
 		return req.Error(protocol.StatusInternalServerError, err)
