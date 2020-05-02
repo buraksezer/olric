@@ -23,8 +23,6 @@ See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 * Provides a plugin interface for service discovery daemons,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
 
-See [Sample Code](https://github.com/buraksezer/olric#sample-code) section for a quick experimentation.
-
 ## Possible Use Cases
 
 With this feature set, Olric is suitable to use as a distributed cache. But it also provides data replication, failure detection 
@@ -136,7 +134,7 @@ See [Architecture](#architecture) section to see details.
 * Eviction listeners by using Publish/Subscribe,
 * Memcached interface,
 * Client implementations for different languages: Java, Python and JavaScript,
-* REST API.
+* Expose DMap API via HTTP.
 
 ## Support
 
@@ -698,22 +696,27 @@ c.Close()
 
 ## Atomic Operations
 
-Operations on key/value pairs are performed by the partition owner. So there is only one cluster member to perform write/read operations on a key/value pair.
-Furthermore, atomic operations are guarded by a fine-grained lock implementation which can be found under `internal/locker`. It means that all atomic operations on 
-a key/value pair must be sequential.
+Operations on key/value pairs are performed by the partition owner. In addition, atomic operations are guarded by a lock implementation which can be found under `internal/locker`. It means that 
+Olric guaranties consistency of atomic operations, if there is no network partition. Basic flow for `Incr`:
 
-It's important to know that if you call `Put` and `GetPut` concurrently on the same key, this will break the atomicity. 
+* Acquire the lock for the given key,
+* Call `Get` to retrieve the current value,
+* Calculate the new value,
+* Call `Put` to set the new value,
+* Release the lock.
+
+It's important to know that if you call `Put` and `GetPut` concurrently on the same key, this will break the atomicity.
 
 `internal/locker` package is provided by [Docker](https://github.com/moby/moby).
 
 **Important note about consistency:**
 
 You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
-pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when the cluster is stable. It's important to know that computer networks fails 
+pairs are performed by a single cluster member. It means that you can be sure about the consistency when the cluster is stable. It's important to know that computer networks fail 
 occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning, 
 you need to use a different tool for atomic operations.
 
-See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
+See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) and [Jepsen Analysis on Hazelcast 3.8.3](https://hazelcast.com/blog/jepsen-analysis-hazelcast-3-8-3/) for more insight on this topic.
 
 ### Incr
 
@@ -746,7 +749,7 @@ value, err := dm.GetPut("atomic-key", someType{})
 
 The returned value is an arbitrary type.
 
-### Pipelining
+## Pipelining
 
 Olric Binary Protocol(OBP) supports pipelining. All protocol commands can be pushed to a remote Olric server through a pipeline in a single write call. 
 A sample use looks like the following:
@@ -1076,12 +1079,12 @@ efficiency purposes in general, instead of correctness.
 **Important note about consistency:**
 
 You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
-pairs are performed by a single cluster member. It means that you can be sure about the data atomicity when the cluster is stable. It's important to know that computer networks fails 
+pairs are performed by a single cluster member. It means that you can be sure about the consistency when the cluster is stable. It's important to know that computer networks fail 
 occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning, 
 you need to use a different tool for locking.
 
-See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) for more insight on this topic.
-                
+See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) and [Jepsen Analysis on Hazelcast 3.8.3](https://hazelcast.com/blog/jepsen-analysis-hazelcast-3-8-3/) for more insight on this topic.
+             
 ### Storage Engine
 
 Olric implements an append-only log file, indexed with a builtin map (uint64 => uint64). It creates new tables and evacuates existing data to the new ones if it needs to shrink or expand. 
