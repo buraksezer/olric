@@ -365,7 +365,7 @@ func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
 		db.consistent.Remove(event.NodeName)
 		// Don't try to used closed sockets again.
 		db.client.ClosePool(event.NodeName)
-		db.log.V(2).Printf("[INFO] Node leaved: %s", event.NodeName)
+		db.log.V(2).Printf("[INFO] Node left: %s", event.NodeName)
 	} else {
 		db.log.V(2).Printf("[ERROR] Unknown event received: %v", event)
 		return
