@@ -18,6 +18,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	helper "github.com/buraksezer/olric/cli"
 	"io/ioutil"
 	"log"
 	"os"
@@ -32,25 +33,25 @@ const (
 	defaultAddr       string = "127.0.0.1:3320"
 )
 
-var usage = `Usage: 
-  olric-cli [flags] [commands] ...
+var usage = `Usage:
+ olric-cli [flags] [commands] ...
 
 Flags:
-  -h -help                      
-      Shows this screen.
-  -v -version                   
-      Shows version information.
-  -d -dmap
-      DMap to access.
-  -c -command
-      Command to run.
-  -s -serializer
-      Specifies serialization format. 
-      Available formats: gob, json, msgpack. Default: %s
-  -a -addr
-      Server URI. Default: %s
-  -t timeout
-      Specifies a time limit for requests and dial made by Olric client
+ -h -help
+     Shows this screen.
+ -v -version
+     Shows version information.
+ -d -dmap
+     DMap to access.
+ -c -command
+     Command to run.
+ -s -serializer
+     Specifies serialization format.
+     Available formats: gob, json, msgpack. Default: %s
+ -a -addr
+     Server URI. Default: %s
+ -t timeout
+     Specifies a time limit for requests and dial made by Olric client
 
 The Go runtime version %s
 Report bugs to https://github.com/buraksezer/olric/issues`
@@ -69,26 +70,15 @@ func main() {
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
 
-	f.BoolVar(&showVersion, "v", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
+	helper.BoolVar(f, &showHelp, "help", "h", false)
+	helper.BoolVar(f, &showVersion, "version", "v", false)
 
-	f.StringVar(&command, "c", "", "")
-	f.StringVar(&command, "command", "", "")
-
-	f.StringVar(&dmap, "d", "", "")
-	f.StringVar(&dmap, "dmap", "", "")
-
-	f.StringVar(&timeout, "t", "10s", "")
-	f.StringVar(&timeout, "timeout", "10s", "")
-
-	f.StringVar(&addr, "a", defaultAddr, "")
-	f.StringVar(&addr, "addr", defaultAddr, "")
-
-	f.StringVar(&serializer, "s", defaultSerializer, "")
-	f.StringVar(&serializer, "serializer", defaultSerializer, "")
+	helper.StringVar(f, &command, "command", "c", "")
+	helper.StringVar(f, &dmap, "dmap", "d", "")
+	helper.StringVar(f, &timeout, "timeout", "t", "10s")
+	helper.StringVar(f, &addr, "addr", "a", defaultAddr)
+	helper.StringVar(f, &serializer, "serializer", "s", defaultSerializer)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))

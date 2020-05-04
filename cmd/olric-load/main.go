@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/buraksezer/olric/cli"
 	"io/ioutil"
 	"log"
 	"os"
@@ -85,29 +86,19 @@ func main() {
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
 
-	f.BoolVar(&showVersion, "v", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
+	cli.BoolVar(f, &showHelp, "help", "h", false)
+	cli.BoolVar(f, &showVersion, "version", "v", false)
 
-	f.StringVar(&timeout, "t", "10s", "")
-	f.StringVar(&timeout, "timeout", "10s", "")
+	cli.StringVar(f, &timeout, "timeout", "t", "10s")
+	cli.StringVar(f, &addrs, "addrs", "a", defaultAddrs)
 
-	f.StringVar(&addrs, "a", defaultAddrs, "")
-	f.StringVar(&addrs, "addrs", defaultAddrs, "")
+	cli.IntVar(f, &keyCount, "key-count", "k", defaultKeyCount)
 
-	f.IntVar(&keyCount, "k", defaultKeyCount, "")
-	f.IntVar(&keyCount, "key-count", defaultKeyCount, "")
+	cli.StringVar(f, &serializer, "serializer", "s", defaultSerializer)
+	cli.StringVar(f, &command, "command", "c", "")
 
-	f.StringVar(&serializer, "s", defaultSerializer, "")
-	f.StringVar(&serializer, "serializer", defaultSerializer, "")
-
-	f.StringVar(&command, "c", "", "")
-	f.StringVar(&command, "command", "", "")
-
-	f.IntVar(&numClients, "n", defaultNumClients, "")
-	f.IntVar(&numClients, "num-clients", defaultNumClients, "")
+	cli.IntVar(f, &numClients, "num-clients", "n", defaultNumClients)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))

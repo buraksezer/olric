@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"github.com/buraksezer/olric/cli"
 	"io/ioutil"
 	"log"
 	"os"
@@ -56,12 +57,9 @@ func main() {
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
-	f.BoolVar(&showVersion, "v", false, "")
-	f.StringVar(&cpath, "config", server.DefaultConfigFile, "")
-	f.StringVar(&cpath, "c", server.DefaultConfigFile, "")
+	cli.BoolVar(f, &showHelp, "help", "h", false)
+	cli.BoolVar(f, &showVersion, "version", "v", false)
+	cli.StringVar(f, &cpath, "config", "c", server.DefaultConfigFile)
 
 	if err := f.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("Failed to parse flags: %v", err)

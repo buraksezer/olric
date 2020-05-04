@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/buraksezer/olric/cli"
 	"io/ioutil"
 	"log"
 	"os"
@@ -72,29 +73,19 @@ func main() {
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
 
-	f.BoolVar(&showVersion, "v", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
+	cli.BoolVar(f, &showHelp, "help", "h", false)
+	cli.BoolVar(f, &showVersion, "version", "v", false)
 
-	f.StringVar(&timeout, "t", "10s", "")
-	f.StringVar(&timeout, "timeout", "10s", "")
+	cli.StringVar(f, &timeout, "timeout", "t", "10s")
 
-	f.IntVar(&partID, "p", -1, "")
-	f.IntVar(&partID, "partID", -1, "")
+	cli.IntVar(f, &partID, "partID", "p", -1)
 
-	f.StringVar(&addr, "a", defaultAddr, "")
-	f.StringVar(&addr, "addr", defaultAddr, "")
+	cli.StringVar(f, &addr, "addr", "a", defaultAddr)
 
-	f.BoolVar(&backup, "b", false, "")
-	f.BoolVar(&backup, "backup", false, "")
-
-	f.BoolVar(&runstats, "r", false, "")
-	f.BoolVar(&runstats, "runtime", false, "")
-
-	f.BoolVar(&dump, "d", false, "")
-	f.BoolVar(&dump, "dump", false, "")
+	cli.BoolVar(f, &backup, "backup", "b", false)
+	cli.BoolVar(f, &runstats, "runtime", "r", false)
+	cli.BoolVar(f, &dump, "dump", "d", false)
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
