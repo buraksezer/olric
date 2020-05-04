@@ -61,7 +61,7 @@ var (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.2.0-rc.5"
+const ReleaseVersion string = "0.2.0"
 
 const (
 	nilTimeout                = 0 * time.Second

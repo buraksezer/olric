@@ -1051,6 +1051,33 @@ Every node runs this algorithm independently. The access log is moved along with
 
 #### Configuration of eviction mechanisms
 
+Here is a simple configuration block for `olricd.yaml`: 
+
+```
+cache:
+  numEvictionWorkers: 1
+  maxIdleDuration: ""
+  ttlDuration: "100s"
+  maxKeys: 100000
+  maxInuse: 1000000 # in bytes
+  lRUSamples: 10
+  evictionPolicy: "LRU" # NONE/LRU
+```
+
+You can also set cache configuration per DMap. Here is a simple configuration for a DMap named `foobar`:
+
+```
+dmaps:
+  foobar:
+    maxIdleDuration: "60s"
+    ttlDuration: "300s"
+    maxKeys: 500000 # in-bytes
+    lRUSamples: 20
+    evictionPolicy: "NONE" # NONE/LRU
+```
+
+If you prefer embedded-member deployment scenario, please take a look at [config#CacheConfig](https://godoc.org/github.com/buraksezer/olric/config#CacheConfig) and [config#DMapCacheConfig](https://godoc.org/github.com/buraksezer/olric/config#DMapCacheConfig) for the configuration.
+
 
 ### Lock Implementation
 
