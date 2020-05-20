@@ -91,6 +91,54 @@ func prepareCacheConfig(c *Config) (*config.CacheConfig, error) {
 	return res, nil
 }
 
+func prepareHTTPConfig(c *Config) (*config.HTTPConfig, error) {
+	var err error
+	httpConfig := &config.HTTPConfig{
+		Enabled:        c.HTTPConfig.Enabled,
+		BindAddr:       c.HTTPConfig.BindAddr,
+		BindPort:       c.HTTPConfig.BindPort,
+		Interface:      c.HTTPConfig.Interface,
+		MaxHeaderBytes: c.HTTPConfig.MaxHeaderBytes,
+	}
+	if c.HTTPConfig.ReadTimeout != "" {
+		httpConfig.ReadTimeout, err = time.ParseDuration(c.HTTPConfig.ReadTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse http.ReadTimeout: '%s'",
+					c.HTTPConfig.ReadTimeout))
+		}
+	}
+
+	if c.HTTPConfig.ReadHeaderTimeout != "" {
+		httpConfig.ReadHeaderTimeout, err = time.ParseDuration(c.HTTPConfig.ReadHeaderTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse http.ReadHeaderTimeout: '%s'",
+					c.HTTPConfig.ReadHeaderTimeout))
+		}
+	}
+
+	if c.HTTPConfig.WriteTimeout != "" {
+		httpConfig.WriteTimeout, err = time.ParseDuration(c.HTTPConfig.WriteTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse http.WriteTimeout: '%s'",
+					c.HTTPConfig.WriteTimeout))
+		}
+	}
+
+	if c.HTTPConfig.IdleTimeout != "" {
+		httpConfig.IdleTimeout, err = time.ParseDuration(c.HTTPConfig.IdleTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse http.IdleTimeout: '%s'",
+					c.HTTPConfig.IdleTimeout))
+		}
+	}
+
+	return httpConfig, nil
+}
+
 // New creates a new Server instance
 func New(c *Config) (*Olricd, error) {
 	s := &Olricd{}
@@ -146,7 +194,13 @@ func New(c *Config) (*Olricd, error) {
 					c.Memberlist.JoinRetryInterval))
 		}
 	}
+
 	cacheConfig, err := prepareCacheConfig(c)
+	if err != nil {
+		return nil, err
+	}
+
+	httpConfig, err := prepareHTTPConfig(c)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +211,7 @@ func New(c *Config) (*Olricd, error) {
 		BindPort:            c.Olricd.BindPort,
 		Interface:           c.Olricd.Interface,
 		ServiceDiscovery:    c.ServiceDiscovery,
+		HTTPConfig:          httpConfig,
 		MemberlistInterface: c.Memberlist.Interface,
 		MemberlistConfig:    mc,
 		LogLevel:            c.Logging.Level,

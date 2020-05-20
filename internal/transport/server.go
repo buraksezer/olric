@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/flog"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -44,7 +43,8 @@ type Server struct {
 	wg              sync.WaitGroup
 	listener        net.Listener
 	dispatcher      func(*protocol.Message) *protocol.Message
-	StartCh         chan struct{}
+	StartedCtx      context.Context
+	started         context.CancelFunc
 	ctx             context.Context
 	cancel          context.CancelFunc
 }
@@ -52,12 +52,14 @@ type Server struct {
 // NewServer creates and returns a new Server.
 func NewServer(bindAddr string, bindPort int, keepalivePeriod time.Duration, logger *flog.Logger) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
+	startedCtx, started := context.WithCancel(context.Background())
 	return &Server{
 		bindAddr:        bindAddr,
 		bindPort:        bindPort,
 		keepAlivePeriod: keepalivePeriod,
 		log:             logger,
-		StartCh:         make(chan struct{}),
+		started:         started,
+		StartedCtx:      startedCtx,
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -170,7 +172,7 @@ func (s *Server) processConn(conn net.Conn) {
 
 // listenAndServe calls Accept on given net.Listener.
 func (s *Server) listenAndServe() error {
-	close(s.StartCh)
+	s.started()
 
 	for {
 		conn, err := s.listener.Accept()
@@ -201,14 +203,7 @@ func (s *Server) listenAndServe() error {
 
 // ListenAndServe listens on the TCP network address addr.
 func (s *Server) ListenAndServe() error {
-	defer func() {
-		select {
-		case <-s.StartCh:
-			return
-		default:
-		}
-		close(s.StartCh)
-	}()
+	defer s.started()
 
 	addr := net.JoinHostPort(s.bindAddr, strconv.Itoa(s.bindPort))
 	l, err := net.Listen("tcp", addr)

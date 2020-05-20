@@ -16,76 +16,125 @@ package http
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"path"
+	"strconv"
 	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/flog"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/sync/errgroup"
 )
 
-type Config struct {
-	// Addr optionally specifies the TCP address for the server to listen on,
-	// in the form "host:port". If empty, ":http" (port 80) is used.
-	// The service names are defined in RFC 6335 and assigned by IANA.
-	// See net.Dial for details of the address format.
-	Addr string
-
-	Handler http.Handler // handler to invoke, http.DefaultServeMux if nil
-
-	// ReadTimeout is the maximum duration for reading the entire
-	// request, including the body.
-	//
-	// Because ReadTimeout does not let Handlers make per-request
-	// decisions on each request body's acceptable deadline or
-	// upload rate, most users will prefer to use
-	// ReadHeaderTimeout. It is valid to use them both.
-	ReadTimeout time.Duration
-
-	// ReadHeaderTimeout is the amount of time allowed to read
-	// request headers. The connection's read deadline is reset
-	// after reading the headers and the Handler can decide what
-	// is considered too slow for the body. If ReadHeaderTimeout
-	// is zero, the value of ReadTimeout is used. If both are
-	// zero, there is no timeout.
-	ReadHeaderTimeout time.Duration // Go 1.8
-
-	// WriteTimeout is the maximum duration before timing out
-	// writes of the response. It is reset whenever a new
-	// request's header is read. Like ReadTimeout, it does not
-	// let Handlers make decisions on a per-request basis.
-	WriteTimeout time.Duration
-
-	// IdleTimeout is the maximum amount of time to wait for the
-	// next request when keep-alives are enabled. If IdleTimeout
-	// is zero, the value of ReadTimeout is used. If both are
-	// zero, there is no timeout.
-	IdleTimeout time.Duration // Go 1.8
-
-	// MaxHeaderBytes controls the maximum number of bytes the
-	// server will read parsing the request header's keys and
-	// values, including the request line. It does not limit the
-	// size of the request body.
-	// If zero, DefaultMaxHeaderBytes is used.
-	MaxHeaderBytes int
-}
-
 type Server struct {
-	config *Config
-	log    *flog.Logger
-	srv    *http.Server
+	config     *config.HTTPConfig
+	log        *flog.Logger
+	srv        *http.Server
+	ctx        context.Context
+	cancel     context.CancelFunc
+	StartedCtx context.Context
+	started    context.CancelFunc
 }
 
-func New(c *Config, log *flog.Logger) *Server {
-	return &Server{
-		config: c,
-		log:    log,
+func New(c *config.HTTPConfig, log *flog.Logger, router *httprouter.Router) *Server {
+	router.HandlerFunc("GET", "/api/v1/system/aliveness", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	addr := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: router,
 	}
+	startedCtx, started := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Server{
+		config:     c,
+		log:        log,
+		srv:        srv,
+		ctx:        ctx,
+		cancel:     cancel,
+		StartedCtx: startedCtx,
+		started:    started,
+	}
+}
+
+func (s *Server) alivenessProbe() error {
+	parsed, err := url.Parse("http://" + s.srv.Addr)
+	if err != nil {
+		s.log.V(2).Printf("[ERROR] Failed to parse: %s: %v", s.srv.Addr, err)
+		return err
+	}
+
+	// TODO: Fix this
+	parsed.Scheme = "http"
+	parsed.Path = path.Join(parsed.Path, "/api/v1/system/aliveness")
+
+	req, err := http.NewRequestWithContext(s.ctx, "GET", parsed.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	s.log.V(2).Printf("[INFO] Awaiting for HTTP server start")
+	for i := 0; i < 10; i++ {
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			s.log.V(2).Printf("[ERROR] Failed to do an HTTP request to: %s: %v", parsed.String(), err)
+			return err
+		}
+		s.log.V(6).Printf("[DEBUG] HTTP server returned %d to aliveness check", resp.StatusCode)
+		if resp.StatusCode == http.StatusNoContent {
+			s.started()
+			if s.config.Interface != "" {
+				s.log.V(2).Printf("[INFO] HTTP server uses interface: %s", s.config.Interface)
+			}
+			s.log.V(2).Printf("[INFO] HTTP server bindAddr: %s, bindPort: %d", s.config.BindAddr, s.config.BindPort)
+			return nil
+		}
+		<-time.After(time.Second)
+	}
+	return fmt.Errorf("failed to start a new HTTP server")
+}
+
+func (s *Server) Start() error {
+	g, ctx := errgroup.WithContext(context.Background())
+
+	g.Go(func() error {
+		return s.alivenessProbe()
+	})
+
+	g.Go(func() error {
+		err := s.srv.ListenAndServe()
+		if err == http.ErrServerClosed {
+			s.log.V(6).Printf("[DEBUG] HTTP server closed without an error")
+			err = nil
+		}
+		if err != nil {
+			s.log.V(2).Printf("[ERROR] Failed to start HTTP server: %v", err)
+		}
+		return err
+	})
+
+	select {
+	case <-s.StartedCtx.Done():
+	case <-ctx.Done():
+		_ = s.Shutdown(context.Background())
+		return g.Wait()
+	}
+
+	return g.Wait()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	if err := s.srv.Shutdown(ctx); err != nil {
+	defer s.cancel()
+
+	err := s.srv.Shutdown(ctx)
+	if err != nil {
 		// Error from closing listeners, or context timeout:
-		s.log.V(2).Printf("Failed to call HTTP server Shutdown: %v", err)
-		return err
+		s.log.V(2).Printf("[ERROR] Failed to call HTTP server Shutdown: %v", err)
 	}
-	return nil
+	return err
 }

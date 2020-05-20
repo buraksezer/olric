@@ -123,12 +123,23 @@ func getBindIP(ifname, address string) (string, error) {
 
 // SetupNetworkConfig tries to find an appropriate bindIP to bind and propagate.
 func (c *Config) SetupNetworkConfig() (err error) {
+	// TCP server for Olric client/server communication
 	address := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 	c.BindAddr, err = getBindIP(c.Interface, address)
 	if err != nil {
 		return err
 	}
 
+	// HTTP server to expose DMap API functions
+	if c.HTTPConfig.Enabled {
+		address = net.JoinHostPort(c.HTTPConfig.BindAddr, strconv.Itoa(c.HTTPConfig.BindPort))
+		c.HTTPConfig.BindAddr, err = getBindIP(c.HTTPConfig.Interface, address)
+		if err != nil {
+			return err
+		}
+	}
+
+	// TCP/UDP server for memberlist
 	address = net.JoinHostPort(c.MemberlistConfig.BindAddr, strconv.Itoa(c.MemberlistConfig.BindPort))
 	c.MemberlistConfig.BindAddr, err = getBindIP(c.MemberlistInterface, address)
 	if err != nil {

@@ -96,14 +96,27 @@ type cache struct {
 	EvictionPolicy     string `yaml:"evictionPolicy"`
 }
 
+type http struct {
+	Enabled           bool   `yaml:"enabled"`
+	BindAddr          string `yaml:"bindAddr"` // required
+	BindPort          int    `yaml:"bindPort"` // required
+	Interface         string `yaml:"interface"`
+	ReadTimeout       string `yaml:"readTimeout"`
+	ReadHeaderTimeout string `yaml:"readHeaderTimeout"`
+	WriteTimeout      string `yaml:"writeTimeout"`
+	IdleTimeout       string `yaml:"idleTimeout"`
+	MaxHeaderBytes    int    `yaml:"maxHeaderBytes"`
+}
+
 // Config is the main configuration struct
 type Config struct {
 	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
-	Memberlist       memberlist
-	Logging          logging
-	Olricd           olricd
-	Cache            cache
-	DMaps            map[string]cache
+	Memberlist       memberlist             `yaml:"memberlist"`
+	Logging          logging                `yaml:"logging"`
+	Olricd           olricd                 `yaml:"olricd"`
+	Cache            cache                  `yaml:"cache"`
+	DMaps            map[string]cache       `yaml:"dmaps"`
+	HTTPConfig       http                   `yaml:"http"`
 }
 
 // NewConfig creates a new configuration instance of olricd

@@ -13,6 +13,17 @@ olricd:
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
+http:
+  enabled: true
+  bindAddr: "0.0.0.0"
+  bindPort: 8080
+  # interface: "eth0"
+  # readTimeout: "10s"
+  # writeTimeout: "10s"
+  # readHeaderTimeout: "10s"
+  # idleTimeout: "10s"
+  # maxHeaderBytes: 10
+
 logging:
   verbosity: 6
   level: "DEBUG"

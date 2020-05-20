@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olric provides distributed, in-memory and embeddable key/value store, used as a database and cache.*/
+/*Package olric provides distributed cache and in-memory key/value data store.*/
 package olric
 
 import (
@@ -30,6 +30,7 @@ import (
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/flog"
+	"github.com/buraksezer/olric/internal/http"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
@@ -37,7 +38,9 @@ import (
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
+	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -62,11 +65,9 @@ var (
 
 // ReleaseVersion is the current stable version of Olric
 const ReleaseVersion string = "0.2.0"
+const nilTimeout = 0 * time.Second
 
-const (
-	nilTimeout                = 0 * time.Second
-	requiredCheckpoints int32 = 2
-)
+var requiredCheckpoints int32 = 2
 
 // Olric implements a distributed, in-memory and embeddable key/value store and cache.
 type Olric struct {
@@ -112,6 +113,9 @@ type Olric struct {
 	// Internal TCP server and its client for peer-to-peer communication.
 	client *transport.Client
 	server *transport.Server
+
+	// HTTP server to expose DMap API and other possible things
+	http *http.Server
 
 	// Structures for flow control
 	ctx    context.Context
@@ -169,6 +173,12 @@ func New(c *config.Config) (*Olric, error) {
 		flogger.ShowLineNumber(1)
 	}
 
+	if c.HTTPConfig.Enabled {
+		atomic.AddInt32(&requiredCheckpoints, 1)
+	}
+
+	router := httprouter.New()
+
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,
@@ -184,6 +194,7 @@ func New(c *config.Config) (*Olric, error) {
 		backups:    make(map[uint64]*partition),
 		operations: make(map[protocol.OpCode]func(*protocol.Message) *protocol.Message),
 		server:     transport.NewServer(c.BindAddr, c.BindPort, c.KeepAlivePeriod, flogger),
+		http:       http.New(c.HTTPConfig, flogger, router),
 		started:    c.Started,
 	}
 
@@ -559,27 +570,52 @@ func (db *Olric) checkOperationStatus() error {
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
 // Start function returns an early error.
 func (db *Olric) Start() error {
-	errCh := make(chan error, 1)
-	db.wg.Add(1)
-	go func() {
-		defer db.wg.Done()
-		errCh <- db.server.ListenAndServe()
-	}()
+	g, ctx := errgroup.WithContext(context.Background())
 
-	<-db.server.StartCh
+	// Start the TCP server
+	g.Go(func() error {
+		return db.server.ListenAndServe()
+	})
+
 	select {
-	case err := <-errCh:
-		return err
-	default:
+	case <-db.server.StartedCtx.Done():
+		// TCP server is started
+		db.passCheckpoint()
+	case <-ctx.Done():
+		if err := db.Shutdown(context.Background()); err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
+		}
+		return g.Wait()
 	}
-	// TCP server is started
-	db.passCheckpoint()
 
+	// Start discovery
+	// TODO: This should be blocker call like ListenAndServe
 	if err := db.startDiscovery(); err != nil {
 		return err
 	}
+
 	// Memberlist is started and this node joined the cluster.
 	db.passCheckpoint()
+
+	// Start HTTP server
+	if db.config.HTTPConfig.Enabled {
+		g.Go(func() error {
+			return db.http.Start()
+		})
+
+		select {
+		case <-db.http.StartedCtx.Done():
+			// Wait until HTTP server is started
+			//
+			// requiredCheckpoints was increased in New function
+			db.passCheckpoint()
+		case <-ctx.Done():
+			if err := db.Shutdown(context.Background()); err != nil {
+				db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
+			}
+			return g.Wait()
+		}
+	}
 
 	// Warn the user about its choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
@@ -600,7 +636,7 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
-	return <-errCh
+	return g.Wait()
 }
 
 // Shutdown stops background servers and leaves the cluster.
@@ -608,6 +644,14 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
+
+	if db.config.HTTPConfig.Enabled {
+		err := db.http.Shutdown(ctx)
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
 	if err := db.server.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}
