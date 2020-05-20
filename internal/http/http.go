@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
-	"path"
 	"strconv"
 	"time"
 
@@ -29,6 +27,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/sync/errgroup"
 )
+
+// Currently Olric only supports HTTP
+const scheme = "http"
 
 type Server struct {
 	config     *config.HTTPConfig
@@ -63,17 +64,8 @@ func New(c *config.HTTPConfig, log *flog.Logger, router *httprouter.Router) *Ser
 }
 
 func (s *Server) alivenessProbe() error {
-	parsed, err := url.Parse("http://" + s.srv.Addr)
-	if err != nil {
-		s.log.V(2).Printf("[ERROR] Failed to parse: %s: %v", s.srv.Addr, err)
-		return err
-	}
-
-	// TODO: Fix this
-	parsed.Scheme = "http"
-	parsed.Path = path.Join(parsed.Path, "/api/v1/system/aliveness")
-
-	req, err := http.NewRequestWithContext(s.ctx, "GET", parsed.String(), nil)
+	alivenessURL := fmt.Sprintf("%s://%s/api/v1/system/aliveness", scheme, s.srv.Addr)
+	req, err := http.NewRequestWithContext(s.ctx, "GET", alivenessURL, nil)
 	if err != nil {
 		return err
 	}
@@ -82,7 +74,7 @@ func (s *Server) alivenessProbe() error {
 	for i := 0; i < 10; i++ {
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			s.log.V(2).Printf("[ERROR] Failed to do an HTTP request to: %s: %v", parsed.String(), err)
+			s.log.V(2).Printf("[ERROR] Failed to do an HTTP request to: %s: %v", alivenessURL, err)
 			return err
 		}
 		s.log.V(6).Printf("[DEBUG] HTTP server returned %d to aliveness check", resp.StatusCode)
