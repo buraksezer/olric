@@ -173,12 +173,6 @@ func New(c *config.Config) (*Olric, error) {
 		flogger.ShowLineNumber(1)
 	}
 
-	if c.HTTPConfig.Enabled {
-		atomic.AddInt32(&requiredCheckpoints, 1)
-	}
-
-	router := httprouter.New()
-
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,
@@ -194,8 +188,19 @@ func New(c *config.Config) (*Olric, error) {
 		backups:    make(map[uint64]*partition),
 		operations: make(map[protocol.OpCode]func(*protocol.Message) *protocol.Message),
 		server:     transport.NewServer(c.BindAddr, c.BindPort, c.KeepAlivePeriod, flogger),
-		http:       http.New(c.HTTPConfig, flogger, router),
 		started:    c.Started,
+	}
+
+	if c.HTTPConfig.Enabled {
+		atomic.AddInt32(&requiredCheckpoints, 1)
+		router := httprouter.New()
+		router.POST("/api/v1/dmap/put/:dmap/:key", db.dmapPutHTTPHandler)
+		router.POST("/api/v1/dmap/putif/:dmap/:key", db.dmapPutIfHTTPHandler)
+		router.POST("/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
+		router.POST("/api/v1/dmap/putifex/:dmap/:key", db.dmapPutIfExHTTPHandler)
+		router.GET("/api/v1/dmap/get/:dmap/:key", db.dmapGetHTTPHandler)
+		router.DELETE("/api/v1/dmap/delete/:dmap/:key", db.dmapDeleteHTTPHandler)
+		db.http = http.New(c.HTTPConfig, flogger, router)
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)

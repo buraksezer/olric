@@ -150,7 +150,7 @@ func (db *Olric) lockKey(opcode protocol.OpCode, name, key string,
 	if err != nil {
 		return nil, err
 	}
-	w, err := db.prepareWriteop(opcode, name, key, token, timeout, IfNotFound)
+	w, err := db.prepareWriteop(opcode, name, key, token, timeout, IfNotFound, false)
 	if err != nil {
 		return nil, err
 	}

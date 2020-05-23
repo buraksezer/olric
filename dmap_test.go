@@ -63,6 +63,7 @@ func testConfig(peers []*Olric) *config.Config {
 		KeepAlivePeriod:   10 * time.Millisecond,
 		LogVerbosity:      6,
 		MemberCountQuorum: config.MinimumMemberCountQuorum,
+		HTTPConfig:        &config.HTTPConfig{},
 	}
 }
 
