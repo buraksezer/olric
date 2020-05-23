@@ -198,6 +198,7 @@ func New(c *config.Config) (*Olric, error) {
 		router.POST("/api/v1/dmap/putif/:dmap/:key", db.dmapPutIfHTTPHandler)
 		router.POST("/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
 		router.POST("/api/v1/dmap/putifex/:dmap/:key", db.dmapPutIfExHTTPHandler)
+		router.PUT("/api/v1/dmap/expire/:dmap/:key", db.dmapExpireHTTPHandler)
 		router.GET("/api/v1/dmap/get/:dmap/:key", db.dmapGetHTTPHandler)
 		router.DELETE("/api/v1/dmap/delete/:dmap/:key", db.dmapDeleteHTTPHandler)
 		db.http = http.New(c.HTTPConfig, flogger, router)

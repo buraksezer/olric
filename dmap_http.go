@@ -104,7 +104,7 @@ func (db *Olric) dmapPutExHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 	key := ps.ByName("key")
 
 	timeout := nilTimeout
-	rawtimeout := r.Header.Get("X-Olric-PutEx-Timeout")
+	rawtimeout := r.Header.Get("X-Olric-Timeout")
 	if rawtimeout != "" {
 		ttl, err := strconv.ParseInt(rawtimeout, 10, 64)
 		if err != nil {
@@ -191,6 +191,36 @@ func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 	if err != nil {
 		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
 	}
+}
+
+func (db *Olric) dmapExpireHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+
+	timeout := nilTimeout
+	rawtimeout := r.Header.Get("X-Olric-Timeout")
+	if rawtimeout != "" {
+		ttl, err := strconv.ParseInt(rawtimeout, 10, 64)
+		if err != nil {
+			db.httpErrorResponse(w, err)
+			return
+		}
+		timeout = time.Duration(ttl) * time.Millisecond
+	}
+
+	wr := &writeop{
+		dmap:      dmap,
+		key:       key,
+		timestamp: time.Now().UnixNano(),
+		timeout:   timeout,
+	}
+
+	err := db.expire(wr)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

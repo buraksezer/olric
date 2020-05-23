@@ -204,7 +204,7 @@ func TestHTTP_DMapPutEx(t *testing.T) {
 	router := httprouter.New()
 	router.Handle(http.MethodPost, "/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/putex/mydmap/mykey", bytes.NewBuffer(body))
-	req.Header.Add("X-Olric-PutEx-Timeout", "1")
+	req.Header.Add("X-Olric-Timeout", "1")
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -242,10 +242,15 @@ func TestHTTP_DMapPutIfEx(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
+	dm, err := db.NewDMap("mydmap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
 	router := httprouter.New()
 	router.Handle(http.MethodPost, "/api/v1/dmap/putifex/:dmap/:key", db.dmapPutExHTTPHandler)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/putifex/mydmap/mykey", bytes.NewBuffer(body))
-	req.Header.Add("X-Olric-PutEx-Timeout", "1")
+	req.Header.Add("X-Olric-PutEx-Timeout", "1000") // 1 second
 	req.Header.Add("X-Olric-PutIf-Flags", strconv.FormatInt(int64(IfNotFound), 10))
 
 	rec := httptest.NewRecorder()
@@ -255,11 +260,53 @@ func TestHTTP_DMapPutIfEx(t *testing.T) {
 		t.Fatalf("Expected HTTP status code 204. Got: %d", rec.Code)
 	}
 
-	<-time.After(10*time.Millisecond)
+	_, err = dm.Get("mykey")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	// Wait some time for expire
+	<-time.After(1100*time.Millisecond)
+	_, err = dm.Get("mykey")
+	if err != ErrKeyNotFound {
+		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+	}
+}
+
+func TestHTTP_DMapExpire(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
 	dm, err := db.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	err = dm.Put("mykey", "myvalue")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	router := httprouter.New()
+	router.Handle(http.MethodPost, "/api/v1/dmap/expire/:dmap/:key", db.dmapExpireHTTPHandler)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/expire/mydmap/mykey", nil)
+	req.Header.Add("X-Olric-Timeout", "1") // 1ms
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("Expected HTTP status code 204. Got: %d", rec.Code)
+	}
+
+	<-time.After(10*time.Millisecond)
+
 	_, err = dm.Get("mykey")
 	if err != ErrKeyNotFound {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
