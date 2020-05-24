@@ -325,7 +325,9 @@ func (db *Olric) prepareWriteop(opcode protocol.OpCode, name, key string,
 			return nil, err
 		}
 	} else {
-		val = value.([]byte)
+		if value != nil {
+			val = value.([]byte)
+		}
 	}
 	w := &writeop{
 		opcode:    opcode,

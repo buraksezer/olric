@@ -24,6 +24,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// TODO: Check this: checkOperationStatus
+
 type errorResponse struct {
 	Message string
 }
@@ -233,4 +235,82 @@ func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (db *Olric) dmapDestroyHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	err := db.destroyDMap(dmap)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (db *Olric) dmapIncrDecrHTTP(opcode protocol.OpCode, w http.ResponseWriter, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+	rawdelta := ps.ByName("delta")
+
+	delta, err := strconv.ParseInt(rawdelta, 10, 64)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	wr, err := db.prepareWriteop(opcode, dmap, key, nil, nilTimeout, 0, true)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	value, err := db.atomicIncrDecr(opcode, wr, int(delta))
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	data, err := db.serializer.Marshal(value)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	_, err = w.Write(data)
+	if err != nil {
+		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
+	}
+}
+
+func (db *Olric) dmapIncrHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
+	db.dmapIncrDecrHTTP(protocol.OpIncr, w, ps)
+}
+
+func (db *Olric) dmapDecrHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
+	db.dmapIncrDecrHTTP(protocol.OpDecr, w, ps)
+}
+
+func (db *Olric) dmapGetPutHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+
+	value, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	wr, err := db.prepareWriteop(protocol.OpGetPut, dmap, key, value, nilTimeout, 0, true)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	data, err := db.getPut(wr)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(data)
+	if err != nil {
+		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
+	}
 }

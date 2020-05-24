@@ -194,6 +194,7 @@ func New(c *config.Config) (*Olric, error) {
 	if c.HTTPConfig.Enabled {
 		atomic.AddInt32(&requiredCheckpoints, 1)
 		router := httprouter.New()
+		// DMap API
 		router.POST("/api/v1/dmap/put/:dmap/:key", db.dmapPutHTTPHandler)
 		router.POST("/api/v1/dmap/putif/:dmap/:key", db.dmapPutIfHTTPHandler)
 		router.POST("/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
@@ -201,6 +202,14 @@ func New(c *config.Config) (*Olric, error) {
 		router.PUT("/api/v1/dmap/expire/:dmap/:key", db.dmapExpireHTTPHandler)
 		router.GET("/api/v1/dmap/get/:dmap/:key", db.dmapGetHTTPHandler)
 		router.DELETE("/api/v1/dmap/delete/:dmap/:key", db.dmapDeleteHTTPHandler)
+		router.DELETE("/api/v1/dmap/destroy/:dmap", db.dmapDestroyHTTPHandler)
+		router.PUT("/api/v1/dmap/incr/:dmap/:key/:delta", db.dmapIncrHTTPHandler)
+		router.PUT("/api/v1/dmap/decr/:dmap/:key/:delta", db.dmapDecrHTTPHandler)
+		router.PUT("/api/v1/dmap/getput/:dmap/:key", db.dmapGetPutHTTPHandler)
+
+		// System
+		router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)
+		router.GET("/api/v1/system/ping/:addr", db.systemPingHTTPHandler)
 		db.http = http.New(c.HTTPConfig, flogger, router)
 	}
 
