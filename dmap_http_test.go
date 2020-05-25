@@ -505,3 +505,152 @@ func TestHTTP_DMapGetPut(t *testing.T) {
 		t.Fatalf("Expected myvalue. Got: %v", value)
 	}
 }
+
+func TestHTTP_DMapLockWithTimeout(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	router := httprouter.New()
+	router.Handle(http.MethodPost, "/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
+	lockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/lock-with-timeout/mydmap/lock.test.foo", nil)
+	lockReq.Header.Add("X-Olric-Timeout", "1000")       // 1 second
+	lockReq.Header.Add("X-Olric-Lock-Deadline", "2000") // 2 seconds
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, lockReq)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected HTTP status code 200. Got: %d", rec.Code)
+	}
+
+	token := rec.Body.Bytes()
+	router.Handle(http.MethodPost, "/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
+	unlockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/unlock/mydmap/lock.test.foo", bytes.NewBuffer(token))
+
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, unlockReq)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("Expected HTTP status code 204. Got: %d", rec.Code)
+	}
+}
+
+func TestHTTP_DMapLock(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	router := httprouter.New()
+	router.Handle(http.MethodPost, "/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
+	lockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/lock/mydmap/lock.test.foo", nil)
+	lockReq.Header.Add("X-Olric-Lock-Deadline", "1000") // 1 second
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, lockReq)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected HTTP status code 200. Got: %d", rec.Code)
+	}
+
+	token := rec.Body.Bytes()
+	router.Handle(http.MethodPost, "/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
+	unlockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/unlock/mydmap/lock.test.foo", bytes.NewBuffer(token))
+
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, unlockReq)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("Expected HTTP status code 204. Got: %d", rec.Code)
+	}
+}
+
+func TestHTTP_DMapLockDeadline(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	dm, err := db.NewDMap("mydmap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	lockCtx, err := dm.Lock("lock.test.foo", time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = lockCtx.Unlock()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
+
+	router := httprouter.New()
+	router.Handle(http.MethodPost, "/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
+	lockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/lock/mydmap/lock.test.foo", nil)
+	lockReq.Header.Add("X-Olric-Lock-Deadline", "100") // 1 second
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, lockReq)
+
+	if rec.Code != http.StatusRequestTimeout {
+		t.Fatalf("Expected HTTP status code 408. Got: %d", rec.Code)
+	}
+}
+
+func TestHTTP_DMapLockWithTimeoutExceeded(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	router := httprouter.New()
+	router.Handle(http.MethodPost, "/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
+	lockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/lock-with-timeout/mydmap/lock.test.foo", nil)
+	lockReq.Header.Add("X-Olric-Timeout", "100")       // 100 millisecond
+	lockReq.Header.Add("X-Olric-Lock-Deadline", "2000") // 2 seconds
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, lockReq)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected HTTP status code 200. Got: %d", rec.Code)
+	}
+
+	<-time.After(200 * time.Millisecond)
+
+	token := rec.Body.Bytes()
+	router.Handle(http.MethodPost, "/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
+	unlockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/unlock/mydmap/lock.test.foo", bytes.NewBuffer(token))
+
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, unlockReq)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("Expected HTTP status code 404. Got: %d", rec.Code)
+	}
+}

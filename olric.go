@@ -206,6 +206,9 @@ func New(c *config.Config) (*Olric, error) {
 		router.PUT("/api/v1/dmap/incr/:dmap/:key/:delta", db.dmapIncrHTTPHandler)
 		router.PUT("/api/v1/dmap/decr/:dmap/:key/:delta", db.dmapDecrHTTPHandler)
 		router.PUT("/api/v1/dmap/getput/:dmap/:key", db.dmapGetPutHTTPHandler)
+		router.POST("/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
+		router.POST("/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
+		router.PUT("/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
 
 		// System
 		router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)

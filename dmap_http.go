@@ -37,6 +37,11 @@ func (db *Olric) httpErrorResponse(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json")
 	if err == ErrKeyNotFound {
 		w.WriteHeader(http.StatusNotFound)
+	} else if err == ErrLockNotAcquired {
+		// Deadline exceeded
+		w.WriteHeader(http.StatusRequestTimeout)
+	} else if err == ErrNoSuchLock {
+		w.WriteHeader(http.StatusNotFound)
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -313,4 +318,91 @@ func (db *Olric) dmapGetPutHTTPHandler(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
 	}
+}
+
+func (db *Olric) dmapLockWithTimeoutHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+	var err error
+
+	timeout := nilTimeout
+	rawtimeout := r.Header.Get("X-Olric-Timeout")
+	if rawtimeout != "" {
+		ttl, err := strconv.ParseInt(rawtimeout, 10, 64)
+		if err != nil {
+			db.httpErrorResponse(w, err)
+			return
+		}
+		timeout = time.Duration(ttl) * time.Millisecond
+	}
+
+	deadline := nilTimeout
+	rawdeadline := r.Header.Get("X-Olric-Lock-Deadline")
+	if rawdeadline != "" {
+		rd, err := strconv.ParseInt(rawdeadline, 10, 64)
+		if err != nil {
+			db.httpErrorResponse(w, err)
+			return
+		}
+		deadline = time.Duration(rd) * time.Millisecond
+	}
+
+	ctx, err := db.lockKey(protocol.OpPutIfEx, dmap, key, timeout, deadline)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(ctx.token)
+	if err != nil {
+		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
+	}
+}
+
+func (db *Olric) dmapLockHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+	var err error
+
+	deadline := nilTimeout
+	rawdeadline := r.Header.Get("X-Olric-Lock-Deadline")
+	if rawdeadline != "" {
+		rd, err := strconv.ParseInt(rawdeadline, 10, 64)
+		if err != nil {
+			db.httpErrorResponse(w, err)
+			return
+		}
+		deadline = time.Duration(rd) * time.Millisecond
+	}
+
+	ctx, err := db.lockKey(protocol.OpPutIf, dmap, key, nilTimeout, deadline)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(ctx.token)
+	if err != nil {
+		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
+	}
+}
+
+func (db *Olric) dmapUnlockHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+
+	token, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	err = db.unlock(dmap, key, token)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
