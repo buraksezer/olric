@@ -17,13 +17,16 @@ package olric
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/query"
 	"github.com/julienschmidt/httprouter"
+	"github.com/vmihailenco/msgpack"
 )
 
 func TestHTTP_DMapGetKeyNotFound(t *testing.T) {
@@ -632,7 +635,7 @@ func TestHTTP_DMapLockWithTimeoutExceeded(t *testing.T) {
 	router := httprouter.New()
 	router.Handle(http.MethodPost, "/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
 	lockReq := httptest.NewRequest(http.MethodPost, "/api/v1/dmap/lock-with-timeout/mydmap/lock.test.foo", nil)
-	lockReq.Header.Add("X-Olric-Timeout", "100")       // 100 millisecond
+	lockReq.Header.Add("X-Olric-Timeout", "100")        // 100 millisecond
 	lockReq.Header.Add("X-Olric-Lock-Deadline", "2000") // 2 seconds
 
 	rec := httptest.NewRecorder()
@@ -652,5 +655,72 @@ func TestHTTP_DMapLockWithTimeoutExceeded(t *testing.T) {
 	router.ServeHTTP(rec, unlockReq)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("Expected HTTP status code 404. Got: %d", rec.Code)
+	}
+}
+
+func TestHTTP_DMapQuery(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	dm, err := db.NewDMap("mydmap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	var key string
+	for i := 0; i < 100; i++ {
+		if i%2 == 0 {
+			key = "even:" + bkey(i)
+		} else {
+			key = "odd:" + bkey(i)
+		}
+		err = dm.Put(key, i)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	router := httprouter.New()
+	router.Handle(http.MethodPost, "/api/v1/dmap/query/:dmap/:partID", db.dmapQueryHTTPHandler)
+
+	q := query.M{
+		"$onKey": query.M{
+			"$regexMatch": "even:",
+		},
+	}
+	data, err := msgpack.Marshal(q)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		target := fmt.Sprintf("/api/v1/dmap/query/mydmap/%d", partID)
+		queryReq := httptest.NewRequest(http.MethodPost, target, bytes.NewBuffer(data))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, queryReq)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected HTTP status code 200. Got: %d", rec.Code)
+		}
+		qr, err := query.FromByte(rec.Body.Bytes())
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		for _, val := range qr {
+			value, err := db.unmarshalValue(val.([]byte))
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if value.(int)%2 != 0 {
+				t.Fatalf("Expected value is an even number. Got: %d", value)
+			}
+		}
 	}
 }

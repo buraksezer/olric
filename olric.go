@@ -209,6 +209,7 @@ func New(c *config.Config) (*Olric, error) {
 		router.POST("/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
 		router.POST("/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
 		router.PUT("/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
+		router.POST("/api/v1/dmap/query/:dmap/:partID", db.dmapQueryHTTPHandler)
 
 		// System
 		router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)

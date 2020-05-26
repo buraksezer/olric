@@ -21,7 +21,9 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/query"
 	"github.com/julienschmidt/httprouter"
+	"github.com/vmihailenco/msgpack"
 )
 
 // TODO: Check this: checkOperationStatus
@@ -405,4 +407,52 @@ func (db *Olric) dmapUnlockHTTPHandler(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (db *Olric) dmapQueryHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	rawPartID := ps.ByName("partID")
+
+	partID, err := strconv.ParseInt(rawPartID, 10, 64)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	q, err := query.FromByte(data)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	c := &Cursor{
+		db:    db,
+		name:  dmap,
+		query: q,
+	}
+	responses, err := c.runQueryOnOwners(uint64(partID))
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+
+	result := make(QueryResponse)
+	for _, response := range responses {
+		result[response.Key] = response.Value
+	}
+
+	serialized, err := msgpack.Marshal(result)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	_, err = w.Write(serialized)
+	if err != nil {
+		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
+	}
 }
