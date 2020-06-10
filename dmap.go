@@ -32,6 +32,7 @@ type dmap struct {
 type DMap struct {
 	name string
 	db   *Olric
+	hooks map[int8][]HookHandler
 }
 
 // NewDMap creates an returns a new DMap instance.
@@ -48,6 +49,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 	return &DMap{
 		name: name,
 		db:   db,
+		hooks: make(map[int8][]HookHandler),
 	}, nil
 }
 
