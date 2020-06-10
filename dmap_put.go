@@ -360,11 +360,29 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
+	var err error
+	// run before hooks
+	if bhooks, ok := dm.hooks[BeforePutHook]; ok {
+		for _, hook := range bhooks {
+			key, value, err = hook(key, value)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	w, err := dm.db.prepareWriteop(protocol.OpPut, dm.name, key, value, nilTimeout, 0)
 	if err != nil {
 		return err
 	}
-	return dm.db.put(w)
+	err = dm.db.put(w)
+	// run after hooks
+	if ahooks, ok := dm.hooks[AfterPutHook]; ok {
+		for _, hook := range ahooks {
+			_, _, _ = hook(key, value)
+		}
+	}
+
+	return err
 }
 
 // Put sets the value for the given key. It overwrites any previous value
