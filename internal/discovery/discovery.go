@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"plugin"
 	"sort"
@@ -30,6 +29,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/flog"
+	"github.com/buraksezer/olric/pkg/service_discovery"
 	"github.com/hashicorp/memberlist"
 	"github.com/vmihailenco/msgpack"
 )
@@ -38,30 +38,6 @@ const eventChanCapacity = 256
 
 // ErrHostNotFound indicates that the requested host could not be found in the member list.
 var ErrHostNotFound = errors.New("host not found")
-
-// ServiceDiscovery is an interface that defines a unified API for service discovery plugins.
-type ServiceDiscovery interface {
-	// Initialize initializes the plugin: registers some internal data structures, clients etc.
-	Initialize() error
-
-	// SetConfig registers plugin configuration
-	SetConfig(c map[string]interface{}) error
-
-	// SetLogger sets an appropriate
-	SetLogger(l *log.Logger)
-
-	// Register registers this node to a service discovery directory.
-	Register() error
-
-	// Deregister removes this node from a service discovery directory.
-	Deregister() error
-
-	// DiscoverPeers returns a list of known Olric nodes.
-	DiscoverPeers() ([]string, error)
-
-	// Close stops underlying goroutines, if there is any. It should be a blocking call.
-	Close() error
-}
 
 // ClusterEvent is a single event related to node activity in the memberlist.
 // The Node member of this struct must not be directly modified.
@@ -95,7 +71,7 @@ type Discovery struct {
 	deadMemberEvents chan *ClusterEvent
 
 	eventSubscribers []chan *ClusterEvent
-	serviceDiscovery ServiceDiscovery
+	serviceDiscovery service_discovery.ServiceDiscovery
 
 	// Flow control
 	wg     sync.WaitGroup
@@ -154,10 +130,10 @@ func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 }
 
 func (d *Discovery) loadServiceDiscoveryPlugin() error {
-	var sd ServiceDiscovery
+	var sd service_discovery.ServiceDiscovery
 
 	if val, ok := d.config.ServiceDiscovery["plugin"]; ok {
-		if sd, ok = val.(ServiceDiscovery); !ok {
+		if sd, ok = val.(service_discovery.ServiceDiscovery); !ok {
 			return fmt.Errorf("plugin type %T is not a ServiceDiscovery interface", val)
 		}
 	} else {
@@ -175,7 +151,7 @@ func (d *Discovery) loadServiceDiscoveryPlugin() error {
 			return fmt.Errorf("failed to lookup serviceDiscovery symbol: %w", err)
 		}
 
-		if sd, ok = symDiscovery.(ServiceDiscovery); !ok {
+		if sd, ok = symDiscovery.(service_discovery.ServiceDiscovery); !ok {
 			return fmt.Errorf("unable to assert type to serviceDiscovery")
 		}
 	}
