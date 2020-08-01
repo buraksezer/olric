@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ func TestPipeline(t *testing.T) {
 		}
 	}()
 
-	var buf bytes.Buffer
+	buf := new(bytes.Buffer)
 	dmap := "test-dmap"
 	key := "test-key"
 	rawval := "test-value"
@@ -44,31 +44,24 @@ func TestPipeline(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	req := protocol.Message{
-		Header: protocol.Header{
-			Magic: protocol.MagicReq,
-			Op:    protocol.OpPut,
-		},
-		DMap:  dmap,
-		Key:   key,
-		Value: value,
-		Extra: protocol.PutExtra{Timestamp: time.Now().UnixNano()},
-	}
-	err = req.Write(&buf)
+	req := protocol.NewDMapMessage(protocol.OpPut)
+	req.SetBuffer(buf)
+	req.SetDMap(dmap)
+	req.SetKey(key)
+	req.SetValue(value)
+	req.SetExtra(protocol.PutExtra{Timestamp: time.Now().UnixNano()})
+	err = req.Encode()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	preq := &protocol.Message{
-		Header: protocol.Header{
-			Magic: protocol.MagicReq,
-			Op:    protocol.OpPipeline,
-		},
-		Value: buf.Bytes(),
-	}
-	resp := db.pipelineOperation(preq)
-	if resp.Status != protocol.StatusOK {
-		t.Fatalf("Expected status: %v. Got: %v", protocol.StatusOK, resp.Status)
+	preq := protocol.NewPipelineMessage(protocol.OpPipeline)
+	preq.SetBuffer(new(bytes.Buffer))
+	preq.SetValue(buf.Bytes())
+	presp := preq.Response(nil)
+	db.pipelineOperation(presp, preq)
+	if presp.Status() != protocol.StatusOK {
+		t.Fatalf("Expected status: %v. Got: %v", protocol.StatusOK, presp.Status())
 	}
 
 	dm, err := db.NewDMap(dmap)

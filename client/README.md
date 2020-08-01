@@ -8,29 +8,35 @@ This implementation also supports connection pooling by default.
 ## Table of Contents
 
 * [Setup](#setup)
-* [Commands](#commands)
-  * [Put](#put)
-  * [PutIf](#putif)
-  * [PutEx](#putex)
-  * [PutIfEx](#putifex)
-  * [Get](#get)
-  * [Expire](#expire)
-  * [Delete](#delete)
-  * [LockWithTimeout](#lockwithtimeout)
-  * [Lock](#lock)
-  * [Unlock](#unlock)
-  * [Destroy](#destroy)
-  * [Stats](#stats)
-  * [Ping](#ping)
-  * [Query](#query)
-    * [Cursor](#cursor)
-      * [Range](#range)
-      * [Close](#close)
-  * [Atomic Operations](#atomic-operations)
-    * [Incr](#incr)
-    * [Decr](#decr)
-    * [GetPut](#getput)
-* [Pipelining](#pipelining)
+* [Data Structures](#data-structures)
+  * [Distributed Map](#distributed-topic)
+    * [Put](#put)
+    * [PutIf](#putif)
+    * [PutEx](#putex)
+    * [PutIfEx](#putifex)
+    * [Get](#get)
+    * [Expire](#expire)
+    * [Delete](#delete)
+    * [LockWithTimeout](#lockwithtimeout)
+    * [Lock](#lock)
+    * [Unlock](#unlock)
+    * [Destroy](#destroy)
+    * [Stats](#stats)
+    * [Ping](#ping)
+    * [Query](#query)
+      * [Cursor](#cursor)
+        * [Range](#range)
+        * [Close](#close)
+    * [Atomic Operations](#atomic-operations)
+      * [Incr](#incr)
+      * [Decr](#decr)
+      * [GetPut](#getput)
+    * [Pipelining](#pipelining)
+  * [Distributed Topic](#distributed-topic)
+    * [Publish](#publish)
+    * [AddListener](#addlistener)
+    * [RemoveListener](#removelistener)
+    * [Destroy](#destroy)
 * [Serialization](#serialization)
 * [Sample Code](#sample-code)
 
@@ -60,7 +66,14 @@ c, err := client.New(clientConfig)
 A client (it's `c` in our sample) instance should be created one time in your program's life time. See [Sample Code](#sample-code) section 
 to see it in action.
 
-## Commands
+## Data Structures
+
+Olric currently provides two different data structures:
+
+* [Distributed Map](#distributed-map)
+* [Distributed Topic](#distributed-topic)
+ 
+## Distributed Map
 
 Before starting, you need to create a new DMap instance: 
 
@@ -359,6 +372,61 @@ value, err := dm.GetPut("atomic-key", someType{})
 ```
 
 The returned value is an arbitrary type.
+
+## Distributed Topic
+
+Distributed topic is an asynchronous messaging service that decouples services that produce events from services that process events. It has two delivery modes:
+
+* **olric.UnorderedDelivery**: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
+* **olric.OrderedDelivery**: Messages are delivered in some order. Not implemented yet. 
+
+You should know that:
+
+* Communication between parties is one-to-many (fan-out). 
+* All data is in-memory, and the published messages are not stored in the cluster.
+* Fire&Forget: message delivery is not guaranteed.
+
+Create a **DTopic** instance:
+
+```go
+dt, err := db.NewDTopic("my-topic", 0, olric.UnorderedDelivery)
+```
+
+### Publish
+
+Publish sends a message to the given topic. It accepts any serializable type as message. 
+
+```go
+err := dt.Publish("my-message")
+```
+
+### AddListener
+
+AddListener adds a new listener for the topic. Returns a listener ID or a non-nil error. The callback functions for this DTopic are run by parallel.
+
+```go
+listenerID, err := dt.AddListener(func(msg DTopicMessage) {
+    fmt.Println("Message:", msg)
+})
+```
+
+You have to store `listenerID` to remove the listener.
+
+### RemoveListener
+
+RemoveListener removes a listener with the given listenerID.
+
+```go
+err := dt.RemoveListener(listenerID)
+```
+
+### Destroy
+
+Destroy a DTopic from the cluster. It stops background goroutines and releases underlying data structures.
+
+```go
+err := dt.Destroy()
+```
 
 ## Serialization
 

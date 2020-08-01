@@ -41,7 +41,7 @@ Flags:
   -v -version                   
       Shows version information.
   -d -dmap
-      DMap to access.
+      dmap to access.
   -c -command
       Command to run.
   -s -serializer

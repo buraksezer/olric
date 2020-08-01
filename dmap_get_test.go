@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -123,7 +123,7 @@ func TestDMap_NilValue(t *testing.T) {
 	}()
 
 	key := "mykey"
-	// Create a new DMap instance and put a K/V pair.
+	// Create a new dmap instance and put a K/V pair.
 	dm, err := db.NewDMap("foobar")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)

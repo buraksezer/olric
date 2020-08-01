@@ -21,16 +21,13 @@ See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 * Supports atomic operations,
 * Supports [distributed queries](#query) on keys,
 * Provides a plugin interface for service discovery daemons,
-* Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
+* Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode),
+* Supports [distributed topic](#distributed-topic) data structure,
 
 ## Possible Use Cases
 
-With this feature set, Olric is suitable to use as a distributed cache. But it also provides data replication, failure detection 
-and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
-
-## Project Status
-
-Olric is in early stages of development. The package API and client protocol may change without notification. 
+With this feature set, Olric is suitable to use as a distributed cache. But it also provides distributed topics, data replication, 
+failure detection and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
 
 ## Table of Contents
 
@@ -49,28 +46,34 @@ Olric is in early stages of development. The package API and client protocol may
   * [olric-stats](#olric-stats)
   * [olric-load](#olric-load)
 * [Usage](#usage)
-  * [Put](#put)
-  * [PutIf](#putif)
-  * [PutEx](#putex)
-  * [PutIfEx](#putifex)
-  * [Get](#get)
-  * [Expire](#expire)
-  * [Delete](#delete)
-  * [LockWithTimeout](#lockwithtimeout)
-  * [Lock](#lock)
-  * [Unlock](#unlock)
-  * [Destroy](#destroy)
-  * [Stats](#stats)
-  * [Ping](#ping)
-  * [Query](#query)
-    * [Cursor](#cursor)
-      * [Range](#range)
-      * [Close](#close)
-  * [Atomic Operations](#atomic-operations)
-    * [Incr](#incr)
-    * [Decr](#decr)
-    * [GetPut](#getput)
-  * [Pipelining](#pipelining)
+  * [Distributed Map](#distributed-map)
+    * [Put](#put)
+    * [PutIf](#putif)
+    * [PutEx](#putex)
+    * [PutIfEx](#putifex)
+    * [Get](#get)
+    * [Expire](#expire)
+    * [Delete](#delete)
+    * [LockWithTimeout](#lockwithtimeout)
+    * [Lock](#lock)
+    * [Unlock](#unlock)
+    * [Destroy](#destroy)
+    * [Stats](#stats)
+    * [Ping](#ping)
+    * [Query](#query)
+      * [Cursor](#cursor)
+        * [Range](#range)
+        * [Close](#close)
+    * [Atomic Operations](#atomic-operations)
+      * [Incr](#incr)
+      * [Decr](#decr)
+      * [GetPut](#getput)
+    * [Pipelining](#pipelining)
+  * [Distributed Topic](#distributed-topic)
+    * [Publish](#publish)
+    * [AddListener](#addlistener)
+    * [RemoveListener](#removelistener)
+    * [Destroy](#destroy)
 * [Serialization](#serialization)
 * [Golang Client](#golang-client)
 * [Configuration](#configuration)
@@ -121,7 +124,8 @@ Olric is in early stages of development. The package API and client protocol may
 * Provides a plugin interface for service discovery daemons and cloud providers,
 * Provides a command-line-interface to access the cluster directly from the terminal,
 * Supports different serialization formats. Gob, JSON and MessagePack are supported out of the box,
-* Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode).
+* Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode),
+* Supports [distributed topic](#distributed-topic) data structure,
 
 See [Architecture](#architecture) section to see details.
 
@@ -130,7 +134,6 @@ See [Architecture](#architecture) section to see details.
 * Distributed queries over keys and values,
 * Database backend for persistence,
 * Anti-entropy system to repair inconsistencies in DMaps,
-* Publish/Subscribe for messaging,
 * Eviction listeners by using Publish/Subscribe,
 * Memcached interface,
 * Client implementations for different languages: Java, Python and JavaScript,
@@ -428,15 +431,6 @@ When you call **Start** method, your process joins the cluster and will be respo
 indefinitely. So you may need to run it in a goroutine. Of course, this is just a single-node instance, because you didn't give any
 configuration.
 
-Create a **DMap** object to access the cluster:
-
-```go
-dm, err := db.NewDMap("my-dmap")
-```
-
-DMap object has *Put*, *PutEx*, *PutIf*, *PutIfEx*, *Get*, *Delete*, *Expire*, *LockWithTimeout* and *Destroy* methods to access 
-and modify data in Olric. We may add more methods for finer control but first, I'm willing to stabilize this set of features.
-
 When you want to leave the cluster, just need to call **Shutdown** method:
 
 ```go
@@ -447,6 +441,14 @@ This will stop background tasks and servers. Finally purges in-memory data and q
 
 ***Please note that this section aims to document DMap API in embedded member mode.*** If you prefer to use Olric in 
 Client-Server mode, please jump to [Golang Client](#golang-client) section. 
+
+### Distributed Map
+
+Create a **DMap** instance:
+
+```go
+dm, err := db.NewDMap("my-dmap")
+```
  
 ### Put
 
@@ -796,6 +798,61 @@ for _, resp := range responses {
 There is no hard-limit on message count in a pipeline. You should set a convenient `KeepAlive` for large pipelines. Otherwise, you can get a timeout error.
 
 The `Flush` method returns errors along with success messages. Furthermore, you need to know the command order for matching responses with requests.
+
+### Distributed Topic
+
+Distributed topic is an asynchronous messaging service that decouples services that produce events from services that process events. It has two delivery modes:
+
+* **olric.UnorderedDelivery**: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
+* **olric.OrderedDelivery**: Messages are delivered in some order. Not implemented yet. 
+
+You should know that:
+
+* Communication between parties is one-to-many (fan-out). 
+* All data is in-memory, and the published messages are not stored in the cluster.
+* Fire&Forget: message delivery is not guaranteed.
+
+Create a **DTopic** instance:
+
+```go
+dt, err := db.NewDTopic("my-topic", 0, olric.UnorderedDelivery)
+```
+
+### Publish
+
+Publish sends a message to the given topic. It accepts any serializable type as message. 
+
+```go
+err := dt.Publish("my-message")
+```
+
+### AddListener
+
+AddListener adds a new listener for the topic. Returns a listener ID or a non-nil error. The callback functions for this DTopic are run by parallel.
+
+```go
+listenerID, err := dt.AddListener(func(msg DTopicMessage) {
+    fmt.Println("Message:", msg)
+})
+```
+
+You have to store `listenerID` to remove the listener.
+
+### RemoveListener
+
+RemoveListener removes a listener with the given listenerID.
+
+```go
+err := dt.RemoveListener(listenerID)
+```
+
+### Destroy
+
+Destroy a DTopic from the cluster. It stops background goroutines and releases underlying data structures.
+
+```go
+err := dt.Destroy()
+```
 
 ## Golang Client
 

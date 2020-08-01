@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,13 +85,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read or parse configuration file: %v", err)
 	}
+
 	s, err := server.New(c)
 	if err != nil {
 		log.Fatalf("Failed to create a new olricd instance:\n%v", err)
 	}
 
 	if err = s.Start(); err != nil {
-		log.Fatalf("Olric quits prematurely:\n%v", err)
+		log.Fatalf("olricd returned an error:\n%v", err)
 	}
 	log.Print("Quit!")
 }

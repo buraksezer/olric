@@ -201,7 +201,7 @@ func (c *CLI) WaitForCommand(dmap string) error {
 			}
 		default:
 			if dmap == "" {
-				c.print("Call 'use <dmap-name>' command before accessing a DMap.\n")
+				c.print("Call 'use <dmap-name>' command before accessing a dmap.\n")
 				continue
 			}
 			if err := c.evaluate(dmap, line); err != nil {

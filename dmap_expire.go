@@ -1,4 +1,4 @@
-// Copyright 2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ func (db *Olric) asyncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
 			defer db.wg.Done()
-			_, err := db.requestTo(host.String(), protocol.OpExpireReplica, req)
+			_, err := db.requestTo(host.String(), req)
 			if err != nil {
 				if db.log.V(3).Ok() {
 					db.log.V(3).Printf("[ERROR] Failed to set expire in async mode: %v", err)
@@ -67,10 +67,10 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	var successful int
 	owners := db.getBackupPartitionOwners(hkey)
 	for _, owner := range owners {
-		_, err := db.requestTo(owner.String(), protocol.OpExpireReplica, req)
+		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
+				db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for dmap: %s: %v",
 					owner, w.dmap, err)
 			}
 			continue
@@ -80,7 +80,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	err := db.localExpire(hkey, dm, w)
 	if err != nil {
 		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
+			db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for dmap: %s: %v",
 				db.this, w.dmap, err)
 		}
 	} else {
@@ -93,7 +93,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 }
 
 func (db *Olric) callExpireOnCluster(hkey uint64, w *writeop) error {
-	// Get the DMap and acquire its lock
+	// Get the dmap and acquire its lock
 	dm, err := db.getDMap(w.dmap, hkey)
 	if err != nil {
 		return err
@@ -123,36 +123,42 @@ func (db *Olric) expire(w *writeop) error {
 		return db.callExpireOnCluster(hkey, w)
 	}
 	// Redirect to the partition owner
-	req := &protocol.Message{
-		DMap: w.dmap,
-		Key:  w.key,
-		Extra: protocol.ExpireExtra{
-			TTL:       w.timeout.Nanoseconds(),
-			Timestamp: w.timestamp,
-		},
-	}
-	_, err := db.requestTo(member.String(), protocol.OpExpire, req)
+	req := w.toReq(protocol.OpExpire)
+	_, err := db.requestTo(member.String(), req)
 	return err
 }
 
-func (db *Olric) expireReplicaOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getBackupDMap(req.DMap, hkey)
+func (db *Olric) expireReplicaOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	hkey := db.getHKey(req.DMap(), req.Key())
+	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 	dm.Lock()
 	defer dm.Unlock()
 
-	w := &writeop{}
-	w.fromReq(req)
-	return db.prepareResponse(req, db.localExpire(hkey, dm, w))
+	wo := &writeop{}
+	wo.fromReq(req)
+	err = db.localExpire(hkey, dm, wo)
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
-func (db *Olric) exExpireOperation(req *protocol.Message) *protocol.Message {
-	w := &writeop{}
-	w.fromReq(req)
-	return db.prepareResponse(req, db.expire(w))
+func (db *Olric) exExpireOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	wo := &writeop{}
+	wo.fromReq(req)
+	err := db.expire(wo)
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the

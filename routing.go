@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,13 +102,12 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 	// Prune empty nodes
 	for i := 0; i < len(owners); i++ {
 		backup := owners[i]
-		req := &protocol.Message{
-			Extra: protocol.LengthOfPartExtra{
-				PartID: partID,
-				Backup: true,
-			},
-		}
-		res, err := db.requestTo(backup.String(), protocol.OpLengthOfPart, req)
+		req := protocol.NewSystemMessage(protocol.OpLengthOfPart)
+		req.SetExtra(protocol.LengthOfPartExtra{
+			PartID: partID,
+			Backup: true,
+		})
+		res, err := db.requestTo(backup.String(), req)
 		if err != nil {
 			db.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
@@ -117,7 +116,7 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 		}
 
 		var count int32
-		err = msgpack.Unmarshal(res.Value, &count)
+		err = msgpack.Unmarshal(res.Value(), &count)
 		if err != nil {
 			db.log.V(3).Printf("[ERROR] Failed to unmarshal key count "+
 				"while checking backup partition: %d: %v", partID, err)
@@ -188,10 +187,9 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 	// Prune empty nodes
 	for i := 0; i < len(owners); i++ {
 		owner := owners[i]
-		req := &protocol.Message{
-			Extra: protocol.LengthOfPartExtra{PartID: partID},
-		}
-		res, err := db.requestTo(owner.String(), protocol.OpLengthOfPart, req)
+		req := protocol.NewSystemMessage(protocol.OpLengthOfPart)
+		req.SetExtra(protocol.LengthOfPartExtra{PartID: partID})
+		res, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			db.log.V(3).Printf("[ERROR] Failed to check key count on partition: %d: %v", partID, err)
 			// Pass it. If the node is gone, memberlist package will notify us.
@@ -199,7 +197,7 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 		}
 
 		var count int32
-		err = msgpack.Unmarshal(res.Value, &count)
+		err = msgpack.Unmarshal(res.Value(), &count)
 		if err != nil {
 			db.log.V(3).Printf("[ERROR] Failed to unmarshal key count "+
 				"while checking primary partition: %d: %v", partID, err)
@@ -260,21 +258,20 @@ func (db *Olric) updateRoutingTableOnCluster(table routingTable) (map[discovery.
 			}
 			defer sem.Release(1)
 
-			msg := &protocol.Message{
-				Value: data,
-				Extra: protocol.UpdateRoutingExtra{
-					CoordinatorID: db.this.ID,
-				},
-			}
+			req := protocol.NewSystemMessage(protocol.OpUpdateRouting)
+			req.SetValue(data)
+			req.SetExtra(protocol.UpdateRoutingExtra{
+				CoordinatorID: db.this.ID,
+			})
 			// TODO: This blocks whole flow. Use timeout for smooth operation.
-			resp, err := db.requestTo(mem.String(), protocol.OpUpdateRouting, msg)
+			resp, err := db.requestTo(mem.String(), req)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to update routing table on %s: %v", mem, err)
 				return err
 			}
 
 			ow := ownershipReport{}
-			err = msgpack.Unmarshal(resp.Value, &ow)
+			err = msgpack.Unmarshal(resp.Value(), &ow)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to call decode ownership report from %s: %v", mem, err)
 				return err
@@ -357,11 +354,22 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 }
 
 func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
+	db.members.mtx.Lock()
+	defer db.members.mtx.Unlock()
+
+	member, _ := db.discovery.DecodeNodeMeta(event.NodeMeta)
 	if event.Event == memberlist.NodeJoin {
-		member, _ := db.discovery.DecodeNodeMeta(event.NodeMeta)
+		db.members.m[member.ID] = member
 		db.consistent.Add(member)
 		db.log.V(2).Printf("[INFO] Node joined: %s", member)
 	} else if event.Event == memberlist.NodeLeave {
+		if _, ok := db.members.m[member.ID]; ok {
+			delete(db.members.m, member.ID)
+		} else {
+			db.log.V(2).Printf("[ERROR] Unknown node left: %s", event.NodeName)
+			return
+		}
+
 		db.consistent.Remove(event.NodeName)
 		// Don't try to used closed sockets again.
 		db.client.ClosePool(event.NodeName)
@@ -430,33 +438,37 @@ func (db *Olric) setOwnedPartitionCount() {
 	atomic.StoreUint64(&db.ownedPartitionCount, count)
 }
 
-func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) updateRoutingOperation(w, r protocol.EncodeDecoder) {
 	routingUpdateMtx.Lock()
 	defer routingUpdateMtx.Unlock()
 
+	req := r.(*protocol.SystemMessage)
 	table := make(routingTable)
-	err := msgpack.Unmarshal(req.Value, &table)
+	err := msgpack.Unmarshal(req.Value(), &table)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 
-	coordinatorID := req.Extra.(protocol.UpdateRoutingExtra).CoordinatorID
+	coordinatorID := req.Extra().(protocol.UpdateRoutingExtra).CoordinatorID
 	coordinator, err := db.checkAndGetCoordinator(coordinatorID)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
-		return req.Error(protocol.StatusBadRequest, err)
+		db.errorResponse(w, err)
+		return
 	}
 
 	// Compare partition counts to catch a possible inconsistencies in configuration
 	if db.config.PartitionCount != uint64(len(table)) {
 		db.log.V(2).Printf("[ERROR] Routing table cannot be updated. "+
 			"Expected partition count is %d, got: %d", db.config.PartitionCount, uint64(len(table)))
-		return req.Error(protocol.StatusBadRequest, err)
+		db.errorResponse(w, ErrInvalidArgument)
+		return
 	}
 
-	// owners(atomic.Value) is guarded by routingUpdateMtx against parallel writers.
+	// owners(atomic.value) is guarded by routingUpdateMtx against parallel writers.
 	// Calculate routing signature. This is useful to control rebalancing tasks.
-	atomic.StoreUint64(&routingSignature, db.hasher.Sum64(req.Value))
+	atomic.StoreUint64(&routingSignature, db.hasher.Sum64(req.Value()))
 	for partID, data := range table {
 		// Set partition(primary copies) owners
 		part := db.partitions[partID]
@@ -474,10 +486,11 @@ func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message
 	// Collect report
 	data, err := db.prepareOwnershipReport()
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, ErrInvalidArgument)
+		return
 	}
-	res := req.Success()
-	res.Value = data
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(data)
 
 	// Call rebalancer to rebalance partitions
 	db.wg.Add(1)
@@ -489,7 +502,6 @@ func (db *Olric) updateRoutingOperation(req *protocol.Message) *protocol.Message
 		db.deleteStaleDMaps()
 	}()
 	db.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
-	return res
 }
 
 type ownershipReport struct {
@@ -513,9 +525,10 @@ func (db *Olric) prepareOwnershipReport() ([]byte, error) {
 	return msgpack.Marshal(res)
 }
 
-func (db *Olric) keyCountOnPartOperation(req *protocol.Message) *protocol.Message {
-	partID := req.Extra.(protocol.LengthOfPartExtra).PartID
-	isBackup := req.Extra.(protocol.LengthOfPartExtra).Backup
+func (db *Olric) keyCountOnPartOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.SystemMessage)
+	partID := req.Extra().(protocol.LengthOfPartExtra).PartID
+	isBackup := req.Extra().(protocol.LengthOfPartExtra).Backup
 
 	var part *partition
 	if isBackup {
@@ -526,10 +539,9 @@ func (db *Olric) keyCountOnPartOperation(req *protocol.Message) *protocol.Messag
 
 	value, err := msgpack.Marshal(part.length())
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
-
-	res := req.Success()
-	res.Value = value
-	return res
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }

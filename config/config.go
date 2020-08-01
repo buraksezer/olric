@@ -112,9 +112,9 @@ type EvictionPolicy string
 // golang doesn't provide the typical notion of inheritance.
 // because of that I preferred to define the types explicitly.
 
-// DMapCacheConfig denotes cache configuration for a particular DMap.
+// DMapCacheConfig denotes cache configuration for a particular dmap.
 type DMapCacheConfig struct {
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period exceeds
 	// this limit are expired and evicted automatically. An entry is idle if no Get,
@@ -122,7 +122,7 @@ type DMapCacheConfig struct {
 	// feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
 
-	// TTLDuration is useful to set a default TTL for every key/value pair a DMap instance.
+	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
 	TTLDuration time.Duration
 
 	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
@@ -143,11 +143,11 @@ type DMapCacheConfig struct {
 }
 
 // CacheConfig denotes a global cache configuration for DMaps. You can still overwrite it by setting a
-// DMapCacheConfig for a particular DMap. Don't set this if you use Olric as an ordinary key/value store.
+// DMapCacheConfig for a particular dmap. Don't set this if you use Olric as an ordinary key/value store.
 type CacheConfig struct {
 	// NumEvictionWorkers denotes the number of goroutines that's used to find keys for eviction.
 	NumEvictionWorkers int64
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period exceeds
 	// this limit are expired and evicted automatically. An entry is idle if no Get,
@@ -155,7 +155,7 @@ type CacheConfig struct {
 	// feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
 
-	// TTLDuration is useful to set a default TTL for every key/value pair a DMap instance.
+	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
 	TTLDuration time.Duration
 
 	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
@@ -174,7 +174,7 @@ type CacheConfig struct {
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
 
-	// DMapConfigs is useful to set custom cache config per DMap instance.
+	// DMapConfigs is useful to set custom cache config per dmap instance.
 	DMapConfigs map[string]DMapCacheConfig
 }
 

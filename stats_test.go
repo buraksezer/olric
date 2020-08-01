@@ -1,4 +1,4 @@
-// Copyright 2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ func TestStatsStandalone(t *testing.T) {
 	for partID, part := range s.Partitions {
 		total += part.Length
 		if _, ok := part.DMaps["mymap"]; !ok {
-			t.Fatalf("Expected DMap check result is true. Got false")
+			t.Fatalf("Expected dmap check result is true. Got false")
 		}
 		if len(part.PreviousOwners) != 0 {
 			t.Fatalf("Expected PreviosOwners list is empty. "+

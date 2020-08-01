@@ -54,7 +54,7 @@ func (p *partition) ownerCount() int {
 	return len(owners.([]discovery.Member))
 }
 
-// loadOwners loads the partition owners from atomic.Value and returns.
+// loadOwners loads the partition owners from atomic.value and returns.
 func (p *partition) loadOwners() []discovery.Member {
 	owners := p.owners.Load()
 	if owners == nil {
@@ -106,13 +106,13 @@ func (db *Olric) getPartitionOwners(hkey uint64) []discovery.Member {
 	return part.owners.Load().([]discovery.Member)
 }
 
-// getHKey returns hash-key, a.k.a hkey, for a key on a DMap.
+// getHKey returns hash-key, a.k.a hkey, for a key on a dmap.
 func (db *Olric) getHKey(name, key string) uint64 {
 	tmp := name + key
 	return db.hasher.Sum64(*(*[]byte)(unsafe.Pointer(&tmp)))
 }
 
-// findPartitionOwner finds the partition owner for a key on a DMap.
+// findPartitionOwner finds the partition owner for a key on a dmap.
 func (db *Olric) findPartitionOwner(name, key string) (discovery.Member, uint64) {
 	hkey := db.getHKey(name, key)
 	return db.getPartition(hkey).owner(), hkey

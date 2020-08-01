@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 			// the requested key can be found on a replica or a previous partition owner.
 			if db.log.V(5).Ok() {
 				db.log.V(5).Printf(
-					"[DEBUG] Key: %s, HKey: %d on DMap: %s could not be found on the local storage: %v",
+					"[DEBUG] key: %s, HKey: %d on dmap: %s could not be found on the local storage: %v",
 					key, hkey, name, err)
 			}
 		} else {
@@ -81,13 +81,12 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
-		req := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
+		req := protocol.NewDMapMessage(protocol.OpGetPrev)
+		req.SetDMap(name)
+		req.SetKey(key)
 
 		ver := &version{host: &owner}
-		resp, err := db.requestTo(owner.String(), protocol.OpGetPrev, req)
+		resp, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
 				db.log.V(3).Printf("[ERROR] Failed to call get on a previous "+
@@ -95,7 +94,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 			}
 		} else {
 			data := storage.VData{}
-			err = msgpack.Unmarshal(resp.Value, data)
+			err = msgpack.Unmarshal(resp.Value(), data)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from the "+
 					"previous primary owner: %s: %v", owner, err)
@@ -139,20 +138,18 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	// Check backups.
 	backups := db.getBackupPartitionOwners(hkey)
 	for _, replica := range backups {
-		req := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
-
+		req := protocol.NewDMapMessage(protocol.OpGetBackup)
+		req.SetDMap(name)
+		req.SetKey(key)
 		ver := &version{host: &replica}
-		resp, err := db.requestTo(replica.String(), protocol.OpGetBackup, req)
+		resp, err := db.requestTo(replica.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
 				db.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
 			}
 		} else {
 			value := storage.VData{}
-			err = msgpack.Unmarshal(resp.Value, &value)
+			err = msgpack.Unmarshal(resp.Value(), &value)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from a replica owner: %s: %v", replica, err)
 			} else {
@@ -171,21 +168,22 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 		}
 
 		// If readRepair is enabled, this function is called by every GET request.
-		req := &protocol.Message{
-			DMap:  name,
-			Key:   winner.data.Key,
-			Value: winner.data.Value,
-		}
-		var op protocol.OpCode
+		var req *protocol.DMapMessage
 		if winner.data.TTL == 0 {
-			op = protocol.OpPutReplica
-			req.Extra = protocol.PutExtra{Timestamp: winner.data.Timestamp}
+			req = protocol.NewDMapMessage(protocol.OpPutReplica)
+			req.SetDMap(name)
+			req.SetKey(winner.data.Key)
+			req.SetValue(winner.data.Value)
+			req.SetExtra(protocol.PutExtra{Timestamp: winner.data.Timestamp})
 		} else {
-			op = protocol.OpPutExReplica
-			req.Extra = protocol.PutExExtra{
+			req := protocol.NewDMapMessage(protocol.OpPutExReplica)
+			req.SetDMap(name)
+			req.SetKey(winner.data.Key)
+			req.SetValue(winner.data.Value)
+			req.SetExtra(protocol.PutExExtra{
 				Timestamp: winner.data.Timestamp,
 				TTL:       winner.data.TTL,
-			}
+			})
 		}
 
 		// Sync
@@ -205,7 +203,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 			}
 			dm.Unlock()
 		} else {
-			_, err := db.requestTo(ver.host.String(), op, req)
+			_, err := db.requestTo(ver.host.String(), req)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
 			}
@@ -271,16 +269,16 @@ func (db *Olric) get(name, key string) ([]byte, error) {
 	if hostCmp(member, db.this) {
 		return db.callGetOnCluster(hkey, name, key)
 	}
+
 	// Redirect to the partition owner
-	req := &protocol.Message{
-		DMap: name,
-		Key:  key,
-	}
-	resp, err := db.requestTo(member.String(), protocol.OpGet, req)
+	req := protocol.NewDMapMessage(protocol.OpGet)
+	req.SetDMap(name)
+	req.SetKey(key)
+	resp, err := db.requestTo(member.String(), req)
 	if err != nil {
 		return nil, err
 	}
-	return resp.Value, nil
+	return resp.Value(), nil
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
@@ -295,64 +293,73 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 	return dm.db.unmarshalValue(rawval)
 }
 
-func (db *Olric) exGetOperation(req *protocol.Message) *protocol.Message {
-	value, err := db.get(req.DMap, req.Key)
+func (db *Olric) exGetOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	value, err := db.get(req.DMap(), req.Key())
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = value
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }
 
-func (db *Olric) getBackupOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getBackupDMap(req.DMap, hkey)
+func (db *Olric) getBackupOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	hkey := db.getHKey(req.DMap(), req.Key())
+	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 	dm.RLock()
 	defer dm.RUnlock()
 	vdata, err := dm.storage.Get(hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 	if isKeyExpired(vdata.TTL) {
-		return req.Error(protocol.StatusErrKeyNotFound, "key expired")
+		db.errorResponse(w, ErrKeyNotFound)
+		return
 	}
 
 	value, err := msgpack.Marshal(*vdata)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = value
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }
 
-func (db *Olric) getPrevOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
+func (db *Olric) getPrevOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	hkey := db.getHKey(req.DMap(), req.Key())
 	part := db.getPartition(hkey)
-	tmp, ok := part.m.Load(req.DMap)
+	tmp, ok := part.m.Load(req.DMap())
 	if !ok {
-		return req.Error(protocol.StatusErrKeyNotFound, "")
+		db.errorResponse(w, ErrKeyNotFound)
+		return
 	}
 	dm := tmp.(*dmap)
 
 	vdata, err := dm.storage.Get(hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 
 	if isKeyExpired(vdata.TTL) {
-		return req.Error(protocol.StatusErrKeyNotFound, "key expired")
+		db.errorResponse(w, ErrKeyNotFound)
+		return
 	}
 
 	value, err := msgpack.Marshal(*vdata)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = value
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }

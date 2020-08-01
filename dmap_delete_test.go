@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -191,17 +192,14 @@ func TestDMap_DeleteOnPreviousOwner(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	req := &protocol.Message{
-		Header: protocol.Header{
-			Magic: protocol.MagicReq,
-			Op:    protocol.OpDelete,
-		},
-		DMap: "mydmap",
-		Key:  "mykey",
-	}
-	resp := db.deletePrevOperation(req)
-	if resp.Status != protocol.StatusOK {
-		t.Fatalf("Expected StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status)
+	req := protocol.NewDMapMessage(protocol.OpDelete)
+	req.SetBuffer(new(bytes.Buffer))
+	req.SetDMap("mydmap")
+	req.SetKey("mykey")
+	resp := req.Response(nil)
+	db.deletePrevOperation(resp, req)
+	if resp.Status() != protocol.StatusOK {
+		t.Fatalf("Expected StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status())
 	}
 	_, err = dm.Get("mykey")
 	if err != ErrKeyNotFound {

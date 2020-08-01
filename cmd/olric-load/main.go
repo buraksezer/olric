@@ -53,7 +53,7 @@ Flags:
   -c -command
       Command to run. Available commands: put, get, delete, incr, decr.
   -k -key-count
-      Key count to load into the server.
+      key count to load into the server.
   -n -num-clients
       Number of clients in parallel.
   -t -timeout

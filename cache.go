@@ -22,7 +22,7 @@ import (
 	"github.com/buraksezer/olric/config"
 )
 
-// cache keeps cache control parameters and access-log for keys in a DMap.
+// cache keeps cache control parameters and access-log for keys in a dmap.
 type cache struct {
 	sync.RWMutex // protects accessLog
 
@@ -36,7 +36,7 @@ type cache struct {
 }
 
 func (db *Olric) setCacheConfiguration(dm *dmap, name string) error {
-	// Try to set cache configuration for this DMap.
+	// Try to set cache configuration for this dmap.
 	dm.cache = &cache{}
 	dm.cache.maxIdleDuration = db.config.Cache.MaxIdleDuration
 	dm.cache.ttlDuration = db.config.Cache.TTLDuration

@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,22 +36,23 @@ func TestExternal_UnknownOperation(t *testing.T) {
 			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	m := &protocol.Message{
-		DMap:  "mydmap",
-		Key:   "mykey",
-		Value: []byte("myvalue"),
-	}
+
+	req := protocol.NewDMapMessage(255)
+	req.SetDMap("mydmap")
+	req.SetKey("mykey")
+	req.SetValue([]byte("myvalue"))
+
 	cc := &transport.ClientConfig{
 		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	c := transport.NewClient(cc)
-	resp, err := c.Request(protocol.OpCode(255), m)
+	resp, err := c.Request(req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	if resp.Status != protocol.StatusErrUnknownOperation {
-		t.Fatalf("Expected status code: %d. Got: %d", protocol.StatusErrUnknownOperation, resp.Status)
+	if resp.Status() != protocol.StatusErrUnknownOperation {
+		t.Fatalf("Expected status code: %d. Got: %d", protocol.StatusErrUnknownOperation, resp.Status())
 	}
 }
 
@@ -71,25 +72,25 @@ func TestExternal_AtomicIncrDecr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	m := &protocol.Message{
-		DMap:  "mydmap",
-		Key:   "mykey",
-		Value: value,
-		Extra: protocol.AtomicExtra{
-			Timestamp: time.Now().UnixNano(),
-		},
-	}
+
+	req := protocol.NewDMapMessage(protocol.OpIncr)
+	req.SetDMap("mydmap")
+	req.SetKey("mykey")
+	req.SetValue(value)
+	req.SetExtra(protocol.AtomicExtra{
+		Timestamp: time.Now().UnixNano(),
+	})
 	cc := &transport.ClientConfig{
 		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	c := transport.NewClient(cc)
-	resp, err := c.Request(protocol.OpIncr, m)
+	resp, err := c.Request(req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	var val interface{}
-	err = db.serializer.Unmarshal(resp.Value, &val)
+	err = db.serializer.Unmarshal(resp.Value(), &val)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -129,21 +130,21 @@ func TestExternal_AtomicGetPut(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		m := &protocol.Message{
-			DMap:  "atomic_test",
-			Key:   "atomic_getput",
-			Value: value,
-			Extra: protocol.AtomicExtra{
-				Timestamp: time.Now().UnixNano(),
-			},
-		}
-		resp, err := c.Request(protocol.OpGetPut, m)
+		req := protocol.NewDMapMessage(protocol.OpGetPut)
+		req.SetDMap("atomic_test")
+		req.SetKey("atomic_getput")
+		req.SetValue(value)
+		req.SetExtra(protocol.AtomicExtra{
+			Timestamp: time.Now().UnixNano(),
+		})
+
+		resp, err := c.Request(req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		if len(resp.Value) != 0 {
+		if len(resp.Value()) != 0 {
 			var oldval interface{}
-			err = db.serializer.Unmarshal(resp.Value, &oldval)
+			err = db.serializer.Unmarshal(resp.Value(), &oldval)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}

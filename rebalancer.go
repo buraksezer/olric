@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,9 +20,7 @@ import (
 	"sync/atomic"
 
 	"github.com/buraksezer/olric/config"
-
 	"github.com/buraksezer/olric/internal/discovery"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/vmihailenco/msgpack"
@@ -64,10 +62,9 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner discover
 		return err
 	}
 
-	req := &protocol.Message{
-		Value: value,
-	}
-	_, err = db.requestTo(owner.String(), protocol.OpMoveDMap, req)
+	req := protocol.NewSystemMessage(protocol.OpMoveDMap)
+	req.SetValue(value)
+	_, err = db.requestTo(owner.String(), req)
 	if err != nil {
 		return err
 	}
@@ -98,14 +95,14 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 
 	tmp, exist := part.m.Load(data.Name)
 	if !exist {
-		// create a new DMap if it doesn't exist.
+		// create a new dmap if it doesn't exist.
 		tmp, err = db.createDMap(part, data.Name, str)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Acquire DMap's lock. No one should work on it.
+	// Acquire dmap's lock. No one should work on it.
 	dm := tmp.(*dmap)
 	dm.Lock()
 	defer dm.Unlock()
@@ -121,7 +118,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 		dm.cache.Unlock()
 	}
 
-	// We do not need the following loop if the DMap is created here.
+	// We do not need the following loop if the dmap is created here.
 	if !exist {
 		return nil
 	}
@@ -174,11 +171,11 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		}
 		// This is a previous owner. Move the keys.
 		part.m.Range(func(name, dm interface{}) bool {
-			db.log.V(2).Printf("[INFO] Moving DMap: %s (backup: %v) on PartID: %d to %s",
+			db.log.V(2).Printf("[INFO] Moving dmap: %s (backup: %v) on PartID: %d to %s",
 				name, part.backup, partID, owner)
 			err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v",
+				db.log.V(2).Printf("[ERROR] Failed to move dmap: %s on PartID: %d to %s: %v",
 					name, partID, owner, err)
 			}
 			// if this returns true, the iteration continues
@@ -235,11 +232,11 @@ func (db *Olric) rebalanceBackupPartitions() {
 			}
 
 			part.m.Range(func(name, dm interface{}) bool {
-				db.log.V(2).Printf("[INFO] Moving DMap: %s (backup: %v) on PartID: %d to %s",
+				db.log.V(2).Printf("[INFO] Moving dmap: %s (backup: %v) on PartID: %d to %s",
 					name, part.backup, partID, owner)
 				err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 				if err != nil {
-					db.log.V(2).Printf("[ERROR] Failed to move backup DMap: %s on PartID: %d to %s: %v",
+					db.log.V(2).Printf("[ERROR] Failed to move backup dmap: %s on PartID: %d to %s: %v",
 						name, partID, owner, err)
 				}
 				// if this returns true, the iteration continues
@@ -273,17 +270,20 @@ func (db *Olric) checkOwnership(part *partition) bool {
 	return false
 }
 
-func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	err := db.checkOperationStatus()
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 
+	req := r.(*protocol.SystemMessage)
 	box := &dmapbox{}
-	err = msgpack.Unmarshal(req.Value, box)
+	err = msgpack.Unmarshal(req.Value(), box)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to unmarshal dmap: %v", err)
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 
 	var part *partition
@@ -294,20 +294,22 @@ func (db *Olric) moveDMapOperation(req *protocol.Message) *protocol.Message {
 	}
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !db.checkOwnership(part) {
-		db.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (backup: %v) doesn't belong to me",
+		db.log.V(2).Printf("[ERROR] Received dmap: %s on PartID: %d (backup: %v) doesn't belong to me",
 			box.Name, box.PartID, box.Backup)
 
-		return req.Error(protocol.StatusBadRequest,
-			fmt.Sprintf("partID: %d (backup: %v) doesn't belong to %s", box.PartID, box.Backup, db.this))
+		err := fmt.Errorf("partID: %d (backup: %v) doesn't belong to %s: %w", box.PartID, box.Backup, db.this, ErrInvalidArgument)
+		db.errorResponse(w, err)
+		return
 	}
 
-	db.log.V(2).Printf("[INFO] Received DMap (backup:%v): %s on PartID: %d",
+	db.log.V(2).Printf("[INFO] Received dmap (backup:%v): %s on PartID: %d",
 		box.Backup, box.Name, box.PartID)
 
 	err = db.mergeDMaps(part, box)
 	if err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to merge dmap: %v", err)
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
-	return req.Success()
+	w.SetStatus(protocol.StatusOK)
 }

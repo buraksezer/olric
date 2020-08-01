@@ -20,7 +20,7 @@ import (
 	"github.com/buraksezer/olric/internal/storage"
 )
 
-// dmap defines the internal representation of a DMap.
+// dmap defines the internal representation of a dmap.
 type dmap struct {
 	sync.RWMutex
 
@@ -28,13 +28,13 @@ type dmap struct {
 	storage *storage.Storage
 }
 
-// DMap represents a distributed map instance.
+// dmap represents a distributed map instance.
 type DMap struct {
 	name string
 	db   *Olric
 }
 
-// NewDMap creates an returns a new DMap instance.
+// NewDMap creates an returns a new dmap instance.
 func (db *Olric) NewDMap(name string) (*DMap, error) {
 	// Check operation status first:
 	//
@@ -51,7 +51,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 	}, nil
 }
 
-// createDMap creates and returns a new dmap, internal representation of a DMap.
+// createDMap creates and returns a new dmap, internal representation of a dmap.
 func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) (*dmap, error) {
 	// We need to protect storage.New
 	part.Lock()
@@ -75,7 +75,7 @@ func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) 
 		}
 	}
 
-	// rebalancer code may send a storage instance for the new DMap. Just use it.
+	// rebalancer code may send a storage instance for the new dmap. Just use it.
 	if nm.storage != nil {
 		nm.storage = str
 	} else {

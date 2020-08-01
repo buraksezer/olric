@@ -40,4 +40,3 @@ type ServiceDiscovery interface {
 	// Close stops underlying goroutines, if there is any. It should be a blocking call.
 	Close() error
 }
-

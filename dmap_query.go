@@ -1,4 +1,4 @@
-// Copyright 2020 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ type Cursor struct {
 	cancel context.CancelFunc
 }
 
-// Query runs a distributed query on a DMap instance.
+// Query runs a distributed query on a dmap instance.
 // Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
 // few keywords:
 //
@@ -125,25 +125,28 @@ func (db *Olric) runLocalQuery(partID uint64, name string, q query.M) (queryResp
 	return result, nil
 }
 
-func (db *Olric) localQueryOperation(req *protocol.Message) *protocol.Message {
-	q, err := query.FromByte(req.Value)
+func (db *Olric) localQueryOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	q, err := query.FromByte(req.Value())
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 
-	partID := req.Extra.(protocol.LocalQueryExtra).PartID
-	result, err := db.runLocalQuery(partID, req.DMap, q)
+	partID := req.Extra().(protocol.LocalQueryExtra).PartID
+	result, err := db.runLocalQuery(partID, req.DMap(), q)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 
 	value, err := msgpack.Marshal(&result)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = value
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }
 
 func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
@@ -180,20 +183,19 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.VData, error) {
 
 			continue
 		}
-		msg := &protocol.Message{
-			DMap:  c.name,
-			Value: value,
-			Extra: protocol.LocalQueryExtra{
-				PartID: partID,
-			},
-		}
-		response, err := c.db.requestTo(owner.String(), protocol.OpLocalQuery, msg)
+		req := protocol.NewDMapMessage(protocol.OpLocalQuery)
+		req.SetDMap(c.name)
+		req.SetValue(value)
+		req.SetExtra(protocol.LocalQueryExtra{
+			PartID: partID,
+		})
+		response, err := c.db.requestTo(owner.String(), req)
 		if err != nil {
 			return nil, fmt.Errorf("query call is failed: %w", err)
 		}
 
 		tmp := make(queryResponse)
-		err = msgpack.Unmarshal(response.Value, &tmp)
+		err = msgpack.Unmarshal(response.Value(), &tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -291,28 +293,34 @@ func (c *Cursor) Close() {
 	c.cancel()
 }
 
-func (db *Olric) exQueryOperation(req *protocol.Message) *protocol.Message {
-	dm, err := db.NewDMap(req.DMap)
+func (db *Olric) exQueryOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	dm, err := db.NewDMap(req.DMap())
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
-	q, err := query.FromByte(req.Value)
+	q, err := query.FromByte(req.Value())
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 	c, err := dm.Query(q)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 	defer c.Close()
 
-	partID := req.Extra.(protocol.QueryExtra).PartID
+	partID := req.Extra().(protocol.QueryExtra).PartID
 	if partID >= db.config.PartitionCount {
-		return req.Error(protocol.StatusErrEndOfQuery, ErrEndOfQuery)
+		db.errorResponse(w, ErrEndOfQuery)
+		return
 	}
 	responses, err := c.runQueryOnOwners(partID)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
 
 	data := make(QueryResponse)
@@ -322,9 +330,9 @@ func (db *Olric) exQueryOperation(req *protocol.Message) *protocol.Message {
 
 	value, err := msgpack.Marshal(data)
 	if err != nil {
-		return req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = value
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }

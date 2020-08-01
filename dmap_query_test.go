@@ -1,4 +1,4 @@
-// Copyright 2020 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -333,25 +333,26 @@ func TestDMap_Query(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	m := &protocol.Message{
-		DMap:  "mydmap",
-		Value: value,
-		Extra: protocol.QueryExtra{PartID: 0},
-	}
+
+	req := protocol.NewDMapMessage(protocol.OpQuery)
+	req.SetDMap("mydmap")
+	req.SetValue(value)
+	req.SetExtra(protocol.QueryExtra{PartID: 0})
+
 	cc := &transport.ClientConfig{
 		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	cl := transport.NewClient(cc)
-	resp, err := cl.Request(protocol.OpQuery, m)
+	resp, err := cl.Request(req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	if resp.Status != protocol.StatusOK {
-		t.Fatalf("Expected protocol.StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status)
+	if resp.Status() != protocol.StatusOK {
+		t.Fatalf("Expected protocol.StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status())
 	}
 	var qr QueryResponse
-	if err = msgpack.Unmarshal(resp.Value, &qr); err != nil {
+	if err = msgpack.Unmarshal(resp.Value(), &qr); err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
@@ -399,21 +400,22 @@ func TestDMap_QueryEndOfKeySpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	m := &protocol.Message{
-		DMap:  "mydmap",
-		Value: value,
-		Extra: protocol.QueryExtra{PartID: 300},
-	}
+
+	req := protocol.NewDMapMessage(protocol.OpQuery)
+	req.SetDMap("mydmap")
+	req.SetValue(value)
+	req.SetExtra(protocol.QueryExtra{PartID: 300})
+
 	cc := &transport.ClientConfig{
 		Addrs:   []string{db.name},
 		MaxConn: 10,
 	}
 	cl := transport.NewClient(cc)
-	resp, err := cl.Request(protocol.OpQuery, m)
+	resp, err := cl.Request(req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	if resp.Status != protocol.StatusErrEndOfQuery {
-		t.Fatalf("Expected protocol.ErrEndOfQuery (%d). Got: %d", protocol.StatusErrEndOfQuery, resp.Status)
+	if resp.Status() != protocol.StatusErrEndOfQuery {
+		t.Fatalf("Expected protocol.ErrEndOfQuery (%d). Got: %d", protocol.StatusErrEndOfQuery, resp.Status())
 	}
 }

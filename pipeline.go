@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,45 +21,55 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (db *Olric) pipelineOperation(req *protocol.Message) *protocol.Message {
-	conn := bytes.NewBuffer(req.Value)
-	response := &bytes.Buffer{}
-	// Read the pipelined messages into an in-memory buffer.
+func (db *Olric) extractPipelineMessage(conn io.ReadWriteCloser, response *bytes.Buffer) error {
+	buf := bufferPool.Get()
+	defer bufferPool.Put(buf)
+
+	_, err := protocol.ReadMessage(conn, buf)
+	if err != nil {
+		return err
+	}
+	preq := protocol.NewDMapMessageFromRequest(buf)
+	err = preq.Decode()
+	// Return an error message in pipelined response.
+	if err != nil {
+		preq.SetStatus(protocol.StatusInternalServerError)
+		preq.SetValue([]byte(err.Error()))
+		return nil
+	}
+	f, ok := db.operations[preq.Op]
+	if !ok {
+		preq.SetStatus(protocol.StatusInternalServerError)
+		preq.SetValue([]byte(ErrUnknownOperation.Error()))
+		return nil
+	}
+
+	presp := preq.Response(response)
+	// Call its function to prepare a response.
+	f(presp, preq)
+	return presp.Encode()
+}
+
+func (db *Olric) pipelineOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.PipelineMessage)
+	conn := protocol.NewBytesToConn(req.Value())
+	response := bufferPool.Get()
+	defer bufferPool.Put(response)
+
+	// Decode the pipelined messages into an in-memory buffer.
 	for {
-		var preq protocol.Message
-		err := preq.Read(conn)
+		err := db.extractPipelineMessage(conn, response)
 		if err == io.EOF {
 			// It's done. The last message has been read.
 			break
 		}
-
-		// Return an error message in pipelined response.
 		if err != nil {
-			err = preq.Error(protocol.StatusInternalServerError, err).Write(response)
-			if err != nil {
-				return req.Error(protocol.StatusInternalServerError, err)
-			}
-			continue
-		}
-		f, ok := db.operations[preq.Op]
-		if !ok {
-			err = preq.Error(protocol.StatusInternalServerError, ErrUnknownOperation).Write(response)
-			if err != nil {
-				return req.Error(protocol.StatusInternalServerError, err)
-			}
-			continue
-		}
-
-		// Call its function to prepare a response.
-		pres := f(&preq)
-		err = pres.Write(response)
-		if err != nil {
-			return req.Error(protocol.StatusInternalServerError, err)
+			db.errorResponse(w, err)
+			return
 		}
 	}
 
-	// Create a success response and assign pipelined responses as Value.
-	resp := req.Success()
-	resp.Value = response.Bytes()
-	return resp
+	// Create a success response and assign pipelined responses as value.
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(response.Bytes())
 }

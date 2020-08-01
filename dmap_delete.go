@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ func (db *Olric) deleteStaleDMaps() {
 				return true
 			}
 			part.m.Delete(name)
-			db.log.V(4).Printf("[INFO] Stale DMap (backup: %v) has been deleted: %s on PartID: %d",
+			db.log.V(4).Printf("[INFO] Stale dmap (backup: %v) has been deleted: %s on PartID: %d",
 				part.backup, name, part.id)
 			return true
 		})
@@ -55,11 +55,10 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
-		msg := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
-		_, err := db.requestTo(owner.String(), protocol.OpDeletePrev, msg)
+		req := protocol.NewDMapMessage(protocol.OpDeletePrev)
+		req.SetDMap(name)
+		req.SetKey(key)
+		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			return err
 		}
@@ -88,11 +87,10 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 func (db *Olric) deleteKey(name, key string) error {
 	member, hkey := db.findPartitionOwner(name, key)
 	if !hostCmp(member, db.this) {
-		msg := &protocol.Message{
-			DMap: name,
-			Key:  key,
-		}
-		_, err := db.requestTo(member.String(), protocol.OpDelete, msg)
+		req := protocol.NewDMapMessage(protocol.OpDelete)
+		req.SetDMap(name)
+		req.SetKey(key)
+		_, err := db.requestTo(member.String(), req)
 		return err
 	}
 
@@ -111,16 +109,23 @@ func (dm *DMap) Delete(key string) error {
 	return dm.db.deleteKey(dm.name, key)
 }
 
-func (db *Olric) exDeleteOperation(req *protocol.Message) *protocol.Message {
-	err := db.deleteKey(req.DMap, req.Key)
-	return db.prepareResponse(req, err)
+func (db *Olric) exDeleteOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	err := db.deleteKey(req.DMap(), req.Key())
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
-func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getDMap(req.DMap, hkey)
+func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	hkey := db.getHKey(req.DMap(), req.Key())
+	dm, err := db.getDMap(req.DMap(), hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 	dm.Lock()
 	defer dm.Unlock()
@@ -131,14 +136,20 @@ func (db *Olric) deletePrevOperation(req *protocol.Message) *protocol.Message {
 		go db.compactTables(dm)
 		err = nil
 	}
-	return db.prepareResponse(req, err)
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
-func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getBackupDMap(req.DMap, hkey)
+func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	hkey := db.getHKey(req.DMap(), req.Key())
+	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 	dm.Lock()
 	defer dm.Unlock()
@@ -149,7 +160,11 @@ func (db *Olric) deleteBackupOperation(req *protocol.Message) *protocol.Message 
 		go db.compactTables(dm)
 		err = nil
 	}
-	return db.prepareResponse(req, err)
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
 func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
@@ -159,11 +174,10 @@ func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
 		mem := backup
 		g.Go(func() error {
 			// TODO: Add retry with backoff
-			req := &protocol.Message{
-				DMap: name,
-				Key:  key,
-			}
-			_, err := db.requestTo(mem.String(), protocol.OpDeleteBackup, req)
+			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)
+			req.SetDMap(name)
+			req.SetKey(key)
+			_, err := db.requestTo(mem.String(), req)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
 			}

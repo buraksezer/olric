@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ func Test_Get(t *testing.T) {
 			t.Fatalf("Expected %d. Got %v", i, vdata.TTL)
 		}
 		if !bytes.Equal(vdata.Value, bval(i)) {
-			t.Fatalf("Value is malformed for %d", i)
+			t.Fatalf("value is malformed for %d", i)
 		}
 		if timestamp != vdata.Timestamp {
 			t.Fatalf("Expected Timestamp: %d. Got: %d", timestamp, vdata.Timestamp)
@@ -188,7 +188,7 @@ func Test_CompactTables(t *testing.T) {
 		}
 		val := []byte(fmt.Sprintf("%01000d", i))
 		if !bytes.Equal(vdata.Value, val) {
-			t.Fatalf("Value is malformed for %d", i)
+			t.Fatalf("value is malformed for %d", i)
 		}
 	}
 
@@ -311,7 +311,7 @@ func Test_ExportImport(t *testing.T) {
 			t.Fatalf("Expected %d. Got %v", i, vdata.TTL)
 		}
 		if !bytes.Equal(vdata.Value, bval(i)) {
-			t.Fatalf("Value is malformed for %d", i)
+			t.Fatalf("value is malformed for %d", i)
 		}
 		if timestamp != vdata.Timestamp {
 			t.Fatalf("Expected Timestamp: %d. Got: %d", timestamp, vdata.Timestamp)
@@ -426,7 +426,7 @@ func Test_UpdateTTL(t *testing.T) {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 		if vdata.Key != bkey(i) {
-			t.Fatalf("Expected Key: %s. Got %s", bkey(i), vdata.Key)
+			t.Fatalf("Expected key: %s. Got %s", bkey(i), vdata.Key)
 		}
 		if vdata.TTL != 10 {
 			t.Fatalf("Expected TTL: %d. Got %v", i, vdata.TTL)

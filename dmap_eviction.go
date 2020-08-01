@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ func (db *Olric) evictKeys() {
 	part.m.Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
 		db.scanDMapForEviction(partID, name.(string), dm)
-		// this breaks the loop, we only scan one DMap instance per call
+		// this breaks the loop, we only scan one dmap instance per call
 		return false
 	})
 }
@@ -103,7 +103,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 				err := db.delKeyVal(dm, hkey, name, vdata.Key)
 				if err != nil {
 					// It will be tried again.
-					db.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
+					db.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on dmap: %s: %v",
 						hkey, name, err)
 					return true // this means 'continue'
 				}
@@ -212,7 +212,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 		return err
 	}
 	if db.log.V(6).Ok() {
-		db.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, Key: %s with LRU", name, key)
+		db.log.V(6).Printf("[DEBUG] Evicted item on dmap: %s, key: %s with LRU", name, key)
 	}
 	return db.delKeyVal(dm, item.HKey, name, key)
 }

@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ func TestDMap_GetBackup(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		if !bytes.Equal(value.([]byte), bval(i)) {
-			t.Fatalf("Value is different for key: %s", key)
+			t.Fatalf("value is different for key: %s", key)
 		}
 	}
 }

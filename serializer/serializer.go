@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,10 +46,8 @@ func (g gobSerializer) Marshal(value interface{}) ([]byte, error) {
 		v := reflect.New(t).Elem().Interface()
 		gob.Register(v)
 	}
-	// TODO: As an optimization, you may want to a bytes.Buffer pool to reduce
-	// memory consumption.
-	var res bytes.Buffer
-	err := gob.NewEncoder(&res).Encode(&value)
+	res := new(bytes.Buffer)
+	err := gob.NewEncoder(res).Encode(&value)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +72,9 @@ func NewJSONSerializer() Serializer {
 
 type msgpackSerializer struct{}
 
-func (m msgpackSerializer) Marshal(v interface{}) ([]byte, error) { return msgpack.Marshal(v) }
+func (m msgpackSerializer) Marshal(v interface{}) ([]byte, error) {
+	return msgpack.Marshal(v)
+}
 
 func (m msgpackSerializer) Unmarshal(data []byte, v interface{}) error {
 	return msgpack.Unmarshal(data, v)

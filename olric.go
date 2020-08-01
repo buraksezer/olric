@@ -28,6 +28,7 @@ import (
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
+	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/locker"
@@ -56,17 +57,28 @@ var (
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
 	ErrUnknownOperation = errors.New("unknown operation")
 
-	// ErrBadRequest denotes that request body is invalid.
-	ErrBadRequest = errors.New("bad request")
+	ErrServerGone = errors.New("server is gone")
+
+	ErrInvalidArgument = errors.New("invalid argument")
+
+	ErrKeyTooLarge = errors.New("key too large")
+
+	ErrNotImplemented = errors.New("not implemented")
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.2.0"
+const ReleaseVersion string = "0.3.0"
 
 const (
 	nilTimeout                = 0 * time.Second
 	requiredCheckpoints int32 = 2
 )
+
+// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
+type members struct {
+	mtx sync.RWMutex
+	m   map[uint64]discovery.Member
+}
 
 // Olric implements a distributed, in-memory and embeddable key/value store and cache.
 type Olric struct {
@@ -107,11 +119,20 @@ type Olric struct {
 	backups    map[uint64]*partition
 
 	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
-	operations map[protocol.OpCode]func(*protocol.Message) *protocol.Message
+	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
 
 	// Internal TCP server and its client for peer-to-peer communication.
 	client *transport.Client
 	server *transport.Server
+
+	// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
+	members members
+
+	// Dispatch topic messages
+	dtopic *dtopic
+
+	// Bidirectional stream sockets for Olric clients and nodes.
+	streams *streams
 
 	// Structures for flow control
 	ctx    context.Context
@@ -122,6 +143,9 @@ type Olric struct {
 	// the server is ready to accept new connections.
 	started func()
 }
+
+// pool is good for recycling memory while reading messages from the socket.
+var bufferPool = bufpool.New()
 
 // New creates a new Olric instance, otherwise returns an error.
 func New(c *config.Config) (*Olric, error) {
@@ -182,8 +206,11 @@ func New(c *config.Config) (*Olric, error) {
 		client:     client,
 		partitions: make(map[uint64]*partition),
 		backups:    make(map[uint64]*partition),
-		operations: make(map[protocol.OpCode]func(*protocol.Message) *protocol.Message),
+		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     transport.NewServer(c.BindAddr, c.BindPort, c.KeepAlivePeriod, flogger),
+		members:    members{m: make(map[uint64]discovery.Member)},
+		dtopic:     newDTopic(ctx),
+		streams:    &streams{m: make(map[uint64]*stream)},
 		started:    c.Started,
 	}
 
@@ -210,21 +237,23 @@ func (db *Olric) passCheckpoint() {
 	atomic.AddInt32(&db.passedCheckpoints, 1)
 }
 
-func (db *Olric) requestDispatcher(req *protocol.Message) *protocol.Message {
+func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Check bootstrapping status
 	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this operation.
-	if req.Op != protocol.OpUpdateRouting {
+	if r.OpCode() != protocol.OpUpdateRouting {
 		if err := db.checkOperationStatus(); err != nil {
-			return db.prepareResponse(req, err)
+			db.errorResponse(w, err)
+			return
 		}
 	}
 
 	// Run the incoming command.
-	opr, ok := db.operations[req.Op]
+	f, ok := db.operations[r.OpCode()]
 	if !ok {
-		return db.prepareResponse(req, ErrUnknownOperation)
+		db.errorResponse(w, ErrUnknownOperation)
+		return
 	}
-	return opr(req)
+	f(w, r)
 }
 
 // bootstrapCoordinator prepares the very first routing table and bootstraps the coordinator node.
@@ -314,6 +343,10 @@ func (db *Olric) startDiscovery() error {
 		}
 	}
 
+	db.members.mtx.Lock()
+	db.members.m[db.this.ID] = db.this
+	db.members.mtx.Unlock()
+
 	db.consistent.Add(db.this)
 	if db.discovery.IsCoordinator() {
 		err = db.bootstrapCoordinator()
@@ -366,132 +399,100 @@ func (db *Olric) callStartedCallback() {
 	}
 }
 
-func (db *Olric) registerOperations() {
-	// Put
-	db.operations[protocol.OpPut] = db.exPutOperation
-	db.operations[protocol.OpPutEx] = db.exPutOperation
-	db.operations[protocol.OpPutReplica] = db.putReplicaOperation
-	db.operations[protocol.OpPutExReplica] = db.putReplicaOperation
-	db.operations[protocol.OpPutIf] = db.exPutOperation
-	db.operations[protocol.OpPutIfEx] = db.exPutOperation
-	db.operations[protocol.OpPutIfReplica] = db.putReplicaOperation
-	db.operations[protocol.OpPutIfExReplica] = db.putReplicaOperation
+func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
+	getError := func(err interface{}) []byte {
+		switch val := err.(type) {
+		case string:
+			return []byte(val)
+		case error:
+			return []byte(val.Error())
+		default:
+			return nil
+		}
+	}
+	w.SetValue(getError(err))
 
-	// Get
-	db.operations[protocol.OpGet] = db.exGetOperation
-	db.operations[protocol.OpGetPrev] = db.getPrevOperation
-	db.operations[protocol.OpGetBackup] = db.getBackupOperation
-
-	// Delete
-	db.operations[protocol.OpDelete] = db.exDeleteOperation
-	db.operations[protocol.OpDeleteBackup] = db.deleteBackupOperation
-	db.operations[protocol.OpDeletePrev] = db.deletePrevOperation
-
-	// Lock/Unlock
-	db.operations[protocol.OpLockWithTimeout] = db.exLockWithTimeoutOperation
-	db.operations[protocol.OpLock] = db.exLockOperation
-	db.operations[protocol.OpUnlock] = db.exUnlockOperation
-
-	// Destroy
-	db.operations[protocol.OpDestroy] = db.exDestroyOperation
-	db.operations[protocol.OpDestroyDMap] = db.destroyDMapOperation
-
-	// Atomic
-	db.operations[protocol.OpIncr] = db.exIncrDecrOperation
-	db.operations[protocol.OpDecr] = db.exIncrDecrOperation
-	db.operations[protocol.OpGetPut] = db.exGetPutOperation
-
-	// Pipeline
-	db.operations[protocol.OpPipeline] = db.pipelineOperation
-
-	// Expire
-	db.operations[protocol.OpExpire] = db.exExpireOperation
-	db.operations[protocol.OpExpireReplica] = db.expireReplicaOperation
-
-	// Internal
-	db.operations[protocol.OpUpdateRouting] = db.updateRoutingOperation
-	db.operations[protocol.OpMoveDMap] = db.moveDMapOperation
-	db.operations[protocol.OpLengthOfPart] = db.keyCountOnPartOperation
-
-	// Aliveness
-	db.operations[protocol.OpPing] = db.pingOperation
-
-	// Node Stats
-	db.operations[protocol.OpStats] = db.statsOperation
-
-	// Distributed Query
-	db.operations[protocol.OpLocalQuery] = db.localQueryOperation
-	db.operations[protocol.OpQuery] = db.exQueryOperation
-}
-
-func (db *Olric) prepareResponse(req *protocol.Message, err error) *protocol.Message {
 	switch {
-	case err == nil:
-		return req.Success()
-	case err == ErrWriteQuorum:
-		return req.Error(protocol.StatusErrWriteQuorum, err)
-	case err == ErrReadQuorum:
-		return req.Error(protocol.StatusErrReadQuorum, err)
-	case err == ErrNoSuchLock:
-		return req.Error(protocol.StatusErrNoSuchLock, err)
-	case err == ErrLockNotAcquired:
-		return req.Error(protocol.StatusErrLockNotAcquired, err)
+	case err == ErrWriteQuorum, errors.Is(err, ErrWriteQuorum):
+		w.SetStatus(protocol.StatusErrWriteQuorum)
+	case err == ErrReadQuorum, errors.Is(err, ErrReadQuorum):
+		w.SetStatus(protocol.StatusErrReadQuorum)
+	case err == ErrNoSuchLock, errors.Is(err, ErrNoSuchLock):
+		w.SetStatus(protocol.StatusErrNoSuchLock)
+	case err == ErrLockNotAcquired, errors.Is(err, ErrLockNotAcquired):
+		w.SetStatus(protocol.StatusErrLockNotAcquired)
 	case err == ErrKeyNotFound, err == storage.ErrKeyNotFound:
-		return req.Error(protocol.StatusErrKeyNotFound, err)
-	case err == storage.ErrKeyTooLarge:
-		return req.Error(protocol.StatusBadRequest, err)
-	case err == ErrOperationTimeout:
-		return req.Error(protocol.StatusErrOperationTimeout, err)
-	case err == ErrKeyFound:
-		return req.Error(protocol.StatusErrKeyFound, err)
-	case err == ErrClusterQuorum:
-		return req.Error(protocol.StatusErrClusterQuorum, err)
-	case err == ErrUnknownOperation:
-		return req.Error(protocol.StatusErrUnknownOperation, err)
-	case err == ErrEndOfQuery:
-		return req.Error(protocol.StatusErrEndOfQuery, err)
-	case err == ErrBadRequest:
-		return req.Error(protocol.StatusBadRequest, err)
+		w.SetStatus(protocol.StatusErrKeyNotFound)
+	case errors.Is(err, ErrKeyNotFound), errors.Is(err, storage.ErrKeyNotFound):
+		w.SetStatus(protocol.StatusErrKeyNotFound)
+	case err == ErrKeyTooLarge, err == storage.ErrKeyTooLarge:
+		w.SetStatus(protocol.StatusErrKeyTooLarge)
+	case errors.Is(err, ErrKeyTooLarge), errors.Is(err, storage.ErrKeyTooLarge):
+		w.SetStatus(protocol.StatusErrKeyTooLarge)
+	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
+		w.SetStatus(protocol.StatusErrOperationTimeout)
+	case err == ErrKeyFound, errors.Is(err, ErrKeyFound):
+		w.SetStatus(protocol.StatusErrKeyFound)
+	case err == ErrClusterQuorum, errors.Is(err, ErrClusterQuorum):
+		w.SetStatus(protocol.StatusErrClusterQuorum)
+	case err == ErrUnknownOperation, errors.Is(err, ErrUnknownOperation):
+		w.SetStatus(protocol.StatusErrUnknownOperation)
+	case err == ErrEndOfQuery, errors.Is(err, ErrEndOfQuery):
+		w.SetStatus(protocol.StatusErrEndOfQuery)
+	case err == ErrServerGone, errors.Is(err, ErrServerGone):
+		w.SetStatus(protocol.StatusErrServerGone)
+	case err == ErrInvalidArgument, errors.Is(err, ErrInvalidArgument):
+		w.SetStatus(protocol.StatusErrInvalidArgument)
+	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
+		w.SetStatus(protocol.StatusErrNotImplemented)
 	default:
-		return req.Error(protocol.StatusInternalServerError, err)
+		w.SetStatus(protocol.StatusInternalServerError)
 	}
 }
 
-func (db *Olric) requestTo(addr string, opcode protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
-	resp, err := db.client.RequestTo(addr, opcode, req)
+func (db *Olric) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	resp, err := db.client.RequestTo(addr, req)
 	if err != nil {
 		return nil, err
 	}
 
+	status := resp.Status()
+
 	switch {
-	case resp.Status == protocol.StatusOK:
+	case status == protocol.StatusOK:
 		return resp, nil
-	case resp.Status == protocol.StatusInternalServerError:
-		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value))
-	case resp.Status == protocol.StatusErrNoSuchLock:
+	case status == protocol.StatusInternalServerError:
+		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value()))
+	case status == protocol.StatusErrNoSuchLock:
 		return nil, ErrNoSuchLock
-	case resp.Status == protocol.StatusErrLockNotAcquired:
+	case status == protocol.StatusErrLockNotAcquired:
 		return nil, ErrLockNotAcquired
-	case resp.Status == protocol.StatusErrKeyNotFound:
+	case status == protocol.StatusErrKeyNotFound:
 		return nil, ErrKeyNotFound
-	case resp.Status == protocol.StatusErrWriteQuorum:
+	case status == protocol.StatusErrWriteQuorum:
 		return nil, ErrWriteQuorum
-	case resp.Status == protocol.StatusErrReadQuorum:
+	case status == protocol.StatusErrReadQuorum:
 		return nil, ErrReadQuorum
-	case resp.Status == protocol.StatusErrOperationTimeout:
+	case status == protocol.StatusErrOperationTimeout:
 		return nil, ErrOperationTimeout
-	case resp.Status == protocol.StatusErrKeyFound:
+	case status == protocol.StatusErrKeyFound:
 		return nil, ErrKeyFound
-	case resp.Status == protocol.StatusErrClusterQuorum:
+	case status == protocol.StatusErrClusterQuorum:
 		return nil, ErrClusterQuorum
-	case resp.Status == protocol.StatusErrEndOfQuery:
+	case status == protocol.StatusErrEndOfQuery:
 		return nil, ErrEndOfQuery
-	case resp.Status == protocol.StatusErrUnknownOperation:
+	case status == protocol.StatusErrUnknownOperation:
 		return nil, ErrUnknownOperation
-	case resp.Status == protocol.StatusBadRequest:
-		return nil, ErrBadRequest
+	case status == protocol.StatusErrServerGone:
+		return nil, ErrServerGone
+	case status == protocol.StatusErrInvalidArgument:
+		return nil, ErrInvalidArgument
+	case status == protocol.StatusErrKeyTooLarge:
+		return nil, ErrKeyTooLarge
+	case status == protocol.StatusErrNotImplemented:
+		return nil, ErrNotImplemented
 	}
-	return nil, fmt.Errorf("unknown status code: %d", resp.Status)
+	return nil, fmt.Errorf("unknown status code: %d", status)
 }
 
 func (db *Olric) isAlive() bool {
@@ -608,6 +609,14 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
+
+	db.streams.mu.RLock()
+	db.log.V(2).Printf("[INFO] Closing active streams")
+	for _, s := range db.streams.m {
+		s.close()
+	}
+	db.streams.mu.RUnlock()
+
 	if err := db.server.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}

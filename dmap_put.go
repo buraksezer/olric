@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,10 +49,11 @@ type writeop struct {
 }
 
 // fromReq generates a new protocol message from writeop instance.
-func (w *writeop) fromReq(req *protocol.Message) {
-	w.dmap = req.DMap
-	w.key = req.Key
-	w.value = req.Value
+func (w *writeop) fromReq(r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	w.dmap = req.DMap()
+	w.key = req.Key()
+	w.value = req.Value()
 	w.opcode = req.Op
 
 	// Set opcode for a possible replica operation
@@ -70,58 +71,57 @@ func (w *writeop) fromReq(req *protocol.Message) {
 	// Extract extras
 	switch req.Op {
 	case protocol.OpPut, protocol.OpPutReplica:
-		w.timestamp = req.Extra.(protocol.PutExtra).Timestamp
+		w.timestamp = req.Extra().(protocol.PutExtra).Timestamp
 	case protocol.OpPutEx, protocol.OpPutExReplica:
-		w.timestamp = req.Extra.(protocol.PutExExtra).Timestamp
-		w.timeout = time.Duration(req.Extra.(protocol.PutExExtra).TTL)
+		w.timestamp = req.Extra().(protocol.PutExExtra).Timestamp
+		w.timeout = time.Duration(req.Extra().(protocol.PutExExtra).TTL)
 	case protocol.OpPutIf, protocol.OpPutIfReplica:
-		w.flags = req.Extra.(protocol.PutIfExtra).Flags
-		w.timestamp = req.Extra.(protocol.PutIfExtra).Timestamp
+		w.flags = req.Extra().(protocol.PutIfExtra).Flags
+		w.timestamp = req.Extra().(protocol.PutIfExtra).Timestamp
 	case protocol.OpPutIfEx, protocol.OpPutIfExReplica:
-		w.flags = req.Extra.(protocol.PutIfExExtra).Flags
-		w.timestamp = req.Extra.(protocol.PutIfExExtra).Timestamp
-		w.timeout = time.Duration(req.Extra.(protocol.PutIfExExtra).TTL)
+		w.flags = req.Extra().(protocol.PutIfExExtra).Flags
+		w.timestamp = req.Extra().(protocol.PutIfExExtra).Timestamp
+		w.timeout = time.Duration(req.Extra().(protocol.PutIfExExtra).TTL)
 	case protocol.OpExpire:
-		w.timestamp = req.Extra.(protocol.ExpireExtra).Timestamp
-		w.timeout = time.Duration(req.Extra.(protocol.ExpireExtra).TTL)
+		w.timestamp = req.Extra().(protocol.ExpireExtra).Timestamp
+		w.timeout = time.Duration(req.Extra().(protocol.ExpireExtra).TTL)
 	}
 }
 
 // toReq generates a new protocol message from a writeop.
-func (w *writeop) toReq(opcode protocol.OpCode) *protocol.Message {
-	req := &protocol.Message{
-		DMap:  w.dmap,
-		Key:   w.key,
-		Value: w.value,
-	}
+func (w *writeop) toReq(opcode protocol.OpCode) *protocol.DMapMessage {
+	req := protocol.NewDMapMessage(opcode)
+	req.SetDMap(w.dmap)
+	req.SetKey(w.key)
+	req.SetValue(w.value)
 
 	// Prepare extras
 	switch opcode {
 	case protocol.OpPut, protocol.OpPutReplica:
-		req.Extra = protocol.PutExtra{
+		req.SetExtra(protocol.PutExtra{
 			Timestamp: w.timestamp,
-		}
+		})
 	case protocol.OpPutEx, protocol.OpPutExReplica:
-		req.Extra = protocol.PutExExtra{
+		req.SetExtra(protocol.PutExExtra{
 			TTL:       w.timeout.Nanoseconds(),
 			Timestamp: w.timestamp,
-		}
+		})
 	case protocol.OpPutIf, protocol.OpPutIfReplica:
-		req.Extra = protocol.PutIfExtra{
+		req.SetExtra(protocol.PutIfExtra{
 			Flags:     w.flags,
 			Timestamp: w.timestamp,
-		}
+		})
 	case protocol.OpPutIfEx, protocol.OpPutIfExReplica:
-		req.Extra = protocol.PutIfExExtra{
+		req.SetExtra(protocol.PutIfExExtra{
 			Flags:     w.flags,
 			Timestamp: w.timestamp,
 			TTL:       w.timeout.Nanoseconds(),
-		}
+		})
 	case protocol.OpExpire:
-		req.Extra = protocol.ExpireExtra{
+		req.SetExtra(protocol.ExpireExtra{
 			Timestamp: w.timestamp,
 			TTL:       w.timeout.Nanoseconds(),
-		}
+		})
 	}
 	return req
 }
@@ -159,7 +159,7 @@ func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
 			defer db.wg.Done()
-			_, err := db.requestTo(host.String(), w.replicaOpcode, req)
+			_, err := db.requestTo(host.String(), req)
 			if err != nil {
 				if db.log.V(3).Ok() {
 					db.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
@@ -177,10 +177,10 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	var successful int
 	owners := db.getBackupPartitionOwners(hkey)
 	for _, owner := range owners {
-		_, err := db.requestTo(owner.String(), w.replicaOpcode, req)
+		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, w.dmap, err)
+				db.log.V(3).Printf("[ERROR] Failed to call put command on %s for dmap: %s: %v", owner, w.dmap, err)
 			}
 			continue
 		}
@@ -189,7 +189,7 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	err := db.localPut(hkey, dm, w)
 	if err != nil {
 		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.this, w.dmap, err)
+			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for dmap: %s: %v", db.this, w.dmap, err)
 		}
 	} else {
 		successful++
@@ -201,7 +201,7 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 }
 
 func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
-	// Get the DMap and acquire its lock
+	// Get the dmap and acquire its lock
 	dm, err := db.getDMap(w.dmap, hkey)
 	if err != nil {
 		return err
@@ -311,7 +311,7 @@ func (db *Olric) put(w *writeop) error {
 	}
 	// Redirect to the partition owner.
 	req := w.toReq(w.opcode)
-	_, err := db.requestTo(member.String(), w.opcode, req)
+	_, err := db.requestTo(member.String(), req)
 	return err
 }
 
@@ -344,7 +344,7 @@ func (db *Olric) prepareWriteop(opcode protocol.OpCode, name, key string,
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. Value type
+// value for that key. It's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
@@ -356,7 +356,7 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 }
 
 // Put sets the value for the given key. It overwrites any previous value
-// for that key and it's thread-safe. The key has to be string. Value type
+// for that key and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
@@ -368,7 +368,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 }
 
 // Put sets the value for the given key. It overwrites any previous value
-// for that key and it's thread-safe. The key has to be string. Value type
+// for that key and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 // Flag argument currently has two different options:
@@ -387,7 +387,7 @@ func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 }
 
 // PutIfEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. Value type
+// value for that key. It's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 // Flag argument currently has two different options:
@@ -405,24 +405,36 @@ func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, fl
 	return dm.db.put(w)
 }
 
-func (db *Olric) exPutOperation(req *protocol.Message) *protocol.Message {
-	w := &writeop{}
-	w.fromReq(req)
-	return db.prepareResponse(req, db.put(w))
+func (db *Olric) exPutOperation(w, r protocol.EncodeDecoder) {
+	wo := &writeop{}
+	wo.fromReq(r)
+	err := db.put(wo)
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
-func (db *Olric) putReplicaOperation(req *protocol.Message) *protocol.Message {
-	hkey := db.getHKey(req.DMap, req.Key)
-	dm, err := db.getBackupDMap(req.DMap, hkey)
+func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	hkey := db.getHKey(req.DMap(), req.Key())
+	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
 	dm.Lock()
 	defer dm.Unlock()
 
-	w := &writeop{}
-	w.fromReq(req)
-	return db.prepareResponse(req, db.localPut(hkey, dm, w))
+	wo := &writeop{}
+	wo.fromReq(req)
+	err = db.localPut(hkey, dm, wo)
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }
 
 func (db *Olric) compactTables(dm *dmap) {

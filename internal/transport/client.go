@@ -1,4 +1,4 @@
-// Copyright 2018 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -127,14 +127,11 @@ func (c *Client) ClosePool(addr string) {
 }
 
 // RequestTo initiates a request-response cycle to given host.
-func (c *Client) RequestTo(addr string, op protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
+func (c *Client) RequestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	cpool, err := c.getPool(addr)
 	if err != nil {
 		return nil, err
 	}
-
-	req.Magic = protocol.MagicReq
-	req.Op = op
 
 	conn, err := cpool.Get()
 	if err != nil {
@@ -158,23 +155,36 @@ func (c *Client) RequestTo(addr string, op protocol.OpCode, req *protocol.Messag
 		}
 	}()
 
-	err = req.Write(conn)
+	buf := bufferPool.Get()
+	defer bufferPool.Put(buf)
+	req.SetBuffer(buf)
+
+	err = req.Encode()
 	if err != nil {
 		deadConn = true
 		return nil, err
 	}
 
-	var resp protocol.Message
-	err = resp.Read(conn)
+	_, err = req.Buffer().WriteTo(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	// Await for the response
+	buf.Reset()
+	_, err = protocol.ReadMessage(conn, buf)
+	// Response is a shortcut to create a response message for the request.
+	resp := req.Response(buf)
+	err = resp.Decode()
 	if err != nil {
 		deadConn = true
 		return nil, err
 	}
-	return &resp, err
+	return resp, err
 }
 
 // Request initiates a request-response cycle to randomly selected host.
-func (c *Client) Request(op protocol.OpCode, req *protocol.Message) (*protocol.Message, error) {
+func (c *Client) Request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	addr := c.roundrobin.Get()
-	return c.RequestTo(addr, op, req)
+	return c.RequestTo(addr, req)
 }

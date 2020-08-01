@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,12 +33,12 @@ type SlabInfo struct {
 	Garbage int
 }
 
-// DMap denotes a distributed map instance on the cluster.
+// dmap denotes a distributed map instance on the cluster.
 type DMap struct {
 	Name   string
 	Length int
 
-	// Statistics about memory representation of the DMap.
+	// Statistics about memory representation of the dmap.
 	SlabInfo SlabInfo
 }
 

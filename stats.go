@@ -1,4 +1,4 @@
-// Copyright 2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,15 +78,15 @@ func (db *Olric) stats() stats.Stats {
 	return s
 }
 
-func (db *Olric) statsOperation(req *protocol.Message) *protocol.Message {
+func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
 	s := db.stats()
 	value, err := msgpack.Marshal(s)
 	if err != nil {
-		req.Error(protocol.StatusInternalServerError, err)
+		db.errorResponse(w, err)
+		return
 	}
-	res := req.Success()
-	res.Value = value
-	return res
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(value)
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.

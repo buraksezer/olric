@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,14 +18,14 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (db *Olric) pingOperation(req *protocol.Message) *protocol.Message {
-	return req.Success()
+func (db *Olric) pingOperation(w, _ protocol.EncodeDecoder) {
+	w.SetStatus(protocol.StatusOK)
 }
 
 // Ping sends a dummy protocol messsage to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
 func (db *Olric) Ping(addr string) error {
-	req := &protocol.Message{}
-	_, err := db.requestTo(addr, protocol.OpPing, req)
+	req := protocol.NewSystemMessage(protocol.OpPing)
+	_, err := db.requestTo(addr, req)
 	return err
 }

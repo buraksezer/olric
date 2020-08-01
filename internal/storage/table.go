@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ func (t *table) put(hkey uint64, value *VData) error {
 	}
 
 	// Check empty space on allocated memory area.
-	inuse := len(value.Key) + len(value.Value) + 21 // TTL + Timestamp + Value-Length + Key-Length
+	inuse := len(value.Key) + len(value.Value) + 21 // TTL + Timestamp + value-Length + key-Length
 	if inuse+t.offset >= t.allocated {
 		return errNotEnoughSpace
 	}
@@ -138,13 +138,13 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64)  | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := int(t.memory[end])
 	end++       // One byte to keep key length
-	end += klen // Key length
+	end += klen // key length
 	end += 8    // For bytes for TTL
 	end += 8    // For bytes for Timestamp
 
 	vlen := binary.BigEndian.Uint32(t.memory[end : end+4])
 	end += 4         // 4 bytes to keep value length
-	end += int(vlen) // Value length
+	end += int(vlen) // value length
 
 	// Create a copy of the requested data.
 	rawval := make([]byte, (end-start)+1)
@@ -220,7 +220,7 @@ func (t *table) delete(hkey uint64) bool {
 	}
 	var garbage int
 
-	// Key, 1 byte for key size, klen for key's actual length.
+	// key, 1 byte for key size, klen for key's actual length.
 	klen := int(uint8(t.memory[offset]))
 	offset += 1 + klen
 	garbage += 1 + klen
@@ -233,7 +233,7 @@ func (t *table) delete(hkey uint64) bool {
 	offset += 8
 	garbage += 8
 
-	// Value len and its header.
+	// value len and its header.
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
 	garbage += 4 + int(vlen)
 
@@ -252,7 +252,7 @@ func (t *table) updateTTL(hkey uint64, value *VData) bool {
 		return true
 	}
 
-	// Key, 1 byte for key size, klen for key's actual length.
+	// key, 1 byte for key size, klen for key's actual length.
 	klen := int(uint8(t.memory[offset]))
 	offset += 1 + klen
 

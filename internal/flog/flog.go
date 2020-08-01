@@ -1,4 +1,4 @@
-// Copyright 2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ Derived from kubernetes/klog:
 
 // A Logger represents an active logging instance that generates lines of
 // output to an io.Writer. Each logging operation makes a single call to
-// the Writer's Write method. A Logger can be used simultaneously from
+// the Writer's Encode method. A Logger can be used simultaneously from
 // multiple goroutines; it guarantees to serialize access to the Writer.
 type Logger struct {
 	logger      *log.Logger

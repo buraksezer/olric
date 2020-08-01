@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -238,6 +238,6 @@ func TestDMap_EvictionPolicyLRUMaxInuse(t *testing.T) {
 	}
 	// Some of the keys should been evicted due to the policy.
 	if keyCount == 100 {
-		t.Fatalf("Key count has to be smaller than 100: %d", keyCount)
+		t.Fatalf("key count has to be smaller than 100: %d", keyCount)
 	}
 }

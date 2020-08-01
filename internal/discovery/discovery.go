@@ -276,7 +276,7 @@ func (d *Discovery) Rejoin(peers []string) (int, error) {
 	return d.memberlist.Join(peers)
 }
 
-// GetMembers returns a list of all known live nodes.
+// GetMembers returns a full list of known alive nodes.
 func (d *Discovery) GetMembers() []Member {
 	var members []Member
 	nodes := d.memberlist.Members()

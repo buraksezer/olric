@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Burak Sezer
+// Copyright 2018-2020 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 	defer func() {
 		err := db.locker.Unlock(lkey)
 		if err != nil {
-			db.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
+			db.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on dmap: %s: %v", key, name, err)
 		}
 	}()
 
@@ -85,12 +85,11 @@ func (db *Olric) unlock(name, key string, token []byte) error {
 	if hostCmp(member, db.this) {
 		return db.unlockKey(name, key, token)
 	}
-	msg := &protocol.Message{
-		DMap:  name,
-		Key:   key,
-		Value: token,
-	}
-	_, err := db.requestTo(member.String(), protocol.OpUnlock, msg)
+	req := protocol.NewDMapMessage(protocol.OpUnlock)
+	req.SetDMap(name)
+	req.SetKey(key)
+	req.SetValue(token)
+	_, err := db.requestTo(member.String(), req)
 	return err
 }
 
@@ -167,7 +166,7 @@ func (db *Olric) lockKey(opcode protocol.OpCode, name, key string,
 }
 
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
-// it automatically releases the lock. Acquired lock is only for the key in this DMap.
+// it automatically releases the lock. Acquired lock is only for the key in this dmap.
 //
 // It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
 //
@@ -176,7 +175,7 @@ func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*L
 	return dm.db.lockKey(protocol.OpPutIfEx, dm.name, key, timeout, deadline)
 }
 
-// Lock sets a lock for the given key. Acquired lock is only for the key in this DMap.
+// Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
 //
 // It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
 //
@@ -185,29 +184,37 @@ func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
 	return dm.db.lockKey(protocol.OpPutIf, dm.name, key, nilTimeout, deadline)
 }
 
-func (db *Olric) exLockWithTimeoutOperation(req *protocol.Message) *protocol.Message {
-	timeout := req.Extra.(protocol.LockWithTimeoutExtra).Timeout
-	deadline := req.Extra.(protocol.LockWithTimeoutExtra).Deadline
-	ctx, err := db.lockKey(protocol.OpPutIfEx, req.DMap, req.Key, time.Duration(timeout), time.Duration(deadline))
+func (db *Olric) exLockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
+	deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
+	ctx, err := db.lockKey(protocol.OpPutIfEx, req.DMap(), req.Key(), time.Duration(timeout), time.Duration(deadline))
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = ctx.token
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(ctx.token)
 }
 
-func (db *Olric) exLockOperation(req *protocol.Message) *protocol.Message {
-	deadline := req.Extra.(protocol.LockExtra).Deadline
-	ctx, err := db.lockKey(protocol.OpPutIf, req.DMap, req.Key, nilTimeout, time.Duration(deadline))
+func (db *Olric) exLockOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	deadline := req.Extra().(protocol.LockExtra).Deadline
+	ctx, err := db.lockKey(protocol.OpPutIf, req.DMap(), req.Key(), nilTimeout, time.Duration(deadline))
 	if err != nil {
-		return db.prepareResponse(req, err)
+		db.errorResponse(w, err)
+		return
 	}
-	resp := req.Success()
-	resp.Value = ctx.token
-	return resp
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(ctx.token)
 }
 
-func (db *Olric) exUnlockOperation(req *protocol.Message) *protocol.Message {
-	return db.prepareResponse(req, db.unlock(req.DMap, req.Key, req.Value))
+func (db *Olric) exUnlockOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	err := db.unlock(req.DMap(), req.Key(), req.Value())
+	if err != nil {
+		db.errorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
 }

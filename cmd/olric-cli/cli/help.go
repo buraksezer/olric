@@ -76,8 +76,8 @@ func (c *CLI) helpDelete() {
 func (c *CLI) helpDestroy() {
 	c.print("# Destroy #\n\n")
 	c.print(">> destroy\n\n")
-	c.print("Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps.\n")
-	c.print("So if you call Put/PutEx and Destroy methods concurrently on the cluster, Put/PutEx calls may set new values to the DMap.\n")
+	c.print("Destroy flushes the given dmap on the cluster. You should know that there is no global lock on DMaps.\n")
+	c.print("So if you call Put/PutEx and Destroy methods concurrently on the cluster, Put/PutEx calls may set new values to the dmap.\n")
 }
 
 func (c *CLI) helpIncr() {
