@@ -1,0 +1,105 @@
+olricd:
+  bindAddr: "0.0.0.0"
+  bindPort: 3320
+  serializer: "msgpack"
+  keepAlivePeriod: "300s"
+  requestTimeout: "5s"
+  partitionCount:  271
+  replicaCount: 1
+  writeQuorum: 1
+  readQuorum: 1
+  readRepair: false
+  backupMode: 0
+  tableSize: 1048576 # 1MB in bytes
+  memberCountQuorum: 1
+
+logging:
+  verbosity: 6
+  level: "DEBUG"
+  output: "stderr"
+
+memberlist:
+  environment: "local"
+  bindAddr: "0.0.0.0"
+  bindPort: 3322
+  enableCompression: false
+  joinRetryInterval: "1s"
+  maxJoinAttempts: 10
+  #peers:
+  #  - "localhost:3325"
+
+  #advertiseAddr: ""
+  #advertisePort: 3322
+  #suspicionMaxTimeoutMult: 6
+  #disableTCPPings: false
+  #awarenessMaxMultiplier: 8
+  #gossipNodes: 3
+  #gossipVerifyIncoming: true
+  #gossipVerifyOutgoing: true
+  #dnsConfigPath: "/etc/resolv.conf"
+  #handoffQueueDepth: 1024
+  #udpBufferSize: 1400
+
+
+# cache:
+#  numEvictionWorkers: 1
+#  maxIdleDuration: ""
+#  ttlDuration: "100s"
+#  maxKeys: 100000
+#  maxInuse: 1000000
+#  lRUSamples: 10
+#  evictionPolicy: "LRU"
+#
+#dmaps:
+#  foobar:
+#    maxIdleDuration: "60s"
+#    ttlDuration: "300s"
+#    maxKeys: 500000
+#    lRUSamples: 20
+#    evictionPolicy: "NONE"
+
+
+serviceDiscovery:
+  # path is a required property and used by Olric. It has to be a full path.
+  path: "/usr/lib/olric-consul-plugin.so"
+
+  # provider is just informal,
+  provider: "consul"
+
+  # Plugin specific configuration
+  # Consul server, used by the plugin. It's required
+  address: "http://consul:8500"
+
+  # Specifies that the server should return only nodes with all checks in the passing state.
+  passingOnly: true
+
+  # Missing health checks from the request will be deleted from the agent. Using this parameter
+  # allows to idempotently register a service and its checks without having to manually deregister
+  # checks.
+  replaceExistingChecks: true
+
+  # InsecureSkipVerify controls whether a client verifies the
+  # server's certificate chain and host name.
+  # If InsecureSkipVerify is true, TLS accepts any certificate
+  # presented by the server and any host name in that certificate.
+  # In this mode, TLS is susceptible to man-in-the-middle attacks.
+  # This should be used only for testing.
+  insecureSkipVerify: true
+
+  # service record
+  payload: '
+      {
+          "Name": "olric-cluster",
+          "Tags": [
+            "primary",
+            "v1"
+          ],
+          "Port": 3322,
+          "EnableTagOverride": false,
+          "Check": {
+            "Name": "Olric node on 3322",
+            "Interval": "1s",
+            "Timeout": "10s"
+          }
+      }
+'

@@ -37,6 +37,7 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
 * [Installing](#installing)
   * [Docker](#docker)
   * [Kubernetes](#kubernetes)
+  * [Working with Docker Compose](#working-with-docker-compose)
 * [Operation Modes](#operation-modes)
   * [Embedded Member](#embedded-member)
   * [Client-Server](#client-server)
@@ -259,6 +260,10 @@ use users
 Congrats! 
 
 Bringing Olric into Kubernetes will be a major development area in the next releases.
+
+### Working with Docker Compose
+
+We provide a multi-container environment to test, develop and deploy Olric clusters. [Here is the documentation.](docker/README.md)
 
 ## Operation Modes
 

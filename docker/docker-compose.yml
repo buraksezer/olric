@@ -1,0 +1,59 @@
+version: '3'
+
+services:
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ${PWD}/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - '3320:3320'
+
+  consul:
+    image: docker.io/bitnami/consul:1-debian-10
+    volumes:
+      - consul_data:/bitnami/consul
+    ports:
+      - '8300:8300'
+      - '8301:8301'
+      - '8301:8301/udp'
+      - '8500:8500'
+      - '8600:8600'
+      - '8600:8600/udp'
+
+  olric:
+    image: docker.io/olricio/olric-consul-plugin:v0.3.0-beta.1
+    volumes:
+      - ${PWD}/olricd-consul.yaml:/etc/olricd.yaml:ro
+    depends_on:
+      - nginx
+      - consul
+
+  nginx-dev:
+    image: nginx:latest
+    volumes:
+      - ${PWD}/nginx-dev.conf:/etc/nginx/nginx-dev.conf:ro
+    ports:
+      - '3320:3320'
+
+  olric-dev:
+    image: docker.io/olricio/olric-dev:latest
+    environment:
+      - OLRICD_CONFIG=/etc/olricd.yaml
+      - CGO_ENABLED=1
+    command: bash -c "
+      cd /go/src/github.com/buraksezer/olric-consul-plugin &&
+      go build -buildmode=plugin -o /usr/lib/olric-consul-plugin.so &&
+      cd /go/src/github.com/buraksezer/olric &&
+      go build -v -o /go/bin/olricd /go/src/github.com/buraksezer/olric/cmd/olricd/main.go &&
+      /go/bin/olricd -c /go/src/github.com/buraksezer/olric/cmd/olricd/olricd.yaml"
+    volumes:
+      - ${PWD}/olricd-consul.yaml:/etc/olricd.yaml:ro
+      - ../:/go/src/github.com/buraksezer/olric
+      - ../../olric-consul-plugin:/go/src/github.com/buraksezer/olric-consul-plugin
+    depends_on:
+      - nginx-dev
+      - consul
+
+volumes:
+  consul_data:
+    driver: local
