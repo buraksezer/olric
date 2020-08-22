@@ -5,17 +5,19 @@ sudo: false
 language: go
 
 go:
-    - "1.13.5"
+  - "1.15"
 
 # Don't email me the results of the test runs.
 notifications:
   email: false
 
 before_script:
-- go get github.com/mattn/goveralls
+  - go get github.com/mattn/goveralls
 
 script:
-- bash cover.sh $HOME/build coverage.out || travis_terminate 1
-- goveralls -service=travis-ci -coverprofile=coverage.out || true
-- goveralls -coverprofile=coverage.out -service=travis-ci
+  - bash cover.sh $HOME/build coverage.out || travis_terminate 1
+
+after_success:
+  - goveralls -service=travis-ci -coverprofile=coverage.out || true
+  - goveralls -coverprofile=coverage.out -service=travis-ci
 
