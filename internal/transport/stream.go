@@ -22,6 +22,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/pool"
+	"github.com/pkg/errors"
 )
 
 func readFromStream(conn io.ReadWriteCloser, bufCh chan<- protocol.EncodeDecoder, errCh chan<- error) {
@@ -32,18 +33,22 @@ func readFromStream(conn io.ReadWriteCloser, bufCh chan<- protocol.EncodeDecoder
 		header, err := protocol.ReadMessage(conn, buf)
 		if err != nil {
 			return err
-
 		}
+
 		var msg protocol.EncodeDecoder
-		if header.Magic == protocol.MagicStreamReq {
+		if header.Magic == protocol.MagicDMapReq {
+			msg = protocol.NewDMapMessageFromRequest(buf)
+		} else if header.Magic == protocol.MagicStreamReq {
 			msg = protocol.NewStreamMessageFromRequest(buf)
 			msg.(*protocol.StreamMessage).SetConn(conn)
-		} else if header.Magic == protocol.MagicDMapReq {
-			msg = protocol.NewDMapMessageFromRequest(buf)
 		} else if header.Magic == protocol.MagicPipelineReq {
 			msg = protocol.NewPipelineMessageFromRequest(buf)
+		} else if header.Magic == protocol.MagicSystemReq {
+			msg = protocol.NewSystemMessageFromRequest(buf)
+		} else if header.Magic == protocol.MagicDTopicReq {
+			msg = protocol.NewDTopicMessageFromRequest(buf)
 		} else {
-			return fmt.Errorf("invalid magic")
+			return errors.WithMessage(ErrInvalidMagic, fmt.Sprint(header.Magic))
 		}
 
 		err = msg.Decode()

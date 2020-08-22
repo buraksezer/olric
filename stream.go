@@ -207,6 +207,7 @@ func (db *Olric) createStreamOperation(w, r protocol.EncodeDecoder) {
 	rq.SetExtra(protocol.StreamCreatedExtra{
 		StreamID: streamID,
 	})
+	rq.SetStatus(protocol.StatusOK)
 	s.write <- rq
 
 	s.errGr.Go(func() error {

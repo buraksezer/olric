@@ -192,6 +192,14 @@ func New(c *config.Config) (*Olric, error) {
 	if c.LogLevel == "DEBUG" {
 		flogger.ShowLineNumber(1)
 	}
+	// Start a concurrent TCP server
+	sc := &transport.ServerConfig{
+		BindAddr:        c.BindAddr,
+		BindPort:        c.BindPort,
+		KeepAlivePeriod: c.KeepAlivePeriod,
+		GracefulPeriod:  10 * time.Second,
+	}
+	srv := transport.NewServer(sc, flogger)
 
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
@@ -207,7 +215,7 @@ func New(c *config.Config) (*Olric, error) {
 		partitions: make(map[uint64]*partition),
 		backups:    make(map[uint64]*partition),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
-		server:     transport.NewServer(c.BindAddr, c.BindPort, c.KeepAlivePeriod, flogger),
+		server:     srv,
 		members:    members{m: make(map[uint64]discovery.Member)},
 		dtopic:     newDTopic(ctx),
 		streams:    &streams{m: make(map[uint64]*stream)},

@@ -39,31 +39,40 @@ const (
 // pool is good for recycling memory while reading messages from the socket.
 var bufferPool = bufpool.New()
 
+// ErrInvalidMagic means that an OBP message is read from the TCP socket but
+// the magic number is not valid.
+var ErrInvalidMagic = errors.New("invalid magic")
+
+// ServerConfig is a composite type to bundle configuration parameters.
+type ServerConfig struct {
+	BindAddr        string
+	BindPort        int
+	KeepAlivePeriod time.Duration
+	// GracefulPeriod is useful to close busy connections when you want to shutdown the server.
+	GracefulPeriod time.Duration
+}
+
 // Server implements a concurrent TCP server.
 type Server struct {
-	bindAddr        string
-	bindPort        int
-	keepAlivePeriod time.Duration
-	log             *flog.Logger
-	wg              sync.WaitGroup
-	listener        net.Listener
-	dispatcher      func(w, r protocol.EncodeDecoder)
-	StartCh         chan struct{}
-	ctx             context.Context
-	cancel          context.CancelFunc
+	config     *ServerConfig
+	log        *flog.Logger
+	wg         sync.WaitGroup
+	listener   net.Listener
+	dispatcher func(w, r protocol.EncodeDecoder)
+	StartCh    chan struct{}
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewServer creates and returns a new Server.
-func NewServer(bindAddr string, bindPort int, keepalivePeriod time.Duration, logger *flog.Logger) *Server {
+func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
-		bindAddr:        bindAddr,
-		bindPort:        bindPort,
-		keepAlivePeriod: keepalivePeriod,
-		log:             logger,
-		StartCh:         make(chan struct{}),
-		ctx:             ctx,
-		cancel:          cancel,
+		config:  c,
+		log:     l,
+		StartCh: make(chan struct{}),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 }
 
@@ -83,7 +92,7 @@ func (s *Server) controlConnLifeCycle(conn io.ReadWriteCloser, connStatus *uint3
 	}
 
 	if atomic.LoadUint32(connStatus) != idleConn {
-		s.log.V(3).Printf("[DEBUG] Connection is busy, waiting")
+		s.log.V(3).Printf("[DEBUG] Connection is busy, awaiting for %v", s.config.GracefulPeriod)
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -92,8 +101,7 @@ func (s *Server) controlConnLifeCycle(conn io.ReadWriteCloser, connStatus *uint3
 		// Debugging such an error is pretty hard and it blocks me. Normally I expect that SetDeadline
 		// should fix the problem but It doesn't work. I don't know why. But this hack works well.
 		//
-		// TODO: Make this parametric.
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), s.config.GracefulPeriod)
 		defer cancel()
 	loop:
 		for {
@@ -152,8 +160,7 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 	} else if header.Magic == protocol.MagicDTopicReq {
 		req = protocol.NewDTopicMessageFromRequest(buf)
 	} else {
-		// TODO: Return a proper error
-		return fmt.Errorf("invalid magic")
+		return errors.WithMessage(ErrInvalidMagic, fmt.Sprint(header.Magic))
 	}
 
 	// Decode reads the incoming message from the underlying TCP socket and parses
@@ -222,12 +229,12 @@ func (s *Server) listenAndServe() error {
 			s.log.V(3).Printf("[DEBUG] Failed to accept TCP connection: %v", err)
 			continue
 		}
-		if s.keepAlivePeriod.Seconds() != 0 {
+		if s.config.KeepAlivePeriod.Seconds() != 0 {
 			err = conn.(*net.TCPConn).SetKeepAlive(true)
 			if err != nil {
 				return err
 			}
-			err = conn.(*net.TCPConn).SetKeepAlivePeriod(s.keepAlivePeriod)
+			err = conn.(*net.TCPConn).SetKeepAlivePeriod(s.config.KeepAlivePeriod)
 			if err != nil {
 				return err
 			}
@@ -248,7 +255,10 @@ func (s *Server) ListenAndServe() error {
 		close(s.StartCh)
 	}()
 
-	addr := net.JoinHostPort(s.bindAddr, strconv.Itoa(s.bindPort))
+	if s.dispatcher == nil {
+		return errors.New("no dispatcher found")
+	}
+	addr := net.JoinHostPort(s.config.BindAddr, strconv.Itoa(s.config.BindPort))
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err

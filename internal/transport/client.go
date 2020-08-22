@@ -76,15 +76,21 @@ func (c *Client) Close() {
 	for _, p := range c.pools {
 		p.Close()
 	}
+	// Reset pool
+	c.pools = make(map[string]pool.Pool)
 }
 
-// CloseWithAddr closes the connection for given addr, if any exists.
-func (c *Client) CloseWithAddr(addr string) {
+// ClosePool closes the underlying connections in a pool,
+// deletes from Olric's pools map and frees resources.
+func (c *Client) ClosePool(addr string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	p, ok := c.pools[addr]
-	if !ok {
+	if ok {
+		// Close the pool. This closes the underlying connections.
 		p.Close()
+		// Delete from Olric.
 		delete(c.pools, addr)
 	}
 }
@@ -109,21 +115,6 @@ func (c *Client) getPool(addr string) (pool.Pool, error) {
 	}
 	c.pools[addr] = cpool
 	return cpool, nil
-}
-
-// ClosePool closes the underlying connections in a pool,
-// deletes from Olric's pools map and frees resources.
-func (c *Client) ClosePool(addr string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	p, ok := c.pools[addr]
-	if ok {
-		// Close the pool. This closes the underlying connections.
-		p.Close()
-		// Delete from Olric.
-		delete(c.pools, addr)
-	}
 }
 
 // RequestTo initiates a request-response cycle to given host.
