@@ -22,7 +22,6 @@ import (
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/pool"
-	"github.com/pkg/errors"
 )
 
 func readFromStream(conn io.ReadWriteCloser, bufCh chan<- protocol.EncodeDecoder, errCh chan<- error) {
@@ -35,20 +34,9 @@ func readFromStream(conn io.ReadWriteCloser, bufCh chan<- protocol.EncodeDecoder
 			return err
 		}
 
-		var msg protocol.EncodeDecoder
-		if header.Magic == protocol.MagicDMapReq {
-			msg = protocol.NewDMapMessageFromRequest(buf)
-		} else if header.Magic == protocol.MagicStreamReq {
-			msg = protocol.NewStreamMessageFromRequest(buf)
-			msg.(*protocol.StreamMessage).SetConn(conn)
-		} else if header.Magic == protocol.MagicPipelineReq {
-			msg = protocol.NewPipelineMessageFromRequest(buf)
-		} else if header.Magic == protocol.MagicSystemReq {
-			msg = protocol.NewSystemMessageFromRequest(buf)
-		} else if header.Magic == protocol.MagicDTopicReq {
-			msg = protocol.NewDTopicMessageFromRequest(buf)
-		} else {
-			return errors.WithMessage(ErrInvalidMagic, fmt.Sprint(header.Magic))
+		msg, err := prepareRequest(header, buf)
+		if err != nil {
+			return err
 		}
 
 		err = msg.Decode()
@@ -69,7 +57,7 @@ func readFromStream(conn io.ReadWriteCloser, bufCh chan<- protocol.EncodeDecoder
 
 // CreateStream creates a new Stream connection which provides a bidirectional communication channel between Olric nodes and clients.
 func (c *Client) CreateStream(ctx context.Context, addr string, read chan<- protocol.EncodeDecoder, write <-chan protocol.EncodeDecoder) error {
-	p, err := c.getPool(addr)
+	p, err := c.pool(addr)
 	if err != nil {
 		return err
 	}

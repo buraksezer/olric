@@ -17,8 +17,9 @@ package transport
 import (
 	"bytes"
 	"context"
-	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
+
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 func TestClient_Request(t *testing.T) {

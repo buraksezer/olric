@@ -92,7 +92,7 @@ func checkProtocolVersion(header *Header) error {
 	}
 }
 
-func readHeader(conn io.ReadWriteCloser) (Header, error) {
+func readHeader(conn io.ReadWriteCloser) (*Header, error) {
 	buf := pool.Get()
 	defer pool.Put(buf)
 
@@ -100,26 +100,26 @@ func readHeader(conn io.ReadWriteCloser) (Header, error) {
 	var header Header
 	_, err := io.CopyN(buf, conn, headerSize)
 	if err != nil {
-		return header, filterNetworkErrors(err)
+		return nil, filterNetworkErrors(err)
 	}
 
 	err = binary.Read(buf, binary.BigEndian, &header)
 	if err != nil {
-		return header, err
+		return nil, err
 	}
 	if err := checkProtocolVersion(&header); err != nil {
-		return header, err
+		return nil, err
 	}
-	return header, nil
+	return &header, nil
 }
 
 // ReadMessage reads the whole message from src into the given bytes.Buffer.
 // Header can be used to determine message. Then you can pick an appropriate message
 // type and decode it.
-func ReadMessage(src io.ReadWriteCloser, dst *bytes.Buffer) (Header, error) {
+func ReadMessage(src io.ReadWriteCloser, dst *bytes.Buffer) (*Header, error) {
 	header, err := readHeader(src)
 	if err != nil {
-		return Header{}, err
+		return nil, err
 	}
 
 	// Read the whole message. Now, the caller knows the message type and she can
@@ -127,10 +127,10 @@ func ReadMessage(src io.ReadWriteCloser, dst *bytes.Buffer) (Header, error) {
 	length := int64(header.MessageLength)
 	nr, err := io.CopyN(dst, src, length)
 	if err != nil {
-		return Header{}, err
+		return nil, err
 	}
 	if nr != length {
-		return Header{}, fmt.Errorf("byte count mismatch")
+		return nil, fmt.Errorf("byte count mismatch")
 	}
 	return header, nil
 }

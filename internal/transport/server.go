@@ -15,6 +15,7 @@
 package transport
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -74,6 +75,24 @@ func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 		ctx:     ctx,
 		cancel:  cancel,
 	}
+}
+
+func prepareRequest(header *protocol.Header, buf *bytes.Buffer) (protocol.EncodeDecoder, error) {
+	var req protocol.EncodeDecoder
+	if header.Magic == protocol.MagicDMapReq {
+		req = protocol.NewDMapMessageFromRequest(buf)
+	} else if header.Magic == protocol.MagicStreamReq {
+		req = protocol.NewStreamMessageFromRequest(buf)
+	} else if header.Magic == protocol.MagicPipelineReq {
+		req = protocol.NewPipelineMessageFromRequest(buf)
+	} else if header.Magic == protocol.MagicSystemReq {
+		req = protocol.NewSystemMessageFromRequest(buf)
+	} else if header.Magic == protocol.MagicDTopicReq {
+		req = protocol.NewDTopicMessageFromRequest(buf)
+	} else {
+		return nil, errors.WithMessage(ErrInvalidMagic, fmt.Sprint(header.Magic))
+	}
+	return req, nil
 }
 
 func (s *Server) SetDispatcher(f func(w, r protocol.EncodeDecoder)) {
@@ -145,22 +164,14 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 		return err
 	}
 
-	var req protocol.EncodeDecoder
-	if header.Magic == protocol.MagicDMapReq {
-		req = protocol.NewDMapMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicStreamReq {
-		req = protocol.NewStreamMessageFromRequest(buf)
+	req, err := prepareRequest(header, buf)
+	if err != nil {
+		return err
+	}
+	if header.Magic == protocol.MagicStreamReq {
 		req.(*protocol.StreamMessage).SetConn(conn)
 		s.wg.Add(1)
 		go s.closeStream(req.(*protocol.StreamMessage), done)
-	} else if header.Magic == protocol.MagicPipelineReq {
-		req = protocol.NewPipelineMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicSystemReq {
-		req = protocol.NewSystemMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicDTopicReq {
-		req = protocol.NewDTopicMessageFromRequest(buf)
-	} else {
-		return errors.WithMessage(ErrInvalidMagic, fmt.Sprint(header.Magic))
 	}
 
 	// Decode reads the incoming message from the underlying TCP socket and parses
@@ -229,7 +240,7 @@ func (s *Server) listenAndServe() error {
 			s.log.V(3).Printf("[DEBUG] Failed to accept TCP connection: %v", err)
 			continue
 		}
-		if s.config.KeepAlivePeriod.Seconds() != 0 {
+		if s.config.KeepAlivePeriod != 0 {
 			err = conn.(*net.TCPConn).SetKeepAlive(true)
 			if err != nil {
 				return err
