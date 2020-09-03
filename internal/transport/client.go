@@ -45,16 +45,16 @@ type Client struct {
 // ClientConfig configuration parameters of the client.
 type ClientConfig struct {
 	// List of host:port address.
-	Addrs        []string
+	Addrs []string
 
 	// Dial timeout for establishing new connections.
 	// Default is DefaultDialTimeout
-	DialTimeout  time.Duration
+	DialTimeout time.Duration
 
 	// Timeout for socket reads. If reached, commands will fail
 	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
 	// Default is DefaultReadTimeout
-	ReadTimeout  time.Duration
+	ReadTimeout time.Duration
 
 	// Timeout for socket writes. If reached, commands will fail
 	// with a timeout instead of blocking.
@@ -68,13 +68,13 @@ type ClientConfig struct {
 	// system. Network protocols or operating systems that do
 	// not support keep-alives ignore this field.
 	// If negative, keep-alive probes are disabled.
-	KeepAlive    time.Duration
+	KeepAlive time.Duration
 
 	// Minimum TCP connection count in the pool for a host:port
-	MinConn      int
+	MinConn int
 
 	// Maximum TCP connection count in the pool for a host:port
-	MaxConn      int
+	MaxConn int
 }
 
 func (cc *ClientConfig) sanitize() {

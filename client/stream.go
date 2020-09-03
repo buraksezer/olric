@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -79,7 +80,7 @@ func (s *stream) listenStream() {
 			s.mu.RLock()
 			for id, l := range s.listeners {
 				if msg.OpCode() == protocol.OpStreamPong {
-					s.pongReceivedAt = time.Now().UnixNano()
+					atomic.StoreInt64(&s.pongReceivedAt, time.Now().UnixNano())
 					continue
 				}
 				if msg.OpCode() != protocol.OpStreamMessage {
@@ -105,11 +106,12 @@ loop:
 			return
 		case <-time.After(time.Second):
 			s.mu.RLock()
-			if s.pongReceivedAt == 0 {
+			pongReceivedAt := atomic.LoadInt64(&s.pongReceivedAt)
+			if pongReceivedAt == 0 {
 				s.mu.RUnlock()
 				continue loop
 			}
-			if s.pongReceivedAt+(5*time.Second).Nanoseconds() <= time.Now().UnixNano() {
+			if pongReceivedAt+(5*time.Second).Nanoseconds() <= time.Now().UnixNano() {
 				// There is no need to call stream.close method here. The underlying socket is already gone.
 				s.cancel()
 				logger.Print("[WARN] Stream is dead. Closing.\n")

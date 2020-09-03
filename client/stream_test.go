@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -276,7 +277,8 @@ func TestStream_PingPong(t *testing.T) {
 	if !ok {
 		t.Fatalf("StreamID: %d count not be found", streamID)
 	}
-	if s.pongReceivedAt == 0 {
-		t.Fatalf("Expected pongReceivedAt different than zero. Got %d", s.pongReceivedAt)
+	pongReceivedAt := atomic.LoadInt64(&s.pongReceivedAt)
+	if pongReceivedAt == 0 {
+		t.Fatalf("Expected pongReceivedAt different than zero. Got %d", pongReceivedAt)
 	}
 }
