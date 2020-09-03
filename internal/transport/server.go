@@ -61,6 +61,7 @@ type Server struct {
 	listener   net.Listener
 	dispatcher func(w, r protocol.EncodeDecoder)
 	StartCh    chan struct{}
+	StopCh     chan struct{}
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -72,6 +73,7 @@ func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 		config:  c,
 		log:     l,
 		StartCh: make(chan struct{}),
+		StopCh:  make(chan struct{}),
 		ctx:     ctx,
 		cancel:  cancel,
 	}
@@ -226,6 +228,7 @@ func (s *Server) processConn(conn io.ReadWriteCloser) {
 
 // listenAndServe calls Accept on given net.Listener.
 func (s *Server) listenAndServe() error {
+	defer close(s.StopCh)
 	close(s.StartCh)
 
 	for {
@@ -299,6 +302,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		result = multierror.Append(result, err)
 	}
 
+	// listener is gone.
+	<-s.StopCh
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()

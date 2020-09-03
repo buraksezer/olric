@@ -39,6 +39,8 @@ func TestClient_CreateStream(t *testing.T) {
 		}
 	}()
 
+	<-s.StartCh
+
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	fakeStreamID := uint64(123)
@@ -66,7 +68,6 @@ func TestClient_CreateStream(t *testing.T) {
 		}
 	})
 
-	<-s.StartCh
 	addr := s.listener.Addr().String()
 	// Create a client and make a request. It will never return.
 	cc := &ClientConfig{
@@ -76,7 +77,7 @@ func TestClient_CreateStream(t *testing.T) {
 	c := NewClient(cc)
 
 	go func() {
-		err = c.CreateStream(ctx, addr, readCh, writeCh)
+		err := c.CreateStream(ctx, addr, readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
