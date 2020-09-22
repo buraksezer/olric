@@ -206,3 +206,37 @@ func TestDMap_DeleteOnPreviousOwner(t *testing.T) {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
 }
+
+func TestDMap_DeleteKeyValFromPreviousOwners(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	_, err = c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	_, err = c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	dm, err := db1.NewDMap("mydmap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = dm.Put("mykey", "myvalue")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	owners := db1.discovery.GetMembers()
+	err = db1.deleteKeyValFromPreviousOwners("mydmap", "mykey", owners)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+}

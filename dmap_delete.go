@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
 	"golang.org/x/sync/errgroup"
@@ -46,12 +47,7 @@ func (db *Olric) deleteStaleDMaps() {
 	}
 }
 
-func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
-	owners := db.getPartitionOwners(hkey)
-	if len(owners) == 0 {
-		panic("partition owners list cannot be empty")
-	}
-
+func (db *Olric) deleteKeyValFromPreviousOwners(name, key string, owners []discovery.Member) error {
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
@@ -63,13 +59,27 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
+	owners := db.getPartitionOwners(hkey)
+	if len(owners) == 0 {
+		panic("partition owners list cannot be empty")
+	}
+
+	err := db.deleteKeyValFromPreviousOwners(name, key, owners)
+	if err != nil {
+		return err
+	}
+
 	if db.config.ReplicaCount != 0 {
 		err := db.deleteKeyValBackup(hkey, name, key)
 		if err != nil {
 			return err
 		}
 	}
-	err := dm.storage.Delete(hkey)
+	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
