@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
@@ -221,11 +222,6 @@ func TestDMap_DeleteKeyValFromPreviousOwners(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	_, err = c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
 	dm, err := db1.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -234,8 +230,22 @@ func TestDMap_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	owners := db1.discovery.GetMembers()
-	err = db1.deleteKeyValFromPreviousOwners("mydmap", "mykey", owners)
+
+	// Prepare fragmented partition owners list
+	hkey := db1.getHKey("mydmap", "mykey")
+	owners := db1.getPartitionOwners(hkey)
+	owner := owners[len(owners)-1]
+
+	data := []discovery.Member{}
+	for _, member := range db1.discovery.GetMembers() {
+		if hostCmp(member, owner) {
+			continue
+		}
+		data = append(data, member)
+	}
+	// this has to be the last one
+	data = append(data, owner)
+	err = db1.deleteKeyValFromPreviousOwners("mydmap", "mykey", data)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
