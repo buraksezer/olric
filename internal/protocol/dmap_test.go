@@ -16,7 +16,9 @@ package protocol
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
+	"time"
 )
 
 type fakeTCPConn struct {
@@ -37,9 +39,9 @@ func TestDMapMessage_Encode(t *testing.T) {
 	buf := new(bytes.Buffer)
 	msg := NewDMapMessage(OpPut)
 	msg.SetBuffer(buf)
-	msg.dmap = "mydmap"
-	msg.key = "mykey"
-	msg.value = []byte("myvalue")
+	msg.SetDMap("mydmap")
+	msg.SetKey("mykey")
+	msg.SetValue([]byte("value"))
 	err := msg.Encode()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -48,13 +50,18 @@ func TestDMapMessage_Encode(t *testing.T) {
 
 func TestDMapMessage_Decode(t *testing.T) {
 	buf := new(bytes.Buffer)
+	value := []byte("value")
 
 	// Encode first
 	msg := NewDMapMessage(OpPut)
 	msg.SetBuffer(buf)
-	msg.dmap = "mydmap"
-	msg.key = "mykey"
-	msg.value = []byte("myvalue")
+	msg.SetDMap("mydmap")
+	msg.SetKey("mykey")
+	msg.SetValue(value)
+	msg.SetExtra(PutExtra{
+		Timestamp: time.Now().UnixNano(),
+	})
+
 	err := msg.Encode()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -85,7 +92,39 @@ func TestDMapMessage_Decode(t *testing.T) {
 		t.Fatalf("Expected mykey. Got: %v", req.Key())
 	}
 
-	if !bytes.Equal(req.Value(), []byte("myvalue")) {
+	if !bytes.Equal(req.Value(), value) {
 		t.Fatalf("Expected myvalue. Got: %v", string(req.Value()))
+	}
+
+	if !reflect.DeepEqual(msg.Extra(), req.Extra()) {
+		t.Fatalf("Different extra")
+	}
+}
+
+func TestDMapMessage_Response(t *testing.T) {
+	buf := new(bytes.Buffer)
+	msg := NewDMapMessage(OpPut)
+	msg.SetBuffer(buf)
+
+	err := msg.Encode()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	respBuf := new(bytes.Buffer)
+	resp := msg.Response(respBuf)
+	if resp.OpCode() != msg.OpCode() {
+		t.Fatalf("Expected OpCode: %d. Got: %d", msg.OpCode(), resp.OpCode())
+	}
+
+	value := []byte("value")
+	resp.SetValue(value)
+	if !bytes.Equal(resp.Value(), value) {
+		t.Fatalf("response.Value() returned a different value")
+	}
+
+	resp.SetStatus(StatusInternalServerError)
+	if resp.Status() != StatusInternalServerError {
+		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalServerError, resp.Status())
 	}
 }

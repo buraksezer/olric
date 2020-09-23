@@ -179,15 +179,6 @@ func (d *PipelineMessage) Decode() error {
 		return fmt.Errorf("invalid Pipeline message")
 	}
 
-	if d.Magic == MagicPipelineReq && d.ExtraLen > 0 {
-		raw := d.buf.Next(int(d.ExtraLen))
-		extra, err := loadExtras(raw, d.Op)
-		if err != nil {
-			return err
-		}
-		d.extra = extra
-	}
-
 	// There is no maximum value for BodyLen which also includes ValueLen.
 	// So our limit is available memory amount at the time of execution.
 	// Please note that maximum partition size should not exceed 50MB for a smooth operation.

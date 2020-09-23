@@ -16,7 +16,7 @@ package protocol
 
 import (
 	"bytes"
-	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -36,10 +36,14 @@ func TestDTopicMessage_Decode(t *testing.T) {
 	buf := new(bytes.Buffer)
 
 	// Encode first
-	msg := NewDTopicMessage(OpDTopicPublish)
+	msg := NewDTopicMessage(OpStreamMessage)
 	msg.SetBuffer(buf)
 	msg.SetDTopic("mydtopic")
 	msg.SetValue([]byte("myvalue"))
+	msg.SetExtra(StreamMessageExtra{
+		ListenerID: 10,
+	})
+
 	err := msg.Encode()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -63,7 +67,39 @@ func TestDTopicMessage_Decode(t *testing.T) {
 	}
 
 	if !bytes.Equal(req.Value(), []byte("myvalue")) {
-		fmt.Println(req.Value(), []byte("myvalue"))
 		t.Fatalf("Expected myvalue. Got: %v", string(req.Value()))
+	}
+
+	if !reflect.DeepEqual(msg.Extra(), req.Extra()) {
+		t.Fatalf("Different extra")
+	}
+}
+
+
+func TestNewDTopicMessage_Response(t *testing.T) {
+	buf := new(bytes.Buffer)
+	msg := NewDTopicMessage(OpDTopicPublish)
+	msg.SetBuffer(buf)
+
+	err := msg.Encode()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	respBuf := new(bytes.Buffer)
+	resp := msg.Response(respBuf)
+	if resp.OpCode() != msg.OpCode() {
+		t.Fatalf("Expected OpCode: %d. Got: %d", msg.OpCode(), resp.OpCode())
+	}
+
+	value := []byte("value")
+	resp.SetValue(value)
+	if !bytes.Equal(resp.Value(), value) {
+		t.Fatalf("response.Value() returned a different value")
+	}
+
+	resp.SetStatus(StatusInternalServerError)
+	if resp.Status() != StatusInternalServerError {
+		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalServerError, resp.Status())
 	}
 }

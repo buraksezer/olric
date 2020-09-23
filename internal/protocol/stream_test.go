@@ -16,6 +16,7 @@ package protocol
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 )
 
@@ -34,9 +35,12 @@ func TestStreamMessage_Decode(t *testing.T) {
 	buf := new(bytes.Buffer)
 
 	// Encode first
-	msg := NewStreamMessage(OpCreateStream)
+	msg := NewStreamMessage(OpStreamCreated)
 	msg.SetBuffer(buf)
 	msg.SetValue([]byte("myvalue"))
+	msg.SetExtra(StreamCreatedExtra{
+		StreamID: 10,
+	})
 	err := msg.Encode()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -61,5 +65,37 @@ func TestStreamMessage_Decode(t *testing.T) {
 
 	if !bytes.Equal(req.Value(), []byte("myvalue")) {
 		t.Fatalf("Expected myvalue. Got: %v", string(req.Value()))
+	}
+
+	if !reflect.DeepEqual(msg.Extra(), req.Extra()) {
+		t.Fatalf("Different extra")
+	}
+}
+
+func TestStreamMessage_Response(t *testing.T) {
+	buf := new(bytes.Buffer)
+	msg := NewStreamMessage(OpStreamMessage)
+	msg.SetBuffer(buf)
+
+	err := msg.Encode()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	respBuf := new(bytes.Buffer)
+	resp := msg.Response(respBuf)
+	if resp.OpCode() != msg.OpCode() {
+		t.Fatalf("Expected OpCode: %d. Got: %d", msg.OpCode(), resp.OpCode())
+	}
+
+	value := []byte("value")
+	resp.SetValue(value)
+	if !bytes.Equal(resp.Value(), value) {
+		t.Fatalf("response.Value() returned a different value")
+	}
+
+	resp.SetStatus(StatusInternalServerError)
+	if resp.Status() != StatusInternalServerError {
+		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalServerError, resp.Status())
 	}
 }
