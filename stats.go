@@ -57,8 +57,9 @@ func (db *Olric) stats() stats.Stats {
 		part.m.Range(func(name, dm interface{}) bool {
 			dm.(*dmap).Lock()
 			tmp := stats.DMap{
-				Length:   dm.(*dmap).storage.Len(),
-				SlabInfo: stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),
+				Length:    dm.(*dmap).storage.Len(),
+				NumTables: dm.(*dmap).storage.NumTables(),
+				SlabInfo:  stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),
 			}
 			p.DMaps[name.(string)] = tmp
 			dm.(*dmap).Unlock()

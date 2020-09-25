@@ -233,3 +233,59 @@ func TestDMap_PutIfFound(t *testing.T) {
 		}
 	}
 }
+
+func TestDMap_compactTables(t *testing.T) {
+	cfg := testSingleReplicaConfig()
+	cfg.TableSize = 100 // 100 bytes
+	db, err := newDB(cfg)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	dm, err := db.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for i := 0; i < 100000; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	// Compacting tables is an async task. Here we check the number of tables periodically.
+	maxCheck := 50
+	check := func(i int) bool {
+		stats, err := db.Stats()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+
+		for partID, part := range stats.Partitions {
+			for name, dmp := range part.DMaps {
+				if dmp.NumTables != 1 && i < maxCheck-1 {
+					return false
+				}
+				if dmp.NumTables != 1 && i >= maxCheck-1 {
+					t.Fatalf("NumTables=%d on DMap: %s PartID: %d", dmp.NumTables, name, partID)
+				}
+			}
+		}
+		return true
+	}
+
+	for i := 0; i < maxCheck; i++ {
+		if check(i) {
+			break
+		}
+		<-time.After(100 * time.Millisecond)
+
+	}
+}

@@ -327,6 +327,11 @@ func (s *Storage) SlabInfo() SlabInfo {
 	return si
 }
 
+// NumTables returns the number of tables in a storage instance.
+func (s *Storage) NumTables() int {
+	return len(s.tables)
+}
+
 // Inuse returns total in-use space by the tables.
 func (s *Storage) Inuse() int {
 	// SlabInfo does the same thing but we need

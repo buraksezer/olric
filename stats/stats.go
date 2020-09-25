@@ -40,6 +40,9 @@ type DMap struct {
 
 	// Statistics about memory representation of the dmap.
 	SlabInfo SlabInfo
+
+	// Number of tables in a storage instance.
+	NumTables int
 }
 
 // Partition denotes a partition and its metadata in the cluster.
