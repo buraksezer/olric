@@ -5,11 +5,11 @@ olricd:
   keepAlivePeriod: "300s"
   requestTimeout: "5s"
   partitionCount:  271
-  replicaCount: 1
+  replicaCount: 2
   writeQuorum: 1
   readQuorum: 1
   readRepair: false
-  backupMode: 0
+  replicationMode: 1 # sync mode. for async, set 1
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 

@@ -9,7 +9,7 @@ olricd:
   writeQuorum: 1
   readQuorum: 1
   readRepair: false
-  backupMode: 0
+  replicationMode: 0 # sync mode. for async, set 1
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
