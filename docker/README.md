@@ -14,7 +14,7 @@ docker-compose up olric
 To create a multi-node cluster:
 
 ```
-docker-compose up --scale olric=2
+docker-compose up --scale olric=3 olric
 ```
 
 Sample output:
@@ -39,7 +39,7 @@ cluster health.
 
 ### Accessing to the cluster
 
-`nginx` service exposes port `3320` to access to the cluster. 
+`nginx` service exposes port `3320` to access the cluster. 
 
 ### Develop & Test with Docker Compose
 
