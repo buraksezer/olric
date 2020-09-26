@@ -46,6 +46,11 @@ func TestStatsStandalone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	if !hostCmp(s.ClusterCoordinator, db.this) {
+		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.this, s.ClusterCoordinator)
+	}
+
 	var total int
 	for partID, part := range s.Partitions {
 		total += part.Length
@@ -124,4 +129,15 @@ func TestStatsCluster(t *testing.T) {
 		t.Fatalf("Expected total length of partitions on backup "+
 			"owners in stats is 100. Got: %d", backupTotal)
 	}
+
+	t.Run("check ClusterCoordinator", func(t *testing.T) {
+		s, err := db2.Stats()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+
+		if !hostCmp(s.ClusterCoordinator, db1.this) {
+			t.Fatalf("Expected cluster coordinator: %v. Got: %v", db1.this, s.ClusterCoordinator)
+		}
+	})
 }

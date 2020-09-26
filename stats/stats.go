@@ -66,9 +66,10 @@ type Runtime struct {
 
 // Stats includes some metadata information about the cluster. The nodes add everything it knows about the cluster.
 type Stats struct {
-	Cmdline        []string
-	ReleaseVersion string
-	Runtime        Runtime
-	Partitions     map[uint64]Partition
-	Backups        map[uint64]Partition
+	Cmdline            []string
+	ReleaseVersion     string
+	Runtime            Runtime
+	ClusterCoordinator discovery.Member
+	Partitions         map[uint64]Partition
+	Backups            map[uint64]Partition
 }

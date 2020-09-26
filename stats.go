@@ -27,8 +27,9 @@ func (db *Olric) stats() stats.Stats {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
 	s := stats.Stats{
-		Cmdline:        os.Args,
-		ReleaseVersion: ReleaseVersion,
+		Cmdline:            os.Args,
+		ReleaseVersion:     ReleaseVersion,
+		ClusterCoordinator: db.discovery.GetCoordinator(),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
