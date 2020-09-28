@@ -7,6 +7,7 @@ require (
 	github.com/buraksezer/pool v3.0.0+incompatible
 	github.com/cespare/xxhash v1.1.0
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
+	github.com/google/go-cmp v0.5.2
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/logutils v1.0.0
