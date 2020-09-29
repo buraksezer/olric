@@ -16,18 +16,22 @@ package compare
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
+	"github.com/vmihailenco/msgpack"
+	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/google/go-cmp/cmp"
 )
 
+var ErrDatasetsEqual = errors.New("datasets are equal")
+
 // DiffReporter is a simple custom reporter that only records differences
 // detected during comparison.
 type DiffReporter struct {
 	path    cmp.Path
-	deleted []*DataSet
-	added   []*DataSet
+	deleted []*KVItem
+	added   []*KVItem
 }
 
 func (r *DiffReporter) PushStep(ps cmp.PathStep) {
@@ -40,10 +44,10 @@ func (r *DiffReporter) Report(rs cmp.Result) {
 	}
 	vx, vy := r.path.Last().Values()
 	if vx.IsValid() {
-		r.deleted = append(r.deleted, vx.Interface().(*DataSet))
+		r.deleted = append(r.deleted, vx.Interface().(*KVItem))
 	}
 	if vy.IsValid() {
-		r.added = append(r.added, vy.Interface().(*DataSet))
+		r.added = append(r.added, vy.Interface().(*KVItem))
 	}
 }
 
@@ -51,55 +55,77 @@ func (r *DiffReporter) PopStep() {
 	r.path = r.path[:len(r.path)-1]
 }
 
-func (r *DiffReporter) String() string {
-	for _, i := range r.deleted {
-		fmt.Println("DELETED", i)
-	}
-	fmt.Println("-------------------")
-	for _, i := range r.added {
-		fmt.Println("ADDED", i)
-	}
-	return ""
-}
-
-type DataSet struct {
+type KVItem struct {
 	HKey      uint64
 	Timestamp uint64
 }
 
-func (d *DataSet) Add(key, timestamp uint64) {
-	d.HKey = key
-	d.Timestamp = timestamp
+type Dataset struct {
+	buf []byte
+	m   map[uint64]*KVItem
+
+	mu sync.RWMutex
+}
+
+func NewDataSet() *Dataset {
+	return &Dataset{
+		m:   make(map[uint64]*KVItem),
+		buf: make([]byte, 16),
+	}
+}
+
+func (d *Dataset) KVItems() map[uint64]*KVItem {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.m
+}
+
+func (d *Dataset) Add(hkey, timestamp uint64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	binary.LittleEndian.PutUint64(d.buf[:8], hkey)
+	binary.LittleEndian.PutUint64(d.buf[8:], timestamp)
+	d.m[xxhash.Sum64(d.buf)] = &KVItem{
+		HKey:      hkey,
+		Timestamp: timestamp,
+	}
+}
+
+func (d *Dataset) Export() ([]byte, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return msgpack.Marshal(d.m)
+}
+
+func Import(data []byte) (*Dataset, error) {
+	d := NewDataSet()
+
+	err := msgpack.Unmarshal(data, &d.m)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
 type Compare struct {
-	one map[uint64]*DataSet
-	two map[uint64]*DataSet
+	one *Dataset
+	two *Dataset
 }
 
-func prepare(ds []*DataSet) map[uint64]*DataSet {
-	data := make(map[uint64]*DataSet)
-	b := make([]byte, 16)
-	for _, item := range ds {
-		binary.LittleEndian.PutUint64(b[:8], item.HKey)
-		binary.LittleEndian.PutUint64(b[8:], item.Timestamp)
-		data[xxhash.Sum64(b)] = item
-	}
-	return data
-}
-
-func New(one, two []*DataSet) *Compare {
+func New(one, two *Dataset) *Compare {
 	return &Compare{
-		one: prepare(one),
-		two: prepare(two),
+		one: one,
+		two: two,
 	}
 }
 
-func (c *Compare) Difference() {
+func (c *Compare) Difference() ([]*KVItem, []*KVItem, error){
 	var r DiffReporter
-	equal := cmp.Equal(c.one, c.two, cmp.Reporter(&r))
+	equal := cmp.Equal(c.one.KVItems(), c.two.KVItems(), cmp.Reporter(&r))
 	if equal {
-		return
+		return nil, nil, ErrDatasetsEqual
 	}
-	fmt.Println(r.String())
+	return r.added, r.deleted, nil
 }

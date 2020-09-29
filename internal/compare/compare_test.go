@@ -15,35 +15,67 @@
 package compare
 
 import (
+	"github.com/google/go-cmp/cmp"
 	"testing"
 )
 
 func TestCompare_Difference(t *testing.T) {
-	var primary []*DataSet
-	for i := uint64(0); i < 100000; i++ {
-		item := &DataSet{
-			HKey:      i,
-			Timestamp: i,
-		}
-		primary = append(primary, item)
+	primary := NewDataSet()
+	for i := uint64(0); i < 10; i++ {
+		primary.Add(i, i)
 	}
 
-	var replica []*DataSet
-	for i := uint64(0); i < 100000; i++ {
-		if i == 23156 {
-			item := &DataSet{
-				HKey:      i,
-				Timestamp: i * 2,
-			}
-			replica = append(replica, item)
+	replica := NewDataSet()
+	for i := uint64(0); i < 10; i++ {
+		if i == 5 {
+			// inconsistency
+			replica.Add(i, i*2)
 			continue
 		}
-		item := &DataSet{
-			HKey:      i,
-			Timestamp: i,
-		}
-		replica = append(replica, item)
+		replica.Add(i, i)
 	}
+
 	c := New(primary, replica)
-	c.Difference()
+	added, deleted, err := c.Difference()
+	if err != nil {
+		t.Errorf("Expected nil. Got %v", err)
+	}
+
+	for _, item := range added {
+		if item.HKey != 5 {
+			t.Errorf("Expected HKey is 5. Got: %d", item.HKey)
+		}
+		if item.Timestamp != 10 {
+			t.Errorf("Expected Timestamp is 10. Got: %d", item.Timestamp)
+		}
+	}
+
+	for _, item := range deleted {
+		if item.HKey != 5 {
+			t.Errorf("Expected HKey is 5. Got: %d", item.HKey)
+		}
+		if item.Timestamp != 5 {
+			t.Errorf("Expected Timestamp is 5. Got: %d", item.Timestamp)
+		}
+	}
+}
+
+func TestCompare_ExportImport(t *testing.T) {
+	one := NewDataSet()
+	for i := uint64(0); i < 10; i++ {
+		one.Add(i, i)
+	}
+
+	data, err := one.Export()
+	if err != nil {
+		t.Errorf("Expected nil. Got %v", err)
+	}
+	two, err := Import(data)
+	if err != nil {
+		t.Errorf("Expected nil. Got %v", err)
+	}
+	equal := cmp.Equal(one.KVItems(), two.KVItems())
+	if !equal {
+		t.Fatalf("Different")
+	}
 }
