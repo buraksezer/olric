@@ -17,28 +17,28 @@ package compare
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/vmihailenco/msgpack"
 	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/google/go-cmp/cmp"
+	"github.com/vmihailenco/msgpack"
 )
 
 var ErrDatasetsEqual = errors.New("datasets are equal")
 
-// DiffReporter is a simple custom reporter that only records differences
+// Reporter is a simple custom reporter that only records differences
 // detected during comparison.
-type DiffReporter struct {
+type Reporter struct {
 	path    cmp.Path
 	deleted []*KVItem
 	added   []*KVItem
 }
 
-func (r *DiffReporter) PushStep(ps cmp.PathStep) {
+func (r *Reporter) PushStep(ps cmp.PathStep) {
 	r.path = append(r.path, ps)
 }
 
-func (r *DiffReporter) Report(rs cmp.Result) {
+func (r *Reporter) Report(rs cmp.Result) {
 	if rs.Equal() {
 		return
 	}
@@ -51,7 +51,7 @@ func (r *DiffReporter) Report(rs cmp.Result) {
 	}
 }
 
-func (r *DiffReporter) PopStep() {
+func (r *Reporter) PopStep() {
 	r.path = r.path[:len(r.path)-1]
 }
 
@@ -109,21 +109,9 @@ func Import(data []byte) (*Dataset, error) {
 	return d, nil
 }
 
-type Compare struct {
-	one *Dataset
-	two *Dataset
-}
-
-func New(one, two *Dataset) *Compare {
-	return &Compare{
-		one: one,
-		two: two,
-	}
-}
-
-func (c *Compare) Difference() ([]*KVItem, []*KVItem, error){
-	var r DiffReporter
-	equal := cmp.Equal(c.one.KVItems(), c.two.KVItems(), cmp.Reporter(&r))
+func Cmp(one, two *Dataset) ([]*KVItem, []*KVItem, error) {
+	var r Reporter
+	equal := cmp.Equal(one.KVItems(), two.KVItems(), cmp.Reporter(&r))
 	if equal {
 		return nil, nil, ErrDatasetsEqual
 	}

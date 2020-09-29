@@ -35,8 +35,7 @@ func TestCompare_Difference(t *testing.T) {
 		replica.Add(i, i)
 	}
 
-	c := New(primary, replica)
-	added, deleted, err := c.Difference()
+	added, deleted, err := Cmp(primary, replica)
 	if err != nil {
 		t.Errorf("Expected nil. Got %v", err)
 	}
