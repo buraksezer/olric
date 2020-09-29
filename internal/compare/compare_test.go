@@ -15,8 +15,9 @@
 package compare
 
 import (
-	"github.com/google/go-cmp/cmp"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestCompare_Difference(t *testing.T) {
