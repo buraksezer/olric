@@ -100,7 +100,7 @@ func (db *Olric) deleteKey(name, key string) error {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(name)
 		req.SetKey(key)
-		_, err := db.requestTo(member.String(), req)
+		_, err := db.redirectTo(member, req)
 		return err
 	}
 
@@ -181,6 +181,8 @@ func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
 	backupOwners := db.getBackupPartitionOwners(hkey)
 	var g errgroup.Group
 	for _, backup := range backupOwners {
+		if hostCmp(db.this, backup) { continue }
+
 		mem := backup
 		g.Go(func() error {
 			// TODO: Add retry with backoff

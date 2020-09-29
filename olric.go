@@ -64,6 +64,9 @@ var (
 	ErrKeyTooLarge = errors.New("key too large")
 
 	ErrNotImplemented = errors.New("not implemented")
+
+	// ErrRedirectionCycle means that a node redirects requests to itself.
+	ErrRedirectionCycle = errors.New("redirection cycle detected")
 )
 
 // ReleaseVersion is the current stable version of Olric
@@ -659,4 +662,18 @@ func isKeyExpired(ttl int64) bool {
 // hostCmp returns true if o1 and o2 is the same.
 func hostCmp(o1, o2 discovery.Member) bool {
 	return o1.ID == o2.ID
+}
+
+func (db *Olric) redirectTo(member discovery.Member, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	if hostCmp(db.this, member) {
+		return nil, errors.WithMessage(ErrRedirectionCycle, fmt.Sprintf("OpCode: %v", req.OpCode()))
+	}
+	// Here I write the following lines to detect a bug which I suspected. See #Issue:54
+	if db.this.String() == member.String() {
+		db.log.V(1).Printf("[ERROR] There are members in the consistent hash ring with the same name and " +
+			"different IDs. Name: %s, ID of this node: %d, ID of the target node: %d. Please report this.", db.this, db.this.ID, member.ID)
+		return nil, errors.WithMessage(ErrRedirectionCycle,
+			fmt.Sprintf("Member names are the same: %s OpCode: %v", db.this, req.OpCode()))
+	}
+	return db.requestTo(member.String(), req)
 }

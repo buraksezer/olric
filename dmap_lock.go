@@ -89,7 +89,7 @@ func (db *Olric) unlock(name, key string, token []byte) error {
 	req.SetDMap(name)
 	req.SetKey(key)
 	req.SetValue(token)
-	_, err := db.requestTo(member.String(), req)
+	_, err := db.redirectTo(member, req)
 	return err
 }
 

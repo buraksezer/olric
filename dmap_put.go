@@ -311,7 +311,7 @@ func (db *Olric) put(w *writeop) error {
 	}
 	// Redirect to the partition owner.
 	req := w.toReq(w.opcode)
-	_, err := db.requestTo(member.String(), req)
+	_, err := db.redirectTo(member, req)
 	return err
 }
 

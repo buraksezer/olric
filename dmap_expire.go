@@ -124,7 +124,7 @@ func (db *Olric) expire(w *writeop) error {
 	}
 	// Redirect to the partition owner
 	req := w.toReq(protocol.OpExpire)
-	_, err := db.requestTo(member.String(), req)
+	_, err := db.redirectTo(member, req)
 	return err
 }
 

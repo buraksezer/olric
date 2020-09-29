@@ -138,6 +138,8 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	// Check backups.
 	backups := db.getBackupPartitionOwners(hkey)
 	for _, replica := range backups {
+		if hostCmp(db.this, replica) { continue }
+
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(name)
 		req.SetKey(key)
@@ -274,7 +276,7 @@ func (db *Olric) get(name, key string) ([]byte, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(name)
 	req.SetKey(key)
-	resp, err := db.requestTo(member.String(), req)
+	resp, err := db.redirectTo(member, req)
 	if err != nil {
 		return nil, err
 	}
