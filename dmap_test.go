@@ -153,6 +153,7 @@ func syncClusterMembers(peers ...*Olric) {
 
 type testCustomConfig struct {
 	ReadRepair        bool
+	ReplicationMode   int
 	ReplicaCount      int
 	WriteQuorum       int
 	ReadQuorum        int
@@ -206,6 +207,7 @@ func (t *testCluster) newDB() (*Olric, error) {
 		if t.config.ReadQuorum != 0 {
 			c.ReadQuorum = t.config.ReadQuorum
 		}
+		c.ReplicationMode = t.config.ReplicationMode
 		c.ReadRepair = t.config.ReadRepair
 		c.MemberCountQuorum = t.config.MemberCountQuorum
 	}

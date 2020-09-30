@@ -670,7 +670,7 @@ func (db *Olric) redirectTo(member discovery.Member, req protocol.EncodeDecoder)
 	}
 	// Here I write the following lines to detect a bug which I suspected. See #Issue:54
 	if db.this.String() == member.String() {
-		db.log.V(1).Printf("[ERROR] There are members in the consistent hash ring with the same name and " +
+		db.log.V(1).Printf("[ERROR] There are members in the consistent hash ring with the same name and "+
 			"different IDs. Name: %s, ID of this node: %d, ID of the target node: %d. Please report this.", db.this, db.this.ID, member.ID)
 		return nil, errors.WithMessage(ErrRedirectionCycle,
 			fmt.Sprintf("Member names are the same: %s OpCode: %v", db.this, req.OpCode()))

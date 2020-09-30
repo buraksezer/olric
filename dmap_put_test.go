@@ -19,6 +19,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/config"
 )
 
 func TestDMap_Put(t *testing.T) {
@@ -49,6 +51,49 @@ func TestDMap_Put(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	for i := 0; i < 10; i++ {
+		val, err := dm2.Get(bkey(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if !bytes.Equal(val.([]byte), bval(i)) {
+			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), bkey(i))
+		}
+	}
+}
+
+func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
+	cfg := newTestCustomConfig()
+	cfg.ReplicationMode = config.AsyncReplicationMode
+	c := newTestCluster(cfg)
+	defer c.teardown()
+
+	db1, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	db2, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	dm, err := db1.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	dm2, err := db2.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
 	for i := 0; i < 10; i++ {
 		val, err := dm2.Get(bkey(i))
 		if err != nil {

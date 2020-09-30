@@ -75,7 +75,6 @@ func TestDTopicMessage_Decode(t *testing.T) {
 	}
 }
 
-
 func TestNewDTopicMessage_Response(t *testing.T) {
 	buf := new(bytes.Buffer)
 	msg := NewDTopicMessage(OpDTopicPublish)
