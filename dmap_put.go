@@ -152,13 +152,13 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 }
 
 func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
-	req := w.toReq(w.replicaOpcode)
 	// Fire and forget mode.
 	owners := db.getBackupPartitionOwners(hkey)
 	for _, owner := range owners {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
 			defer db.wg.Done()
+			req := w.toReq(w.replicaOpcode)
 			_, err := db.requestTo(host.String(), req)
 			if err != nil {
 				if db.log.V(3).Ok() {
@@ -171,12 +171,11 @@ func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 }
 
 func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
-	req := w.toReq(w.replicaOpcode)
-
 	// Quorum based replication.
 	var successful int
 	owners := db.getBackupPartitionOwners(hkey)
 	for _, owner := range owners {
+		req := w.toReq(w.replicaOpcode)
 		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
