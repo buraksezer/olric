@@ -1,6 +1,6 @@
 module github.com/buraksezer/olric
 
-go 1.14
+go 1.15
 
 require (
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
@@ -14,7 +14,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e // indirect
-	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.3.0
+	golang.org/x/sync v0.0.0-20200930132711-30421366ff76
+	github.com/miekg/dns v1.1.31 // indirect
+	golang.org/x/crypto v0.0.0-20201001193750-eb9a90e9f9cb // indirect
+	golang.org/x/net v0.0.0-20200930145003-4acb6c075d10 // indirect
+	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f // indirect
 )
