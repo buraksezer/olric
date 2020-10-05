@@ -311,13 +311,10 @@ func (db *Olric) updateRouting() {
 		db.log.V(2).Printf("[ERROR] Failed to update routing table on cluster: %v", err)
 		return
 	}
-	if changed := db.processOwnershipReports(reports); changed {
-		db.log.V(2).Printf("[INFO] Updating routing table again to repair inconsistencies")
-		db.updateRouting()
-	}
+	db.processOwnershipReports(reports)
 }
 
-func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipReport) bool {
+func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipReport) {
 	check := func(member discovery.Member, owners []discovery.Member) bool {
 		for _, owner := range owners {
 			if hostCmp(member, owner) {
@@ -327,13 +324,11 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 		return false
 	}
 
-	var changed bool
 	ensureOwnership := func(member discovery.Member, partID uint64, part *partition) {
 		owners := part.loadOwners()
 		if check(member, owners) {
 			return
 		}
-		changed = true
 		// This section is protected by routingMtx against parallel writers.
 		//
 		// Copy owners and append the member to head
@@ -357,7 +352,6 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 			ensureOwnership(member, partID, part)
 		}
 	}
-	return changed
 }
 
 func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
