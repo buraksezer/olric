@@ -94,7 +94,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 			}
 		} else {
 			data := storage.VData{}
-			err = msgpack.Unmarshal(resp.Value(), data)
+			err = msgpack.Unmarshal(resp.Value(), &data)
 			if err != nil {
 				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from the "+
 					"previous primary owner: %s: %v", owner, err)
