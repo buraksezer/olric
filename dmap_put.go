@@ -179,7 +179,7 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call put command on %s for dmap: %s: %v", owner, w.dmap, err)
+				db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, w.dmap, err)
 			}
 			continue
 		}
@@ -188,7 +188,7 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	err := db.localPut(hkey, dm, w)
 	if err != nil {
 		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for dmap: %s: %v", db.this, w.dmap, err)
+			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.this, w.dmap, err)
 		}
 	} else {
 		successful++

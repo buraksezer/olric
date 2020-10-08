@@ -58,7 +58,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 			// the requested key can be found on a replica or a previous partition owner.
 			if db.log.V(5).Ok() {
 				db.log.V(5).Printf(
-					"[DEBUG] key: %s, HKey: %d on dmap: %s could not be found on the local storage: %v",
+					"[DEBUG] key: %s, HKey: %d on DMap: %s could not be found on the local storage: %v",
 					key, hkey, name, err)
 			}
 		} else {

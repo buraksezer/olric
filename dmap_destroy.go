@@ -43,7 +43,7 @@ func (db *Olric) destroyDMap(name string) error {
 			db.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
 			_, err := db.requestTo(addr, req)
 			if err != nil {
-				db.log.V(3).Printf("[ERROR] Failed to destroy dmap: %s on %s", name, addr)
+				db.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", name, addr)
 			}
 			return err
 		})

@@ -103,7 +103,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 				err := db.delKeyVal(dm, hkey, name, vdata.Key)
 				if err != nil {
 					// It will be tried again.
-					db.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on dmap: %s: %v",
+					db.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
 						hkey, name, err)
 					return true // this means 'continue'
 				}
@@ -212,7 +212,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 		return err
 	}
 	if db.log.V(6).Ok() {
-		db.log.V(6).Printf("[DEBUG] Evicted item on dmap: %s, key: %s with LRU", name, key)
+		db.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", name, key)
 	}
 	return db.delKeyVal(dm, item.HKey, name, key)
 }

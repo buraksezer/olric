@@ -70,7 +70,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
 			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for dmap: %s: %v",
+				db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
 					owner, w.dmap, err)
 			}
 			continue
@@ -80,7 +80,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	err := db.localExpire(hkey, dm, w)
 	if err != nil {
 		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for dmap: %s: %v",
+			db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
 				db.this, w.dmap, err)
 		}
 	} else {

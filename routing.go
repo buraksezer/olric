@@ -125,7 +125,6 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 		}
 		if count == 0 {
 			// Delete it.
-			db.log.V(5).Printf("[DEBUG] Empty backup partition found. PartID: %d on %s", partID, backup)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
 		}
@@ -206,7 +205,6 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 			continue
 		}
 		if count == 0 {
-			db.log.V(6).Printf("[DEBUG] PartID: %d on %s is empty", partID, owner)
 			// Empty partition. Delete it from ownership list.
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
@@ -283,7 +281,10 @@ func (db *Olric) updateRoutingTableOnCluster(table routingTable) (map[discovery.
 			return nil
 		})
 	}
-	return ownershipReports, g.Wait()
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return ownershipReports, nil
 }
 
 func (db *Olric) updateRouting() {
