@@ -178,7 +178,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 			req.SetValue(winner.data.Value)
 			req.SetExtra(protocol.PutExtra{Timestamp: winner.data.Timestamp})
 		} else {
-			req := protocol.NewDMapMessage(protocol.OpPutExReplica)
+			req = protocol.NewDMapMessage(protocol.OpPutExReplica)
 			req.SetDMap(name)
 			req.SetKey(winner.data.Key)
 			req.SetValue(winner.data.Value)
