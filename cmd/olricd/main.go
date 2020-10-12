@@ -25,6 +25,7 @@ import (
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/cmd/olricd/server"
+	"github.com/buraksezer/olric/config"
 	"github.com/sean-/seed"
 )
 
@@ -49,6 +50,14 @@ var (
 	showVersion bool
 )
 
+const (
+	// DefaultConfigFile is the default configuration file path on a Unix-based operating system.
+	DefaultConfigFile = "olricd.yaml"
+
+	// EnvConfigFile is the name of environment variable which can be used to override default configuration file path.
+	EnvConfigFile = "OLRICD_CONFIG"
+)
+
 func main() {
 	// No need for timestamp and etc in this function. Just log it.
 	log.SetFlags(0)
@@ -60,8 +69,8 @@ func main() {
 	f.BoolVar(&showHelp, "help", false, "")
 	f.BoolVar(&showVersion, "version", false, "")
 	f.BoolVar(&showVersion, "v", false, "")
-	f.StringVar(&cpath, "config", server.DefaultConfigFile, "")
-	f.StringVar(&cpath, "c", server.DefaultConfigFile, "")
+	f.StringVar(&cpath, "config", DefaultConfigFile, "")
+	f.StringVar(&cpath, "c", DefaultConfigFile, "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("Failed to parse flags: %v", err)
@@ -81,9 +90,14 @@ func main() {
 	// call to Init() failed in the past.
 	seed.MustInit()
 
-	c, err := server.NewConfig(cpath)
+	envPath := os.Getenv(EnvConfigFile)
+	if envPath != "" {
+		cpath = envPath
+	}
+
+	c, err := config.Load(cpath)
 	if err != nil {
-		log.Fatalf("Failed to read or parse configuration file: %v", err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	s, err := server.New(c)

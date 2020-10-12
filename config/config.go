@@ -267,7 +267,7 @@ type Config struct {
 
 	ServiceDiscovery map[string]interface{}
 
-	// Interface denotes a binding interface. It can be used instead of memberlist.Config.BindAddr if the interface is
+	// Interface denotes a binding interface. It can be used instead of memberlist.Loader.BindAddr if the interface is
 	// known but not the address. If both are provided, then Olric verifies that the interface has the bind address that
 	// is provided.
 	MemberlistInterface string

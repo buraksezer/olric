@@ -17,19 +17,13 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/hasher"
-	"github.com/buraksezer/olric/serializer"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -41,147 +35,12 @@ type Olricd struct {
 	errgr  errgroup.Group
 }
 
-func prepareCacheConfig(c *Config) (*config.CacheConfig, error) {
-	res := &config.CacheConfig{}
-	if c.Cache.MaxIdleDuration != "" {
-		maxIdleDuration, err := time.ParseDuration(c.Cache.MaxIdleDuration)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to parse cache.MaxIdleDuration")
-		}
-		res.MaxIdleDuration = maxIdleDuration
-	}
-	if c.Cache.TTLDuration != "" {
-		ttlDuration, err := time.ParseDuration(c.Cache.TTLDuration)
-		if err != nil {
-			return nil, errors.WithMessage(err, "failed to parse cache.TTLDuration")
-		}
-		res.TTLDuration = ttlDuration
-	}
-	res.NumEvictionWorkers = c.Cache.NumEvictionWorkers
-	res.MaxKeys = c.Cache.MaxKeys
-	res.MaxInuse = c.Cache.MaxInuse
-	res.EvictionPolicy = config.EvictionPolicy(c.Cache.EvictionPolicy)
-	res.LRUSamples = c.Cache.LRUSamples
-	if c.DMaps != nil {
-		res.DMapConfigs = make(map[string]config.DMapCacheConfig)
-		for name, dc := range c.DMaps {
-			cc := config.DMapCacheConfig{
-				MaxInuse:       dc.MaxInuse,
-				MaxKeys:        dc.MaxKeys,
-				EvictionPolicy: config.EvictionPolicy(dc.EvictionPolicy),
-				LRUSamples:     dc.LRUSamples,
-			}
-			if dc.MaxIdleDuration != "" {
-				maxIdleDuration, err := time.ParseDuration(dc.MaxIdleDuration)
-				if err != nil {
-					return nil, errors.WithMessagef(err, "failed to parse cache.%s.MaxIdleDuration", name)
-				}
-				cc.MaxIdleDuration = maxIdleDuration
-			}
-			if dc.TTLDuration != "" {
-				ttlDuration, err := time.ParseDuration(dc.TTLDuration)
-				if err != nil {
-					return nil, errors.WithMessagef(err, "failed to parse cache.%s.TTLDuration", name)
-				}
-				cc.TTLDuration = ttlDuration
-			}
-			res.DMapConfigs[name] = cc
-		}
-	}
-	return res, nil
-}
-
 // New creates a new Server instance
-func New(c *Config) (*Olricd, error) {
-	s := &Olricd{}
-	var logOutput io.Writer
-	if c.Logging.Output == "stderr" {
-		logOutput = os.Stderr
-	} else if c.Logging.Output == "stdout" {
-		logOutput = os.Stdout
-	} else {
-		logOutput = os.Stderr
-	}
-	if c.Logging.Level == "" {
-		c.Logging.Level = config.DefaultLogLevel
-	}
-
-	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var sr serializer.Serializer
-	if c.Olricd.Serializer == "json" {
-		sr = serializer.NewJSONSerializer()
-	} else if c.Olricd.Serializer == "msgpack" {
-		sr = serializer.NewMsgpackSerializer()
-	} else if c.Olricd.Serializer == "gob" {
-		sr = serializer.NewGobSerializer()
-	} else {
-		return nil, fmt.Errorf("invalid serializer: %s", c.Olricd.Serializer)
-	}
-
-	mc, err := newMemberlistConf(c)
-	if err != nil {
-		return nil, err
-	}
-
-	var joinRetryInterval, keepAlivePeriod, requestTimeout time.Duration
-	if c.Olricd.KeepAlivePeriod != "" {
-		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
-		if err != nil {
-			return nil, errors.WithMessage(err,
-				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
-		}
-	}
-	if c.Olricd.RequestTimeout != "" {
-		requestTimeout, err = time.ParseDuration(c.Olricd.RequestTimeout)
-		if err != nil {
-			return nil, errors.WithMessage(err,
-				fmt.Sprintf("failed to parse olricd.requestTimeout: '%s'", c.Olricd.RequestTimeout))
-		}
-	}
-	if c.Memberlist.JoinRetryInterval != "" {
-		joinRetryInterval, err = time.ParseDuration(c.Memberlist.JoinRetryInterval)
-		if err != nil {
-			return nil, errors.WithMessage(err,
-				fmt.Sprintf("failed to parse memberlist.joinRetryInterval: '%s'",
-					c.Memberlist.JoinRetryInterval))
-		}
-	}
-	cacheConfig, err := prepareCacheConfig(c)
-	if err != nil {
-		return nil, err
-	}
-
-	s.log = log.New(logOutput, "", log.LstdFlags)
-	s.config = &config.Config{
-		BindAddr:            c.Olricd.BindAddr,
-		BindPort:            c.Olricd.BindPort,
-		Interface:           c.Olricd.Interface,
-		ServiceDiscovery:    c.ServiceDiscovery,
-		MemberlistInterface: c.Memberlist.Interface,
-		MemberlistConfig:    mc,
-		LogLevel:            c.Logging.Level,
-		JoinRetryInterval:   joinRetryInterval,
-		MaxJoinAttempts:     c.Memberlist.MaxJoinAttempts,
-		Peers:               c.Memberlist.Peers,
-		PartitionCount:      c.Olricd.PartitionCount,
-		ReplicaCount:        c.Olricd.ReplicaCount,
-		WriteQuorum:         c.Olricd.WriteQuorum,
-		ReadQuorum:          c.Olricd.ReadQuorum,
-		ReplicationMode:     c.Olricd.ReplicationMode,
-		ReadRepair:          c.Olricd.ReadRepair,
-		LoadFactor:          c.Olricd.LoadFactor,
-		MemberCountQuorum:   c.Olricd.MemberCountQuorum,
-		Logger:              s.log,
-		LogOutput:           logOutput,
-		LogVerbosity:        c.Logging.Verbosity,
-		Hasher:              hasher.NewDefaultHasher(),
-		Serializer:          sr,
-		KeepAlivePeriod:     keepAlivePeriod,
-		RequestTimeout:      requestTimeout,
-		Cache:               cacheConfig,
-		TableSize:           c.Olricd.TableSize,
-	}
-	return s, nil
+func New(c *config.Config) (*Olricd, error) {
+	return &Olricd{
+		config: c,
+		log:    c.Logger,
+	}, nil
 }
 
 func (s *Olricd) waitForInterrupt() {

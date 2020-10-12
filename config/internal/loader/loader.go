@@ -12,21 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package loader
 
 import (
-	"io/ioutil"
-	"os"
-
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	// DefaultConfigFile is the default configuration file path on a Unix-based operating system.
-	DefaultConfigFile = "olricd.yaml"
-
-	// EnvConfigFile is the name of environment variable which can be used to override default configuration file path.
-	EnvConfigFile = "OLRICD_CONFIG"
 )
 
 type olricd struct {
@@ -96,38 +85,20 @@ type cache struct {
 	EvictionPolicy     string `yaml:"evictionPolicy"`
 }
 
-// Config is the main configuration struct
-type Config struct {
-	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
+// Loader is the main configuration struct
+type Loader struct {
 	Memberlist       memberlist
 	Logging          logging
 	Olricd           olricd
 	Cache            cache
-	DMaps            map[string]cache
+	DMaps            map[string]cache       `yaml:"dmaps"`
+	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
 }
 
-// NewConfig creates a new configuration instance of olricd
-func NewConfig(path string) (*Config, error) {
-	envPath := os.Getenv(EnvConfigFile)
-	if envPath != "" {
-		path = envPath
-	}
-	if path == "" {
-		path = DefaultConfigFile
-	}
-
-	f, err := os.Open(path)
-	if err != nil {
+func New(data []byte) (*Loader, error) {
+	var lc Loader
+	if err := yaml.Unmarshal(data, &lc); err != nil {
 		return nil, err
 	}
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-
-	var c Config
-	if err := yaml.Unmarshal(data, &c); err != nil {
-		return nil, err
-	}
-	return &c, nil
+	return &lc, nil
 }

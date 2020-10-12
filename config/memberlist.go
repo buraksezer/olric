@@ -3,32 +3,28 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package server
+package config
 
 import (
 	"os"
 	"time"
 
-	"github.com/buraksezer/olric/config"
-	m "github.com/hashicorp/memberlist"
+	"github.com/buraksezer/olric/config/internal/loader"
+	mlist "github.com/hashicorp/memberlist"
 )
 
-// newMemberlistConf creates a new *memberlist.Config by parsing olricd.yaml
-func newMemberlistConf(c *Config) (*m.Config, error) {
-	mc, err := config.NewMemberlistConfig(c.Memberlist.Environment)
-	if err != nil {
-		return nil, err
-	}
-
+// processMemberlistConfig creates a new *memberlist.Config by parsing olricd.yaml
+func processMemberlistConfig(c *loader.Loader, mc *mlist.Config) (*mlist.Config, error) {
+	var err error
 	if c.Memberlist.BindAddr == "" {
 		name, err := os.Hostname()
 		if err != nil {
