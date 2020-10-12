@@ -49,7 +49,7 @@ func TestDMap_PutBackup(t *testing.T) {
 		key := bkey(i)
 		owner, hkey := dm.db.findPartitionOwner(mname, key)
 		var backup = db1
-		if hostCmp(owner, db1.this) {
+		if cmpMembersByID(owner, db1.this) {
 			backup = db2
 		}
 		partID := db1.getPartitionID(hkey)
@@ -113,7 +113,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 		key := bkey(i)
 		owner, hkey := dm.db.findPartitionOwner(mname, key)
 		var backup = db1
-		if hostCmp(owner, db1.this) {
+		if cmpMembersByID(owner, db1.this) {
 			backup = db2
 		}
 		partID := db1.getPartitionID(hkey)
@@ -161,7 +161,7 @@ func TestDMap_GetBackup(t *testing.T) {
 		key := bkey(i)
 		owner, hkey := dm.db.findPartitionOwner(mname, key)
 		var kloc = db1
-		if !hostCmp(owner, db1.this) {
+		if !cmpMembersByID(owner, db1.this) {
 			kloc = db2
 		}
 

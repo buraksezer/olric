@@ -118,13 +118,13 @@ func (db *Olric) callExpireOnCluster(hkey uint64, w *writeop) error {
 
 func (db *Olric) expire(w *writeop) error {
 	member, hkey := db.findPartitionOwner(w.dmap, w.key)
-	if hostCmp(member, db.this) {
+	if cmpMembersByName(member, db.this) {
 		// We are on the partition owner.
 		return db.callExpireOnCluster(hkey, w)
 	}
 	// Redirect to the partition owner
 	req := w.toReq(protocol.OpExpire)
-	_, err := db.redirectTo(member, req)
+	_, err := db.requestTo(member.String(), req)
 	return err
 }
 

@@ -82,6 +82,7 @@ type Discovery struct {
 // Member represents a node in the cluster.
 type Member struct {
 	Name      string
+	NameHash  uint64
 	ID        uint64
 	Birthdate int64
 }
@@ -106,8 +107,10 @@ func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 	buf = append(buf, []byte(c.MemberlistConfig.Name)...)
 
 	id := c.Hasher.Sum64(buf)
+	nameHash := c.Hasher.Sum64([]byte(c.MemberlistConfig.Name))
 	host := &Member{
 		Name:      c.MemberlistConfig.Name,
+		NameHash:  nameHash,
 		ID:        id,
 		Birthdate: birthdate,
 	}

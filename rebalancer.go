@@ -164,7 +164,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		}
 
 		owner := part.owner()
-		if hostCmp(owner, db.this) {
+		if cmpMembersByID(owner, db.this) {
 			// Already belongs to me.
 			continue
 		}
@@ -206,7 +206,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 		offset := len(owners) - 1 - (db.config.ReplicaCount - 1)
 		for i := len(owners) - 1; i > offset; i-- {
 			owner := owners[i]
-			if hostCmp(db.this, owner) {
+			if cmpMembersByID(db.this, owner) {
 				continue
 			}
 			ids = append(ids, owner.ID)
@@ -262,7 +262,7 @@ func (db *Olric) rebalancer() {
 func (db *Olric) checkOwnership(part *partition) bool {
 	owners := part.loadOwners()
 	for _, owner := range owners {
-		if hostCmp(owner, db.this) {
+		if cmpMembersByID(owner, db.this) {
 			return true
 		}
 	}

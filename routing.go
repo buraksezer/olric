@@ -90,7 +90,7 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 			i--
 			continue
 		}
-		if !hostCmp(backup, cur) {
+		if !cmpMembersByID(backup, cur) {
 			db.log.V(3).Printf("[WARN] One of the backup owners is probably re-joined: %s", cur)
 			// Delete it.
 			owners = append(owners[:i], owners[i+1:]...)
@@ -134,7 +134,7 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 	for _, backup := range newOwners {
 		var exists bool
 		for i, bkp := range owners {
-			if hostCmp(bkp, backup.(discovery.Member)) {
+			if cmpMembersByID(bkp, backup.(discovery.Member)) {
 				exists = true
 				// Remove it from the current position
 				owners = append(owners[:i], owners[i+1:]...)
@@ -175,7 +175,7 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 			i--
 			continue
 		}
-		if !hostCmp(owner, current) {
+		if !cmpMembersByID(owner, current) {
 			db.log.V(4).Printf("[WARN] One of the partitions owners is probably re-joined: %s", current)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
@@ -213,7 +213,7 @@ func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 
 	// Here add the new partition newOwner.
 	for i, owner := range owners {
-		if hostCmp(owner, newOwner.(discovery.Member)) {
+		if cmpMembersByID(owner, newOwner.(discovery.Member)) {
 			// Remove it from the current position
 			owners = append(owners[:i], owners[i+1:]...)
 			// Append it again to head
@@ -318,7 +318,7 @@ func (db *Olric) updateRouting() {
 func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipReport) {
 	check := func(member discovery.Member, owners []discovery.Member) bool {
 		for _, owner := range owners {
-			if hostCmp(member, owner) {
+			if cmpMembersByID(member, owner) {
 				return true
 			}
 		}
@@ -422,7 +422,7 @@ func (db *Olric) checkAndGetCoordinator(id uint64) (discovery.Member, error) {
 	}
 
 	myCoordinator := db.discovery.GetCoordinator()
-	if !hostCmp(coordinator, myCoordinator) {
+	if !cmpMembersByID(coordinator, myCoordinator) {
 		return discovery.Member{}, fmt.Errorf("unrecognized cluster coordinator: %s: %s", coordinator, myCoordinator)
 	}
 	return coordinator, nil
@@ -432,7 +432,7 @@ func (db *Olric) setOwnedPartitionCount() {
 	var count uint64
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		part := db.partitions[partID]
-		if hostCmp(part.owner(), db.this) {
+		if cmpMembersByID(part.owner(), db.this) {
 			count++
 		}
 	}

@@ -236,7 +236,7 @@ func (db *Olric) publishDTopicMessageToAddr(member discovery.Member, topic strin
 	defer db.wg.Done()
 	defer sem.Release(1)
 
-	if hostCmp(member, db.this) {
+	if cmpMembersByID(member, db.this) {
 		// Dispatch messages in this process.
 		err := db.dtopic.dispatch(topic, msg)
 		if err != nil {

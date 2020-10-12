@@ -174,7 +174,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.VData, error) {
 	owners := c.db.partitions[partID].loadOwners()
 	var responses []queryResponse
 	for _, owner := range owners {
-		if hostCmp(owner, c.db.this) {
+		if cmpMembersByID(owner, c.db.this) {
 			response, err := c.db.runLocalQuery(partID, c.name, c.query)
 			if err != nil {
 				return nil, err

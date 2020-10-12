@@ -82,14 +82,14 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 // It redirects the request to the partition owner, if required.
 func (db *Olric) unlock(name, key string, token []byte) error {
 	member, _ := db.findPartitionOwner(name, key)
-	if hostCmp(member, db.this) {
+	if cmpMembersByName(member, db.this) {
 		return db.unlockKey(name, key, token)
 	}
 	req := protocol.NewDMapMessage(protocol.OpUnlock)
 	req.SetDMap(name)
 	req.SetKey(key)
 	req.SetValue(token)
-	_, err := db.redirectTo(member, req)
+	_, err := db.requestTo(member.String(), req)
 	return err
 }
 

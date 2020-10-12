@@ -187,7 +187,7 @@ func TestDMap_PutWriteQuorum(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
 		host, _ := db1.findPartitionOwner(dm.name, key)
-		if hostCmp(db1.this, host) {
+		if cmpMembersByID(db1.this, host) {
 			err = dm.Put(key, bval(i))
 			if err != ErrWriteQuorum {
 				t.Fatalf("Expected ErrWriteQuorum. Got: %v", err)

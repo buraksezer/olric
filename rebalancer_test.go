@@ -51,7 +51,7 @@ func TestRebalance_Merge(t *testing.T) {
 
 	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
 		part := db1.partitions[partID]
-		if !hostCmp(part.owner(), db1.this) {
+		if !cmpMembersByID(part.owner(), db1.this) {
 			if part.length() != 0 {
 				t.Fatalf("Expected key count is 0 for PartID: %d on %s. Got: %d",
 					partID, db1.this, part.length())
@@ -61,7 +61,7 @@ func TestRebalance_Merge(t *testing.T) {
 
 	for partID := uint64(0); partID < db2.config.PartitionCount; partID++ {
 		part := db2.partitions[partID]
-		if hostCmp(part.owner(), db2.this) {
+		if cmpMembersByID(part.owner(), db2.this) {
 			if part.length() == 0 {
 				t.Fatalf("Expected key count is different than zero for PartID: %d on %s", partID, db2.this)
 			}
@@ -192,7 +192,7 @@ func TestRebalance_MergeBackups(t *testing.T) {
 
 			part := db.partitions[partID]
 			for _, backupOwner := range backup.loadOwners() {
-				if hostCmp(backupOwner, part.owner()) {
+				if cmpMembersByID(backupOwner, part.owner()) {
 					t.Fatalf("Partition owner is also backup owner. PartID: %d: %s",
 						partID, backupOwner)
 				}
@@ -218,7 +218,7 @@ func TestRebalance_CheckOwnership(t *testing.T) {
 				t.Fatalf("Invalid ownership distribution")
 			}
 			for _, backupOwner := range backup.loadOwners() {
-				if hostCmp(backupOwner, part.owner()) {
+				if cmpMembersByID(backupOwner, part.owner()) {
 					t.Fatalf("Partition owner is also backup owner. PartID: %d: %s",
 						partID, backupOwner)
 				}

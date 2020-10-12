@@ -304,13 +304,13 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 // if the key belongs to another host.
 func (db *Olric) put(w *writeop) error {
 	member, hkey := db.findPartitionOwner(w.dmap, w.key)
-	if hostCmp(member, db.this) {
+	if cmpMembersByName(member, db.this) {
 		// We are on the partition owner.
 		return db.callPutOnCluster(hkey, w)
 	}
 	// Redirect to the partition owner.
 	req := w.toReq(w.opcode)
-	_, err := db.redirectTo(member, req)
+	_, err := db.requestTo(member.String(), req)
 	return err
 }
 

@@ -138,8 +138,6 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	// Check backups.
 	backups := db.getBackupPartitionOwners(hkey)
 	for _, replica := range backups {
-		if hostCmp(db.this, replica) { continue }
-
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(name)
 		req.SetKey(key)
@@ -189,7 +187,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 		}
 
 		// Sync
-		if hostCmp(*ver.host, db.this) {
+		if cmpMembersByID(*ver.host, db.this) {
 			hkey := db.getHKey(name, winner.data.Key)
 			w := &writeop{
 				dmap:      name,
@@ -268,7 +266,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error)
 func (db *Olric) get(name, key string) ([]byte, error) {
 	member, hkey := db.findPartitionOwner(name, key)
 	// We are on the partition owner
-	if hostCmp(member, db.this) {
+	if cmpMembersByName(member, db.this) {
 		return db.callGetOnCluster(hkey, name, key)
 	}
 
@@ -276,7 +274,7 @@ func (db *Olric) get(name, key string) ([]byte, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(name)
 	req.SetKey(key)
-	resp, err := db.redirectTo(member, req)
+	resp, err := db.requestTo(member.String(), req)
 	if err != nil {
 		return nil, err
 	}
