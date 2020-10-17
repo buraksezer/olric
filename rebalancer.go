@@ -164,7 +164,10 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		}
 
 		owner := part.owner()
-		if cmpMembersByID(owner, db.this) {
+		// Here we don't use cmpMembersById function because the routing table has an eventually consistent
+		// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
+		// of itself. So just check the name.
+		if cmpMembersByName(owner, db.this) {
 			// Already belongs to me.
 			continue
 		}
@@ -206,7 +209,11 @@ func (db *Olric) rebalanceBackupPartitions() {
 		offset := len(owners) - 1 - (db.config.ReplicaCount - 1)
 		for i := len(owners) - 1; i > offset; i-- {
 			owner := owners[i]
-			if cmpMembersByID(db.this, owner) {
+			// Here we don't use cmpMembersById function because the routing table has an eventually consistent
+			// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
+			// of itself. So just check the name.
+			if cmpMembersByName(db.this, owner) {
+				// Already belongs to me.
 				continue
 			}
 			ids = append(ids, owner.ID)
