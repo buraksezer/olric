@@ -300,8 +300,8 @@ func (db *Olric) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	}
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !db.checkOwnership(part) {
-		db.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (backup: %v) doesn't belong to me",
-			box.Name, box.PartID, box.Backup)
+		db.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (backup: %v) doesn't belong to this node (%s)",
+			box.Name, box.PartID, box.Backup, db.this)
 		err := fmt.Errorf("partID: %d (backup: %v) doesn't belong to %s: %w", box.PartID, box.Backup, db.this, ErrInvalidArgument)
 		db.errorResponse(w, err)
 		return
