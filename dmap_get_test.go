@@ -277,7 +277,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	for i := 0; i < 10; i++ {
-		if i % 2 == 0 {
+		if i%2 == 0 {
 			err = dm.PutEx(bkey(i), bval(i), time.Minute)
 		} else {
 			err = dm.Put(bkey(i), bval(i))

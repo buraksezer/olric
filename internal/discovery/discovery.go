@@ -199,7 +199,7 @@ func (d *Discovery) deadMemberTracker() {
 			return
 		case e := <-d.deadMemberEvents:
 			member := e.MemberAddr()
-			if e.Event == memberlist.NodeJoin {
+			if e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate {
 				delete(d.deadMembers, member)
 			} else if e.Event == memberlist.NodeLeave {
 				d.deadMembers[member] = time.Now().UnixNano()
@@ -374,7 +374,7 @@ func (d *Discovery) Shutdown() error {
 	return d.memberlist.Shutdown()
 }
 
-func convertToClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
+func toClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
 	return &ClusterEvent{
 		Event:    e.Event,
 		NodeName: e.Node.Name,
@@ -392,21 +392,7 @@ func (d *Discovery) handleEvent(event memberlist.NodeEvent) {
 		if event.Node.Name == d.member.Name {
 			continue
 		}
-		// NodeJoin or NodeLeave
-		if event.Event != memberlist.NodeUpdate {
-			ch <- convertToClusterEvent(event)
-			continue
-		}
-
-		// NodeUpdate: Olric is an in-memory k/v store. If the node metadata has been updated,
-		// the node may be restarted or/and serves stale data.
-		e := convertToClusterEvent(event)
-		e.Event = memberlist.NodeLeave
-		ch <- e
-		// Create a Join event from copied event.
-		e = convertToClusterEvent(event)
-		e.Event = memberlist.NodeJoin
-		ch <- e
+		ch <- toClusterEvent(event)
 	}
 }
 

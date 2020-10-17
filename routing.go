@@ -355,7 +355,7 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 	}
 }
 
-func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
+func (db *Olric) processClusterEvent(event *discovery.ClusterEvent) {
 	db.members.mtx.Lock()
 	defer db.members.mtx.Unlock()
 
@@ -365,17 +365,29 @@ func (db *Olric) processNodeEvent(event *discovery.ClusterEvent) {
 		db.consistent.Add(member)
 		db.log.V(2).Printf("[INFO] Node joined: %s", member)
 	} else if event.Event == memberlist.NodeLeave {
-		if _, ok := db.members.m[member.ID]; ok {
-			delete(db.members.m, member.ID)
-		} else {
-			db.log.V(2).Printf("[ERROR] Unknown node left: %s", event.NodeName)
+		if _, ok := db.members.m[member.ID]; !ok {
+			db.log.V(2).Printf("[ERROR] Unknown node left: %s: %d", event.NodeName, member.ID)
 			return
 		}
 
+		delete(db.members.m, member.ID)
 		db.consistent.Remove(event.NodeName)
 		// Don't try to used closed sockets again.
 		db.client.ClosePool(event.NodeName)
 		db.log.V(2).Printf("[INFO] Node left: %s", event.NodeName)
+	} else if event.Event == memberlist.NodeUpdate {
+		// Node's birthdate may be changed. Close the pool and re-add to the hash ring.
+		// This takes linear time, but member count should be too small for a decent computer!
+		for id, item := range db.members.m {
+			if cmpMembersByName(member, item) {
+				delete(db.members.m, id)
+				db.consistent.Remove(event.NodeName)
+				db.client.ClosePool(event.NodeName)
+			}
+		}
+		db.members.m[member.ID] = member
+		db.consistent.Add(member)
+		db.log.V(2).Printf("[INFO] Node updated: %s", member)
 	} else {
 		db.log.V(2).Printf("[ERROR] Unknown event received: %v", event)
 		return
@@ -393,7 +405,7 @@ func (db *Olric) listenMemberlistEvents(eventCh chan *discovery.ClusterEvent) {
 		case <-db.ctx.Done():
 			return
 		case e := <-eventCh:
-			db.processNodeEvent(e)
+			db.processClusterEvent(e)
 			db.updateRouting()
 		}
 	}
