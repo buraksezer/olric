@@ -26,16 +26,12 @@ import (
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 )
 
 // Load reads and loads Olric configuration.
 func Load(filename string) (*Config, error) {
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
 		return nil, fmt.Errorf("file doesn't exists: %s", filename)
-	}
-	if err := unix.Access(filename, unix.R_OK); err != nil {
-		return nil, fmt.Errorf("file doesn't readable: %s", filename)
 	}
 	f, err := os.Open(filename)
 	if err != nil {
