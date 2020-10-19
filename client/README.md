@@ -15,6 +15,7 @@ This implementation also supports connection pooling by default.
     * [PutEx](#putex)
     * [PutIfEx](#putifex)
     * [Get](#get)
+    * [GetEntry](#getentry)
     * [Expire](#expire)
     * [Delete](#delete)
     * [LockWithTimeout](#lockwithtimeout)
@@ -161,6 +162,28 @@ Get gets the value for the given key. It returns `olric.ErrKeyNotFound` if the D
 ```go
 value, err := dm.Get("my-key")
 ```
+
+### GetEntry
+
+Get gets the value for the given key with its metadata. It returns `olric.ErrKeyNotFound` if the DB does not contains the key. It's thread-safe.
+
+```go
+entry, err := dm.GetEntry("my-key")
+```
+
+Definition of `olric.Entry`:
+
+```go
+type Entry struct {
+	Key       string
+	Value     interface{}
+	TTL       int64
+	Timestamp int64
+}
+```
+
+It is safe to modify the contents of the returned value. 
+
 
 It is safe to modify the contents of the returned value. It is safe to modify the contents of the argument after Get returns.
 
