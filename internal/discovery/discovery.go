@@ -36,8 +36,8 @@ import (
 
 const eventChanCapacity = 256
 
-// ErrHostNotFound indicates that the requested host could not be found in the member list.
-var ErrHostNotFound = errors.New("host not found")
+// ErrMemberNotFound indicates that the requested member could not be found in the member list.
+var ErrMemberNotFound = errors.New("member not found")
 
 // ClusterEvent is a single event related to node activity in the memberlist.
 // The Node member of this struct must not be directly modified.
@@ -58,7 +58,7 @@ func (c *ClusterEvent) MemberAddr() string {
 // provides useful functions to utilize it.
 type Discovery struct {
 	log        *flog.Logger
-	host       *Member
+	member     *Member
 	memberlist *memberlist.Memberlist
 	config     *config.Config
 
@@ -99,24 +99,22 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
 func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
-	// Calculate host's identity. It's useful to compare hosts.
+	// Calculate member's identity. It's useful to compare hosts.
 	birthdate := time.Now().UnixNano()
 
 	buf := make([]byte, 8+len(c.MemberlistConfig.Name))
 	binary.BigEndian.PutUint64(buf, uint64(birthdate))
 	buf = append(buf, []byte(c.MemberlistConfig.Name)...)
-
-	id := c.Hasher.Sum64(buf)
 	nameHash := c.Hasher.Sum64([]byte(c.MemberlistConfig.Name))
-	host := &Member{
+	member := &Member{
 		Name:      c.MemberlistConfig.Name,
 		NameHash:  nameHash,
-		ID:        id,
+		ID:        c.Hasher.Sum64(buf),
 		Birthdate: birthdate,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &Discovery{
-		host:        host,
+		member:      member,
 		config:      c,
 		log:         log,
 		deadMembers: make(map[string]int64),
@@ -201,7 +199,7 @@ func (d *Discovery) deadMemberTracker() {
 			return
 		case e := <-d.deadMemberEvents:
 			member := e.MemberAddr()
-			if e.Event == memberlist.NodeJoin {
+			if e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate {
 				delete(d.deadMembers, member)
 			} else if e.Event == memberlist.NodeLeave {
 				d.deadMembers[member] = time.Now().UnixNano()
@@ -307,7 +305,7 @@ func (d *Discovery) FindMemberByName(name string) (Member, error) {
 			return member, nil
 		}
 	}
-	return Member{}, ErrHostNotFound
+	return Member{}, ErrMemberNotFound
 }
 
 // FindMemberByID finds and returns an alive member.
@@ -318,7 +316,7 @@ func (d *Discovery) FindMemberByID(id uint64) (Member, error) {
 			return member, nil
 		}
 	}
-	return Member{}, ErrHostNotFound
+	return Member{}, ErrMemberNotFound
 }
 
 // GetCoordinator returns the oldest node in the memberlist.
@@ -333,7 +331,7 @@ func (d *Discovery) GetCoordinator() Member {
 
 // IsCoordinator returns true if the caller is the coordinator node.
 func (d *Discovery) IsCoordinator() bool {
-	return d.GetCoordinator().ID == d.host.ID
+	return d.GetCoordinator().ID == d.member.ID
 }
 
 // LocalNode is used to return the local Node
@@ -376,7 +374,7 @@ func (d *Discovery) Shutdown() error {
 	return d.memberlist.Shutdown()
 }
 
-func convertToClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
+func toClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
 	return &ClusterEvent{
 		Event:    e.Event,
 		NodeName: e.Node.Name,
@@ -391,24 +389,10 @@ func (d *Discovery) handleEvent(event memberlist.NodeEvent) {
 	defer d.clusterEventsMtx.RUnlock()
 
 	for _, ch := range d.eventSubscribers {
-		if event.Node.Name == d.host.Name {
+		if event.Node.Name == d.member.Name {
 			continue
 		}
-		// NodeJoin or NodeLeave
-		if event.Event != memberlist.NodeUpdate {
-			ch <- convertToClusterEvent(event)
-			continue
-		}
-
-		// NodeUpdate: Olric is an in-memory k/v store. If the node metadata has been updated,
-		// the node may be restarted or/and serves stale data.
-		e := convertToClusterEvent(event)
-		e.Event = memberlist.NodeLeave
-		ch <- e
-		// Create a Join event from copied event.
-		e = convertToClusterEvent(event)
-		e.Event = memberlist.NodeJoin
-		ch <- e
+		ch <- toClusterEvent(event)
 	}
 }
 
@@ -442,7 +426,7 @@ type delegate struct {
 
 // newDelegate returns a new delegate instance.
 func (d *Discovery) newDelegate() (delegate, error) {
-	data, err := msgpack.Marshal(d.host)
+	data, err := msgpack.Marshal(d.member)
 	if err != nil {
 		return delegate{}, err
 	}
