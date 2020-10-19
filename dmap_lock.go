@@ -55,12 +55,14 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 	}()
 
 	// get the key to check its value
-	rawval, err := db.get(name, key)
+	entry, err := db.get(name, key)
 	if err == ErrKeyNotFound {
 		return ErrNoSuchLock
 	}
-
-	val, err := db.unmarshalValue(rawval)
+	if err != nil {
+		return err
+	}
+	val, err := db.unmarshalValue(entry.Value)
 	if err != nil {
 		return err
 	}

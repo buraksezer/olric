@@ -38,7 +38,7 @@ var ErrEndOfQuery = errors.New("end of query")
 type QueryResponse map[string]interface{}
 
 // internal representation of query response
-type queryResponse map[uint64]*storage.VData
+type queryResponse map[uint64]*storage.Entry
 
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
@@ -165,7 +165,7 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
 	return result
 }
 
-func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.VData, error) {
+func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.Entry, error) {
 	value, err := msgpack.Marshal(c.query)
 	if err != nil {
 		return nil, err
@@ -202,14 +202,14 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.VData, error) {
 		responses = append(responses, tmp)
 	}
 
-	var result []*storage.VData
-	for _, vdata := range c.reconcileResponses(responses) {
-		result = append(result, vdata)
+	var result []*storage.Entry
+	for _, entry := range c.reconcileResponses(responses) {
+		result = append(result, entry)
 	}
 	return result, nil
 }
 
-func (c *Cursor) runQueryOnCluster(results chan []*storage.VData, errCh chan error) {
+func (c *Cursor) runQueryOnCluster(results chan []*storage.Entry, errCh chan error) {
 	defer c.db.wg.Done()
 	defer close(results)
 
@@ -267,19 +267,19 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	defer c.Close()
 
 	// Currently we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
-	results := make(chan []*storage.VData, NumParallelQuery)
+	results := make(chan []*storage.Entry, NumParallelQuery)
 	errCh := make(chan error, 1)
 
 	c.db.wg.Add(1)
 	go c.runQueryOnCluster(results, errCh)
 
 	for res := range results {
-		for _, vdata := range res {
-			value, err := c.db.unmarshalValue(vdata.Value)
+		for _, entry := range res {
+			value, err := c.db.unmarshalValue(entry.Value)
 			if err != nil {
 				return err
 			}
-			if !f(vdata.Key, value) {
+			if !f(entry.Key, value) {
 				// User called "break" in this loop (Range)
 				return nil
 			}

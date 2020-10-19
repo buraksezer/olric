@@ -15,8 +15,11 @@
 package client
 
 import (
-	"github.com/buraksezer/olric/internal/protocol"
 	"time"
+
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/storage"
 )
 
 // dmap provides methods to access distributed maps on Olric cluster.
@@ -29,12 +32,13 @@ func (c *Client) processGetResponse(resp protocol.EncodeDecoder) (interface{}, e
 	if err := checkStatusCode(resp); err != nil {
 		return nil, err
 	}
-	return c.unmarshalValue(resp.Value())
+	entry := storage.NewEntry()
+	entry.Decode(resp.Value())
+	return c.unmarshalValue(entry.Value)
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key.
 // It's thread-safe. It is safe to modify the contents of the returned value.
-// It is safe to modify the contents of the argument after Get returns.
 func (d *DMap) Get(key string) (interface{}, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(d.name)
@@ -44,6 +48,33 @@ func (d *DMap) Get(key string) (interface{}, error) {
 		return nil, err
 	}
 	return d.processGetResponse(resp)
+}
+
+// GetEntry gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key.
+// It's thread-safe. It is safe to modify the contents of the returned value.
+func (d *DMap) GetEntry(key string) (*olric.Entry, error) {
+	req := protocol.NewDMapMessage(protocol.OpGet)
+	req.SetDMap(d.name)
+	req.SetKey(key)
+	resp, err := d.client.Request(req)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkStatusCode(resp); err != nil {
+		return nil, err
+	}
+	entry := storage.NewEntry()
+	entry.Decode(resp.Value())
+	value, err := d.unmarshalValue(entry.Value)
+	if err != nil {
+		return nil, err
+	}
+	return &olric.Entry{
+		Key:       entry.Key,
+		TTL:       entry.TTL,
+		Timestamp: entry.Timestamp,
+		Value:     value,
+	}, nil
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.

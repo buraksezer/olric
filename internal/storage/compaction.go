@@ -28,8 +28,8 @@ func (s *Storage) CompactTables() bool {
 	for _, old := range s.tables[:len(s.tables)-1] {
 		// Removing keys while iterating on map is totally safe in Go.
 		for hkey := range old.hkeys {
-			vdata, _ := old.getRaw(hkey)
-			err := fresh.putRaw(hkey, vdata)
+			entry, _ := old.getRaw(hkey)
+			err := fresh.putRaw(hkey, entry)
 			if err == errNotEnoughSpace {
 				// Create a new table and put the new k/v pair in it.
 				nt := newTable(s.Inuse() * 2)

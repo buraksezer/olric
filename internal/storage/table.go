@@ -80,7 +80,7 @@ func (t *table) putRaw(hkey uint64, value []byte) error {
 // In-memory layout for entry:
 //
 // KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
-func (t *table) put(hkey uint64, value *VData) error {
+func (t *table) put(hkey uint64, value *Entry) error {
 	if len(value.Key) >= maxKeyLen {
 		return ErrKeyTooLarge
 	}
@@ -184,32 +184,32 @@ func (t *table) getTTL(hkey uint64) (int64, bool) {
 	return ttl, false
 }
 
-func (t *table) get(hkey uint64) (*VData, bool) {
+func (t *table) get(hkey uint64) (*Entry, bool) {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		return nil, true
 	}
 
-	vdata := &VData{}
+	entry := &Entry{}
 	// In-memory structure:
 	//
 	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := int(uint8(t.memory[offset]))
 	offset++
 
-	vdata.Key = string(t.memory[offset : offset+klen])
+	entry.Key = string(t.memory[offset : offset+klen])
 	offset += klen
 
-	vdata.TTL = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
+	entry.TTL = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
 	offset += 8
 
-	vdata.Timestamp = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
+	entry.Timestamp = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
 	offset += 4
-	vdata.Value = t.memory[offset : offset+int(vlen)]
-	return vdata, false
+	entry.Value = t.memory[offset : offset+int(vlen)]
+	return entry, false
 }
 
 func (t *table) delete(hkey uint64) bool {
@@ -245,7 +245,7 @@ func (t *table) delete(hkey uint64) bool {
 	return false
 }
 
-func (t *table) updateTTL(hkey uint64, value *VData) bool {
+func (t *table) updateTTL(hkey uint64, value *Entry) bool {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		// Try the previous table.

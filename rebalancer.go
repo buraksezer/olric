@@ -74,17 +74,17 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner discover
 	return nil
 }
 
-func (db *Olric) selectVersionForMerge(dm *dmap, hkey uint64, vdata *storage.VData) (*storage.VData, error) {
+func (db *Olric) selectVersionForMerge(dm *dmap, hkey uint64, entry *storage.Entry) (*storage.Entry, error) {
 	current, err := dm.storage.Get(hkey)
 	if err == storage.ErrKeyNotFound {
-		return vdata, nil
+		return entry, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	versions := []*version{{data: current}, {data: vdata}}
+	versions := []*version{{entry: current}, {entry: entry}}
 	versions = db.sortVersions(versions)
-	return versions[0].data, nil
+	return versions[0].entry, nil
 }
 
 func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
@@ -123,8 +123,8 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 
 	// DMap has some keys. Merge with the new one.
 	var mergeErr error
-	str.Range(func(hkey uint64, vdata *storage.VData) bool {
-		winner, err := db.selectVersionForMerge(dm, hkey, vdata)
+	str.Range(func(hkey uint64, entry *storage.Entry) bool {
+		winner, err := db.selectVersionForMerge(dm, hkey, entry)
 		if err != nil {
 			mergeErr = err
 			return false

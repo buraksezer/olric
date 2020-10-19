@@ -39,14 +39,6 @@ type SlabInfo struct {
 	Garbage   int
 }
 
-// VData represents a value with its metadata.
-type VData struct {
-	Key       string
-	Value     []byte
-	TTL       int64
-	Timestamp int64
-}
-
 // Storage implements a new off-heap data store which uses built-in map to
 // keep metadata and mmap syscall for allocating memory to store values.
 // The allocated memory is not a subject of Golang's GC.
@@ -91,7 +83,7 @@ func (s *Storage) PutRaw(hkey uint64, value []byte) error {
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key
-func (s *Storage) Put(hkey uint64, value *VData) error {
+func (s *Storage) Put(hkey uint64, value *Entry) error {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -141,9 +133,9 @@ func (s *Storage) GetRaw(hkey uint64) ([]byte, error) {
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contains the key. The returned VData is its own copy,
+// does not contains the key. The returned Entry is its own copy,
 // it is safe to modify the contents of the returned slice.
-func (s *Storage) Get(hkey uint64) (*VData, error) {
+func (s *Storage) Get(hkey uint64) (*Entry, error) {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -238,7 +230,7 @@ func (s *Storage) Delete(hkey uint64) error {
 }
 
 // UpdateTTL updates the expiry for the given key.
-func (s *Storage) UpdateTTL(hkey uint64, data *VData) error {
+func (s *Storage) UpdateTTL(hkey uint64, data *Entry) error {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -365,7 +357,7 @@ func (s *Storage) Check(hkey uint64) bool {
 // If f returns false, range stops the iteration. Range may be O(N) with
 // the number of elements in the map even if f returns false after a constant
 // number of calls.
-func (s *Storage) Range(f func(hkey uint64, vdata *VData) bool) {
+func (s *Storage) Range(f func(hkey uint64, entry *Entry) bool) {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -374,8 +366,8 @@ func (s *Storage) Range(f func(hkey uint64, vdata *VData) bool) {
 	for i := len(s.tables) - 1; i >= 0; i-- {
 		t := s.tables[i]
 		for hkey := range t.hkeys {
-			vdata, _ := t.get(hkey)
-			if !f(hkey, vdata) {
+			entry, _ := t.get(hkey)
+			if !f(hkey, entry) {
 				break
 			}
 		}
@@ -383,7 +375,7 @@ func (s *Storage) Range(f func(hkey uint64, vdata *VData) bool) {
 }
 
 // MatchOnKey calls a regular expression on keys and provides an iterator.
-func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, vdata *VData) bool) error {
+func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, entry *Entry) bool) error {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}

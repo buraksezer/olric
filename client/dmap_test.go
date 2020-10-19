@@ -62,6 +62,49 @@ func TestClient_Get(t *testing.T) {
 	}
 }
 
+func TestClient_GetEntry(t *testing.T) {
+	db, done, err := newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	defer func() {
+		serr := db.Shutdown(context.Background())
+		if serr != nil {
+			t.Errorf("Expected nil. Got %v", serr)
+		}
+		<-done
+	}()
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	name := "mymap"
+	dm, err := db.NewDMap(name)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	key, value := "my-key", "my-value"
+	err = dm.PutEx(key, value, time.Hour)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	entry, err := c.NewDMap(name).GetEntry(key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if entry.Value.(string) != value {
+		t.Fatalf("Expected value %s. Got: %s", entry.Value.(string), value)
+	}
+	if entry.Timestamp == 0 {
+		t.Fatalf("Timestamp is invalid")
+	}
+	if entry.TTL == 0 {
+		t.Fatalf("TTL is invalid")
+	}
+}
+
 func TestClient_Put(t *testing.T) {
 	db, done, err := newDB()
 	if err != nil {

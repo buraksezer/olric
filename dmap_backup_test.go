@@ -60,12 +60,12 @@ func TestDMap_PutBackup(t *testing.T) {
 		}
 		data := tmp.(*dmap)
 		data.Lock()
-		vdata, err := data.storage.Get(hkey)
+		entry, err := data.storage.Get(hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		var val interface{}
-		err = db1.serializer.Unmarshal(vdata.Value, &val)
+		err = db1.serializer.Unmarshal(entry.Value, &val)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

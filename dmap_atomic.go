@@ -32,7 +32,7 @@ func (db *Olric) atomicIncrDecr(opr string, w *writeop, delta int) (int, error) 
 		}
 	}()
 
-	rawval, err := db.get(w.dmap, w.key)
+	entry, err := db.get(w.dmap, w.key)
 	if err == ErrKeyNotFound {
 		err = nil
 	}
@@ -41,9 +41,9 @@ func (db *Olric) atomicIncrDecr(opr string, w *writeop, delta int) (int, error) 
 	}
 
 	var newval, curval int
-	if len(rawval) != 0 {
+	if entry != nil {
 		var value interface{}
-		if err := db.serializer.Unmarshal(rawval, &value); err != nil {
+		if err := db.serializer.Unmarshal(entry.Value, &value); err != nil {
 			return 0, err
 		}
 
@@ -109,15 +109,21 @@ func (db *Olric) getPut(w *writeop) ([]byte, error) {
 		}
 	}()
 
-	rawval, err := db.get(w.dmap, w.key)
-	if err != nil && err != ErrKeyNotFound {
+	entry, err := db.get(w.dmap, w.key)
+	if err == ErrKeyNotFound {
+		err = nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	err = db.put(w)
 	if err != nil {
 		return nil, err
 	}
-	return rawval, nil
+	if entry == nil {
+		return nil, nil
+	}
+	return entry.Value, nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.

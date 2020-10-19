@@ -93,14 +93,14 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 		}
 
 		count, keyCount := 0, 0
-		dm.storage.Range(func(hkey uint64, vdata *storage.VData) bool {
+		dm.storage.Range(func(hkey uint64, entry *storage.Entry) bool {
 			keyCount++
 			if keyCount >= maxKeyCount {
 				// this means 'break'.
 				return false
 			}
-			if isKeyExpired(vdata.TTL) || dm.isKeyIdle(hkey) {
-				err := db.delKeyVal(dm, hkey, name, vdata.Key)
+			if isKeyExpired(entry.TTL) || dm.isKeyIdle(hkey) {
+				err := db.delKeyVal(dm, hkey, name, entry.Key)
 				if err != nil {
 					// It will be tried again.
 					db.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",

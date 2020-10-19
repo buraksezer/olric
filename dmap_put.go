@@ -132,7 +132,7 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	if w.timeout.Seconds() != 0 {
 		ttl = getTTL(w.timeout)
 	}
-	val := &storage.VData{
+	val := &storage.Entry{
 		Key:       w.key,
 		Value:     w.value,
 		Timestamp: w.timestamp,

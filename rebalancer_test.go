@@ -97,12 +97,12 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 		if underlying, err := db1.getDMap("mymap", hkey); err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		} else {
-			vdata, err := underlying.storage.Get(hkey)
+			entry, err := underlying.storage.Get(hkey)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			vdata.Timestamp = time.Now().Add(60 * time.Minute).UnixNano()
-			err = underlying.storage.Put(hkey, vdata)
+			entry.Timestamp = time.Now().Add(60 * time.Minute).UnixNano()
+			err = underlying.storage.Put(hkey, entry)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}

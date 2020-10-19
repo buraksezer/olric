@@ -26,11 +26,19 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
+// Entry is a DMap entry with its metadata.
+type Entry struct {
+	Key       string
+	Value     interface{}
+	TTL       int64
+	Timestamp int64
+}
+
 var ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 type version struct {
-	host *discovery.Member
-	data *storage.VData
+	host  *discovery.Member
+	entry *storage.Entry
 }
 
 func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
@@ -67,8 +75,8 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 	}
 
 	ver := &version{
-		host: &db.this,
-		data: value,
+		host:  &db.this,
+		entry: value,
 	}
 	versions = append(versions, ver)
 
@@ -93,17 +101,13 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 					"primary owner: %s: %v", owner, err)
 			}
 		} else {
-			data := storage.VData{}
+			data := storage.NewEntry()
+			data.Decode(resp.Value())
 			err = msgpack.Unmarshal(resp.Value(), &data)
-			if err != nil {
-				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from the "+
-					"previous primary owner: %s: %v", owner, err)
-			} else {
-				ver.data = &data
-				// Ignore failed owners. The data on those hosts will be wiped out
-				// by the rebalancer.
-				versions = append(versions, ver)
-			}
+			ver.entry = data
+			// Ignore failed owners. The data on those hosts will be wiped out
+			// by the rebalancer.
+			versions = append(versions, ver)
 		}
 	}
 	return versions
@@ -112,7 +116,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 func (db *Olric) sortVersions(versions []*version) []*version {
 	sort.Slice(versions,
 		func(i, j int) bool {
-			return versions[i].data.Timestamp >= versions[j].data.Timestamp
+			return versions[i].entry.Timestamp >= versions[j].entry.Timestamp
 		},
 	)
 	// Explicit is better than implicit.
@@ -123,7 +127,7 @@ func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
 	var sanitized []*version
 	// We use versions slice for read-repair. Clear nil values first.
 	for _, ver := range versions {
-		if ver.data != nil {
+		if ver.entry != nil {
 			sanitized = append(sanitized, ver)
 		}
 	}
@@ -148,13 +152,9 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 				db.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
 			}
 		} else {
-			value := storage.VData{}
-			err = msgpack.Unmarshal(resp.Value(), &value)
-			if err != nil {
-				db.log.V(3).Printf("[ERROR] Failed to unmarshal data from a replica owner: %s: %v", replica, err)
-			} else {
-				ver.data = &value
-			}
+			data := storage.NewEntry()
+			data.Decode(resp.Value())
+			ver.entry = data
 		}
 		versions = append(versions, ver)
 	}
@@ -163,38 +163,38 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 
 func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*version) {
 	for _, ver := range versions {
-		if ver.data != nil && winner.data.Timestamp == ver.data.Timestamp {
+		if ver.entry != nil && winner.entry.Timestamp == ver.entry.Timestamp {
 			continue
 		}
 
 		// If readRepair is enabled, this function is called by every GET request.
 		var req *protocol.DMapMessage
-		if winner.data.TTL == 0 {
+		if winner.entry.TTL == 0 {
 			req = protocol.NewDMapMessage(protocol.OpPutReplica)
 			req.SetDMap(name)
-			req.SetKey(winner.data.Key)
-			req.SetValue(winner.data.Value)
-			req.SetExtra(protocol.PutExtra{Timestamp: winner.data.Timestamp})
+			req.SetKey(winner.entry.Key)
+			req.SetValue(winner.entry.Value)
+			req.SetExtra(protocol.PutExtra{Timestamp: winner.entry.Timestamp})
 		} else {
 			req = protocol.NewDMapMessage(protocol.OpPutExReplica)
 			req.SetDMap(name)
-			req.SetKey(winner.data.Key)
-			req.SetValue(winner.data.Value)
+			req.SetKey(winner.entry.Key)
+			req.SetValue(winner.entry.Value)
 			req.SetExtra(protocol.PutExExtra{
-				Timestamp: winner.data.Timestamp,
-				TTL:       winner.data.TTL,
+				Timestamp: winner.entry.Timestamp,
+				TTL:       winner.entry.TTL,
 			})
 		}
 
 		// Sync
 		if cmpMembersByID(*ver.host, db.this) {
-			hkey := db.getHKey(name, winner.data.Key)
+			hkey := db.getHKey(name, winner.entry.Key)
 			w := &writeop{
 				dmap:      name,
-				key:       winner.data.Key,
-				value:     winner.data.Value,
-				timestamp: winner.data.Timestamp,
-				timeout:   time.Duration(winner.data.TTL),
+				key:       winner.entry.Key,
+				value:     winner.entry.Value,
+				timestamp: winner.entry.Timestamp,
+				timeout:   time.Duration(winner.entry.TTL),
 			}
 			dm.Lock()
 			err := db.localPut(hkey, dm, w)
@@ -211,7 +211,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 	}
 }
 
-func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error) {
+func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (*storage.Entry, error) {
 	dm, err := db.getDMap(name, hkey)
 	if err != nil {
 		return nil, err
@@ -243,7 +243,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error)
 
 	// The most up-to-date version of the values.
 	winner := sorted[0]
-	if isKeyExpired(winner.data.TTL) || dm.isKeyIdle(hkey) {
+	if isKeyExpired(winner.entry.TTL) || dm.isKeyIdle(hkey) {
 		dm.RUnlock()
 		return nil, ErrKeyNotFound
 	}
@@ -260,10 +260,10 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) ([]byte, error)
 		// the same key/value pair. The rule is simple: last write wins.
 		db.readRepair(name, dm, winner, versions)
 	}
-	return winner.data.Value, nil
+	return winner.entry, nil
 }
 
-func (db *Olric) get(name, key string) ([]byte, error) {
+func (db *Olric) get(name, key string) (*storage.Entry, error) {
 	member, hkey := db.findPartitionOwner(name, key)
 	// We are on the partition owner
 	if cmpMembersByName(member, db.this) {
@@ -278,30 +278,51 @@ func (db *Olric) get(name, key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resp.Value(), nil
+	entry := storage.NewEntry()
+	entry.Decode(resp.Value())
+	return entry, nil
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
 // does not contains the key. It's thread-safe. It is safe to modify the contents
-// of the returned value. It is safe to modify the contents of the argument
-// after Get returns.
+// of the returned value.
 func (dm *DMap) Get(key string) (interface{}, error) {
 	rawval, err := dm.db.get(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
-	return dm.db.unmarshalValue(rawval)
+	return dm.db.unmarshalValue(rawval.Value)
+}
+
+// GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
+// does not contains the key. It's thread-safe. It is safe to modify the contents
+// of the returned value.
+func (dm *DMap) GetEntry(key string) (*Entry, error) {
+	entry, err := dm.db.get(dm.name, key)
+	if err != nil {
+		return nil, err
+	}
+	value, err := dm.db.unmarshalValue(entry.Value)
+	if err != nil {
+		return nil, err
+	}
+	return &Entry{
+		Key:       entry.Key,
+		Value:     value,
+		TTL:       entry.TTL,
+		Timestamp: entry.Timestamp,
+	}, nil
 }
 
 func (db *Olric) exGetOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	value, err := db.get(req.DMap(), req.Key())
+	entry, err := db.get(req.DMap(), req.Key())
 	if err != nil {
 		db.errorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
+	w.SetValue(entry.Encode())
 }
 
 func (db *Olric) getBackupOperation(w, r protocol.EncodeDecoder) {
@@ -314,23 +335,17 @@ func (db *Olric) getBackupOperation(w, r protocol.EncodeDecoder) {
 	}
 	dm.RLock()
 	defer dm.RUnlock()
-	vdata, err := dm.storage.Get(hkey)
+	entry, err := dm.storage.Get(hkey)
 	if err != nil {
 		db.errorResponse(w, err)
 		return
 	}
-	if isKeyExpired(vdata.TTL) {
+	if isKeyExpired(entry.TTL) {
 		db.errorResponse(w, ErrKeyNotFound)
 		return
 	}
-
-	value, err := msgpack.Marshal(*vdata)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
 	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
+	w.SetValue(entry.Encode())
 }
 
 func (db *Olric) getPrevOperation(w, r protocol.EncodeDecoder) {
@@ -344,18 +359,18 @@ func (db *Olric) getPrevOperation(w, r protocol.EncodeDecoder) {
 	}
 	dm := tmp.(*dmap)
 
-	vdata, err := dm.storage.Get(hkey)
+	entry, err := dm.storage.Get(hkey)
 	if err != nil {
 		db.errorResponse(w, err)
 		return
 	}
 
-	if isKeyExpired(vdata.TTL) {
+	if isKeyExpired(entry.TTL) {
 		db.errorResponse(w, ErrKeyNotFound)
 		return
 	}
 
-	value, err := msgpack.Marshal(*vdata)
+	value, err := msgpack.Marshal(*entry)
 	if err != nil {
 		db.errorResponse(w, err)
 		return

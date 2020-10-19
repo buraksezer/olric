@@ -277,7 +277,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	for i := 0; i < 10; i++ {
-		if i % 2 == 0 {
+		if i%2 == 0 {
 			err = dm.PutEx(bkey(i), bval(i), time.Minute)
 		} else {
 			err = dm.Put(bkey(i), bval(i))
@@ -329,17 +329,60 @@ func TestDMap_ReadRepair(t *testing.T) {
 		dm3.RLock()
 		owners := db3.getBackupPartitionOwners(hkey)
 		if cmpMembersByID(owners[0], db3.this) {
-			vdata, err := dm3.storage.Get(hkey)
+			entry, err := dm3.storage.Get(hkey)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			if vdata.Key != bkey(i) {
-				t.Fatalf("Expected %s. Got: %s", vdata.Key, bkey(i))
+			if entry.Key != bkey(i) {
+				t.Fatalf("Expected %s. Got: %s", entry.Key, bkey(i))
 			}
-			if bytes.Equal(vdata.Value, bval(i)) {
-				t.Fatalf("Expected %s. Got: %s", string(vdata.Value), string(bval(i)))
+			if bytes.Equal(entry.Value, bval(i)) {
+				t.Fatalf("Expected %s. Got: %s", string(entry.Value), string(bval(i)))
 			}
 		}
 		dm3.RUnlock()
+	}
+}
+
+func TestDMap_GetEntryOnCluster(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db1, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	_, err = c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	dm, err := db1.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 100; i++ {
+		err = dm.PutEx(bkey(i), bval(i), time.Hour)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	for i := 0; i < 100; i++ {
+		key := bkey(i)
+		entry, err := dm.GetEntry(key)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v for %s", err, key)
+		}
+		if !bytes.Equal(entry.Value.([]byte), bval(i)) {
+			t.Fatalf("Different value retrieved for %s", bkey(i))
+		}
+		if entry.TTL == 0 {
+			t.Fatalf("TTL is empty")
+		}
+		if entry.Timestamp == 0 {
+			t.Fatalf("Timestamp is zero")
+		}
 	}
 }

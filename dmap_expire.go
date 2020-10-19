@@ -26,7 +26,7 @@ import (
 
 func (db *Olric) localExpire(hkey uint64, dm *dmap, w *writeop) error {
 	ttl := getTTL(w.timeout)
-	val := &storage.VData{
+	val := &storage.Entry{
 		Timestamp: w.timestamp,
 		TTL:       ttl,
 	}
