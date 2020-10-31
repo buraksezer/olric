@@ -39,36 +39,36 @@ type SlabInfo struct {
 	Garbage   int
 }
 
-// Docstore implements a new off-heap data store which uses built-in map to
+// Rowstore implements a new off-heap data store which uses built-in map to
 // keep metadata and mmap syscall for allocating memory to store values.
 // The allocated memory is not a subject of Golang's GC.
-type Docstore struct {
+type Rowstore struct {
 	tables []*table
 }
 
 // New creates a new storage instance.
-func New(size int) *Docstore {
-	str := &Docstore{}
+func New(size int) *Rowstore {
+	str := &Rowstore{}
 	t := newTable(size)
 	str.tables = append(str.tables, t)
 	return str
 }
 
 // PutRaw sets the raw value for the given key.
-func (d *Docstore) PutRaw(hkey uint64, value []byte) error {
-	if len(d.tables) == 0 {
+func (r *Rowstore) PutRaw(hkey uint64, value []byte) error {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	var res error
 	for {
 		// Get the last value, storage only calls Put on the last created table.
-		t := d.tables[len(d.tables)-1]
+		t := r.tables[len(r.tables)-1]
 		err := t.putRaw(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(d.Inuse() * 2)
-			d.tables = append(d.tables, nt)
+			nt := newTable(r.Inuse() * 2)
+			r.tables = append(r.tables, nt)
 			res = ErrFragmented
 			// try again
 			continue
@@ -83,20 +83,20 @@ func (d *Docstore) PutRaw(hkey uint64, value []byte) error {
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key
-func (d *Docstore) Put(hkey uint64, value *Entry) error {
-	if len(d.tables) == 0 {
+func (r *Rowstore) Put(hkey uint64, value *Entry) error {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	var res error
 	for {
 		// Get the last value, storage only calls Put on the last created table.
-		t := d.tables[len(d.tables)-1]
+		t := r.tables[len(r.tables)-1]
 		err := t.put(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(d.Inuse() * 2)
-			d.tables = append(d.tables, nt)
+			nt := newTable(r.Inuse() * 2)
+			r.tables = append(r.tables, nt)
 			res = ErrFragmented
 			// try again
 			continue
@@ -111,14 +111,14 @@ func (d *Docstore) Put(hkey uint64, value *Entry) error {
 }
 
 // GetRaw extracts encoded value for the given hkey. This is useful for merging tables.
-func (d *Docstore) GetRaw(hkey uint64) ([]byte, error) {
-	if len(d.tables) == 0 {
+func (r *Rowstore) GetRaw(hkey uint64) ([]byte, error) {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		rawval, prev := t.getRaw(hkey)
 		if prev {
 			// Try out the other tables.
@@ -135,14 +135,14 @@ func (d *Docstore) GetRaw(hkey uint64) ([]byte, error) {
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
 // does not contains the key. The returned Entry is its own copy,
 // it is safe to modify the contents of the returned slice.
-func (d *Docstore) Get(hkey uint64) (*Entry, error) {
-	if len(d.tables) == 0 {
+func (r *Rowstore) Get(hkey uint64) (*Entry, error) {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		res, prev := t.get(hkey)
 		if prev {
 			// Try out the other tables.
@@ -157,14 +157,14 @@ func (d *Docstore) Get(hkey uint64) (*Entry, error) {
 
 // GetTTL gets the timeout for the given key. It returns ErrKeyNotFound if the DB
 // does not contains the key.
-func (d *Docstore) GetTTL(hkey uint64) (int64, error) {
-	if len(d.tables) == 0 {
+func (r *Rowstore) GetTTL(hkey uint64) (int64, error) {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		ttl, prev := t.getTTL(hkey)
 		if prev {
 			// Try out the other tables.
@@ -179,14 +179,14 @@ func (d *Docstore) GetTTL(hkey uint64) (int64, error) {
 
 // GetKey gets the key for the given hkey. It returns ErrKeyNotFound if the DB
 // does not contains the key.
-func (d *Docstore) GetKey(hkey uint64) (string, error) {
-	if len(d.tables) == 0 {
+func (r *Rowstore) GetKey(hkey uint64) (string, error) {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		key, prev := t.getKey(hkey)
 		if prev {
 			// Try out the other tables.
@@ -200,14 +200,14 @@ func (d *Docstore) GetKey(hkey uint64) (string, error) {
 }
 
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
-func (d *Docstore) Delete(hkey uint64) error {
-	if len(d.tables) == 0 {
+func (r *Rowstore) Delete(hkey uint64) error {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		if prev := t.delete(hkey); prev {
 			// Try out the other tables.
 			continue
@@ -215,29 +215,29 @@ func (d *Docstore) Delete(hkey uint64) error {
 		break
 	}
 
-	if len(d.tables) != 1 {
+	if len(r.tables) != 1 {
 		return nil
 	}
 
-	t := d.tables[0]
+	t := r.tables[0]
 	if float64(t.allocated)*maxGarbageRatio <= float64(t.garbage) {
 		// Create a new table here.
-		nt := newTable(d.Inuse() * 2)
-		d.tables = append(d.tables, nt)
+		nt := newTable(r.Inuse() * 2)
+		r.tables = append(r.tables, nt)
 		return ErrFragmented
 	}
 	return nil
 }
 
 // UpdateTTL updates the expiry for the given key.
-func (d *Docstore) UpdateTTL(hkey uint64, data *Entry) error {
-	if len(d.tables) == 0 {
+func (r *Rowstore) UpdateTTL(hkey uint64, data *Entry) error {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		prev := t.updateTTL(hkey, data)
 		if prev {
 			// Try out the other tables.
@@ -262,11 +262,11 @@ type transport struct {
 // Export serializes underlying data structes into a byte slice. It may return
 // ErrFragmented if the tables are fragmented. If you get this error, you should
 // try to call Export again some time later.
-func (d *Docstore) Export() ([]byte, error) {
-	if len(d.tables) != 1 {
+func (r *Rowstore) Export() ([]byte, error) {
+	if len(r.tables) != 1 {
 		return nil, ErrFragmented
 	}
-	t := d.tables[0]
+	t := r.tables[0]
 	tr := &transport{
 		HKeys:     t.hkeys,
 		Offset:    t.offset,
@@ -280,7 +280,7 @@ func (d *Docstore) Export() ([]byte, error) {
 }
 
 // Import gets the serialized data by Export and creates a new storage instance.
-func Import(data []byte) (*Docstore, error) {
+func Import(data []byte) (*Rowstore, error) {
 	tr := transport{}
 	err := msgpack.Unmarshal(data, &tr)
 	if err != nil {
@@ -299,9 +299,9 @@ func Import(data []byte) (*Docstore, error) {
 }
 
 // Len returns the key cound in this storage.
-func (d *Docstore) Len() int {
+func (r *Rowstore) Len() int {
 	var total int
-	for _, t := range d.tables {
+	for _, t := range r.tables {
 		total += len(t.hkeys)
 	}
 	return total
@@ -309,9 +309,9 @@ func (d *Docstore) Len() int {
 
 // SlabInfo is a function which provides memory allocation
 // and garbage ratio of a storage instance.
-func (d *Docstore) SlabInfo() SlabInfo {
+func (r *Rowstore) SlabInfo() SlabInfo {
 	si := SlabInfo{}
-	for _, t := range d.tables {
+	for _, t := range r.tables {
 		si.Allocated += t.allocated
 		si.Inuse += t.inuse
 		si.Garbage += t.garbage
@@ -320,30 +320,30 @@ func (d *Docstore) SlabInfo() SlabInfo {
 }
 
 // NumTables returns the number of tables in a storage instance.
-func (d *Docstore) NumTables() int {
-	return len(d.tables)
+func (r *Rowstore) NumTables() int {
+	return len(r.tables)
 }
 
 // Inuse returns total in-use space by the tables.
-func (d *Docstore) Inuse() int {
+func (r *Rowstore) Inuse() int {
 	// SlabInfo does the same thing but we need
 	// to eliminate useless calls.
 	inuse := 0
-	for _, t := range d.tables {
+	for _, t := range r.tables {
 		inuse += t.inuse
 	}
 	return inuse
 }
 
 // Check checks the key existence.
-func (d *Docstore) Check(hkey uint64) bool {
-	if len(d.tables) == 0 {
+func (r *Rowstore) Check(hkey uint64) bool {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		_, ok := t.hkeys[hkey]
 		if ok {
 			return true
@@ -357,14 +357,14 @@ func (d *Docstore) Check(hkey uint64) bool {
 // If f returns false, range stops the iteration. Range may be O(N) with
 // the number of elements in the map even if f returns false after a constant
 // number of calls.
-func (d *Docstore) Range(f func(hkey uint64, entry *Entry) bool) {
-	if len(d.tables) == 0 {
+func (r *Rowstore) Range(f func(hkey uint64, entry *Entry) bool) {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		for hkey := range t.hkeys {
 			entry, _ := t.get(hkey)
 			if !f(hkey, entry) {
@@ -375,21 +375,21 @@ func (d *Docstore) Range(f func(hkey uint64, entry *Entry) bool) {
 }
 
 // MatchOnKey calls a regular expression on keys and provides an iterator.
-func (d *Docstore) MatchOnKey(expr string, f func(hkey uint64, entry *Entry) bool) error {
-	if len(d.tables) == 0 {
+func (r *Rowstore) MatchOnKey(expr string, f func(hkey uint64, entry *Entry) bool) error {
+	if len(r.tables) == 0 {
 		panic("tables cannot be empty")
 	}
-	r, err := regexp.Compile(expr)
+	rx, err := regexp.Compile(expr)
 	if err != nil {
 		return err
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(d.tables) - 1; i >= 0; i-- {
-		t := d.tables[i]
+	for i := len(r.tables) - 1; i >= 0; i-- {
+		t := r.tables[i]
 		for hkey := range t.hkeys {
 			key, _ := t.getRawKey(hkey)
-			if !r.Match(key) {
+			if !rx.Match(key) {
 				continue
 			}
 			data, _ := t.get(hkey)

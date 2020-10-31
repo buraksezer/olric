@@ -17,6 +17,7 @@ package storage
 import (
 	"encoding/binary"
 
+	"github.com/buraksezer/olric/internal/rowstore/skiplist"
 	"github.com/pkg/errors"
 )
 
@@ -34,9 +35,10 @@ var (
 )
 
 type table struct {
-	hkeys  map[uint64]int
-	memory []byte
-	offset int
+	hkeys     map[uint64]int
+	memory    []byte
+	skiplists *skiplist.Skiplist
+	offset    int
 
 	// In bytes
 	allocated int
