@@ -333,11 +333,11 @@ func TestDMap_ReadRepair(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			if entry.Key != bkey(i) {
+			if entry.Key() != bkey(i) {
 				t.Fatalf("Expected %s. Got: %s", entry.Key, bkey(i))
 			}
-			if bytes.Equal(entry.Value, bval(i)) {
-				t.Fatalf("Expected %s. Got: %s", string(entry.Value), string(bval(i)))
+			if bytes.Equal(entry.Value(), bval(i)) {
+				t.Fatalf("Expected %s. Got: %s", string(entry.Value()), string(bval(i)))
 			}
 		}
 		dm3.RUnlock()

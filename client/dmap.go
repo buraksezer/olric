@@ -32,6 +32,7 @@ func (c *Client) processGetResponse(resp protocol.EncodeDecoder) (interface{}, e
 	if err := checkStatusCode(resp); err != nil {
 		return nil, err
 	}
+	// TODO: Use engine.Entry interface
 	entry := storage.NewEntry()
 	entry.Decode(resp.Value())
 	return c.unmarshalValue(entry.Value)
@@ -65,14 +66,14 @@ func (d *DMap) GetEntry(key string) (*olric.Entry, error) {
 	}
 	entry := storage.NewEntry()
 	entry.Decode(resp.Value())
-	value, err := d.unmarshalValue(entry.Value)
+	value, err := d.unmarshalValue(entry.Value())
 	if err != nil {
 		return nil, err
 	}
 	return &olric.Entry{
-		Key:       entry.Key,
-		TTL:       entry.TTL,
-		Timestamp: entry.Timestamp,
+		Key:       entry.Key(),
+		TTL:       entry.TTL(),
+		Timestamp: entry.Timestamp(),
 		Value:     value,
 	}, nil
 }

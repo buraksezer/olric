@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/hasher"
+	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/memberlist"
@@ -287,6 +289,8 @@ type Config struct {
 	// You have to use NewMemberlistConfig to create a new one.
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
+
+	Storage engine.Engine
 }
 
 // NewMemberlistConfig returns a new memberlist.Config from vendored version of that package.
@@ -435,6 +439,14 @@ func (c *Config) Sanitize() error {
 		m.AdvertisePort = DefaultDiscoveryPort
 		c.MemberlistConfig = m
 	}
+	if c.TableSize == 0 {
+		c.TableSize = DefaultTableSize
+	}
+	if c.Storage == nil {
+		// Use default storage engine
+		// TODO: Use a constructor here
+		c.Storage = storage.New(c.TableSize)
+	}
 	if c.RequestTimeout == 0*time.Second {
 		c.RequestTimeout = DefaultRequestTimeout
 	}
@@ -443,9 +455,6 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
-	}
-	if c.TableSize == 0 {
-		c.TableSize = DefaultTableSize
 	}
 
 	// Check peers. If Peers slice contains node's itself, return an error.

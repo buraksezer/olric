@@ -18,10 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/engine"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/query"
 	"github.com/hashicorp/go-multierror"
 	"github.com/vmihailenco/msgpack"
@@ -38,7 +38,7 @@ var ErrEndOfQuery = errors.New("end of query")
 type QueryResponse map[string]interface{}
 
 // internal representation of query response
-type queryResponse map[uint64]*storage.Entry
+type queryResponse map[uint64]engine.Entry
 
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
@@ -154,7 +154,7 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
 	for _, response := range responses {
 		for hkey, val1 := range response {
 			if val2, ok := result[hkey]; ok {
-				if val1.Timestamp > val2.Timestamp {
+				if val1.Timestamp() > val2.Timestamp() {
 					result[hkey] = val1
 				}
 			} else {
@@ -165,7 +165,7 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
 	return result
 }
 
-func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.Entry, error) {
+func (c *Cursor) runQueryOnOwners(partID uint64) ([]engine.Entry, error) {
 	value, err := msgpack.Marshal(c.query)
 	if err != nil {
 		return nil, err
@@ -202,14 +202,14 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]*storage.Entry, error) {
 		responses = append(responses, tmp)
 	}
 
-	var result []*storage.Entry
+	var result []engine.Entry
 	for _, entry := range c.reconcileResponses(responses) {
 		result = append(result, entry)
 	}
 	return result, nil
 }
 
-func (c *Cursor) runQueryOnCluster(results chan []*storage.Entry, errCh chan error) {
+func (c *Cursor) runQueryOnCluster(results chan []engine.Entry, errCh chan error) {
 	defer c.db.wg.Done()
 	defer close(results)
 
@@ -267,7 +267,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	defer c.Close()
 
 	// Currently we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
-	results := make(chan []*storage.Entry, NumParallelQuery)
+	results := make(chan []engine.Entry, NumParallelQuery)
 	errCh := make(chan error, 1)
 
 	c.db.wg.Add(1)
@@ -275,11 +275,11 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 
 	for res := range results {
 		for _, entry := range res {
-			value, err := c.db.unmarshalValue(entry.Value)
+			value, err := c.db.unmarshalValue(entry.Value())
 			if err != nil {
 				return err
 			}
-			if !f(entry.Key, value) {
+			if !f(entry.Key(), value) {
 				// User called "break" in this loop (Range)
 				return nil
 			}
@@ -325,7 +325,7 @@ func (db *Olric) exQueryOperation(w, r protocol.EncodeDecoder) {
 
 	data := make(QueryResponse)
 	for _, response := range responses {
-		data[response.Key] = response.Value
+		data[response.Key()] = response.Value
 	}
 
 	value, err := msgpack.Marshal(data)

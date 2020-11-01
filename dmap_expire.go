@@ -20,19 +20,18 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/engine"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
 )
 
 func (db *Olric) localExpire(hkey uint64, dm *dmap, w *writeop) error {
 	ttl := getTTL(w.timeout)
-	val := &storage.Entry{
-		Timestamp: w.timestamp,
-		TTL:       ttl,
-	}
-	err := dm.storage.UpdateTTL(hkey, val)
+	entry := db.config.Storage.NewEntry()
+	entry.SetTimestamp(w.timestamp)
+	entry.SetTTL(ttl)
+	err := dm.storage.UpdateTTL(hkey, entry)
 	if err != nil {
-		if err == storage.ErrKeyNotFound {
+		if err == engine.ErrKeyNotFound {
 			err = ErrKeyNotFound
 		}
 		return err

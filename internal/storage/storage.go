@@ -18,7 +18,7 @@ package storage
 import (
 	"regexp"
 
-	"github.com/pkg/errors"
+	"github.com/buraksezer/olric/internal/engine"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -27,17 +27,6 @@ const (
 	// 65kb
 	minimumSize = 1 << 16
 )
-
-// ErrFragmented is an error that indicates this storage instance is currently
-// fragmented and it cannot be serialized.
-var ErrFragmented = errors.New("storage fragmented")
-
-// SlabInfo is used to expose internal data usage of a storage instance.
-type SlabInfo struct {
-	Allocated int
-	Inuse     int
-	Garbage   int
-}
 
 // Storage implements a new off-heap data store which uses built-in map to
 // keep metadata and mmap syscall for allocating memory to store values.
@@ -52,6 +41,18 @@ func New(size int) *Storage {
 	t := newTable(size)
 	str.tables = append(str.tables, t)
 	return str
+}
+
+func (s *Storage) GetInstance() engine.Engine {
+	return New(0)
+}
+
+func (s *Storage) Name() string {
+	return "olric.kvstore"
+}
+
+func (s *Storage) NewEntry() engine.Entry {
+	return NewEntry()
 }
 
 // PutRaw sets the raw value for the given key.
@@ -69,7 +70,7 @@ func (s *Storage) PutRaw(hkey uint64, value []byte) error {
 			// Create a new table and put the new k/v pair in it.
 			nt := newTable(s.Inuse() * 2)
 			s.tables = append(s.tables, nt)
-			res = ErrFragmented
+			res = engine.ErrFragmented
 			// try again
 			continue
 		}
@@ -83,7 +84,7 @@ func (s *Storage) PutRaw(hkey uint64, value []byte) error {
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key
-func (s *Storage) Put(hkey uint64, value *Entry) error {
+func (s *Storage) Put(hkey uint64, value engine.Entry) error {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -97,7 +98,7 @@ func (s *Storage) Put(hkey uint64, value *Entry) error {
 			// Create a new table and put the new k/v pair in it.
 			nt := newTable(s.Inuse() * 2)
 			s.tables = append(s.tables, nt)
-			res = ErrFragmented
+			res = engine.ErrFragmented
 			// try again
 			continue
 		}
@@ -129,13 +130,13 @@ func (s *Storage) GetRaw(hkey uint64) ([]byte, error) {
 	}
 
 	// Nothing here.
-	return nil, ErrKeyNotFound
+	return nil, engine.ErrKeyNotFound
 }
 
-// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
+// Get gets the value for the given key. It returns engine.ErrKeyNotFound if the DB
 // does not contains the key. The returned Entry is its own copy,
 // it is safe to modify the contents of the returned slice.
-func (s *Storage) Get(hkey uint64) (*Entry, error) {
+func (s *Storage) Get(hkey uint64) (engine.Entry, error) {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -152,10 +153,10 @@ func (s *Storage) Get(hkey uint64) (*Entry, error) {
 		return res, nil
 	}
 	// Nothing here.
-	return nil, ErrKeyNotFound
+	return nil, engine.ErrKeyNotFound
 }
 
-// GetTTL gets the timeout for the given key. It returns ErrKeyNotFound if the DB
+// GetTTL gets the timeout for the given key. It returns engine.ErrKeyNotFound if the DB
 // does not contains the key.
 func (s *Storage) GetTTL(hkey uint64) (int64, error) {
 	if len(s.tables) == 0 {
@@ -174,10 +175,10 @@ func (s *Storage) GetTTL(hkey uint64) (int64, error) {
 		return ttl, nil
 	}
 	// Nothing here.
-	return 0, ErrKeyNotFound
+	return 0, engine.ErrKeyNotFound
 }
 
-// GetKey gets the key for the given hkey. It returns ErrKeyNotFound if the DB
+// GetKey gets the key for the given hkey. It returns engine.ErrKeyNotFound if the DB
 // does not contains the key.
 func (s *Storage) GetKey(hkey uint64) (string, error) {
 	if len(s.tables) == 0 {
@@ -196,7 +197,7 @@ func (s *Storage) GetKey(hkey uint64) (string, error) {
 		return key, nil
 	}
 	// Nothing here.
-	return "", ErrKeyNotFound
+	return "", engine.ErrKeyNotFound
 }
 
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
@@ -224,13 +225,13 @@ func (s *Storage) Delete(hkey uint64) error {
 		// Create a new table here.
 		nt := newTable(s.Inuse() * 2)
 		s.tables = append(s.tables, nt)
-		return ErrFragmented
+		return engine.ErrFragmented
 	}
 	return nil
 }
 
 // UpdateTTL updates the expiry for the given key.
-func (s *Storage) UpdateTTL(hkey uint64, data *Entry) error {
+func (s *Storage) UpdateTTL(hkey uint64, data engine.Entry) error {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -247,7 +248,7 @@ func (s *Storage) UpdateTTL(hkey uint64, data *Entry) error {
 		return nil
 	}
 	// Nothing here.
-	return ErrKeyNotFound
+	return engine.ErrKeyNotFound
 }
 
 type transport struct {
@@ -264,7 +265,7 @@ type transport struct {
 // try to call Export again some time later.
 func (s *Storage) Export() ([]byte, error) {
 	if len(s.tables) != 1 {
-		return nil, ErrFragmented
+		return nil, engine.ErrFragmented
 	}
 	t := s.tables[0]
 	tr := &transport{
@@ -280,11 +281,11 @@ func (s *Storage) Export() ([]byte, error) {
 }
 
 // Import gets the serialized data by Export and creates a new storage instance.
-func Import(data []byte) (*Storage, error) {
+func (s *Storage) Import(data []byte) error {
 	tr := transport{}
 	err := msgpack.Unmarshal(data, &tr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	o := New(tr.Allocated)
@@ -295,7 +296,7 @@ func Import(data []byte) (*Storage, error) {
 	t.inuse = tr.Inuse
 	t.garbage = tr.Garbage
 	copy(t.memory, tr.Memory)
-	return o, nil
+	return nil
 }
 
 // Len returns the key cound in this storage.
@@ -307,16 +308,20 @@ func (s *Storage) Len() int {
 	return total
 }
 
-// SlabInfo is a function which provides memory allocation
-// and garbage ratio of a storage instance.
-func (s *Storage) SlabInfo() SlabInfo {
-	si := SlabInfo{}
-	for _, t := range s.tables {
-		si.Allocated += t.allocated
-		si.Inuse += t.inuse
-		si.Garbage += t.garbage
+// Stats is a function which provides memory allocation and garbage ratio of a storage instance.
+func (s *Storage) Stats() map[string]int {
+	stats := map[string]int{
+		"allocated": 0,
+		"inuse":     0,
+		"garbage":   0,
 	}
-	return si
+	for _, t := range s.tables {
+		stats["allocated"] += t.allocated
+		stats["inuse"] += t.inuse
+		stats["garbage"] += t.garbage
+
+	}
+	return stats
 }
 
 // NumTables returns the number of tables in a storage instance.
@@ -326,7 +331,7 @@ func (s *Storage) NumTables() int {
 
 // Inuse returns total in-use space by the tables.
 func (s *Storage) Inuse() int {
-	// SlabInfo does the same thing but we need
+	// Stats does the same thing but we need
 	// to eliminate useless calls.
 	inuse := 0
 	for _, t := range s.tables {
@@ -357,7 +362,7 @@ func (s *Storage) Check(hkey uint64) bool {
 // If f returns false, range stops the iteration. Range may be O(N) with
 // the number of elements in the map even if f returns false after a constant
 // number of calls.
-func (s *Storage) Range(f func(hkey uint64, entry *Entry) bool) {
+func (s *Storage) Range(f func(hkey uint64, entry engine.Entry) bool) {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -375,7 +380,7 @@ func (s *Storage) Range(f func(hkey uint64, entry *Entry) bool) {
 }
 
 // MatchOnKey calls a regular expression on keys and provides an iterator.
-func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, entry *Entry) bool) error {
+func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, entry engine.Entry) bool) error {
 	if len(s.tables) == 0 {
 		panic("tables cannot be empty")
 	}
@@ -398,5 +403,9 @@ func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, entry *Entry) bool
 			}
 		}
 	}
+	return nil
+}
+
+func (s *Storage) Close() error {
 	return nil
 }

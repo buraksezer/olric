@@ -101,7 +101,7 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			entry.Timestamp = time.Now().Add(60 * time.Minute).UnixNano()
+			entry.SetTimestamp(time.Now().Add(60 * time.Minute).UnixNano())
 			err = underlying.storage.Put(hkey, entry)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)

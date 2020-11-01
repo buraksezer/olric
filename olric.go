@@ -18,6 +18,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/engine"
 	"net"
 	"strconv"
 	"strings"
@@ -33,7 +34,6 @@ import (
 	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
@@ -429,13 +429,13 @@ func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusErrNoSuchLock)
 	case err == ErrLockNotAcquired, errors.Is(err, ErrLockNotAcquired):
 		w.SetStatus(protocol.StatusErrLockNotAcquired)
-	case err == ErrKeyNotFound, err == storage.ErrKeyNotFound:
+	case err == ErrKeyNotFound, err == engine.ErrKeyNotFound:
 		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case errors.Is(err, ErrKeyNotFound), errors.Is(err, storage.ErrKeyNotFound):
+	case errors.Is(err, ErrKeyNotFound), errors.Is(err, engine.ErrKeyNotFound):
 		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case err == ErrKeyTooLarge, err == storage.ErrKeyTooLarge:
+	case err == ErrKeyTooLarge, err == engine.ErrKeyTooLarge:
 		w.SetStatus(protocol.StatusErrKeyTooLarge)
-	case errors.Is(err, ErrKeyTooLarge), errors.Is(err, storage.ErrKeyTooLarge):
+	case errors.Is(err, ErrKeyTooLarge), errors.Is(err, engine.ErrKeyTooLarge):
 		w.SetStatus(protocol.StatusErrKeyTooLarge)
 	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
 		w.SetStatus(protocol.StatusErrOperationTimeout)

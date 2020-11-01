@@ -62,7 +62,7 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 	if err != nil {
 		return err
 	}
-	val, err := db.unmarshalValue(entry.Value)
+	val, err := db.unmarshalValue(entry.Value())
 	if err != nil {
 		return err
 	}

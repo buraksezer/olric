@@ -39,13 +39,12 @@ func Test_Put(t *testing.T) {
 	s := New(0)
 
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
-		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		entry := NewEntry()
+		entry.SetKey(bkey(i))
+		entry.SetValue(bval(i))
+		entry.SetTTL(int64(i))
+		entry.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -59,7 +58,7 @@ func Test_Get(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     bval(i),
 			Timestamp: timestamp,
@@ -97,7 +96,7 @@ func Test_Delete(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     bval(i),
 			Timestamp: time.Now().UnixNano(),
@@ -147,7 +146,7 @@ func Test_CompactTables(t *testing.T) {
 	// Current free space is 1MB. Trigger a compaction operation.
 	for i := 0; i < 1500; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     []byte(fmt.Sprintf("%01000d", i)),
 			Timestamp: timestamp,
@@ -223,7 +222,7 @@ func Test_PurgeTables(t *testing.T) {
 	// Current free space is 65kb. Trigger a compaction operation.
 	for i := 0; i < 2000; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     []byte(fmt.Sprintf("%01000d", i)),
 			Timestamp: timestamp,
@@ -279,7 +278,7 @@ func Test_ExportImport(t *testing.T) {
 	s := New(0)
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     bval(i),
 			Timestamp: timestamp,
@@ -323,7 +322,7 @@ func Test_Len(t *testing.T) {
 	s := New(0)
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:   bkey(i),
+			key:   bkey(i),
 			TTL:   int64(i),
 			Value: bval(i),
 		}
@@ -344,7 +343,7 @@ func Test_Range(t *testing.T) {
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     bval(i),
 			Timestamp: time.Now().UnixNano(),
@@ -370,7 +369,7 @@ func Test_Check(t *testing.T) {
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       int64(i),
 			Value:     bval(i),
 			Timestamp: time.Now().UnixNano(),
@@ -395,7 +394,7 @@ func Test_UpdateTTL(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			Value:     bval(i),
 			Timestamp: time.Now().UnixNano(),
 		}
@@ -408,7 +407,7 @@ func Test_UpdateTTL(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
+			key:       bkey(i),
 			TTL:       10,
 			Timestamp: time.Now().UnixNano(),
 		}
@@ -437,7 +436,7 @@ func Test_UpdateTTL(t *testing.T) {
 func Test_GetKey(t *testing.T) {
 	s := New(0)
 	entry := &Entry{
-		Key:   bkey(1),
+		key:   bkey(1),
 		TTL:   int64(1),
 		Value: bval(1),
 	}
@@ -477,7 +476,7 @@ func Test_PutRawGetRaw(t *testing.T) {
 func Test_GetTTL(t *testing.T) {
 	s := New(0)
 	entry := &Entry{
-		Key:   bkey(1),
+		key:   bkey(1),
 		TTL:   int64(1),
 		Value: bval(1),
 	}
@@ -509,7 +508,7 @@ func TestStorage_MatchOnKey(t *testing.T) {
 		}
 
 		entry := &Entry{
-			Key:       key,
+			key:       key,
 			TTL:       int64(i),
 			Value:     bval(i),
 			Timestamp: time.Now().UnixNano(),

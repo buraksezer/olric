@@ -17,7 +17,7 @@ package olric
 import (
 	"sync"
 
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/internal/engine"
 )
 
 // dmap defines the internal representation of a dmap.
@@ -25,7 +25,7 @@ type dmap struct {
 	sync.RWMutex
 
 	cache   *cache
-	storage *storage.Storage
+	storage engine.Engine
 }
 
 // dmap represents a distributed map instance.
@@ -52,11 +52,9 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 }
 
 // createDMap creates and returns a new dmap, internal representation of a dmap. This function is not thread-safe.
-func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) (*dmap, error) {
+func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	// create a new map here.
-	nm := &dmap{
-		storage: str,
-	}
+	nm := &dmap{}
 	if db.config.Cache != nil {
 		err := db.setCacheConfiguration(nm, name)
 		if err != nil {
@@ -64,11 +62,7 @@ func (db *Olric) createDMap(part *partition, name string, str *storage.Storage) 
 		}
 	}
 	// rebalancer code may send a storage instance for the new dmap. Just use it.
-	if nm.storage != nil {
-		nm.storage = str
-	} else {
-		nm.storage = storage.New(db.config.TableSize)
-	}
+	nm.storage = db.config.Storage.GetInstance()
 	part.m.Store(name, nm)
 	return nm, nil
 }
@@ -80,7 +74,7 @@ func (db *Olric) getOrCreateDMap(part *partition, name string) (*dmap, error) {
 	if ok {
 		return dm.(*dmap), nil
 	}
-	return db.createDMap(part, name, nil)
+	return db.createDMap(part, name)
 }
 
 // getDMap loads or creates a dmap.

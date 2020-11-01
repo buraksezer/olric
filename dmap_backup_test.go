@@ -65,7 +65,7 @@ func TestDMap_PutBackup(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		var val interface{}
-		err = db1.serializer.Unmarshal(entry.Value, &val)
+		err = db1.serializer.Unmarshal(entry.Value(), &val)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
