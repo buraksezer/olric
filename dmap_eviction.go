@@ -21,7 +21,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -93,7 +93,7 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 		}
 
 		count, keyCount := 0, 0
-		dm.storage.Range(func(hkey uint64, entry engine.Entry) bool {
+		dm.storage.Range(func(hkey uint64, entry storage.Entry) bool {
 			keyCount++
 			if keyCount >= maxKeyCount {
 				// this means 'break'.
@@ -206,7 +206,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 	item := items[0]
 	key, err := dm.storage.GetKey(item.HKey)
 	if err != nil {
-		if err == engine.ErrKeyNotFound {
+		if err == storage.ErrKeyNotFound {
 			err = ErrKeyNotFound
 		}
 		return err

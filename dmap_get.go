@@ -21,7 +21,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
@@ -37,7 +37,7 @@ var ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 type version struct {
 	host  *discovery.Member
-	entry engine.Entry
+	entry storage.Entry
 }
 
 func (db *Olric) unmarshalValue(rawval []byte) (interface{}, error) {
@@ -61,7 +61,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 	value, err := dm.storage.Get(hkey)
 	if err != nil {
 		// still need to use "ver". just log this error.
-		if err == engine.ErrKeyNotFound {
+		if err == storage.ErrKeyNotFound {
 			// the requested key can be found on a replica or a previous partition owner.
 			if db.log.V(5).Ok() {
 				db.log.V(5).Printf(
@@ -101,7 +101,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 			}
 		} else {
 			// TODO: This code block seems untested.
-			data := db.config.Storage.NewEntry()
+			data := db.storage.NewEntry()
 			data.Decode(resp.Value())
 			ver.entry = data
 			// Ignore failed owners. The data on those hosts will be wiped out
@@ -151,7 +151,7 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 				db.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
 			}
 		} else {
-			data := db.config.Storage.NewEntry()
+			data := db.storage.NewEntry()
 			data.Decode(resp.Value())
 			ver.entry = data
 		}
@@ -210,7 +210,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 	}
 }
 
-func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (engine.Entry, error) {
+func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (storage.Entry, error) {
 	dm, err := db.getDMap(name, hkey)
 	if err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (engine.Entry, 
 	return winner.entry, nil
 }
 
-func (db *Olric) get(name, key string) (engine.Entry, error) {
+func (db *Olric) get(name, key string) (storage.Entry, error) {
 	member, hkey := db.findPartitionOwner(name, key)
 	// We are on the partition owner
 	if cmpMembersByName(member, db.this) {
@@ -277,7 +277,7 @@ func (db *Olric) get(name, key string) (engine.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entry := db.config.Storage.NewEntry()
+	entry := db.storage.NewEntry()
 	entry.Decode(resp.Value())
 	return entry, nil
 }

@@ -21,7 +21,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/pkg/errors"
 )
@@ -132,13 +132,13 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	if w.timeout.Seconds() != 0 {
 		ttl = getTTL(w.timeout)
 	}
-	entry := db.config.Storage.NewEntry()
+	entry := db.storage.NewEntry()
 	entry.SetKey(w.key)
 	entry.SetValue(w.value)
 	entry.SetTTL(ttl)
 	entry.SetTimestamp(w.timestamp)
 	err := dm.storage.Put(hkey, entry)
-	if err == engine.ErrFragmented {
+	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
 		err = nil
@@ -215,7 +215,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 				return ErrKeyFound
 			}
 		}
-		if err == engine.ErrKeyNotFound {
+		if err == storage.ErrKeyNotFound {
 			err = nil
 		}
 		if err != nil {
@@ -231,7 +231,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 				return ErrKeyNotFound
 			}
 		}
-		if err == engine.ErrKeyNotFound {
+		if err == storage.ErrKeyNotFound {
 			err = ErrKeyNotFound
 		}
 		if err != nil {

@@ -21,7 +21,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/vmihailenco/msgpack"
 )
@@ -74,9 +74,9 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner discover
 	return nil
 }
 
-func (db *Olric) selectVersionForMerge(dm *dmap, hkey uint64, entry engine.Entry) (engine.Entry, error) {
+func (db *Olric) selectVersionForMerge(dm *dmap, hkey uint64, entry storage.Entry) (storage.Entry, error) {
 	current, err := dm.storage.Get(hkey)
-	if err == engine.ErrKeyNotFound {
+	if err == storage.ErrKeyNotFound {
 		return entry, nil
 	}
 	if err != nil {
@@ -98,7 +98,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 	defer dm.Unlock()
 	defer part.m.Store(data.Name, dm)
 
-	str, err := db.config.Storage.Import(data.Payload)
+	engine, err := db.storage.Import(data.Payload)
 	if err != nil {
 		return err
 	}
@@ -117,20 +117,20 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 	if dm.storage.Len() == 0 {
 		// DMap has no keys. Set the imported storage instance.
 		// The old one will be garbage collected.
-		dm.storage = str
+		dm.storage = engine
 		return nil
 	}
 
 	// DMap has some keys. Merge with the new one.
 	var mergeErr error
-	str.Range(func(hkey uint64, entry engine.Entry) bool {
+	engine.Range(func(hkey uint64, entry storage.Entry) bool {
 		winner, err := db.selectVersionForMerge(dm, hkey, entry)
 		if err != nil {
 			mergeErr = err
 			return false
 		}
 		mergeErr = dm.storage.Put(hkey, winner)
-		if mergeErr == engine.ErrFragmented {
+		if mergeErr == storage.ErrFragmented {
 			db.wg.Add(1)
 			go db.compactTables(dm)
 			mergeErr = nil

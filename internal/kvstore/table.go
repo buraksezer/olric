@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kvstore
 
 import (
 	"encoding/binary"
 
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/pkg/errors"
 )
 
@@ -74,9 +74,9 @@ func (t *table) putRaw(hkey uint64, value []byte) error {
 // In-memory layout for entry:
 //
 // KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
-func (t *table) put(hkey uint64, value engine.Entry) error {
+func (t *table) put(hkey uint64, value storage.Entry) error {
 	if len(value.Key()) >= maxKeyLen {
-		return engine.ErrKeyTooLarge
+		return storage.ErrKeyTooLarge
 	}
 
 	// Check empty space on allocated memory area.
@@ -178,7 +178,7 @@ func (t *table) getTTL(hkey uint64) (int64, bool) {
 	return ttl, false
 }
 
-func (t *table) get(hkey uint64) (engine.Entry, bool) {
+func (t *table) get(hkey uint64) (storage.Entry, bool) {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		return nil, true
@@ -239,7 +239,7 @@ func (t *table) delete(hkey uint64) bool {
 	return false
 }
 
-func (t *table) updateTTL(hkey uint64, value engine.Entry) bool {
+func (t *table) updateTTL(hkey uint64, value storage.Entry) bool {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		// Try the previous table.

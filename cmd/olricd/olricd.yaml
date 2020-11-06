@@ -13,6 +13,14 @@ olricd:
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
+storage:
+  - name: "olric.kvstore"
+    config:
+      - tableSize: 102134
+  - name: "olric.docstore"
+    config:
+      - foobar: "barfoo"
+
 logging:
   verbosity: 6
   level: "DEBUG"

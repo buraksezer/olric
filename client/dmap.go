@@ -19,7 +19,7 @@ import (
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/internal/kvstore"
 )
 
 // dmap provides methods to access distributed maps on Olric cluster.
@@ -33,7 +33,7 @@ func (c *Client) processGetResponse(resp protocol.EncodeDecoder) (interface{}, e
 		return nil, err
 	}
 	// TODO: Use engine.Entry interface
-	entry := storage.NewEntry()
+	entry := kvstore.NewEntry()
 	entry.Decode(resp.Value())
 	return c.unmarshalValue(entry.Value)
 }
@@ -64,7 +64,7 @@ func (d *DMap) GetEntry(key string) (*olric.Entry, error) {
 	if err := checkStatusCode(resp); err != nil {
 		return nil, err
 	}
-	entry := storage.NewEntry()
+	entry := kvstore.NewEntry()
 	entry.Decode(resp.Value())
 	value, err := d.unmarshalValue(entry.Value())
 	if err != nil {

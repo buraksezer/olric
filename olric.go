@@ -18,13 +18,14 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/engine"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/buraksezer/olric/internal/storage"
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
@@ -134,6 +135,10 @@ type Olric struct {
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams
 
+	// Storage engine
+	storage        storage.Engine
+	storageOptions *storage.Options
+
 	// Structures for flow control
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -220,6 +225,11 @@ func New(c *config.Config) (*Olric, error) {
 		dtopic:     newDTopic(ctx),
 		streams:    &streams{m: make(map[uint64]*stream)},
 		started:    c.Started,
+	}
+
+	db.storageOptions = storage.NewOptions()
+	for key, value := range db.config.StorageConfig {
+		db.storageOptions.Add(key, value)
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
@@ -429,13 +439,13 @@ func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusErrNoSuchLock)
 	case err == ErrLockNotAcquired, errors.Is(err, ErrLockNotAcquired):
 		w.SetStatus(protocol.StatusErrLockNotAcquired)
-	case err == ErrKeyNotFound, err == engine.ErrKeyNotFound:
+	case err == ErrKeyNotFound, err == storage.ErrKeyNotFound:
 		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case errors.Is(err, ErrKeyNotFound), errors.Is(err, engine.ErrKeyNotFound):
+	case errors.Is(err, ErrKeyNotFound), errors.Is(err, storage.ErrKeyNotFound):
 		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case err == ErrKeyTooLarge, err == engine.ErrKeyTooLarge:
+	case err == ErrKeyTooLarge, err == storage.ErrKeyTooLarge:
 		w.SetStatus(protocol.StatusErrKeyTooLarge)
-	case errors.Is(err, ErrKeyTooLarge), errors.Is(err, engine.ErrKeyTooLarge):
+	case errors.Is(err, ErrKeyTooLarge), errors.Is(err, storage.ErrKeyTooLarge):
 		w.SetStatus(protocol.StatusErrKeyTooLarge)
 	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
 		w.SetStatus(protocol.StatusErrOperationTimeout)

@@ -16,6 +16,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"io"
 	"log"
 	"net"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/hasher"
-	"github.com/buraksezer/olric/internal/engine"
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
@@ -290,7 +290,8 @@ type Config struct {
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
 
-	Storage engine.Engine
+	Storage       storage.Engine
+	StorageConfig map[string]interface{}
 }
 
 // NewMemberlistConfig returns a new memberlist.Config from vendored version of that package.
@@ -444,8 +445,7 @@ func (c *Config) Sanitize() error {
 	}
 	if c.Storage == nil {
 		// Use default storage engine
-		// TODO: Use a constructor here
-		c.Storage = storage.New(c.TableSize)
+		c.Storage = &kvstore.KVStore{}
 	}
 	if c.RequestTimeout == 0*time.Second {
 		c.RequestTimeout = DefaultRequestTimeout

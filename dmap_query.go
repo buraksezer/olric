@@ -18,7 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -38,7 +38,7 @@ var ErrEndOfQuery = errors.New("end of query")
 type QueryResponse map[string]interface{}
 
 // internal representation of query response
-type queryResponse map[uint64]engine.Entry
+type queryResponse map[uint64]storage.Entry
 
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
@@ -165,7 +165,7 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
 	return result
 }
 
-func (c *Cursor) runQueryOnOwners(partID uint64) ([]engine.Entry, error) {
+func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 	value, err := msgpack.Marshal(c.query)
 	if err != nil {
 		return nil, err
@@ -202,14 +202,14 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]engine.Entry, error) {
 		responses = append(responses, tmp)
 	}
 
-	var result []engine.Entry
+	var result []storage.Entry
 	for _, entry := range c.reconcileResponses(responses) {
 		result = append(result, entry)
 	}
 	return result, nil
 }
 
-func (c *Cursor) runQueryOnCluster(results chan []engine.Entry, errCh chan error) {
+func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan error) {
 	defer c.db.wg.Done()
 	defer close(results)
 
@@ -267,7 +267,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	defer c.Close()
 
 	// Currently we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
-	results := make(chan []engine.Entry, NumParallelQuery)
+	results := make(chan []storage.Entry, NumParallelQuery)
 	errCh := make(chan error, 1)
 
 	c.db.wg.Add(1)

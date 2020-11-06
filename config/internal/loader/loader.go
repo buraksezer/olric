@@ -85,6 +85,11 @@ type cache struct {
 	EvictionPolicy     string `yaml:"evictionPolicy"`
 }
 
+type storage struct {
+	Name   string                 `yaml:"name"`
+	Config map[string]interface{} `yaml:"config"`
+}
+
 // Loader is the main configuration struct
 type Loader struct {
 	Memberlist       memberlist
@@ -93,6 +98,7 @@ type Loader struct {
 	Cache            cache
 	DMaps            map[string]cache       `yaml:"dmaps"`
 	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
+	Storage          []storage                `yaml:"storage"`
 }
 
 func New(data []byte) (*Loader, error) {

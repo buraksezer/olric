@@ -15,6 +15,7 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -91,7 +92,12 @@ serviceDiscovery:
   passingOnly: true
   replaceExistingChecks: true
   insecureSkipVerify: true
-  payload: 'SAMPLE-PAYLOAD'`
+  payload: 'SAMPLE-PAYLOAD'
+
+storage:
+  - name: "olric.kvstore"
+    config:
+      tableSize: 123123`
 
 func TestConfig(t *testing.T) {
 	f, err := ioutil.TempFile("/tmp/", "olric-yaml-config-test")
@@ -176,6 +182,8 @@ func TestConfig(t *testing.T) {
 	lc.LogOutput = nil
 	c.Logger = nil
 	lc.Logger = nil
+
+	fmt.Println(lc.StorageConfig)
 
 	if !reflect.DeepEqual(lc, c) {
 		t.Fatalf("Expected true. Got: false")

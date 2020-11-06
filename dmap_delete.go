@@ -16,7 +16,7 @@ package olric
 
 import (
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/engine"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 )
@@ -80,7 +80,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 		}
 	}
 	err = dm.storage.Delete(hkey)
-	if err == engine.ErrFragmented {
+	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
 		err = nil
@@ -141,7 +141,7 @@ func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	defer dm.Unlock()
 
 	err = dm.storage.Delete(hkey)
-	if err == engine.ErrFragmented {
+	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
 		err = nil
@@ -165,7 +165,7 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	defer dm.Unlock()
 
 	err = dm.storage.Delete(hkey)
-	if err == engine.ErrFragmented {
+	if err == storage.ErrFragmented {
 		db.wg.Add(1)
 		go db.compactTables(dm)
 		err = nil

@@ -136,6 +136,8 @@ func Load(filename string) (*Config, error) {
 		Cache:               cacheConfig,
 		TableSize:           c.Olricd.TableSize,
 	}
+	c.Storage
+
 	if err := cfg.Sanitize(); err != nil {
 		return nil, err
 	}

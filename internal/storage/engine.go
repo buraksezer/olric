@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package engine
+package storage
 
 import "errors"
 
@@ -26,8 +26,6 @@ var ErrKeyTooLarge = errors.New("key too large")
 
 // ErrKeyNotFound is an error that indicates that the requested key could not be found in the DB.
 var ErrKeyNotFound = errors.New("key not found")
-
-type Options map[string]interface{}
 
 type Entry interface {
 	SetKey(string)
@@ -43,9 +41,9 @@ type Entry interface {
 }
 
 type Engine interface {
-	GetInstance() Engine
-	Name() string
 	NewEntry() Entry
+	Name() string
+	GetInstance(*Options) (Engine, error)
 	PutRaw(uint64, []byte) error
 	Put(uint64, Entry) error
 	GetRaw(uint64) ([]byte, error)
@@ -54,6 +52,7 @@ type Engine interface {
 	GetKey(uint64) (string, error)
 	Delete(uint64) error
 	UpdateTTL(uint64, Entry) error
+	Import([]byte) (Engine, error)
 	Export() ([]byte, error)
 	Len() int
 	Stats() map[string]int
