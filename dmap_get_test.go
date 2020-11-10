@@ -17,6 +17,7 @@ package olric
 import (
 	"bytes"
 	"context"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -384,5 +385,44 @@ func TestDMap_GetEntryOnCluster(t *testing.T) {
 		if entry.Timestamp == 0 {
 			t.Fatalf("Timestamp is zero")
 		}
+	}
+}
+
+func TestDMap_OpGetPrev(t *testing.T) {
+	c := newTestCluster(nil)
+	defer c.teardown()
+
+	db, err := c.newDB()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	dm, err := db.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 100; i++ {
+		err = dm.Put(bkey(i), bval(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	v, err := db.lookupOnPreviousOwner(&db.this, "mymap", bkey(10))
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if !reflect.DeepEqual(v.host, &db.this) {
+		t.Fatalf("Returned host is different: %v", v.host)
+	}
+	val, err := db.unmarshalValue(v.entry.Value)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if !bytes.Equal(val.([]byte), bval(10)) {
+		t.Fatalf("Returned value is different")
+	}
+	if v.entry.Key != bkey(10) {
+		t.Fatalf("Returned key is different")
 	}
 }
