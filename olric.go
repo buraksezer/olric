@@ -521,7 +521,7 @@ func (db *Olric) checkBootstrap() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), db.config.RequestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), db.config.BootstrapTimeout)
 	defer cancel()
 
 	// This loop only works for the first moments of the process.

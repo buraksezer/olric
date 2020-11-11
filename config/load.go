@@ -80,7 +80,7 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	var joinRetryInterval, keepAlivePeriod, requestTimeout time.Duration
+	var joinRetryInterval, keepAlivePeriod, bootstrapTimeout time.Duration
 	if c.Olricd.KeepAlivePeriod != "" {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
@@ -88,11 +88,11 @@ func Load(filename string) (*Config, error) {
 				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
-	if c.Olricd.RequestTimeout != "" {
-		requestTimeout, err = time.ParseDuration(c.Olricd.RequestTimeout)
+	if c.Olricd.BootstrapTimeout != "" {
+		bootstrapTimeout, err = time.ParseDuration(c.Olricd.BootstrapTimeout)
 		if err != nil {
 			return nil, errors.WithMessage(err,
-				fmt.Sprintf("failed to parse olricd.requestTimeout: '%s'", c.Olricd.RequestTimeout))
+				fmt.Sprintf("failed to parse olricd.bootstrapTimeout: '%s'", c.Olricd.BootstrapTimeout))
 		}
 	}
 	if c.Memberlist.JoinRetryInterval != "" {
@@ -122,19 +122,19 @@ func Load(filename string) (*Config, error) {
 		ReplicaCount:        c.Olricd.ReplicaCount,
 		WriteQuorum:         c.Olricd.WriteQuorum,
 		ReadQuorum:          c.Olricd.ReadQuorum,
-		ReplicationMode:     c.Olricd.ReplicationMode,
-		ReadRepair:          c.Olricd.ReadRepair,
-		LoadFactor:          c.Olricd.LoadFactor,
-		MemberCountQuorum:   c.Olricd.MemberCountQuorum,
-		Logger:              log.New(logOutput, "", log.LstdFlags),
-		LogOutput:           logOutput,
-		LogVerbosity:        c.Logging.Verbosity,
-		Hasher:              hasher.NewDefaultHasher(),
-		Serializer:          sr,
-		KeepAlivePeriod:     keepAlivePeriod,
-		RequestTimeout:      requestTimeout,
-		Cache:               cacheConfig,
-		TableSize:           c.Olricd.TableSize,
+		ReplicationMode:   c.Olricd.ReplicationMode,
+		ReadRepair:        c.Olricd.ReadRepair,
+		LoadFactor:        c.Olricd.LoadFactor,
+		MemberCountQuorum: c.Olricd.MemberCountQuorum,
+		Logger:            log.New(logOutput, "", log.LstdFlags),
+		LogOutput:         logOutput,
+		LogVerbosity:      c.Logging.Verbosity,
+		Hasher:            hasher.NewDefaultHasher(),
+		Serializer:        sr,
+		KeepAlivePeriod:   keepAlivePeriod,
+		BootstrapTimeout:  bootstrapTimeout,
+		Cache:             cacheConfig,
+		TableSize:         c.Olricd.TableSize,
 	}
 	if err := cfg.Sanitize(); err != nil {
 		return nil, err

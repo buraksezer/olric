@@ -28,7 +28,7 @@ type olricd struct {
 	LoadFactor        float64 `yaml:"loadFactor"`
 	Serializer        string  `yaml:"serializer"`
 	KeepAlivePeriod   string  `yaml:"keepAlivePeriod"`
-	RequestTimeout    string  `yaml:"requestTimeout"`
+	BootstrapTimeout  string  `yaml:"bootstrapTimeout"`
 	ReplicaCount      int     `yaml:"replicaCount"`
 	WriteQuorum       int     `yaml:"writeQuorum"`
 	ReadQuorum        int     `yaml:"readQuorum"`

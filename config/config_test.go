@@ -28,7 +28,7 @@ var testConfig = `olricd:
   bindPort: 3320
   serializer: "msgpack"
   keepAlivePeriod: "300s"
-  requestTimeout: "5s"
+  bootstrapTimeout: "5s"
   partitionCount:  271
   replicaCount: 2
   writeQuorum: 1
@@ -117,7 +117,7 @@ func TestConfig(t *testing.T) {
 	c.BindPort = 3320
 	c.Serializer = serializer.NewMsgpackSerializer()
 	c.KeepAlivePeriod = 300 * time.Second
-	c.RequestTimeout = 5 * time.Second
+	c.BootstrapTimeout = 5 * time.Second
 	c.PartitionCount = 271
 	c.ReplicaCount = 2
 	c.WriteQuorum = 1

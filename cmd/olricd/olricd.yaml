@@ -3,7 +3,7 @@ olricd:
   bindPort: 3320
   serializer: "msgpack"
   keepAlivePeriod: "300s"
-  requestTimeout: "5s"
+  bootstrapTimeout: "5s"
   partitionCount:  13
   replicaCount: 1
   writeQuorum: 1

@@ -83,8 +83,8 @@ const (
 	// MinimumReplicaCount denotes default and minimum replica count in an Olric cluster.
 	MinimumReplicaCount = 1
 
-	// DefaultRequestTimeout denotes default timeout value for a request.
-	DefaultRequestTimeout = 10 * time.Second
+	// DefaultBootstrapTimeout denotes default timeout value to check bootstrapping status.
+	DefaultBootstrapTimeout = 10 * time.Second
 
 	// DefaultJoinRetryInterval denotes a time gap between sequential join attempts.
 	DefaultJoinRetryInterval = time.Second
@@ -206,7 +206,12 @@ type Config struct {
 	// given an appropriate fraction of the time to connect.
 	DialTimeout time.Duration
 
-	RequestTimeout time.Duration
+	// Timeout for bootstrap control
+	//
+	// An Olric node checks operation status before taking any action for the cluster events, responding incoming requests
+	// and running API functions. Bootstrapping status is one of the most important checkpoints for an "operable" Olric node.
+	// BootstrapTimeout sets a deadline to check bootstrapping status without blocking indefinitely.
+	BootstrapTimeout time.Duration
 
 	// The list of host:port which are used by memberlist for discovery. Don't confuse it with Name.
 	Peers []string
@@ -435,8 +440,8 @@ func (c *Config) Sanitize() error {
 		m.AdvertisePort = DefaultDiscoveryPort
 		c.MemberlistConfig = m
 	}
-	if c.RequestTimeout == 0*time.Second {
-		c.RequestTimeout = DefaultRequestTimeout
+	if c.BootstrapTimeout == 0*time.Second {
+		c.BootstrapTimeout = DefaultBootstrapTimeout
 	}
 	if c.JoinRetryInterval == 0*time.Second {
 		c.JoinRetryInterval = DefaultJoinRetryInterval
