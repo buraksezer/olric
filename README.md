@@ -84,6 +84,7 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
     * [Client-Server Mode](#client-server-mode)
     * [Network Configuration](#network-configuration)
     * [Service discovery](#service-discovery)
+    * [Timeouts](#timeouts)
 * [Architecture](#architecture)
   * [Overview](#overview)
   * [Consistency and Replication Model](#consistency-and-replication-model)
@@ -972,6 +973,18 @@ We currently have a bunch of service discovery plugins for automatic peer discov
 * [justinfx/olric-nats-plugin](https://github.com/justinfx/olric-nats-plugin) provides a plugin using nats.io
 
 In order to get more info about installation and configuration of the plugins, see their GitHub page. 
+
+### Timeouts
+
+Olric nodes supports setting `KeepAlivePeriod` on TCP sockets. 
+
+Server-side:
+
+* **config.KeepAlivePeriod**: KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
+
+Client-side:
+ 
+* **config.DialTimeout**: Timeout for TCP dial.
 
 ## Architecture
 
