@@ -80,6 +80,7 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
 * [Golang Client](#golang-client)
 * [Configuration](#configuration)
     * [Embedded Member Mode](#embedded-member-mode)
+      * [Manage the configuration in YAML format](#manage-the-configuration-in-yaml-format)
     * [Client-Server Mode](#client-server-mode)
     * [Network Configuration](#network-configuration)
     * [Service discovery](#service-discovery)
@@ -928,6 +929,17 @@ The `New` function takes a parameter called `env`. It denotes the network enviro
 Default configuration is good enough for distributed caching scenario. In order to see all configuration parameters, please take a look at [this](https://godoc.org/github.com/buraksezer/olric/config).
 
 See [Sample Code](#sample-code) section for an introduction.
+
+#### Manage the configuration in YAML format
+
+You can also import configuration from a YAML file by using the `Load` function:
+
+```go
+c, err := config.Load(path/to/olric.yaml)
+```
+
+A sample configuration file in YAML format can be found [here](https://github.com/buraksezer/olric/blob/master/cmd/olricd/olricd.yaml). This may be the most appropriate way to manage the Olric configuration.
+
 
 ### Client-Server Mode
 
