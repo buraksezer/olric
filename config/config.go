@@ -105,6 +105,46 @@ const (
 	LRUEviction EvictionPolicy = "LRU"
 )
 
+const (
+	DefaultDialTimeout  = 5 * time.Second
+	DefaultReadTimeout  = 3 * time.Second
+	DefaultWriteTimeout = 3 * time.Second
+)
+
+type ClientConfig struct {
+	// Timeout for TCP dial.
+	//
+	// The timeout includes name resolution, if required. When using TCP, and the host in the address parameter
+	// resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
+	// given an appropriate fraction of the time to connect.
+	DialTimeout time.Duration
+
+	// Timeout for socket reads. If reached, commands will fail
+	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
+	// Default is DefaultReadTimeout
+	ReadTimeout time.Duration
+
+	// Timeout for socket writes. If reached, commands will fail
+	// with a timeout instead of blocking.
+	// Default is DefaultWriteTimeout
+	WriteTimeout time.Duration
+
+	// KeepAlive specifies the interval between keep-alive
+	// probes for an active network connection.
+	// If zero, keep-alive probes are sent with a default value
+	// (currently 15 seconds), if supported by the protocol and operating
+	// system. Network protocols or operating systems that do
+	// not support keep-alives ignore this field.
+	// If negative, keep-alive probes are disabled.
+	KeepAlive time.Duration
+
+	// Minimum TCP connection count in the pool for a host:port
+	MinConn int
+
+	// Maximum TCP connection count in the pool for a host:port
+	MaxConn int
+}
+
 // EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
 type EvictionPolicy string
 
@@ -196,15 +236,10 @@ type Config struct {
 	// BindPort denotes the address that Olric will bind to for communication with other Olric nodes.
 	BindPort int
 
+	ClientConfig *ClientConfig
+
 	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
 	KeepAlivePeriod time.Duration
-
-	// Timeout for TCP dial.
-	//
-	// The timeout includes name resolution, if required. When using TCP, and the host in the address parameter
-	// resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
-	// given an appropriate fraction of the time to connect.
-	DialTimeout time.Duration
 
 	// Timeout for bootstrap control
 	//
@@ -386,6 +421,34 @@ func (c *Config) Validate() error {
 	return result
 }
 
+func (c *ClientConfig) sanitize() {
+	if c.DialTimeout == 0 {
+		c.DialTimeout = DefaultDialTimeout
+	}
+
+	switch c.ReadTimeout {
+	case -1:
+		c.ReadTimeout = 0
+	case 0:
+		c.ReadTimeout = DefaultReadTimeout
+	}
+
+	switch c.WriteTimeout {
+	case -1:
+		c.WriteTimeout = 0
+	case 0:
+		c.WriteTimeout = DefaultWriteTimeout
+	}
+
+	if c.MaxConn == 0 {
+		c.MaxConn = 1
+	}
+}
+
+func (c *ClientConfig) HasTimeout() bool {
+	return c.ReadTimeout > 0 || c.WriteTimeout > 0
+}
+
 // Sanitize sanitizes the given configuration.
 // It returns an error if there is something very bad in the configuration.
 func (c *Config) Sanitize() error {
@@ -461,6 +524,9 @@ func (c *Config) Sanitize() error {
 			return fmt.Errorf("a node cannot be peer with itself")
 		}
 	}
+
+	c.ClientConfig.sanitize()
+
 	return nil
 }
 

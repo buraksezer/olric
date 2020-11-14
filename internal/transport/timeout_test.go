@@ -17,6 +17,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"github.com/buraksezer/olric/config"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -55,8 +56,7 @@ func TestConnWithTimeout(t *testing.T) {
 	}()
 	<-s.StartCh
 
-	cc := &ClientConfig{
-		Addrs:        []string{s.listener.Addr().String()},
+	cc := &config.ClientConfig{
 		MaxConn:      10,
 		ReadTimeout:  20 * time.Millisecond,
 		WriteTimeout: 20 * time.Millisecond,
@@ -129,8 +129,7 @@ func TestConnWithTimeout_Disabled(t *testing.T) {
 	}()
 	<-s.StartCh
 
-	cc := &ClientConfig{
-		Addrs:        []string{s.listener.Addr().String()},
+	cc := &config.ClientConfig{
 		MaxConn:      10,
 		ReadTimeout:  -1 * time.Millisecond,
 		WriteTimeout: -1 * time.Millisecond,

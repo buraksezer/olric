@@ -172,13 +172,7 @@ func New(c *config.Config) (*Olric, error) {
 		ReplicationFactor: 20, // TODO: This also may be a configuration param.
 		Load:              c.LoadFactor,
 	}
-	cc := &transport.ClientConfig{
-		DialTimeout: c.DialTimeout,
-		KeepAlive:   c.KeepAlivePeriod,
-		MaxConn:     1024, // TODO: Make this configurable.
-	}
-	client := transport.NewClient(cc)
-	ctx, cancel := context.WithCancel(context.Background())
+	client := transport.NewClient(c.ClientConfig)
 
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
@@ -200,7 +194,7 @@ func New(c *config.Config) (*Olric, error) {
 		GracefulPeriod:  10 * time.Second,
 	}
 	srv := transport.NewServer(sc, flogger)
-
+	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,

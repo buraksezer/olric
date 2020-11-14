@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/config"
 	"strings"
 	"testing"
 	"time"
@@ -339,12 +340,11 @@ func TestDMap_Query(t *testing.T) {
 	req.SetValue(value)
 	req.SetExtra(protocol.QueryExtra{PartID: 0})
 
-	cc := &transport.ClientConfig{
-		Addrs:   []string{db.name},
+	cc := &config.ClientConfig{
 		MaxConn: 10,
 	}
 	cl := transport.NewClient(cc)
-	resp, err := cl.Request(req)
+	resp, err := cl.RequestTo(db.name, req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -406,12 +406,11 @@ func TestDMap_QueryEndOfKeySpace(t *testing.T) {
 	req.SetValue(value)
 	req.SetExtra(protocol.QueryExtra{PartID: 300})
 
-	cc := &transport.ClientConfig{
-		Addrs:   []string{db.name},
+	cc := &config.ClientConfig{
 		MaxConn: 10,
 	}
 	cl := transport.NewClient(cc)
-	resp, err := cl.Request(req)
+	resp, err := cl.RequestTo(db.name, req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

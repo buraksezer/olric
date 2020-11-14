@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package transport
+package client
 
 import "sync"
 
-// RoundRobin implements quite simple round-robin algorithm to distribute load fairly between servers.
-type RoundRobin struct {
+// roundRobin implements quite simple round-robin algorithm to distribute load fairly between servers.
+type roundRobin struct {
 	sync.Mutex
 
 	current int
 	addrs   []string
 }
 
-// NewRoundRobin returns a new RoundRobin.
-func NewRoundRobin(addrs []string) *RoundRobin {
-	return &RoundRobin{
+// newRoundRobin returns a new roundRobin.
+func newRoundRobin(addrs []string) *roundRobin {
+	return &roundRobin{
 		current: 0,
 		addrs:   addrs,
 	}
 }
 
 // Get returns a host address.
-func (r *RoundRobin) Get() string {
+func (r *roundRobin) Get() string {
 	r.Lock()
 	defer r.Unlock()
 

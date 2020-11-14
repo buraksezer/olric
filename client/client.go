@@ -17,6 +17,7 @@ package client // import "github.com/buraksezer/olric/client"
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/config"
 	"log"
 	"os"
 	"sync"
@@ -41,6 +42,7 @@ var (
 type Client struct {
 	config     *Config
 	client     *transport.Client
+	roundRobin *roundRobin
 	serializer serializer.Serializer
 	streams    *streams
 	wg         sync.WaitGroup
@@ -73,8 +75,8 @@ func New(c *Config) (*Client, error) {
 	if c.MaxListenersPerStream <= 0 {
 		c.MaxListenersPerStream = maxListenersPerStream
 	}
-	cc := &transport.ClientConfig{
-		Addrs:       c.Addrs,
+	// TODO: Use config.ClientConfig directly
+	cc := &config.ClientConfig{
 		DialTimeout: c.DialTimeout,
 		KeepAlive:   c.KeepAlive,
 		MaxConn:     c.MaxConn,
@@ -85,6 +87,7 @@ func New(c *Config) (*Client, error) {
 	// createStreamFunction and I overwrite that function in test.
 	createStreamFunction = client.CreateStream
 	return &Client{
+		roundRobin: newRoundRobin(c.Addrs),
 		config:     c,
 		client:     client,
 		serializer: c.Serializer,
@@ -98,6 +101,12 @@ func (c *Client) Ping(addr string) error {
 	req := protocol.NewSystemMessage(protocol.OpPing)
 	_, err := c.client.RequestTo(addr, req)
 	return err
+}
+
+// Request initiates a request-response cycle to randomly selected host.
+func (c *Client) request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	addr := c.roundRobin.Get()
+	return c.client.RequestTo(addr, req)
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.

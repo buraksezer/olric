@@ -19,16 +19,10 @@ import (
 	"net"
 	"os"
 	"sync"
-	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/pool"
-)
-
-const (
-	DefaultDialTimeout  = 5 * time.Second
-	DefaultReadTimeout  = 3 * time.Second
-	DefaultWriteTimeout = 3 * time.Second
 )
 
 // Client is the client implementation for the internal TCP server.
@@ -36,92 +30,26 @@ const (
 type Client struct {
 	mu sync.RWMutex
 
-	dialer     *net.Dialer
-	config     *ClientConfig
-	roundrobin *RoundRobin
-	pools      map[string]pool.Pool
-}
-
-// ClientConfig configuration parameters of the client.
-type ClientConfig struct {
-	// List of host:port address.
-	Addrs []string
-
-	// Dial timeout for establishing new connections.
-	// Default is DefaultDialTimeout
-	DialTimeout time.Duration
-
-	// Timeout for socket reads. If reached, commands will fail
-	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
-	// Default is DefaultReadTimeout
-	ReadTimeout time.Duration
-
-	// Timeout for socket writes. If reached, commands will fail
-	// with a timeout instead of blocking.
-	// Default is DefaultWriteTimeout
-	WriteTimeout time.Duration
-
-	// KeepAlive specifies the interval between keep-alive
-	// probes for an active network connection.
-	// If zero, keep-alive probes are sent with a default value
-	// (currently 15 seconds), if supported by the protocol and operating
-	// system. Network protocols or operating systems that do
-	// not support keep-alives ignore this field.
-	// If negative, keep-alive probes are disabled.
-	KeepAlive time.Duration
-
-	// Minimum TCP connection count in the pool for a host:port
-	MinConn int
-
-	// Maximum TCP connection count in the pool for a host:port
-	MaxConn int
-}
-
-func (cc *ClientConfig) sanitize() {
-	if cc.DialTimeout == 0 {
-		cc.DialTimeout = DefaultDialTimeout
-	}
-
-	switch cc.ReadTimeout {
-	case -1:
-		cc.ReadTimeout = 0
-	case 0:
-		cc.ReadTimeout = DefaultReadTimeout
-	}
-
-	switch cc.WriteTimeout {
-	case -1:
-		cc.WriteTimeout = 0
-	case 0:
-		cc.WriteTimeout = DefaultWriteTimeout
-	}
-
-	if cc.MaxConn == 0 {
-		cc.MaxConn = 1
-	}
-}
-
-func (cc *ClientConfig) hasTimeout() bool {
-	return cc.ReadTimeout > 0 || cc.WriteTimeout > 0
+	dialer *net.Dialer
+	config *config.ClientConfig
+	pools  map[string]pool.Pool
 }
 
 // NewClient returns a new Client.
-func NewClient(cc *ClientConfig) *Client {
-	if cc == nil {
+func NewClient(cfg *config.ClientConfig) *Client {
+	if cfg == nil {
 		panic("ClientConfig cannot be nil")
 	}
-	cc.sanitize()
 
 	dialer := &net.Dialer{
-		Timeout:   cc.DialTimeout,
-		KeepAlive: cc.KeepAlive,
+		Timeout:   cfg.DialTimeout,
+		KeepAlive: cfg.KeepAlive,
 	}
 
 	c := &Client{
-		roundrobin: NewRoundRobin(cc.Addrs),
-		dialer:     dialer,
-		config:     cc,
-		pools:      make(map[string]pool.Pool),
+		dialer: dialer,
+		config: cfg,
+		pools:  make(map[string]pool.Pool),
 	}
 	return c
 }
@@ -185,7 +113,7 @@ func (c *Client) conn(addr string) (net.Conn, error) {
 		return nil, err
 	}
 
-	if c.config.hasTimeout() {
+	if c.config.HasTimeout() {
 		// Wrap the net.Conn to implement timeout logic
 		conn = NewConnWithTimeout(conn, c.config.ReadTimeout, c.config.WriteTimeout)
 	}
@@ -206,7 +134,7 @@ func (c *Client) teardownConnWithTimeout(conn *ConnWithTimeout, dead bool) {
 }
 
 func (c *Client) teardownConn(rawConn net.Conn, dead bool) {
-	if c.config.hasTimeout() {
+	if c.config.HasTimeout() {
 		c.teardownConnWithTimeout(rawConn.(*ConnWithTimeout), dead)
 		return
 	}
@@ -260,10 +188,4 @@ func (c *Client) RequestTo(addr string, req protocol.EncodeDecoder) (protocol.En
 		return nil, err
 	}
 	return resp, nil
-}
-
-// Request initiates a request-response cycle to randomly selected host.
-func (c *Client) Request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	addr := c.roundrobin.Get()
-	return c.RequestTo(addr, req)
 }
