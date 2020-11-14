@@ -31,24 +31,24 @@ type Client struct {
 	mu sync.RWMutex
 
 	dialer *net.Dialer
-	config *config.ClientConfig
+	config *config.Client
 	pools  map[string]pool.Pool
 }
 
 // NewClient returns a new Client.
-func NewClient(cfg *config.ClientConfig) *Client {
-	if cfg == nil {
-		panic("ClientConfig cannot be nil")
+func NewClient(cc *config.Client) *Client {
+	if cc == nil {
+		panic("Client cannot be nil")
 	}
 
 	dialer := &net.Dialer{
-		Timeout:   cfg.DialTimeout,
-		KeepAlive: cfg.KeepAlive,
+		Timeout:   cc.DialTimeout,
+		KeepAlive: cc.KeepAlive,
 	}
 
 	c := &Client{
 		dialer: dialer,
-		config: cfg,
+		config: cc,
 		pools:  make(map[string]pool.Pool),
 	}
 	return c

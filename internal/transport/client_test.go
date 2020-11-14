@@ -48,9 +48,10 @@ func TestClient_Request(t *testing.T) {
 	}()
 	<-s.StartCh
 
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	t.Run("Request with round-robin", func(t *testing.T) {

@@ -21,7 +21,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/buraksezer/olric/hasher"
@@ -105,119 +104,6 @@ const (
 	LRUEviction EvictionPolicy = "LRU"
 )
 
-const (
-	DefaultDialTimeout  = 5 * time.Second
-	DefaultReadTimeout  = 3 * time.Second
-	DefaultWriteTimeout = 3 * time.Second
-)
-
-type ClientConfig struct {
-	// Timeout for TCP dial.
-	//
-	// The timeout includes name resolution, if required. When using TCP, and the host in the address parameter
-	// resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
-	// given an appropriate fraction of the time to connect.
-	DialTimeout time.Duration
-
-	// Timeout for socket reads. If reached, commands will fail
-	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
-	// Default is DefaultReadTimeout
-	ReadTimeout time.Duration
-
-	// Timeout for socket writes. If reached, commands will fail
-	// with a timeout instead of blocking.
-	// Default is DefaultWriteTimeout
-	WriteTimeout time.Duration
-
-	// KeepAlive specifies the interval between keep-alive
-	// probes for an active network connection.
-	// If zero, keep-alive probes are sent with a default value
-	// (currently 15 seconds), if supported by the protocol and operating
-	// system. Network protocols or operating systems that do
-	// not support keep-alives ignore this field.
-	// If negative, keep-alive probes are disabled.
-	KeepAlive time.Duration
-
-	// Minimum TCP connection count in the pool for a host:port
-	MinConn int
-
-	// Maximum TCP connection count in the pool for a host:port
-	MaxConn int
-}
-
-// EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
-type EvictionPolicy string
-
-// note on DMapCacheConfig and CacheConfig:
-// golang doesn't provide the typical notion of inheritance.
-// because of that I preferred to define the types explicitly.
-
-// DMapCacheConfig denotes cache configuration for a particular dmap.
-type DMapCacheConfig struct {
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
-	// It limits the lifetime of the entries relative to the time of the last
-	// read or write access performed on them. The entries whose idle period exceeds
-	// this limit are expired and evicted automatically. An entry is idle if no Get,
-	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
-	// feature varies by preferred deployment method.
-	MaxIdleDuration time.Duration
-
-	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
-	TTLDuration time.Duration
-
-	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
-	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
-	MaxKeys int
-
-	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
-	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
-	MaxInuse int
-
-	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
-	// Lower values are better for high performance. It's 5 by default.
-	LRUSamples int
-
-	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
-	// Set as LRU to enable LRU eviction policy.
-	EvictionPolicy EvictionPolicy
-}
-
-// CacheConfig denotes a global cache configuration for DMaps. You can still overwrite it by setting a
-// DMapCacheConfig for a particular dmap. Don't set this if you use Olric as an ordinary key/value store.
-type CacheConfig struct {
-	// NumEvictionWorkers denotes the number of goroutines that's used to find keys for eviction.
-	NumEvictionWorkers int64
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
-	// It limits the lifetime of the entries relative to the time of the last
-	// read or write access performed on them. The entries whose idle period exceeds
-	// this limit are expired and evicted automatically. An entry is idle if no Get,
-	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
-	// feature varies by preferred deployment method.
-	MaxIdleDuration time.Duration
-
-	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
-	TTLDuration time.Duration
-
-	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
-	// MaxKeys=100000, max key count in the cluster should around MaxKeys*10=1000000
-	MaxKeys int
-
-	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
-	// MaxInuse=100M (it has to be in bytes), max amount of in-use memory should be around MaxInuse*10=1G
-	MaxInuse int
-
-	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
-	// Lower values are better for high performance. It's 5 by default.
-	LRUSamples int
-
-	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
-	// Set as LRU to enable LRU eviction policy.
-	EvictionPolicy EvictionPolicy
-
-	// DMapConfigs is useful to set custom cache config per dmap instance.
-	DMapConfigs map[string]DMapCacheConfig
-}
-
 // Config is the configuration to create a Olric instance.
 type Config struct {
 	// Interface denotes a binding interface. It can be used instead of BindAddr if the interface is known but not the address.
@@ -236,7 +122,7 @@ type Config struct {
 	// BindPort denotes the address that Olric will bind to for communication with other Olric nodes.
 	BindPort int
 
-	ClientConfig *ClientConfig
+	Client *Client
 
 	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
 	KeepAlivePeriod time.Duration
@@ -329,51 +215,6 @@ type Config struct {
 	MemberlistConfig *memberlist.Config
 }
 
-// NewMemberlistConfig returns a new memberlist.Config from vendored version of that package.
-// It takes an env parameter: local, lan and wan.
-//
-// local:
-// DefaultLocalConfig works like DefaultConfig, however it returns a configuration that
-// is optimized for a local loopback environments. The default configuration is still very conservative
-// and errs on the side of caution.
-//
-// lan:
-// DefaultLANConfig returns a sane set of configurations for Memberlist. It uses the hostname
-// as the node name, and otherwise sets very conservative values that are sane for most LAN environments.
-// The default configuration errs on the side of caution, choosing values that are optimized for higher convergence
-// at the cost of higher bandwidth usage. Regardless, these values are a good starting point when getting started with memberlist.
-//
-// wan:
-// DefaultWANConfig works like DefaultConfig, however it returns a configuration that is optimized for most WAN environments.
-// The default configuration is still very conservative and errs on the side of caution.
-func NewMemberlistConfig(env string) (*memberlist.Config, error) {
-	e := strings.ToLower(env)
-	switch e {
-	case "local":
-		return memberlist.DefaultLocalConfig(), nil
-	case "lan":
-		return memberlist.DefaultLANConfig(), nil
-	case "wan":
-		return memberlist.DefaultWANConfig(), nil
-	}
-	return nil, fmt.Errorf("unknown env: %s", env)
-}
-
-func (c *Config) validateMemberlistConfig() error {
-	var result error
-	if len(c.MemberlistConfig.AdvertiseAddr) != 0 {
-		if ip := net.ParseIP(c.MemberlistConfig.AdvertiseAddr); ip == nil {
-			result = multierror.Append(result,
-				fmt.Errorf("memberlist: AdvertiseAddr has to be a valid IPv4 or IPv6 address"))
-		}
-	}
-	if len(c.MemberlistConfig.BindAddr) == 0 {
-		result = multierror.Append(result,
-			fmt.Errorf("memberlist: BindAddr cannot be an empty string"))
-	}
-	return result
-}
-
 // Validate validates the given configuration.
 func (c *Config) Validate() error {
 	var result error
@@ -419,34 +260,6 @@ func (c *Config) Validate() error {
 	}
 
 	return result
-}
-
-func (c *ClientConfig) sanitize() {
-	if c.DialTimeout == 0 {
-		c.DialTimeout = DefaultDialTimeout
-	}
-
-	switch c.ReadTimeout {
-	case -1:
-		c.ReadTimeout = 0
-	case 0:
-		c.ReadTimeout = DefaultReadTimeout
-	}
-
-	switch c.WriteTimeout {
-	case -1:
-		c.WriteTimeout = 0
-	case 0:
-		c.WriteTimeout = DefaultWriteTimeout
-	}
-
-	if c.MaxConn == 0 {
-		c.MaxConn = 1
-	}
-}
-
-func (c *ClientConfig) HasTimeout() bool {
-	return c.ReadTimeout > 0 || c.WriteTimeout > 0
 }
 
 // Sanitize sanitizes the given configuration.
@@ -524,9 +337,11 @@ func (c *Config) Sanitize() error {
 			return fmt.Errorf("a node cannot be peer with itself")
 		}
 	}
-
-	c.ClientConfig.sanitize()
-
+	if c.Client == nil {
+		c.Client = NewClient()
+	} else {
+		c.Client.Sanitize()
+	}
 	return nil
 }
 

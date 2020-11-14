@@ -75,12 +75,13 @@ func New(c *Config) (*Client, error) {
 	if c.MaxListenersPerStream <= 0 {
 		c.MaxListenersPerStream = maxListenersPerStream
 	}
-	// TODO: Use config.ClientConfig directly
-	cc := &config.ClientConfig{
+	// TODO: Use config.Client directly
+	cc := &config.Client{
 		DialTimeout: c.DialTimeout,
 		KeepAlive:   c.KeepAlive,
 		MaxConn:     c.MaxConn,
 	}
+	cc.Sanitize()
 	client := transport.NewClient(cc)
 	// About the hack: This looks weird, but I need to mock client.CreateStream function to test streams
 	// independently. I don't want to use a mocking library for this. So I created a function named

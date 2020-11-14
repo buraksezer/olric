@@ -172,7 +172,7 @@ func New(c *config.Config) (*Olric, error) {
 		ReplicationFactor: 20, // TODO: This also may be a configuration param.
 		Load:              c.LoadFactor,
 	}
-	client := transport.NewClient(c.ClientConfig)
+	client := transport.NewClient(c.Client)
 
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},

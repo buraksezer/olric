@@ -340,9 +340,10 @@ func TestDMap_Query(t *testing.T) {
 	req.SetValue(value)
 	req.SetExtra(protocol.QueryExtra{PartID: 0})
 
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	cl := transport.NewClient(cc)
 	resp, err := cl.RequestTo(db.name, req)
 	if err != nil {
@@ -406,9 +407,10 @@ func TestDMap_QueryEndOfKeySpace(t *testing.T) {
 	req.SetValue(value)
 	req.SetExtra(protocol.QueryExtra{PartID: 300})
 
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	cl := transport.NewClient(cc)
 	resp, err := cl.RequestTo(db.name, req)
 	if err != nil {

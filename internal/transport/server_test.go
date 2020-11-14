@@ -121,9 +121,10 @@ func TestServer_ProcessConn(t *testing.T) {
 	}()
 
 	<-s.StartCh
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	t.Run("process DMapMessage", func(t *testing.T) {
@@ -211,7 +212,8 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	<-s.StartCh
 
 	// Create a client and make a request. It will never return.
-	cc := &config.ClientConfig{}
+	cc := &config.Client{}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	var wg sync.WaitGroup

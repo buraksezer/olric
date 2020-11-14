@@ -43,9 +43,10 @@ func TestExternal_UnknownOperation(t *testing.T) {
 	req.SetKey("mykey")
 	req.SetValue([]byte("myvalue"))
 
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := transport.NewClient(cc)
 	resp, err := c.RequestTo(db.name, req)
 	if err != nil {
@@ -80,9 +81,10 @@ func TestExternal_AtomicIncrDecr(t *testing.T) {
 	req.SetExtra(protocol.AtomicExtra{
 		Timestamp: time.Now().UnixNano(),
 	})
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := transport.NewClient(cc)
 	resp, err := c.RequestTo(db.name, req)
 	if err != nil {
@@ -110,9 +112,10 @@ func TestExternal_AtomicGetPut(t *testing.T) {
 		}
 	}()
 
-	cc := &config.ClientConfig{
+	cc := &config.Client{
 		MaxConn: 100,
 	}
+	cc.Sanitize()
 	c := transport.NewClient(cc)
 	var total int64
 	var wg sync.WaitGroup
