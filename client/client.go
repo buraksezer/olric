@@ -96,6 +96,14 @@ func New(c *Config) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) AddNode(addr string) {
+	c.roundRobin.Add(addr)
+}
+
+func (c *Client) DeleteNode(addr string) error {
+	return c.roundRobin.Delete(addr)
+}
+
 // Ping sends a dummy protocol messsage to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
 func (c *Client) Ping(addr string) error {

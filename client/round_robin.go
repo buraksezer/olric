@@ -14,9 +14,12 @@
 
 package client
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
-// roundRobin implements quite simple round-robin algorithm to distribute load fairly between servers.
+// roundRobin implements quite simple round-robin scheduling algorithm to distribute load fairly between servers.
 type roundRobin struct {
 	sync.Mutex
 
@@ -44,4 +47,38 @@ func (r *roundRobin) Get() string {
 	addr := r.addrs[r.current]
 	r.current++
 	return addr
+}
+
+// Add adds a new address to the Round-Robin scheduler.
+func (r *roundRobin) Add(addr string) {
+	r.Lock()
+	defer r.Unlock()
+
+	r.addrs = append(r.addrs, addr)
+}
+
+// Delete deletes an address from the Round-Robin scheduler.
+func (r *roundRobin) Delete(addr string) error {
+	r.Lock()
+	defer r.Unlock()
+
+	for i, item := range r.addrs {
+		if item == addr {
+			if len(r.addrs) == 1 {
+				return errors.New("address cannot be removed")
+			}
+			r.addrs = append(r.addrs[:i], r.addrs[i+1:]...)
+			return nil
+		}
+	}
+	// not found
+	return nil
+}
+
+// Length returns the count of addresses
+func (r *roundRobin) Length() int {
+	r.Lock()
+	defer r.Unlock()
+
+	return len(r.addrs)
 }
