@@ -35,8 +35,8 @@ func newRoundRobin(addrs []string) *roundRobin {
 	}
 }
 
-// Get returns a host address.
-func (r *roundRobin) Get() string {
+// get returns a host address.
+func (r *roundRobin) get() string {
 	r.Lock()
 	defer r.Unlock()
 
@@ -49,16 +49,16 @@ func (r *roundRobin) Get() string {
 	return addr
 }
 
-// Add adds a new address to the Round-Robin scheduler.
-func (r *roundRobin) Add(addr string) {
+// add adds a new address to the Round-Robin scheduler.
+func (r *roundRobin) add(addr string) {
 	r.Lock()
 	defer r.Unlock()
 
 	r.addrs = append(r.addrs, addr)
 }
 
-// Delete deletes an address from the Round-Robin scheduler.
-func (r *roundRobin) Delete(addr string) error {
+// delete deletes an address from the Round-Robin scheduler.
+func (r *roundRobin) delete(addr string) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -75,8 +75,8 @@ func (r *roundRobin) Delete(addr string) error {
 	return nil
 }
 
-// Length returns the count of addresses
-func (r *roundRobin) Length() int {
+// length returns the count of addresses
+func (r *roundRobin) length() int {
 	r.Lock()
 	defer r.Unlock()
 

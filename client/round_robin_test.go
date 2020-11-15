@@ -24,47 +24,47 @@ func TestRoundRobin(t *testing.T) {
 
 	t.Run("Get", func(t *testing.T) {
 		items := make(map[string]int)
-		for i := 0; i < r.Length(); i++ {
-			item := r.Get()
+		for i := 0; i < r.length(); i++ {
+			item := r.get()
 			items[item]++
 		}
-		if len(items) != r.Length() {
-			t.Fatalf("Expected item count: %d. Got: %d", r.Length(), len(items))
+		if len(items) != r.length() {
+			t.Fatalf("Expected item count: %d. Got: %d", r.length(), len(items))
 		}
 	})
 
 	t.Run("Add", func(t *testing.T) {
 		addr := "127.0.0.1:3320"
-		r.Add(addr)
+		r.add(addr)
 		items := make(map[string]int)
-		for i := 0; i < r.Length(); i++ {
-			item := r.Get()
+		for i := 0; i < r.length(); i++ {
+			item := r.get()
 			items[item]++
 		}
 		if _, ok := items[addr]; !ok {
 			t.Fatalf("Addr not processed: %s", addr)
 		}
-		if len(items) != r.Length() {
-			t.Fatalf("Expected item count: %d. Got: %d", r.Length(), len(items))
+		if len(items) != r.length() {
+			t.Fatalf("Expected item count: %d. Got: %d", r.length(), len(items))
 		}
 	})
 
 	t.Run("Delete", func(t *testing.T) {
 		addr := "127.0.0.1:7889"
-		if err := r.Delete(addr); err != nil {
+		if err := r.delete(addr); err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
 		items := make(map[string]int)
-		for i := 0; i < r.Length(); i++ {
-			item := r.Get()
+		for i := 0; i < r.length(); i++ {
+			item := r.get()
 			items[item]++
 		}
 		if _, ok := items[addr]; ok {
 			t.Fatalf("Address stil exists: %s", addr)
 		}
-		if len(items) != r.Length() {
-			t.Fatalf("Expected item count: %d. Got: %d", r.Length(), len(items))
+		if len(items) != r.length() {
+			t.Fatalf("Expected item count: %d. Got: %d", r.length(), len(items))
 		}
 	})
 }
@@ -79,11 +79,11 @@ func TestRoundRobin_Delete_NonExistent(t *testing.T) {
 	fresh = append(fresh, addrs...)
 	for i, addr := range fresh {
 		if i+1 == len(addrs) {
-			if err := r.Delete(addr); err == nil {
+			if err := r.delete(addr); err == nil {
 				t.Fatal("Expected an error. Got: nil")
 			}
 		} else {
-			if err := r.Delete(addr); err != nil {
+			if err := r.delete(addr); err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
 		}

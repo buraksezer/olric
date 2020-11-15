@@ -98,12 +98,12 @@ func New(c *Config) (*Client, error) {
 
 // AddServer adds a new server to the servers list. Incoming requests are distributed evenly among the servers.
 func (c *Client) AddServer(addr string) {
-	c.roundRobin.Add(addr)
+	c.roundRobin.add(addr)
 }
 
 // DeleteServer deletes a server from the servers list.
 func (c *Client) DeleteServer(addr string) error {
-	return c.roundRobin.Delete(addr)
+	return c.roundRobin.delete(addr)
 }
 
 // Ping sends a dummy protocol messsage to the given host. This is useful to
@@ -116,7 +116,7 @@ func (c *Client) Ping(addr string) error {
 
 // Request initiates a request-response cycle to randomly selected host.
 func (c *Client) request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	addr := c.roundRobin.Get()
+	addr := c.roundRobin.get()
 	return c.client.RequestTo(addr, req)
 }
 
