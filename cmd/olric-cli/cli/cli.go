@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/client"
+	"github.com/buraksezer/olric/config"
 	_serializer "github.com/buraksezer/olric/serializer"
 	"github.com/chzyer/readline"
 	"github.com/sean-/seed"
@@ -77,9 +78,11 @@ func New(addr, serializer, timeout string) (*CLI, error) {
 	}
 
 	cc := &client.Config{
-		Servers:     []string{addr},
-		Serializer:  s,
-		DialTimeout: dt,
+		Servers:    []string{addr},
+		Serializer: s,
+		Client: &config.Client{
+			DialTimeout: dt,
+		},
 	}
 
 	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/client"
+	"github.com/buraksezer/olric/config"
 	_serializer "github.com/buraksezer/olric/serializer"
 )
 
@@ -58,10 +59,12 @@ func New(addrs, timeout, serializer string,
 		return nil, err
 	}
 	cc := &client.Config{
-		Servers:     strings.Split(addrs, ","),
-		Serializer:  s,
-		DialTimeout: dt,
-		MaxConn:     numClients,
+		Servers:    strings.Split(addrs, ","),
+		Serializer: s,
+		Client: &config.Client{
+			DialTimeout: dt,
+			MaxConn:     numClients,
+		},
 	}
 	c, err := client.New(cc)
 	if err != nil {
