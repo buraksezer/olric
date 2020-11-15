@@ -58,7 +58,7 @@ func New(addrs, timeout, serializer string,
 		return nil, err
 	}
 	cc := &client.Config{
-		Addrs:       strings.Split(addrs, ","),
+		Servers:     strings.Split(addrs, ","),
 		Serializer:  s,
 		DialTimeout: dt,
 		MaxConn:     numClients,

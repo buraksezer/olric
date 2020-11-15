@@ -22,6 +22,7 @@ const (
 	DefaultWriteTimeout = 3 * time.Second
 )
 
+// Configuration for TCP clients in Olric and the official Golang client.
 type Client struct {
 	// Timeout for TCP dial.
 	//
@@ -63,6 +64,7 @@ func NewClient() *Client {
 	return c
 }
 
+// Sanitize sanitizes the given configuration.
 func (c *Client) Sanitize() {
 	if c.DialTimeout == 0 {
 		c.DialTimeout = DefaultDialTimeout

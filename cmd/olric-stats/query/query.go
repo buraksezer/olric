@@ -36,7 +36,7 @@ func New(addr, timeout string, logger *log.Logger) (*Query, error) {
 		return nil, err
 	}
 	cc := &client.Config{
-		Addrs:       []string{addr},
+		Servers:     []string{addr},
 		Serializer:  serializer.NewMsgpackSerializer(),
 		DialTimeout: dt,
 		MaxConn:     1,

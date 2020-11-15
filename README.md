@@ -978,13 +978,34 @@ In order to get more info about installation and configuration of the plugins, s
 
 Olric nodes supports setting `KeepAlivePeriod` on TCP sockets. 
 
-Server-side:
+**Server-side:**
 
-* **config.KeepAlivePeriod**: KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
+##### config.KeepAlivePeriod 
 
-Client-side:
+KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
+
+**Client-side:**
  
-* **config.DialTimeout**: Timeout for TCP dial.
+##### config.DialTimeout
+
+Timeout for TCP dial. The timeout includes name resolution, if required. When using TCP, and the host in the address 
+parameter resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
+given an appropriate fraction of the time to connect.
+
+##### config.ReadTimeout
+
+Timeout for socket reads. If reached, commands will fail with a timeout instead of blocking. Use value -1 for no 
+timeout and 0 for default. The default is config.DefaultReadTimeout
+
+##### config.WriteTimeout
+
+Timeout for socket writes. If reached, commands will fail with a timeout instead of blocking. The default is config.DefaultWriteTimeout
+
+##### config.KeepAlive
+
+KeepAlive specifies the interval between keep-alive probes for an active network connection. If zero, keep-alive probes 
+are sent with a default value (currently 15 seconds), if supported by the protocol and operating system. Network protocols 
+or operating systems that do not support keep-alives ignore this field. If negative, keep-alive probes are disabled.
 
 ## Architecture
 

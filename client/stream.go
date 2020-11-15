@@ -144,11 +144,11 @@ func (c *Client) createStream() (uint64, *stream, error) {
 	}
 
 	// Pick a random addr to dial
-	if len(c.config.Addrs) == 0 {
+	if len(c.config.Servers) == 0 {
 		return 0, nil, fmt.Errorf("no addr found to dial")
 	}
-	idx := rand.Intn(len(c.config.Addrs))
-	addr := c.config.Addrs[idx]
+	idx := rand.Intn(len(c.config.Servers))
+	addr := c.config.Servers[idx]
 
 	c.wg.Add(1)
 	go func() {

@@ -77,7 +77,7 @@ func New(addr, serializer, timeout string) (*CLI, error) {
 	}
 
 	cc := &client.Config{
-		Addrs:       []string{addr},
+		Servers:     []string{addr},
 		Serializer:  s,
 		DialTimeout: dt,
 	}

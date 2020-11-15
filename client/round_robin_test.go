@@ -22,7 +22,7 @@ func TestRoundRobin(t *testing.T) {
 	addrs := []string{"127.0.0.1:2323", "127.0.0.1:4556", "127.0.0.1:7889"}
 	r := newRoundRobin(addrs)
 
-	t.Run("Get", func(t *testing.T) {
+	t.Run("get", func(t *testing.T) {
 		items := make(map[string]int)
 		for i := 0; i < r.length(); i++ {
 			item := r.get()
@@ -33,7 +33,7 @@ func TestRoundRobin(t *testing.T) {
 		}
 	})
 
-	t.Run("Add", func(t *testing.T) {
+	t.Run("add", func(t *testing.T) {
 		addr := "127.0.0.1:3320"
 		r.add(addr)
 		items := make(map[string]int)
@@ -49,7 +49,7 @@ func TestRoundRobin(t *testing.T) {
 		}
 	})
 
-	t.Run("Delete", func(t *testing.T) {
+	t.Run("delete", func(t *testing.T) {
 		addr := "127.0.0.1:7889"
 		if err := r.delete(addr); err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -68,8 +68,6 @@ func TestRoundRobin(t *testing.T) {
 		}
 	})
 }
-
-
 
 func TestRoundRobin_Delete_NonExistent(t *testing.T) {
 	addrs := []string{"127.0.0.1:2323", "127.0.0.1:4556", "127.0.0.1:7889"}
