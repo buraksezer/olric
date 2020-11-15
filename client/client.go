@@ -96,11 +96,13 @@ func New(c *Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) AddNode(addr string) {
+// AddServer adds a new server to the servers list. Incoming requests are distributed evenly among the servers.
+func (c *Client) AddServer(addr string) {
 	c.roundRobin.Add(addr)
 }
 
-func (c *Client) DeleteNode(addr string) error {
+// DeleteServer deletes a server from the servers list.
+func (c *Client) DeleteServer(addr string) error {
 	return c.roundRobin.Delete(addr)
 }
 

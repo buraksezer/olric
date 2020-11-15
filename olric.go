@@ -15,10 +15,10 @@
 /*Package olric provides distributed cache and in-memory key/value data store. It can be used both as an embedded Go
 library and as a language-independent service.
 
-With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers. Olric is suitable
-to use as a distributed cache. But it also provides distributed topics, data replication, failure detection and simple
-anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
-*/
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
+
+Olric is designed to be a distributed cache. But it also provides distributed topics, data replication, failure detection
+and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.*/
 package olric
 
 import (
