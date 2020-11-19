@@ -66,7 +66,7 @@ func NewClient() *Client {
 
 // Sanitize sanitizes the given configuration.
 func (c *Client) Sanitize() {
-	if c.DialTimeout == 0 {
+	if c.DialTimeout <= 0 {
 		c.DialTimeout = DefaultDialTimeout
 	}
 
