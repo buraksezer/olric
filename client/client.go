@@ -20,9 +20,9 @@ import (
 	"log"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
@@ -41,6 +41,7 @@ var (
 type Client struct {
 	config     *Config
 	client     *transport.Client
+	roundRobin *roundRobin
 	serializer serializer.Serializer
 	streams    *streams
 	wg         sync.WaitGroup
@@ -48,11 +49,10 @@ type Client struct {
 
 // Config includes configuration parameters for the Client.
 type Config struct {
-	Addrs                 []string
-	Serializer            serializer.Serializer
-	DialTimeout           time.Duration
-	KeepAlive             time.Duration
-	MaxConn               int
+	Servers    []string
+	Serializer serializer.Serializer
+	Client     *config.Client
+	// TODO: This item may be moved to config.Client
 	MaxListenersPerStream int
 }
 
@@ -61,35 +61,38 @@ func New(c *Config) (*Client, error) {
 	if c == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	if len(c.Addrs) == 0 {
-		return nil, fmt.Errorf("addrs list cannot be empty")
+	if len(c.Servers) == 0 {
+		return nil, fmt.Errorf("servers cannot be empty")
 	}
 	if c.Serializer == nil {
 		c.Serializer = serializer.NewGobSerializer()
 	}
-	if c.MaxConn == 0 {
-		c.MaxConn = 1
-	}
 	if c.MaxListenersPerStream <= 0 {
 		c.MaxListenersPerStream = maxListenersPerStream
 	}
-	cc := &transport.ClientConfig{
-		Addrs:       c.Addrs,
-		DialTimeout: c.DialTimeout,
-		KeepAlive:   c.KeepAlive,
-		MaxConn:     c.MaxConn,
-	}
-	client := transport.NewClient(cc)
+	c.Client.Sanitize()
+	client := transport.NewClient(c.Client)
 	// About the hack: This looks weird, but I need to mock client.CreateStream function to test streams
 	// independently. I don't want to use a mocking library for this. So I created a function named
 	// createStreamFunction and I overwrite that function in test.
 	createStreamFunction = client.CreateStream
 	return &Client{
+		roundRobin: newRoundRobin(c.Servers),
 		config:     c,
 		client:     client,
 		serializer: c.Serializer,
 		streams:    &streams{m: make(map[uint64]*stream)},
 	}, nil
+}
+
+// AddServer adds a new server to the servers list. Incoming requests are distributed evenly among the servers.
+func (c *Client) AddServer(addr string) {
+	c.roundRobin.add(addr)
+}
+
+// DeleteServer deletes a server from the servers list.
+func (c *Client) DeleteServer(addr string) error {
+	return c.roundRobin.delete(addr)
 }
 
 // Ping sends a dummy protocol messsage to the given host. This is useful to
@@ -98,6 +101,12 @@ func (c *Client) Ping(addr string) error {
 	req := protocol.NewSystemMessage(protocol.OpPing)
 	_, err := c.client.RequestTo(addr, req)
 	return err
+}
+
+// Request initiates a request-response cycle to randomly selected host.
+func (c *Client) request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	addr := c.roundRobin.get()
+	return c.client.RequestTo(addr, req)
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.

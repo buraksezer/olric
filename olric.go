@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olric provides distributed, in-memory and embeddable key/value store, used as a database and cache.*/
+/*Package olric provides distributed cache and in-memory key/value data store. It can be used both as an embedded Go
+library and as a language-independent service.
+
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
+
+Olric is designed to be a distributed cache. But it also provides distributed topics, data replication, failure detection
+and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.*/
 package olric
 
 import (
@@ -172,13 +178,7 @@ func New(c *config.Config) (*Olric, error) {
 		ReplicationFactor: 20, // TODO: This also may be a configuration param.
 		Load:              c.LoadFactor,
 	}
-	cc := &transport.ClientConfig{
-		DialTimeout: c.DialTimeout,
-		KeepAlive:   c.KeepAlivePeriod,
-		MaxConn:     1024, // TODO: Make this configurable.
-	}
-	client := transport.NewClient(cc)
-	ctx, cancel := context.WithCancel(context.Background())
+	client := transport.NewClient(c.Client)
 
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
@@ -200,7 +200,7 @@ func New(c *config.Config) (*Olric, error) {
 		GracefulPeriod:  10 * time.Second,
 	}
 	srv := transport.NewServer(sc, flogger)
-
+	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,

@@ -16,12 +16,12 @@ package client
 
 import (
 	"bytes"
-	"github.com/hashicorp/go-multierror"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/hashicorp/go-multierror"
 )
 
 // Pipeline implements pipelining feature for Olric Binary Protocol.
@@ -251,7 +251,7 @@ func (p *Pipeline) Flush() ([]PipelineResponse, error) {
 
 	req := protocol.NewPipelineMessage(protocol.OpPipeline)
 	req.SetValue(p.buf.Bytes())
-	resp, err := p.c.client.Request(req)
+	resp, err := p.c.request(req)
 	if err != nil {
 		return nil, err
 	}

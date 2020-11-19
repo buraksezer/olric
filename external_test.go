@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/config"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -42,12 +43,12 @@ func TestExternal_UnknownOperation(t *testing.T) {
 	req.SetKey("mykey")
 	req.SetValue([]byte("myvalue"))
 
-	cc := &transport.ClientConfig{
-		Addrs:   []string{db.name},
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := transport.NewClient(cc)
-	resp, err := c.Request(req)
+	resp, err := c.RequestTo(db.name, req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -80,12 +81,12 @@ func TestExternal_AtomicIncrDecr(t *testing.T) {
 	req.SetExtra(protocol.AtomicExtra{
 		Timestamp: time.Now().UnixNano(),
 	})
-	cc := &transport.ClientConfig{
-		Addrs:   []string{db.name},
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := transport.NewClient(cc)
-	resp, err := c.Request(req)
+	resp, err := c.RequestTo(db.name, req)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -111,10 +112,10 @@ func TestExternal_AtomicGetPut(t *testing.T) {
 		}
 	}()
 
-	cc := &transport.ClientConfig{
-		Addrs:   []string{db.name},
+	cc := &config.Client{
 		MaxConn: 100,
 	}
+	cc.Sanitize()
 	c := transport.NewClient(cc)
 	var total int64
 	var wg sync.WaitGroup
@@ -138,7 +139,7 @@ func TestExternal_AtomicGetPut(t *testing.T) {
 			Timestamp: time.Now().UnixNano(),
 		})
 
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(db.name, req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

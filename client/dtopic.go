@@ -69,7 +69,7 @@ func (dt *DTopic) Publish(msg interface{}) error {
 	req := protocol.NewDTopicMessage(protocol.OpDTopicPublish)
 	req.SetDTopic(dt.name)
 	req.SetValue(value)
-	resp, err := dt.client.Request(req)
+	resp, err := dt.request(req)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (dt *DTopic) AddListener(f func(olric.DTopicMessage)) (uint64, error) {
 		ListenerID: listenerID,
 		StreamID:   streamID,
 	})
-	resp, err := dt.client.Request(req)
+	resp, err := dt.request(req)
 	if err != nil {
 		_ = dt.removeStreamListener(listenerID)
 		return 0, err
@@ -169,7 +169,7 @@ func (dt *DTopic) RemoveListener(listenerID uint64) error {
 	req.SetExtra(protocol.DTopicRemoveListenerExtra{
 		ListenerID: listenerID,
 	})
-	resp, err := dt.client.Request(req)
+	resp, err := dt.request(req)
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func (dt *DTopic) RemoveListener(listenerID uint64) error {
 func (dt *DTopic) Destroy() error {
 	req := protocol.NewDTopicMessage(protocol.OpDTopicDestroy)
 	req.SetDTopic(dt.name)
-	resp, err := dt.client.Request(req)
+	resp, err := dt.request(req)
 	if err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"github.com/buraksezer/olric/config"
 	"io"
 	"log"
 	"net"
@@ -120,15 +121,15 @@ func TestServer_ProcessConn(t *testing.T) {
 	}()
 
 	<-s.StartCh
-	cc := &ClientConfig{
-		Addrs:   []string{s.listener.Addr().String()},
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	t.Run("process DMapMessage", func(t *testing.T) {
 		req := protocol.NewDMapMessage(protocol.OpPut)
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(s.listener.Addr().String(), req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -139,7 +140,7 @@ func TestServer_ProcessConn(t *testing.T) {
 
 	t.Run("process StreamMessage", func(t *testing.T) {
 		req := protocol.NewStreamMessage(protocol.OpCreateStream)
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(s.listener.Addr().String(), req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -150,7 +151,7 @@ func TestServer_ProcessConn(t *testing.T) {
 
 	t.Run("process PipelineMessage", func(t *testing.T) {
 		req := protocol.NewPipelineMessage(protocol.OpPipeline)
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(s.listener.Addr().String(), req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -161,7 +162,7 @@ func TestServer_ProcessConn(t *testing.T) {
 
 	t.Run("process SystemMessage", func(t *testing.T) {
 		req := protocol.NewSystemMessage(protocol.OpUpdateRouting)
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(s.listener.Addr().String(), req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -172,7 +173,7 @@ func TestServer_ProcessConn(t *testing.T) {
 
 	t.Run("process DTopicMessage", func(t *testing.T) {
 		req := protocol.NewDTopicMessage(protocol.OpDTopicPublish)
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(s.listener.Addr().String(), req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -211,9 +212,8 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	<-s.StartCh
 
 	// Create a client and make a request. It will never return.
-	cc := &ClientConfig{
-		Addrs: []string{s.listener.Addr().String()},
-	}
+	cc := &config.Client{}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	var wg sync.WaitGroup
@@ -221,7 +221,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		req := protocol.NewDMapMessage(protocol.OpPut)
-		_, err = c.Request(req)
+		_, err = c.RequestTo(s.listener.Addr().String(), req)
 		if err != io.EOF {
 			t.Fatalf("Expected io.EOF. Got: %v", err)
 		}

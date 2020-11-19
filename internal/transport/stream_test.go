@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 )
@@ -70,10 +71,10 @@ func TestClient_CreateStream(t *testing.T) {
 
 	addr := s.listener.Addr().String()
 	// Create a client and make a request. It will never return.
-	cc := &ClientConfig{
-		Addrs:   []string{addr},
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	go func() {
