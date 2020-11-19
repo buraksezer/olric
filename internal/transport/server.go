@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
-	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )

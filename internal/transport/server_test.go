@@ -26,8 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/flog"
 )
 
 func dispatcher(w, _ protocol.EncodeDecoder) {
