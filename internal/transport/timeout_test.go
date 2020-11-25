@@ -54,7 +54,7 @@ func TestConnWithTimeout(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 
 	cc := &config.Client{
 		MaxConn:      10,
@@ -127,7 +127,7 @@ func TestConnWithTimeout_Disabled(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 
 	cc := &config.Client{
 		MaxConn:      10,

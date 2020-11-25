@@ -314,8 +314,13 @@ func (db *Olric) put(w *writeop) error {
 	return err
 }
 
-func (db *Olric) prepareWriteop(opcode protocol.OpCode, name, key string,
-	value interface{}, timeout time.Duration, flags int16) (*writeop, error) {
+func (db *Olric) prepareWriteop(
+	opcode protocol.OpCode,
+	name,
+	key string,
+	value interface{},
+	timeout time.Duration,
+	flags int16) (*writeop, error) {
 	val, err := db.serializer.Marshal(value)
 	if err != nil {
 		return nil, err

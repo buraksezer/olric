@@ -60,8 +60,8 @@ type Server struct {
 	wg         sync.WaitGroup
 	listener   net.Listener
 	dispatcher func(w, r protocol.EncodeDecoder)
-	StartCh    chan struct{}
-	StopCh     chan struct{}
+	StartedCtx context.Context
+	started    context.CancelFunc
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
@@ -69,13 +69,14 @@ type Server struct {
 // NewServer creates and returns a new Server.
 func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
+	startedCtx, started := context.WithCancel(context.Background())
 	return &Server{
-		config:  c,
-		log:     l,
-		StartCh: make(chan struct{}),
-		StopCh:  make(chan struct{}),
-		ctx:     ctx,
-		cancel:  cancel,
+		config:     c,
+		log:        l,
+		started:    started,
+		StartedCtx: startedCtx,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
@@ -228,8 +229,7 @@ func (s *Server) processConn(conn io.ReadWriteCloser) {
 
 // listenAndServe calls Accept on given net.Listener.
 func (s *Server) listenAndServe() error {
-	defer close(s.StopCh)
-	close(s.StartCh)
+	s.started()
 
 	for {
 		conn, err := s.listener.Accept()
@@ -260,14 +260,7 @@ func (s *Server) listenAndServe() error {
 
 // ListenAndServe listens on the TCP network address addr.
 func (s *Server) ListenAndServe() error {
-	defer func() {
-		select {
-		case <-s.StartCh:
-			return
-		default:
-		}
-		close(s.StartCh)
-	}()
+	defer s.started()
 
 	if s.dispatcher == nil {
 		return errors.New("no dispatcher found")
@@ -302,8 +295,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		result = multierror.Append(result, err)
 	}
 
-	// listener is gone.
-	<-s.StopCh
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()

@@ -31,6 +31,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/buraksezer/olric/internal/http"
+	"github.com/julienschmidt/httprouter"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
@@ -72,13 +76,13 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 )
 
-// ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.3.0"
-
 const (
-	nilTimeout                = 0 * time.Second
-	requiredCheckpoints int32 = 2
+	// ReleaseVersion is the current stable version of Olric
+	ReleaseVersion string = "0.3.0"
+	nilTimeout            = 0 * time.Second
 )
+
+var requiredCheckpoints int32 = 2
 
 // A full list of alive members. It's required for Pub/Sub and event dispatching systems.
 type members struct {
@@ -139,6 +143,9 @@ type Olric struct {
 
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams
+
+	// HTTP server to expose DMap API and other possible things
+	http *http.Server
 
 	// Structures for flow control
 	ctx    context.Context
@@ -220,6 +227,32 @@ func New(c *config.Config) (*Olric, error) {
 		dtopic:     newDTopic(ctx),
 		streams:    &streams{m: make(map[uint64]*stream)},
 		started:    c.Started,
+	}
+
+	if c.HTTPConfig.Enabled {
+		atomic.AddInt32(&requiredCheckpoints, 1)
+		router := httprouter.New()
+		// DMap API
+		router.POST("/api/v1/dmap/put/:dmap/:key", db.dmapPutHTTPHandler)
+		router.POST("/api/v1/dmap/putif/:dmap/:key", db.dmapPutIfHTTPHandler)
+		router.POST("/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
+		router.POST("/api/v1/dmap/putifex/:dmap/:key", db.dmapPutIfExHTTPHandler)
+		router.PUT("/api/v1/dmap/expire/:dmap/:key", db.dmapExpireHTTPHandler)
+		router.GET("/api/v1/dmap/get/:dmap/:key", db.dmapGetHTTPHandler)
+		router.DELETE("/api/v1/dmap/delete/:dmap/:key", db.dmapDeleteHTTPHandler)
+		router.DELETE("/api/v1/dmap/destroy/:dmap", db.dmapDestroyHTTPHandler)
+		router.PUT("/api/v1/dmap/incr/:dmap/:key/:delta", db.dmapIncrHTTPHandler)
+		router.PUT("/api/v1/dmap/decr/:dmap/:key/:delta", db.dmapDecrHTTPHandler)
+		router.PUT("/api/v1/dmap/getput/:dmap/:key", db.dmapGetPutHTTPHandler)
+		router.POST("/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
+		router.POST("/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
+		router.PUT("/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
+		router.POST("/api/v1/dmap/query/:dmap/:partID", db.dmapQueryHTTPHandler)
+
+		// System
+		router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)
+		router.GET("/api/v1/system/ping/:addr", db.systemPingHTTPHandler)
+		db.http = http.New(c.HTTPConfig, flogger, router)
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
@@ -568,27 +601,52 @@ func (db *Olric) checkOperationStatus() error {
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
 // Start function returns an early error.
 func (db *Olric) Start() error {
-	errCh := make(chan error, 1)
-	db.wg.Add(1)
-	go func() {
-		defer db.wg.Done()
-		errCh <- db.server.ListenAndServe()
-	}()
+	g, ctx := errgroup.WithContext(context.Background())
 
-	<-db.server.StartCh
+	// Start the TCP server
+	g.Go(func() error {
+		return db.server.ListenAndServe()
+	})
+
 	select {
-	case err := <-errCh:
-		return err
-	default:
+	case <-db.server.StartedCtx.Done():
+		// TCP server is started
+		db.passCheckpoint()
+	case <-ctx.Done():
+		if err := db.Shutdown(context.Background()); err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
+		}
+		return g.Wait()
 	}
-	// TCP server is started
-	db.passCheckpoint()
 
+	// Start discovery
+	// TODO: This should be blocker call like ListenAndServe
 	if err := db.startDiscovery(); err != nil {
 		return err
 	}
+
 	// Memberlist is started and this node joined the cluster.
 	db.passCheckpoint()
+
+	// Start HTTP server
+	if db.config.HTTPConfig.Enabled {
+		g.Go(func() error {
+			return db.http.Start()
+		})
+
+		select {
+		case <-db.http.StartedCtx.Done():
+			// Wait until HTTP server is started
+			//
+			// requiredCheckpoints was increased in New function
+			db.passCheckpoint()
+		case <-ctx.Done():
+			if err := db.Shutdown(context.Background()); err != nil {
+				db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
+			}
+			return g.Wait()
+		}
+	}
 
 	// Warn the user about its choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
@@ -609,7 +667,7 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
-	return <-errCh
+	return g.Wait()
 }
 
 // Shutdown stops background servers and leaves the cluster.
@@ -617,6 +675,13 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
+
+	if db.config.HTTPConfig.Enabled {
+		err := db.http.Shutdown(ctx)
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
 
 	db.streams.mu.RLock()
 	db.log.V(2).Printf("[INFO] Closing active streams")
