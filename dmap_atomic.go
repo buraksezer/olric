@@ -84,7 +84,7 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 		key:           key,
 		timestamp:     time.Now().UnixNano(),
 	}
-	return dm.db.atomicIncrDecr(protocol.OpDecr, w, delta)
+	return dm.db.atomicIncrDecr(protocol.OpIncr, w, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.

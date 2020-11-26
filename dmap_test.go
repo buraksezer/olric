@@ -103,6 +103,15 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	c.BindAddr = bindAddr
 	c.BindPort = port
 
+	err = c.Sanitize()
+	if err != nil {
+		return nil, err
+	}
+	err = c.Validate()
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := New(c)
 	if err != nil {
 		return nil, err

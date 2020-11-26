@@ -104,6 +104,54 @@ func TestHTTP_DMapGet(t *testing.T) {
 	}
 }
 
+func TestHTTP_DMapGetEntry(t *testing.T) {
+	db, err := newDB(testSingleReplicaConfig())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	}()
+
+	dm, err := db.NewDMap("mydmap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = dm.Put("mykey", "myvalue")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	router := httprouter.New()
+	router.Handle(http.MethodGet, "/api/v1/dmap/get-entry/:dmap/:key", db.dmapGetEntryHTTPHandler)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dmap/get-entry/mydmap/mykey", nil)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected HTTP status code 200. Got: %d", rec.Code)
+	}
+	resp := rec.Body.Bytes()
+	tmp, err := db.unmarshalValue(resp)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	entry := tmp.(Entry)
+	if entry.Key != "mykey" {
+		t.Fatalf("Expected mykey. Got: %v", entry.Key)
+	}
+	if entry.Value.(string) != "myvalue" {
+		t.Fatalf("Expected myvalue. Got: %v", entry.Value)
+	}
+	if entry.Timestamp == 0 {
+		t.Fatalf("Expected a valid timestamp. Got: 0")
+	}
+}
+
 func TestHTTP_DMapPut(t *testing.T) {
 	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {

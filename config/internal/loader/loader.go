@@ -92,6 +92,18 @@ type cache struct {
 	EvictionPolicy     string `yaml:"evictionPolicy"`
 }
 
+type http struct {
+	Enabled           bool   `yaml:"enabled"`
+	BindAddr          string `yaml:"bindAddr"` // required
+	BindPort          int    `yaml:"bindPort"` // required
+	ContentType       string `yaml:"contentType"`
+	ReadTimeout       string `yaml:"readTimeout"`
+	ReadHeaderTimeout string `yaml:"readHeaderTimeout"`
+	WriteTimeout      string `yaml:"writeTimeout"`
+	IdleTimeout       string `yaml:"idleTimeout"`
+	MaxHeaderBytes    int    `yaml:"maxHeaderBytes"`
+}
+
 // Loader is the main configuration struct
 type Loader struct {
 	Memberlist       memberlist
@@ -101,6 +113,7 @@ type Loader struct {
 	Cache            cache
 	DMaps            map[string]cache       `yaml:"dmaps"`
 	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
+	HTTPConfig       http                   `yaml:"http"`
 }
 
 func New(data []byte) (*Loader, error) {

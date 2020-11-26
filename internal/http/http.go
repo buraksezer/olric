@@ -89,9 +89,6 @@ func (s *Server) alivenessProbe() error {
 		s.log.V(6).Printf("[DEBUG] HTTP server returned %d to aliveness check", resp.StatusCode)
 		if resp.StatusCode == http.StatusNoContent {
 			s.started()
-			if s.config.Interface != "" {
-				s.log.V(2).Printf("[INFO] HTTP server uses interface: %s", s.config.Interface)
-			}
 			// Now, the server works. We ready to accept connections.
 			s.log.V(2).Printf("[INFO] HTTP server bindAddr: %s, bindPort: %d", s.config.BindAddr, s.config.BindPort)
 			return nil

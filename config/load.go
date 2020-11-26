@@ -151,6 +151,12 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
+	hc := HTTPConfig{}
+	err = mapYamlToConfig(&hc, &c.HTTPConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	cacheConfig, err := processCacheConfig(c)
 	if err != nil {
 		return nil, err
@@ -163,6 +169,7 @@ func Load(filename string) (*Config, error) {
 		MemberlistInterface: c.Memberlist.Interface,
 		MemberlistConfig:    mc,
 		Client:              &cc,
+		Http:                &hc,
 		LogLevel:            c.Logging.Level,
 		JoinRetryInterval:   joinRetryInterval,
 		MaxJoinAttempts:     c.Memberlist.MaxJoinAttempts,

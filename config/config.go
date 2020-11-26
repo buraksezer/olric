@@ -193,7 +193,7 @@ type Config struct {
 
 	ServiceDiscovery map[string]interface{}
 
-	HTTPConfig *HTTPConfig
+	Http *HTTPConfig
 
 	// Interface denotes a binding interface. It can be used instead of memberlist.Loader.BindAddr if the interface is
 	// known but not the address. If both are provided, then Olric verifies that the interface has the bind address that
@@ -344,6 +344,10 @@ func (c *Config) Sanitize() error {
 	} else {
 		c.Client.Sanitize()
 	}
+
+	if c.Http == nil {
+		c.Http = &HTTPConfig{}
+	}
 	return nil
 }
 
@@ -378,6 +382,7 @@ func New(env string) *Config {
 		MemberCountQuorum: 1,
 		Peers:             []string{},
 		Cache:             &CacheConfig{},
+		Http:              &HTTPConfig{},
 	}
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))

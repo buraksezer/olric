@@ -16,9 +16,56 @@ package olric
 
 import (
 	"net/http"
+	"sync/atomic"
 
+	"github.com/buraksezer/olric/config"
+	httpServer "github.com/buraksezer/olric/internal/http"
+	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/julienschmidt/httprouter"
 )
+
+func (db *Olric) initializeHTTPIntegration(cfg *config.HTTPConfig, flogger *flog.Logger) {
+	atomic.AddInt32(&requiredCheckpoints, 1)
+	router := httprouter.New()
+	// DMap API
+	//
+	// Put
+	router.POST("/api/v1/dmap/put/:dmap/:key", db.dmapPutHTTPHandler)
+	router.POST("/api/v1/dmap/putif/:dmap/:key", db.dmapPutIfHTTPHandler)
+	router.POST("/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
+	router.POST("/api/v1/dmap/putifex/:dmap/:key", db.dmapPutIfExHTTPHandler)
+	//
+	// Expire
+	router.PUT("/api/v1/dmap/expire/:dmap/:key", db.dmapExpireHTTPHandler)
+	//
+	// Get
+	router.GET("/api/v1/dmap/get/:dmap/:key", db.dmapGetHTTPHandler)
+	router.GET("/api/v1/dmap/get-entry/:dmap/:key", db.dmapGetEntryHTTPHandler)
+	//
+	// Delete
+	router.DELETE("/api/v1/dmap/delete/:dmap/:key", db.dmapDeleteHTTPHandler)
+	//
+	// Destroy
+	router.DELETE("/api/v1/dmap/destroy/:dmap", db.dmapDestroyHTTPHandler)
+	//
+	// Atomic operations
+	router.PUT("/api/v1/dmap/incr/:dmap/:key/:delta", db.dmapIncrHTTPHandler)
+	router.PUT("/api/v1/dmap/decr/:dmap/:key/:delta", db.dmapDecrHTTPHandler)
+	router.PUT("/api/v1/dmap/getput/:dmap/:key", db.dmapGetPutHTTPHandler)
+	//
+	// Locking
+	router.POST("/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
+	router.POST("/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
+	router.PUT("/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
+	//
+	// Query
+	router.POST("/api/v1/dmap/query/:dmap/:partID", db.dmapQueryHTTPHandler)
+
+	// System
+	router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)
+	router.GET("/api/v1/system/ping/:addr", db.systemPingHTTPHandler)
+	db.http = httpServer.New(cfg, flogger, router)
+}
 
 func (db *Olric) systemStatsHTTPHandler(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	data, err := db.serializer.Marshal(db.stats())

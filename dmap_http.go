@@ -36,7 +36,7 @@ func (db *Olric) httpErrorResponse(w http.ResponseWriter, err error) {
 	e := errorResponse{
 		Message: err.Error(),
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", db.config.Http.ContentType)
 	if err == ErrKeyNotFound {
 		w.WriteHeader(http.StatusNotFound)
 	} else if err == ErrLockNotAcquired {
@@ -193,10 +193,37 @@ func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 		db.httpErrorResponse(w, err)
 		return
 	}
-	// TODO: Content-type should be read from Serializer implementation
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", db.config.Http.ContentType)
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(value.Value)
+	if err != nil {
+		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
+	}
+}
+
+func (db *Olric) dmapGetEntryHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	dmap := ps.ByName("dmap")
+	key := ps.ByName("key")
+	raw, err := db.get(dmap, key)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	val, err := db.unmarshalValue(raw.Value)
+	if err != nil {
+		db.httpErrorResponse(w, err)
+		return
+	}
+	entry := Entry{
+		Key:       raw.Key,
+		Value:     val,
+		TTL:       raw.TTL,
+		Timestamp: raw.Timestamp,
+	}
+	w.Header().Set("Content-Type", db.config.Http.ContentType)
+	w.WriteHeader(http.StatusOK)
+	data, err := db.serializer.Marshal(entry)
+	_, err = w.Write(data)
 	if err != nil {
 		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
 	}

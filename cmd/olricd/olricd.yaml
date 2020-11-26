@@ -1,7 +1,7 @@
 olricd:
   bindAddr: "0.0.0.0"
   bindPort: 3320
-  serializer: "msgpack"
+  serializer: "json"
   keepAlivePeriod: "300s"
   bootstrapTimeout: "5s"
   partitionCount:  13
@@ -12,6 +12,17 @@ olricd:
   replicationMode: 0 # sync mode. for async, set 1
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
+
+http:
+  enabled: true
+  bindAddr: "0.0.0.0"
+  bindPort: 8080
+  contentType: "application/json"
+  # readTimeout: "10s"
+  # writeTimeout: "10s"
+  # readHeaderTimeout: "10s"
+  # idleTimeout: "10s"
+  # maxHeaderBytes: 10
 
 client:
   dialTimeout: "-1s"

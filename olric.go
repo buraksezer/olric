@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/http"
-	"github.com/julienschmidt/httprouter"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/buraksezer/consistent"
@@ -229,30 +228,8 @@ func New(c *config.Config) (*Olric, error) {
 		started:    c.Started,
 	}
 
-	if c.HTTPConfig.Enabled {
-		atomic.AddInt32(&requiredCheckpoints, 1)
-		router := httprouter.New()
-		// DMap API
-		router.POST("/api/v1/dmap/put/:dmap/:key", db.dmapPutHTTPHandler)
-		router.POST("/api/v1/dmap/putif/:dmap/:key", db.dmapPutIfHTTPHandler)
-		router.POST("/api/v1/dmap/putex/:dmap/:key", db.dmapPutExHTTPHandler)
-		router.POST("/api/v1/dmap/putifex/:dmap/:key", db.dmapPutIfExHTTPHandler)
-		router.PUT("/api/v1/dmap/expire/:dmap/:key", db.dmapExpireHTTPHandler)
-		router.GET("/api/v1/dmap/get/:dmap/:key", db.dmapGetHTTPHandler)
-		router.DELETE("/api/v1/dmap/delete/:dmap/:key", db.dmapDeleteHTTPHandler)
-		router.DELETE("/api/v1/dmap/destroy/:dmap", db.dmapDestroyHTTPHandler)
-		router.PUT("/api/v1/dmap/incr/:dmap/:key/:delta", db.dmapIncrHTTPHandler)
-		router.PUT("/api/v1/dmap/decr/:dmap/:key/:delta", db.dmapDecrHTTPHandler)
-		router.PUT("/api/v1/dmap/getput/:dmap/:key", db.dmapGetPutHTTPHandler)
-		router.POST("/api/v1/dmap/lock-with-timeout/:dmap/:key", db.dmapLockWithTimeoutHTTPHandler)
-		router.POST("/api/v1/dmap/lock/:dmap/:key", db.dmapLockHTTPHandler)
-		router.PUT("/api/v1/dmap/unlock/:dmap/:key", db.dmapUnlockHTTPHandler)
-		router.POST("/api/v1/dmap/query/:dmap/:partID", db.dmapQueryHTTPHandler)
-
-		// System
-		router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)
-		router.GET("/api/v1/system/ping/:addr", db.systemPingHTTPHandler)
-		db.http = http.New(c.HTTPConfig, flogger, router)
+	if c.Http.Enabled {
+		db.initializeHTTPIntegration(c.Http, db.log)
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
@@ -629,7 +606,7 @@ func (db *Olric) Start() error {
 	db.passCheckpoint()
 
 	// Start HTTP server
-	if db.config.HTTPConfig.Enabled {
+	if db.config.Http.Enabled {
 		g.Go(func() error {
 			return db.http.Start()
 		})
@@ -676,7 +653,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	var result error
 
-	if db.config.HTTPConfig.Enabled {
+	if db.config.Http.Enabled {
 		err := db.http.Shutdown(ctx)
 		if err != nil {
 			result = multierror.Append(result, err)

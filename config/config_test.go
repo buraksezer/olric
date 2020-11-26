@@ -38,6 +38,17 @@ var testConfig = `olricd:
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
+http:
+  enabled: true
+  bindAddr: "0.0.0.0"
+  bindPort: 8080
+  contentType: "application/json"
+  readTimeout: "10s"
+  writeTimeout: "10s"
+  readHeaderTimeout: "10s"
+  idleTimeout: "10s"
+  maxHeaderBytes: 10
+
 client:
   dialTimeout: "10s"
   readTimeout: "3s"
@@ -134,6 +145,16 @@ func TestConfig(t *testing.T) {
 	c.ReplicationMode = SyncReplicationMode
 	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
+
+	c.Http.Enabled = true
+	c.Http.BindAddr = "0.0.0.0"
+	c.Http.BindPort = 8080
+	c.Http.ContentType = "application/json"
+	c.Http.ReadTimeout = 10 * time.Second
+	c.Http.WriteTimeout = 10 * time.Second
+	c.Http.ReadHeaderTimeout = 10 * time.Second
+	c.Http.IdleTimeout = 10 * time.Second
+	c.Http.MaxHeaderBytes = 10
 
 	c.Client.DialTimeout = 10 * time.Second
 	c.Client.ReadTimeout = 3 * time.Second
