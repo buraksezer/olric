@@ -64,7 +64,7 @@ func (db *Olric) dmapPutHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, nilTimeout, 0, true)
+	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, nilTimeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -95,7 +95,7 @@ func (db *Olric) dmapPutIfHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPutIf, dmap, key, value, nilTimeout, int16(flags), true)
+	wr, err := db.prepareWriteop(protocol.OpPutIf, dmap, key, value, nilTimeout, int16(flags))
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -128,7 +128,7 @@ func (db *Olric) dmapPutExHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, timeout, 0, true)
+	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, timeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -172,7 +172,7 @@ func (db *Olric) dmapPutIfExHTTPHandler(w http.ResponseWriter, r *http.Request, 
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, timeout, int16(flags), true)
+	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, timeout, int16(flags))
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -196,7 +196,7 @@ func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 	// TODO: Content-type should be read from Serializer implementation
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(value)
+	_, err = w.Write(value.Value)
 	if err != nil {
 		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
 	}
@@ -265,7 +265,7 @@ func (db *Olric) dmapIncrDecrHTTP(opcode protocol.OpCode, w http.ResponseWriter,
 		return
 	}
 
-	wr, err := db.prepareWriteop(opcode, dmap, key, nil, nilTimeout, 0, true)
+	wr, err := db.prepareWriteop(opcode, dmap, key, nil, nilTimeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -305,7 +305,7 @@ func (db *Olric) dmapGetPutHTTPHandler(w http.ResponseWriter, r *http.Request, p
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpGetPut, dmap, key, value, nilTimeout, 0, true)
+	wr, err := db.prepareWriteop(protocol.OpGetPut, dmap, key, value, nilTimeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return

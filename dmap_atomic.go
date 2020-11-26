@@ -22,7 +22,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (db *Olric) atomicIncrDecr(opr string, w *writeop, delta int) (int, error) {
+func (db *Olric) atomicIncrDecr(opcode protocol.OpCode, w *writeop, delta int) (int, error) {
 	atomicKey := w.dmap + w.key
 	db.locker.Lock(atomicKey)
 	defer func() {
@@ -55,9 +55,9 @@ func (db *Olric) atomicIncrDecr(opr string, w *writeop, delta int) (int, error) 
 		}
 	}
 
-	if opr == "incr" {
+	if opcode == protocol.OpIncr {
 		newval = curval + delta
-	} else if opr == "decr" {
+	} else if opcode == protocol.OpDecr {
 		newval = curval - delta
 	} else {
 		return 0, fmt.Errorf("invalid operation")
@@ -84,7 +84,7 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 		key:           key,
 		timestamp:     time.Now().UnixNano(),
 	}
-	return dm.db.atomicIncrDecr("incr", w, delta)
+	return dm.db.atomicIncrDecr(protocol.OpDecr, w, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
@@ -96,7 +96,7 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 		key:           key,
 		timestamp:     time.Now().UnixNano(),
 	}
-	return dm.db.atomicIncrDecr("decr", w, delta)
+	return dm.db.atomicIncrDecr(protocol.OpDecr, w, delta)
 }
 
 func (db *Olric) getPut(w *writeop) ([]byte, error) {
@@ -165,10 +165,6 @@ func (db *Olric) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 		db.errorResponse(w, err)
 		return
 	}
-	op := "incr"
-	if req.Op == protocol.OpDecr {
-		op = "decr"
-	}
 	wo := &writeop{
 		opcode:        protocol.OpPut,
 		replicaOpcode: protocol.OpPutReplica,
@@ -176,7 +172,7 @@ func (db *Olric) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 		key:           req.Key(),
 		timestamp:     time.Now().UnixNano(),
 	}
-	newval, err := db.atomicIncrDecr(op, wo, delta.(int))
+	newval, err := db.atomicIncrDecr(req.Op, wo, delta.(int))
 	if err != nil {
 		db.errorResponse(w, err)
 		return
