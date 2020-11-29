@@ -57,11 +57,11 @@ func TestHTTP_Start(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	addr := net.JoinHostPort(bindAddr, strconv.Itoa(bindPort))
 
-	c := &config.HTTPConfig{
-		Enabled:  true,
-		BindAddr: bindAddr,
-		BindPort: bindPort,
+	c := &config.Http{
+		Enabled: true,
+		Addr:    addr,
 	}
 
 	// Set a simple logger

@@ -147,8 +147,7 @@ func TestConfig(t *testing.T) {
 	c.MemberCountQuorum = 1
 
 	c.Http.Enabled = true
-	c.Http.BindAddr = "0.0.0.0"
-	c.Http.BindPort = 8080
+	c.Http.Addr = "0.0.0.0:8080"
 	c.Http.ContentType = "application/json"
 	c.Http.ReadTimeout = 10 * time.Second
 	c.Http.WriteTimeout = 10 * time.Second

@@ -151,8 +151,8 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	hc := HTTPConfig{}
-	err = mapYamlToConfig(&hc, &c.HTTPConfig)
+	hc := Http{}
+	err = mapYamlToConfig(&hc, &c.Http)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,16 @@ olricd:
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
+http:
+  enabled: false
+  addr: "0.0.0.0:8080"
+  contentType: "application/json"
+  readTimeout: "10s"
+  writeTimeout: "10s"
+  readHeaderTimeout: "10s"
+  idleTimeout: "10s"
+  maxHeaderBytes: 10
+
 client:
   dialTimeout: "-1s"
   readTimeout: "3s"

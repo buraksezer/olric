@@ -94,8 +94,7 @@ type cache struct {
 
 type http struct {
 	Enabled           bool   `yaml:"enabled"`
-	BindAddr          string `yaml:"bindAddr"` // required
-	BindPort          int    `yaml:"bindPort"` // required
+	Addr              string `yaml:"addr"` // required
 	ContentType       string `yaml:"contentType"`
 	ReadTimeout       string `yaml:"readTimeout"`
 	ReadHeaderTimeout string `yaml:"readHeaderTimeout"`
@@ -113,7 +112,7 @@ type Loader struct {
 	Cache            cache
 	DMaps            map[string]cache       `yaml:"dmaps"`
 	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
-	HTTPConfig       http                   `yaml:"http"`
+	Http             http                   `yaml:"http"`
 }
 
 func New(data []byte) (*Loader, error) {

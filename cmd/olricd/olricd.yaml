@@ -15,14 +15,13 @@ olricd:
 
 http:
   enabled: true
-  bindAddr: "0.0.0.0"
-  bindPort: 8080
+  addr: "0.0.0.0:8080"
   contentType: "application/json"
-  # readTimeout: "10s"
-  # writeTimeout: "10s"
-  # readHeaderTimeout: "10s"
-  # idleTimeout: "10s"
-  # maxHeaderBytes: 10
+  readTimeout: "10s"
+  writeTimeout: "10s"
+  readHeaderTimeout: "10s"
+  idleTimeout: "10s"
+  maxHeaderBytes: 10
 
 client:
   dialTimeout: "-1s"

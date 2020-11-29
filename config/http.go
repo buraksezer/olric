@@ -2,7 +2,7 @@ package config
 
 import "time"
 
-type HTTPConfig struct {
+type Http struct {
 	// Enable or disable HTTP server. Default is false.
 	Enabled bool
 
@@ -10,9 +10,7 @@ type HTTPConfig struct {
 	// in the form "host:port". If empty, ":http" (port 80) is used.
 	// The service names are defined in RFC 6335 and assigned by IANA.
 	// See net.Dial for details of the address format.
-	BindAddr string
-
-	BindPort int
+	Addr string
 
 	ContentType string
 

@@ -24,7 +24,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (db *Olric) initializeHTTPIntegration(cfg *config.HTTPConfig, flogger *flog.Logger) {
+func (db *Olric) initializeHTTPIntegration(cfg *config.Http, flogger *flog.Logger) {
 	atomic.AddInt32(&requiredCheckpoints, 1)
 	router := httprouter.New()
 	// DMap API

@@ -18,9 +18,7 @@ package http
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -34,7 +32,7 @@ const scheme = "http"
 
 // Server represents an HTTP server which can be configured and controlled easily in Olric.
 type Server struct {
-	config     *config.HTTPConfig
+	config     *config.Http
 	log        *flog.Logger
 	srv        *http.Server
 	ctx        context.Context
@@ -44,7 +42,7 @@ type Server struct {
 }
 
 // New returnes a new HTTP server instance.
-func New(c *config.HTTPConfig, log *flog.Logger, router *httprouter.Router) *Server {
+func New(c *config.Http, log *flog.Logger, router *httprouter.Router) *Server {
 	// Check aliveness firstly, we don't want to accept connections until the HTTP server works without any problem.
 	//
 	// We register the aliveness handler here because this package is indepentend from the top-level Olric package and
@@ -53,9 +51,8 @@ func New(c *config.HTTPConfig, log *flog.Logger, router *httprouter.Router) *Ser
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	addr := net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 	srv := &http.Server{
-		Addr:    addr,
+		Addr:    c.Addr,
 		Handler: router,
 	}
 	startedCtx, started := context.WithCancel(context.Background())
@@ -90,7 +87,7 @@ func (s *Server) alivenessProbe() error {
 		if resp.StatusCode == http.StatusNoContent {
 			s.started()
 			// Now, the server works. We ready to accept connections.
-			s.log.V(2).Printf("[INFO] HTTP server bindAddr: %s, bindPort: %d", s.config.BindAddr, s.config.BindPort)
+			s.log.V(2).Printf("[INFO] HTTP server addr: %s", s.config.Addr)
 			return nil
 		}
 		<-time.After(time.Second)
