@@ -262,10 +262,12 @@ func (c *Config) Validate() error {
 	}
 
 	if c.Http.Enabled {
-		fmt.Println(c.Http.Addr)
 		_, _, err := net.SplitHostPort(c.Http.Addr)
 		if err != nil {
 			result = multierror.Append(result, fmt.Errorf("http.Addr is invalid: %w", err))
+		}
+		if c.Http.ContentType == "" {
+			c.Http.ContentType = "application/octet-stream"
 		}
 	}
 

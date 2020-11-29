@@ -41,7 +41,26 @@ type Server struct {
 	started    context.CancelFunc
 }
 
-// New returnes a new HTTP server instance.
+func setConfiguration(c *config.Http, srv *http.Server) {
+	srv.Addr = c.Addr
+	if c.MaxHeaderBytes != 0 {
+		srv.MaxHeaderBytes = c.MaxHeaderBytes
+	}
+	if c.ReadHeaderTimeout.Seconds() != 0 {
+		srv.ReadHeaderTimeout = c.ReadHeaderTimeout
+	}
+	if c.WriteTimeout.Seconds() != 0 {
+		srv.WriteTimeout = c.WriteTimeout
+	}
+	if c.ReadTimeout.Seconds() != 0 {
+		srv.ReadTimeout = c.ReadTimeout
+	}
+	if c.IdleTimeout.Seconds() != 0 {
+		srv.IdleTimeout = c.IdleTimeout
+	}
+}
+
+// New returns a new HTTP server instance.
 func New(c *config.Http, log *flog.Logger, router *httprouter.Router) *Server {
 	// Check aliveness firstly, we don't want to accept connections until the HTTP server works without any problem.
 	//
@@ -51,10 +70,9 @@ func New(c *config.Http, log *flog.Logger, router *httprouter.Router) *Server {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	srv := &http.Server{
-		Addr:    c.Addr,
-		Handler: router,
-	}
+	srv := &http.Server{Handler: router}
+	setConfiguration(c, srv)
+
 	startedCtx, started := context.WithCancel(context.Background())
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
