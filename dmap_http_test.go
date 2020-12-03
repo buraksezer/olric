@@ -219,7 +219,7 @@ func TestHTTP_DMapPutIf(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf("Expected HTTP status code 200. Got: %d", rec.Code)
+		t.Fatalf("Expected HTTP status code 204. Got: %d", rec.Code)
 	}
 
 	dm, err := db.NewDMap("mydmap")

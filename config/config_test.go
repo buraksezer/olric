@@ -40,8 +40,7 @@ var testConfig = `olricd:
 
 http:
   enabled: true
-  bindAddr: "0.0.0.0"
-  bindPort: 8080
+  addr: "0.0.0.0:8080"
   contentType: "application/json"
   readTimeout: "10s"
   writeTimeout: "10s"

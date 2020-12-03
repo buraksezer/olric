@@ -31,14 +31,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olric/internal/http"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/http"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
@@ -48,6 +46,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -259,7 +258,7 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Check bootstrapping status
 	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this operation.
 	if r.OpCode() != protocol.OpUpdateRouting {
-		if err := db.checkOperationStatus(); err != nil {
+		if err := db.isOperable(); err != nil {
 			db.errorResponse(w, err)
 			return
 		}
@@ -566,8 +565,8 @@ func (db *Olric) checkMemberCountQuorum() error {
 	return nil
 }
 
-// checkOperationStatus controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
-func (db *Olric) checkOperationStatus() error {
+// isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
+func (db *Olric) isOperable() error {
 	if err := db.checkMemberCountQuorum(); err != nil {
 		return err
 	}

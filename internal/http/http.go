@@ -23,7 +23,6 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/julienschmidt/httprouter"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -39,6 +38,31 @@ type Server struct {
 	cancel     context.CancelFunc
 	StartedCtx context.Context
 	started    context.CancelFunc
+}
+
+type Middleware interface {
+	ServeHTTP(w http.ResponseWriter, r *http.Request) bool
+}
+
+type Router struct {
+	Middlewares []Middleware
+	Router      http.Handler
+}
+
+func NewRouter(router http.Handler, middlewares ...Middleware) *Router {
+	return &Router{
+		Middlewares: middlewares,
+		Router:      router,
+	}
+}
+
+func (rt Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for _, m := range rt.Middlewares {
+		if ok := m.ServeHTTP(w, r); !ok {
+			return
+		}
+	}
+	rt.Router.ServeHTTP(w, r)
 }
 
 func setConfiguration(c *config.Http, srv *http.Server) {
@@ -61,15 +85,7 @@ func setConfiguration(c *config.Http, srv *http.Server) {
 }
 
 // New returns a new HTTP server instance.
-func New(c *config.Http, log *flog.Logger, router *httprouter.Router) *Server {
-	// Check aliveness firstly, we don't want to accept connections until the HTTP server works without any problem.
-	//
-	// We register the aliveness handler here because this package is indepentend from the top-level Olric package and
-	// this handler is useful for the function of this package and the tests.
-	router.HandlerFunc("GET", "/api/v1/system/aliveness", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	})
-
+func New(c *config.Http, log *flog.Logger, router http.Handler) *Server {
 	srv := &http.Server{Handler: router}
 	setConfiguration(c, srv)
 

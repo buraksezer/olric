@@ -19,13 +19,13 @@ import (
 	"sync/atomic"
 
 	"github.com/buraksezer/olric/config"
-	httpServer "github.com/buraksezer/olric/internal/http"
+	server "github.com/buraksezer/olric/internal/http"
+	"github.com/buraksezer/olric/internal/http/middlewares/is_operable"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/julienschmidt/httprouter"
 )
 
-func (db *Olric) initializeHTTPIntegration(cfg *config.Http, flogger *flog.Logger) {
-	atomic.AddInt32(&requiredCheckpoints, 1)
+func (db *Olric) registerHTTPEndpoints() http.Handler {
 	router := httprouter.New()
 	// DMap API
 	//
@@ -64,7 +64,18 @@ func (db *Olric) initializeHTTPIntegration(cfg *config.Http, flogger *flog.Logge
 	// System
 	router.GET("/api/v1/system/stats", db.systemStatsHTTPHandler)
 	router.GET("/api/v1/system/ping/:addr", db.systemPingHTTPHandler)
-	db.http = httpServer.New(cfg, flogger, router)
+
+	// Check aliveness firstly, we don't want to accept connections until the HTTP server works without any problem.	w
+	router.GET("/api/v1/system/aliveness", db.systemAlivenessHandler)
+	return router
+}
+
+func (db *Olric) initializeHTTPIntegration(cfg *config.Http, flogger *flog.Logger) {
+	defer atomic.AddInt32(&requiredCheckpoints, 1)
+	router := server.NewRouter(
+		db.registerHTTPEndpoints(),
+		is_operable.New(db.isOperable))
+	db.http = server.New(cfg, flogger, router)
 }
 
 func (db *Olric) systemStatsHTTPHandler(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -92,4 +103,8 @@ func (db *Olric) systemPingHTTPHandler(w http.ResponseWriter, _ *http.Request, p
 	if err != nil {
 		db.log.V(6).Printf("[ERROR] Failed to write to ResponseWriter: %v", err)
 	}
+}
+
+func (db *Olric) systemAlivenessHandler(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+	w.WriteHeader(http.StatusNoContent)
 }

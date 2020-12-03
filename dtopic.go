@@ -204,7 +204,7 @@ func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, e
 	//   the quorum value cannot be satisfied,
 	// * Checks bootstrapping status and awaits for a short period before
 	//   returning ErrRequest timeout.
-	if err := db.checkOperationStatus(); err != nil {
+	if err := db.isOperable(); err != nil {
 		return nil, err
 	}
 	return &DTopic{

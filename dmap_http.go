@@ -26,7 +26,7 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-// TODO: Check this: checkOperationStatus
+// TODO: Check this: isOperable
 
 type errorResponse struct {
 	Message string
@@ -185,7 +185,7 @@ func (db *Olric) dmapPutIfExHTTPHandler(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
 	dmap := ps.ByName("dmap")
 	key := ps.ByName("key")
 	value, err := db.get(dmap, key)
@@ -201,7 +201,7 @@ func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 	}
 }
 
-func (db *Olric) dmapGetEntryHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (db *Olric) dmapGetEntryHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
 	dmap := ps.ByName("dmap")
 	key := ps.ByName("key")
 	raw, err := db.get(dmap, key)
@@ -259,7 +259,7 @@ func (db *Olric) dmapExpireHTTPHandler(w http.ResponseWriter, r *http.Request, p
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
 	dmap := ps.ByName("dmap")
 	key := ps.ByName("key")
 
@@ -271,7 +271,7 @@ func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, r *http.Request, p
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (db *Olric) dmapDestroyHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (db *Olric) dmapDestroyHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
 	dmap := ps.ByName("dmap")
 	err := db.destroyDMap(dmap)
 	if err != nil {
