@@ -103,6 +103,15 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	c.BindAddr = bindAddr
 	c.BindPort = port
 
+	err = c.Sanitize()
+	if err != nil {
+		return nil, err
+	}
+	err = c.Validate()
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := New(c)
 	if err != nil {
 		return nil, err
@@ -119,7 +128,7 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 			db.log.V(2).Printf("[ERROR] Failed to run TCP server")
 		}
 	}()
-	<-db.server.StartCh
+	<-db.server.StartedCtx.Done()
 	db.passCheckpoint()
 
 	err = db.startDiscovery()

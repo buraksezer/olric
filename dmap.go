@@ -42,7 +42,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 	//   the quorum value cannot be satisfied,
 	// * Checks bootstrapping status and awaits for a short period before
 	//   returning ErrRequest timeout.
-	if err := db.checkOperationStatus(); err != nil {
+	if err := db.isOperable(); err != nil {
 		return nil, err
 	}
 	return &DMap{

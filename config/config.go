@@ -342,6 +342,7 @@ func (c *Config) Sanitize() error {
 	} else {
 		c.Client.Sanitize()
 	}
+
 	return nil
 }
 

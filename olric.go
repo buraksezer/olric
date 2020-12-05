@@ -45,6 +45,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -72,13 +73,13 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 )
 
-// ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.3.0"
-
 const (
-	nilTimeout                = 0 * time.Second
-	requiredCheckpoints int32 = 2
+	// ReleaseVersion is the current stable version of Olric
+	ReleaseVersion string = "0.3.0"
+	nilTimeout            = 0 * time.Second
 )
+
+var requiredCheckpoints int32 = 2
 
 // A full list of alive members. It's required for Pub/Sub and event dispatching systems.
 type members struct {
@@ -249,7 +250,7 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Check bootstrapping status
 	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this operation.
 	if r.OpCode() != protocol.OpUpdateRouting {
-		if err := db.checkOperationStatus(); err != nil {
+		if err := db.isOperable(); err != nil {
 			db.errorResponse(w, err)
 			return
 		}
@@ -556,8 +557,8 @@ func (db *Olric) checkMemberCountQuorum() error {
 	return nil
 }
 
-// checkOperationStatus controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
-func (db *Olric) checkOperationStatus() error {
+// isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
+func (db *Olric) isOperable() error {
 	if err := db.checkMemberCountQuorum(); err != nil {
 		return err
 	}
@@ -568,25 +569,30 @@ func (db *Olric) checkOperationStatus() error {
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
 // Start function returns an early error.
 func (db *Olric) Start() error {
-	errCh := make(chan error, 1)
-	db.wg.Add(1)
-	go func() {
-		defer db.wg.Done()
-		errCh <- db.server.ListenAndServe()
-	}()
+	g, ctx := errgroup.WithContext(context.Background())
 
-	<-db.server.StartCh
+	// Start the TCP server
+	g.Go(func() error {
+		return db.server.ListenAndServe()
+	})
+
 	select {
-	case err := <-errCh:
-		return err
-	default:
+	case <-db.server.StartedCtx.Done():
+		// TCP server is started
+		db.passCheckpoint()
+	case <-ctx.Done():
+		if err := db.Shutdown(context.Background()); err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
+		}
+		return g.Wait()
 	}
-	// TCP server is started
-	db.passCheckpoint()
 
+	// Start discovery
+	// TODO: This should be blocker call like ListenAndServe
 	if err := db.startDiscovery(); err != nil {
 		return err
 	}
+
 	// Memberlist is started and this node joined the cluster.
 	db.passCheckpoint()
 
@@ -609,7 +615,7 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
-	return <-errCh
+	return g.Wait()
 }
 
 // Shutdown stops background servers and leaves the cluster.

@@ -46,7 +46,7 @@ func TestClient_Request(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 
 	cc := &config.Client{
 		MaxConn: 10,

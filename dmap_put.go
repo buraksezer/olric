@@ -314,17 +314,18 @@ func (db *Olric) put(w *writeop) error {
 	return err
 }
 
-func (db *Olric) prepareWriteop(opcode protocol.OpCode, name, key string,
-	value interface{}, timeout time.Duration, flags int16) (*writeop, error) {
-	val, err := db.serializer.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
+func (db *Olric) prepareWriteop(
+	opcode protocol.OpCode,
+	name,
+	key string,
+	value []byte,
+	timeout time.Duration,
+	flags int16) (*writeop, error) {
 	w := &writeop{
 		opcode:    opcode,
 		dmap:      name,
 		key:       key,
-		value:     val,
+		value:     value,
 		timestamp: time.Now().UnixNano(),
 		timeout:   timeout,
 		flags:     flags,
@@ -342,12 +343,26 @@ func (db *Olric) prepareWriteop(opcode protocol.OpCode, name, key string,
 	return w, nil
 }
 
+func (db *Olric) prepareAndSerialize(
+	opcode protocol.OpCode,
+	name,
+	key string,
+	value interface{},
+	timeout time.Duration,
+	flags int16) (*writeop, error) {
+	val, err := db.serializer.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return db.prepareWriteop(opcode, name, key, val, timeout, flags)
+}
+
 // PutEx sets the value for the given key with TTL. It overwrites any previous
 // value for that key. It's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	w, err := dm.db.prepareWriteop(protocol.OpPutEx, dm.name, key, value, timeout, 0)
+	w, err := dm.db.prepareAndSerialize(protocol.OpPutEx, dm.name, key, value, timeout, 0)
 	if err != nil {
 		return err
 	}
@@ -359,7 +374,7 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
-	w, err := dm.db.prepareWriteop(protocol.OpPut, dm.name, key, value, nilTimeout, 0)
+	w, err := dm.db.prepareAndSerialize(protocol.OpPut, dm.name, key, value, nilTimeout, 0)
 	if err != nil {
 		return err
 	}
@@ -378,7 +393,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
-	w, err := dm.db.prepareWriteop(protocol.OpPutIf, dm.name, key, value, nilTimeout, flags)
+	w, err := dm.db.prepareAndSerialize(protocol.OpPutIf, dm.name, key, value, nilTimeout, flags)
 	if err != nil {
 		return err
 	}
@@ -397,7 +412,7 @@ func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
-	w, err := dm.db.prepareWriteop(protocol.OpPutIfEx, dm.name, key, value, timeout, flags)
+	w, err := dm.db.prepareAndSerialize(protocol.OpPutIfEx, dm.name, key, value, timeout, flags)
 	if err != nil {
 		return err
 	}

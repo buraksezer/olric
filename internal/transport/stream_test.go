@@ -40,7 +40,7 @@ func TestClient_CreateStream(t *testing.T) {
 		}
 	}()
 
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)

@@ -96,8 +96,8 @@ func TestServer_ListenAndServe(t *testing.T) {
 	}()
 	select {
 	case <-time.After(5 * time.Second):
-		t.Fatal("StartCh could not be closed")
-	case <-s.StartCh:
+		t.Fatal("StartedCtx could not be closed")
+	case <-s.StartedCtx.Done():
 		return
 	}
 }
@@ -120,7 +120,7 @@ func TestServer_ProcessConn(t *testing.T) {
 		}
 	}()
 
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 	cc := &config.Client{
 		MaxConn: 10,
 	}
@@ -209,7 +209,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 		}
 	}()
 
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 
 	// Create a client and make a request. It will never return.
 	cc := &config.Client{}
