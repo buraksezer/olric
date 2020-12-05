@@ -1,7 +1,7 @@
 olricd:
   bindAddr: "0.0.0.0"
   bindPort: 3320
-  serializer: "json"
+  serializer: "msgpack"
   keepAlivePeriod: "300s"
   bootstrapTimeout: "5s"
   partitionCount:  13
