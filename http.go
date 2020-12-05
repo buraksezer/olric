@@ -27,6 +27,11 @@ import (
 
 func (db *Olric) registerHTTPEndpoints() http.Handler {
 	router := httprouter.New()
+
+	// DTopic API
+	//
+	router.GET("/api/v1/dtopic/subscribe/:dtopic", db.dtopicWebsocketSubscribe)
+
 	// DMap API
 	//
 	// Put

@@ -21,7 +21,7 @@ http:
   writeTimeout: "10s"
   readHeaderTimeout: "10s"
   idleTimeout: "10s"
-  maxHeaderBytes: 10
+  maxHeaderBytes: 10000
 
 client:
   dialTimeout: "-1s"

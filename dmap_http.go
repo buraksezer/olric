@@ -26,8 +26,6 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-// TODO: Check this: isOperable
-
 type errorResponse struct {
 	Message string
 }
@@ -56,7 +54,7 @@ func (db *Olric) httpErrorResponse(w http.ResponseWriter, err error) {
 }
 
 func (db *Olric) dmapPutHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
 	value, err := ioutil.ReadAll(r.Body)
@@ -64,7 +62,7 @@ func (db *Olric) dmapPutHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, nilTimeout, 0)
+	wr, err := db.prepareWriteop(protocol.OpPut, dm, key, value, nilTimeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -78,7 +76,7 @@ func (db *Olric) dmapPutHTTPHandler(w http.ResponseWriter, r *http.Request, ps h
 }
 
 func (db *Olric) dmapPutIfHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 	var flags int64
 	var err error
@@ -95,7 +93,7 @@ func (db *Olric) dmapPutIfHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPutIf, dmap, key, value, nilTimeout, int16(flags))
+	wr, err := db.prepareWriteop(protocol.OpPutIf, dm, key, value, nilTimeout, int16(flags))
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -109,7 +107,7 @@ func (db *Olric) dmapPutIfHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 }
 
 func (db *Olric) dmapPutExHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
 	timeout := nilTimeout
@@ -128,7 +126,7 @@ func (db *Olric) dmapPutExHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, timeout, 0)
+	wr, err := db.prepareWriteop(protocol.OpPut, dm, key, value, timeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -142,7 +140,7 @@ func (db *Olric) dmapPutExHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 }
 
 func (db *Olric) dmapPutIfExHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
 	timeout := nilTimeout
@@ -172,7 +170,7 @@ func (db *Olric) dmapPutIfExHTTPHandler(w http.ResponseWriter, r *http.Request, 
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpPut, dmap, key, value, timeout, int16(flags))
+	wr, err := db.prepareWriteop(protocol.OpPut, dm, key, value, timeout, int16(flags))
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -186,9 +184,9 @@ func (db *Olric) dmapPutIfExHTTPHandler(w http.ResponseWriter, r *http.Request, 
 }
 
 func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
-	value, err := db.get(dmap, key)
+	value, err := db.get(dm, key)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -202,9 +200,9 @@ func (db *Olric) dmapGetHTTPHandler(w http.ResponseWriter, _ *http.Request, ps h
 }
 
 func (db *Olric) dmapGetEntryHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
-	raw, err := db.get(dmap, key)
+	raw, err := db.get(dm, key)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -230,7 +228,7 @@ func (db *Olric) dmapGetEntryHTTPHandler(w http.ResponseWriter, _ *http.Request,
 }
 
 func (db *Olric) dmapExpireHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
 	timeout := nilTimeout
@@ -245,7 +243,7 @@ func (db *Olric) dmapExpireHTTPHandler(w http.ResponseWriter, r *http.Request, p
 	}
 
 	wr := &writeop{
-		dmap:      dmap,
+		dmap:      dm,
 		key:       key,
 		timestamp: time.Now().UnixNano(),
 		timeout:   timeout,
@@ -260,10 +258,10 @@ func (db *Olric) dmapExpireHTTPHandler(w http.ResponseWriter, r *http.Request, p
 }
 
 func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
-	err := db.deleteKey(dmap, key)
+	err := db.deleteKey(dm, key)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -272,8 +270,8 @@ func (db *Olric) dmapDeleteHTTPHandler(w http.ResponseWriter, _ *http.Request, p
 }
 
 func (db *Olric) dmapDestroyHTTPHandler(w http.ResponseWriter, _ *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
-	err := db.destroyDMap(dmap)
+	dm := ps.ByName("dmap")
+	err := db.destroyDMap(dm)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -282,7 +280,7 @@ func (db *Olric) dmapDestroyHTTPHandler(w http.ResponseWriter, _ *http.Request, 
 }
 
 func (db *Olric) dmapIncrDecrHTTP(opcode protocol.OpCode, w http.ResponseWriter, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 	rawdelta := ps.ByName("delta")
 
@@ -292,7 +290,7 @@ func (db *Olric) dmapIncrDecrHTTP(opcode protocol.OpCode, w http.ResponseWriter,
 		return
 	}
 
-	wr, err := db.prepareWriteop(opcode, dmap, key, nil, nilTimeout, 0)
+	wr, err := db.prepareWriteop(opcode, dm, key, nil, nilTimeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -324,7 +322,7 @@ func (db *Olric) dmapDecrHTTPHandler(w http.ResponseWriter, _ *http.Request, ps 
 }
 
 func (db *Olric) dmapGetPutHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
 	value, err := ioutil.ReadAll(r.Body)
@@ -332,7 +330,7 @@ func (db *Olric) dmapGetPutHTTPHandler(w http.ResponseWriter, r *http.Request, p
 		db.httpErrorResponse(w, err)
 		return
 	}
-	wr, err := db.prepareWriteop(protocol.OpGetPut, dmap, key, value, nilTimeout, 0)
+	wr, err := db.prepareWriteop(protocol.OpGetPut, dm, key, value, nilTimeout, 0)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -350,14 +348,14 @@ func (db *Olric) dmapGetPutHTTPHandler(w http.ResponseWriter, r *http.Request, p
 }
 
 func (db *Olric) dmapLockWithTimeoutHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dm")
 	key := ps.ByName("key")
 	var err error
 
 	timeout := nilTimeout
-	rawtimeout := r.Header.Get("X-Olric-Timeout")
-	if rawtimeout != "" {
-		ttl, err := strconv.ParseInt(rawtimeout, 10, 64)
+	rawTimeout := r.Header.Get("X-Olric-Timeout")
+	if rawTimeout != "" {
+		ttl, err := strconv.ParseInt(rawTimeout, 10, 64)
 		if err != nil {
 			db.httpErrorResponse(w, err)
 			return
@@ -376,7 +374,7 @@ func (db *Olric) dmapLockWithTimeoutHTTPHandler(w http.ResponseWriter, r *http.R
 		deadline = time.Duration(rd) * time.Millisecond
 	}
 
-	ctx, err := db.lockKey(protocol.OpPutIfEx, dmap, key, timeout, deadline)
+	ctx, err := db.lockKey(protocol.OpPutIfEx, dm, key, timeout, deadline)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -390,7 +388,7 @@ func (db *Olric) dmapLockWithTimeoutHTTPHandler(w http.ResponseWriter, r *http.R
 }
 
 func (db *Olric) dmapLockHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 	var err error
 
@@ -405,7 +403,7 @@ func (db *Olric) dmapLockHTTPHandler(w http.ResponseWriter, r *http.Request, ps 
 		deadline = time.Duration(rd) * time.Millisecond
 	}
 
-	ctx, err := db.lockKey(protocol.OpPutIf, dmap, key, nilTimeout, deadline)
+	ctx, err := db.lockKey(protocol.OpPutIf, dm, key, nilTimeout, deadline)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -419,7 +417,7 @@ func (db *Olric) dmapLockHTTPHandler(w http.ResponseWriter, r *http.Request, ps 
 }
 
 func (db *Olric) dmapUnlockHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	key := ps.ByName("key")
 
 	token, err := ioutil.ReadAll(r.Body)
@@ -428,7 +426,7 @@ func (db *Olric) dmapUnlockHTTPHandler(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	err = db.unlock(dmap, key, token)
+	err = db.unlock(dm, key, token)
 	if err != nil {
 		db.httpErrorResponse(w, err)
 		return
@@ -437,7 +435,7 @@ func (db *Olric) dmapUnlockHTTPHandler(w http.ResponseWriter, r *http.Request, p
 }
 
 func (db *Olric) dmapQueryHTTPHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	dmap := ps.ByName("dmap")
+	dm := ps.ByName("dmap")
 	rawPartID := ps.ByName("partID")
 
 	partID, err := strconv.ParseInt(rawPartID, 10, 64)
@@ -459,7 +457,7 @@ func (db *Olric) dmapQueryHTTPHandler(w http.ResponseWriter, r *http.Request, ps
 
 	c := &Cursor{
 		db:    db,
-		name:  dmap,
+		name:  dm,
 		query: q,
 	}
 	responses, err := c.runQueryOnOwners(uint64(partID))

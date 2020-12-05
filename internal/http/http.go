@@ -18,6 +18,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"net/http"
 	"time"
 
@@ -34,6 +35,7 @@ type Server struct {
 	config     *config.Http
 	log        *flog.Logger
 	srv        *http.Server
+	upgrader   *websocket.Upgrader
 	ctx        context.Context
 	cancel     context.CancelFunc
 	StartedCtx context.Context
@@ -95,6 +97,7 @@ func New(c *config.Http, log *flog.Logger, router http.Handler) *Server {
 		config:     c,
 		log:        log,
 		srv:        srv,
+		upgrader:   &websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {return true} },
 		ctx:        ctx,
 		cancel:     cancel,
 		StartedCtx: startedCtx,
@@ -160,6 +163,10 @@ func (s *Server) Start() error {
 
 	// Wait for shutdown or an error.
 	return g.Wait()
+}
+
+func (s *Server) WebsocketUpgrade(w http.ResponseWriter, r *http.Request, responseHeader http.Header) (*websocket.Conn, error) {
+	return s.upgrader.Upgrade(w, r, responseHeader)
 }
 
 // Shutdown calls Shutdown method of Golang's HTTP server and closes underyling data structures.
