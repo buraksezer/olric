@@ -62,7 +62,7 @@ func (db *Olric) lookupOnPreviousOwner(owner *discovery.Member, name, key string
 	if err != nil {
 		return nil, err
 	}
-	data := storage.NewEntry()
+	data := db.storage.NewEntry()
 	data.Decode(resp.Value())
 	v.entry = data
 	return v, nil

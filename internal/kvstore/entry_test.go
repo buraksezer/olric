@@ -22,10 +22,10 @@ import (
 
 func TestEntryEncodeDecode(t *testing.T) {
 	entry := NewEntry()
-	entry.Key = "mykey"
-	entry.TTL = 200
-	entry.Timestamp = time.Now().UnixNano()
-	entry.Value = []byte("mydata")
+	entry.SetKey("mykey")
+	entry.SetTTL(200)
+	entry.SetTimestamp(time.Now().UnixNano())
+	entry.SetValue([]byte("mydata"))
 
 	t.Run("Encode", func(t *testing.T) {
 		buf := entry.Encode()

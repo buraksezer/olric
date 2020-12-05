@@ -335,7 +335,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
 			if entry.Key() != bkey(i) {
-				t.Fatalf("Expected %s. Got: %s", entry.Key, bkey(i))
+				t.Fatalf("Expected %s. Got: %s", entry.Key(), bkey(i))
 			}
 			if bytes.Equal(entry.Value(), bval(i)) {
 				t.Fatalf("Expected %s. Got: %s", string(entry.Value()), string(bval(i)))
@@ -415,14 +415,14 @@ func TestDMap_OpGetPrev(t *testing.T) {
 	if !reflect.DeepEqual(v.host, &db.this) {
 		t.Fatalf("Returned host is different: %v", v.host)
 	}
-	val, err := db.unmarshalValue(v.entry.Value)
+	val, err := db.unmarshalValue(v.entry.Value())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	if !bytes.Equal(val.([]byte), bval(10)) {
 		t.Fatalf("Returned value is different")
 	}
-	if v.entry.Key != bkey(10) {
+	if v.entry.Key() != bkey(10) {
 		t.Fatalf("Returned key is different")
 	}
 }

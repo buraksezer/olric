@@ -326,7 +326,12 @@ func (c *Config) Sanitize() error {
 	}
 	if c.Storage == nil {
 		// Use default storage engine
-		c.Storage = &kvstore.KVStore{}
+		cfg := kvstore.DefaultOptions()
+		s, err := kvstore.New(cfg)
+		if err != nil {
+			return err
+		}
+		c.Storage = s
 	}
 	if c.BootstrapTimeout == 0*time.Second {
 		c.BootstrapTimeout = DefaultBootstrapTimeout

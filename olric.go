@@ -24,14 +24,13 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/buraksezer/olric/internal/storage"
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
@@ -40,6 +39,7 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/serializer"
@@ -215,6 +215,7 @@ func New(c *config.Config) (*Olric, error) {
 		config:     c,
 		hasher:     c.Hasher,
 		locker:     locker.New(),
+		storage:    c.Storage,
 		serializer: c.Serializer,
 		consistent: consistent.New(nil, cfg),
 		client:     client,
@@ -228,10 +229,12 @@ func New(c *config.Config) (*Olric, error) {
 		started:    c.Started,
 	}
 
-	db.storageOptions = storage.NewOptions()
-	for key, value := range db.config.StorageConfig {
-		db.storageOptions.Add(key, value)
-	}
+	// FIXME: StorageConfig management will be fixed
+	db.storageOptions = kvstore.DefaultOptions()
+	//db.storageOptions = storage.NewOptions()
+	//for key, value := range db.config.StorageConfig {
+	//	db.storageOptions.Add(key, value)
+	//}
 
 	db.server.SetDispatcher(db.requestDispatcher)
 
