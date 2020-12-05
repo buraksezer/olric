@@ -28,9 +28,7 @@ import (
 )
 
 var testConfig = &client.Config{
-	DialTimeout: time.Second,
-	KeepAlive:   time.Second,
-	MaxConn:     10,
+	Client: config.NewClient(),
 }
 
 func getFreePort() (int, error) {
