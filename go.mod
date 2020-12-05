@@ -9,12 +9,10 @@ require (
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
-	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/logutils v1.0.0
 	github.com/hashicorp/memberlist v0.1.5
-	github.com/julienschmidt/httprouter v1.3.0
 	github.com/miekg/dns v1.1.31 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
