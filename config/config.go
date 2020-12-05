@@ -193,8 +193,6 @@ type Config struct {
 
 	ServiceDiscovery map[string]interface{}
 
-	Http *Http
-
 	// Interface denotes a binding interface. It can be used instead of memberlist.Loader.BindAddr if the interface is
 	// known but not the address. If both are provided, then Olric verifies that the interface has the bind address that
 	// is provided.
@@ -259,16 +257,6 @@ func (c *Config) Validate() error {
 
 	if c.BindPort == 0 {
 		result = multierror.Append(result, fmt.Errorf("BindPort cannot be empty or zero"))
-	}
-
-	if c.Http.Enabled {
-		_, _, err := net.SplitHostPort(c.Http.Addr)
-		if err != nil {
-			result = multierror.Append(result, fmt.Errorf("http.Addr is invalid: %w", err))
-		}
-		if c.Http.ContentType == "" {
-			c.Http.ContentType = "application/octet-stream"
-		}
 	}
 
 	return result
@@ -355,9 +343,6 @@ func (c *Config) Sanitize() error {
 		c.Client.Sanitize()
 	}
 
-	if c.Http == nil {
-		c.Http = &Http{}
-	}
 	return nil
 }
 
@@ -392,7 +377,6 @@ func New(env string) *Config {
 		MemberCountQuorum: 1,
 		Peers:             []string{},
 		Cache:             &CacheConfig{},
-		Http:              &Http{},
 	}
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))

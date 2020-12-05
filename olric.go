@@ -36,7 +36,6 @@ import (
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/http"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/storage"
@@ -142,9 +141,6 @@ type Olric struct {
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams
 
-	// HTTP server to expose DMap API and other possible things
-	http *http.Server
-
 	// Structures for flow control
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -225,10 +221,6 @@ func New(c *config.Config) (*Olric, error) {
 		dtopic:     newDTopic(ctx),
 		streams:    &streams{m: make(map[uint64]*stream)},
 		started:    c.Started,
-	}
-
-	if c.Http.Enabled {
-		db.initializeHTTPIntegration(c.Http, db.log)
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
@@ -604,26 +596,6 @@ func (db *Olric) Start() error {
 	// Memberlist is started and this node joined the cluster.
 	db.passCheckpoint()
 
-	// Start HTTP server
-	if db.config.Http.Enabled {
-		g.Go(func() error {
-			return db.http.Start()
-		})
-
-		select {
-		case <-db.http.StartedCtx.Done():
-			// Wait until HTTP server is started
-			//
-			// requiredCheckpoints was increased in New function
-			db.passCheckpoint()
-		case <-ctx.Done():
-			if err := db.Shutdown(context.Background()); err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
-			}
-			return g.Wait()
-		}
-	}
-
 	// Warn the user about its choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
 		db.log.V(2).
@@ -651,13 +623,6 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
-
-	if db.config.Http.Enabled {
-		err := db.http.Shutdown(ctx)
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
 
 	db.streams.mu.RLock()
 	db.log.V(2).Printf("[INFO] Closing active streams")
