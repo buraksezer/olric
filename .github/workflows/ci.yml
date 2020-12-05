@@ -1,4 +1,4 @@
-name: Tests
+name: tests
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
       # Default is true, cancels jobs for other platforms in the matrix if one fails
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, macos-latest ]
         go: [ '1.15' ]
 
     runs-on: ${{ matrix.os }}
@@ -57,14 +57,3 @@ jobs:
       with:
         path-to-profile: coverage.out
 
-  golangci:
-    name: Lint
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v2
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.31

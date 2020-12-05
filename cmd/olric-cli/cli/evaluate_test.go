@@ -28,9 +28,7 @@ import (
 )
 
 var testConfig = &client.Config{
-	DialTimeout: time.Second,
-	KeepAlive:   time.Second,
-	MaxConn:     10,
+	Client: config.NewClient(),
 }
 
 func getFreePort() (int, error) {
@@ -75,7 +73,7 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)
-	testConfig.Addrs = []string{"127.0.0.1:" + strconv.Itoa(port)}
+	testConfig.Servers = []string{"127.0.0.1:" + strconv.Itoa(port)}
 	return db, done, nil
 }
 
@@ -101,7 +99,7 @@ func TestEvaluate(t *testing.T) {
 		_ = dm.Destroy()
 	}()
 
-	c, err := New(testConfig.Addrs[0], "gob", "1s")
+	c, err := New(testConfig.Servers[0], "gob", "1s")
 	if err != nil {
 		t.Fatalf("Expected nil, Got: %v", err)
 	}

@@ -17,11 +17,13 @@ package query
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/buraksezer/olric/client"
-	"github.com/buraksezer/olric/serializer"
-	"github.com/buraksezer/olric/stats"
 	"log"
 	"time"
+
+	"github.com/buraksezer/olric/client"
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/serializer"
+	"github.com/buraksezer/olric/stats"
 )
 
 type Query struct {
@@ -36,10 +38,12 @@ func New(addr, timeout string, logger *log.Logger) (*Query, error) {
 		return nil, err
 	}
 	cc := &client.Config{
-		Addrs:       []string{addr},
-		Serializer:  serializer.NewMsgpackSerializer(),
-		DialTimeout: dt,
-		MaxConn:     1,
+		Servers:    []string{addr},
+		Serializer: serializer.NewMsgpackSerializer(),
+		Client: &config.Client{
+			DialTimeout: dt,
+			MaxConn:     1,
+		},
 	}
 	c, err := client.New(cc)
 	if err != nil {

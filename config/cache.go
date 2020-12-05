@@ -21,6 +21,79 @@ import (
 	"github.com/pkg/errors"
 )
 
+// EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
+type EvictionPolicy string
+
+// note on DMapCacheConfig and CacheConfig:
+// golang doesn't provide the typical notion of inheritance.
+// because of that I preferred to define the types explicitly.
+
+// DMapCacheConfig denotes cache configuration for a particular dmap.
+type DMapCacheConfig struct {
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
+	// It limits the lifetime of the entries relative to the time of the last
+	// read or write access performed on them. The entries whose idle period exceeds
+	// this limit are expired and evicted automatically. An entry is idle if no Get,
+	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
+	// feature varies by preferred deployment method.
+	MaxIdleDuration time.Duration
+
+	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
+	TTLDuration time.Duration
+
+	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
+	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
+	MaxKeys int
+
+	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
+	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
+	MaxInuse int
+
+	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
+	// Lower values are better for high performance. It's 5 by default.
+	LRUSamples int
+
+	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
+	// Set as LRU to enable LRU eviction policy.
+	EvictionPolicy EvictionPolicy
+}
+
+// CacheConfig denotes a global cache configuration for DMaps. You can still overwrite it by setting a
+// DMapCacheConfig for a particular dmap. Don't set this if you use Olric as an ordinary key/value store.
+type CacheConfig struct {
+	// NumEvictionWorkers denotes the number of goroutines that's used to find keys for eviction.
+	NumEvictionWorkers int64
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
+	// It limits the lifetime of the entries relative to the time of the last
+	// read or write access performed on them. The entries whose idle period exceeds
+	// this limit are expired and evicted automatically. An entry is idle if no Get,
+	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
+	// feature varies by preferred deployment method.
+	MaxIdleDuration time.Duration
+
+	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
+	TTLDuration time.Duration
+
+	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
+	// MaxKeys=100000, max key count in the cluster should around MaxKeys*10=1000000
+	MaxKeys int
+
+	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
+	// MaxInuse=100M (it has to be in bytes), max amount of in-use memory should be around MaxInuse*10=1G
+	MaxInuse int
+
+	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
+	// Lower values are better for high performance. It's 5 by default.
+	LRUSamples int
+
+	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
+	// Set as LRU to enable LRU eviction policy.
+	EvictionPolicy EvictionPolicy
+
+	// DMapConfigs is useful to set custom cache config per dmap instance.
+	DMapConfigs map[string]DMapCacheConfig
+}
+
 func processCacheConfig(c *loader.Loader) (*CacheConfig, error) {
 	res := &CacheConfig{}
 	if c.Cache.MaxIdleDuration != "" {

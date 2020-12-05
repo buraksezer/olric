@@ -29,7 +29,7 @@ var testConfig = `olricd:
   bindPort: 3320
   serializer: "msgpack"
   keepAlivePeriod: "300s"
-  requestTimeout: "5s"
+  bootstrapTimeout: "5s"
   partitionCount:  271
   replicaCount: 2
   writeQuorum: 1
@@ -38,6 +38,14 @@ var testConfig = `olricd:
   replicationMode: 0 # sync mode. for async, set 1
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
+
+client:
+  dialTimeout: "10s"
+  readTimeout: "3s"
+  writeTimeout: "3s"
+  keepAlive: "15s"
+  minConn: 1
+  maxConn: 100
 
 logging:
   verbosity: 6
@@ -123,7 +131,7 @@ func TestConfig(t *testing.T) {
 	c.BindPort = 3320
 	c.Serializer = serializer.NewMsgpackSerializer()
 	c.KeepAlivePeriod = 300 * time.Second
-	c.RequestTimeout = 5 * time.Second
+	c.BootstrapTimeout = 5 * time.Second
 	c.PartitionCount = 271
 	c.ReplicaCount = 2
 	c.WriteQuorum = 1
@@ -132,6 +140,13 @@ func TestConfig(t *testing.T) {
 	c.ReplicationMode = SyncReplicationMode
 	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
+
+	c.Client.DialTimeout = 10 * time.Second
+	c.Client.ReadTimeout = 3 * time.Second
+	c.Client.WriteTimeout = 3 * time.Second
+	c.Client.KeepAlive = 15 * time.Second
+	c.Client.MinConn = 1
+	c.Client.MaxConn = 100
 
 	c.LogVerbosity = 6
 	c.LogLevel = "DEBUG"

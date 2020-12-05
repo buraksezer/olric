@@ -3,7 +3,7 @@ olricd:
   bindPort: 3320
   serializer: "msgpack"
   keepAlivePeriod: "300s"
-  requestTimeout: "5s"
+  bootstrapTimeout: "5s"
   partitionCount:  13
   replicaCount: 1
   writeQuorum: 1
@@ -20,6 +20,14 @@ storage:
   - name: "olric.docstore"
     config:
       - foobar: "barfoo"
+
+client:
+  dialTimeout: "-1s"
+  readTimeout: "3s"
+  writeTimeout: "3s"
+  keepAlive: "15s"
+  minConn: 1
+  maxConn: 100
 
 logging:
   verbosity: 6

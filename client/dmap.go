@@ -44,7 +44,7 @@ func (d *DMap) Get(key string) (interface{}, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(d.name)
 	req.SetKey(key)
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (d *DMap) GetEntry(key string) (*olric.Entry, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(d.name)
 	req.SetKey(key)
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (d *DMap) Put(key string, value interface{}) error {
 	req.SetExtra(protocol.PutExExtra{
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (d *DMap) PutEx(key string, value interface{}, timeout time.Duration) error
 		TTL:       timeout.Nanoseconds(),
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (d *DMap) Delete(key string) error {
 	req := protocol.NewDMapMessage(protocol.OpDelete)
 	req.SetDMap(d.name)
 	req.SetKey(key)
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (d *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*Lo
 		Timeout:  timeout.Nanoseconds(),
 		Deadline: deadline.Nanoseconds(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (d *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
 	req.SetExtra(protocol.LockExtra{
 		Deadline: deadline.Nanoseconds(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (l *LockContext) Unlock() error {
 	req.SetDMap(l.name)
 	req.SetKey(l.key)
 	req.SetValue(l.token)
-	resp, err := l.dmap.client.Request(req)
+	resp, err := l.dmap.request(req)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (l *LockContext) Unlock() error {
 func (d *DMap) Destroy() error {
 	req := protocol.NewDMapMessage(protocol.OpDestroy)
 	req.SetDMap(d.name)
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int,
 	req.SetExtra(protocol.AtomicExtra{
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := c.client.Request(req)
+	resp, err := c.request(req)
 	if err != nil {
 		return 0, err
 	}
@@ -297,7 +297,7 @@ func (d *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 	req.SetExtra(protocol.AtomicExtra{
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +314,7 @@ func (d *DMap) Expire(key string, timeout time.Duration) error {
 		TTL:       timeout.Nanoseconds(),
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func (d *DMap) PutIf(key string, value interface{}, flags int16) error {
 		Flags:     flags,
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}
@@ -373,7 +373,7 @@ func (d *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, fla
 		TTL:       timeout.Nanoseconds(),
 		Timestamp: time.Now().UnixNano(),
 	})
-	resp, err := d.client.Request(req)
+	resp, err := d.request(req)
 	if err != nil {
 		return err
 	}

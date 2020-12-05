@@ -80,9 +80,11 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
 * [Golang Client](#golang-client)
 * [Configuration](#configuration)
     * [Embedded Member Mode](#embedded-member-mode)
+      * [Manage the configuration in YAML format](#manage-the-configuration-in-yaml-format)
     * [Client-Server Mode](#client-server-mode)
     * [Network Configuration](#network-configuration)
     * [Service discovery](#service-discovery)
+    * [Timeouts](#timeouts)
 * [Architecture](#architecture)
   * [Overview](#overview)
   * [Consistency and Replication Model](#consistency-and-replication-model)
@@ -929,6 +931,17 @@ Default configuration is good enough for distributed caching scenario. In order 
 
 See [Sample Code](#sample-code) section for an introduction.
 
+#### Manage the configuration in YAML format
+
+You can also import configuration from a YAML file by using the `Load` function:
+
+```go
+c, err := config.Load(path/to/olric.yaml)
+```
+
+A sample configuration file in YAML format can be found [here](https://github.com/buraksezer/olric/blob/master/cmd/olricd/olricd.yaml). This may be the most appropriate way to manage the Olric configuration.
+
+
 ### Client-Server Mode
 
 Olric provides **olricd** to implement client-server mode. olricd gets a YAML file for the configuration. The most basic  functionality of olricd is that 
@@ -960,6 +973,39 @@ We currently have a bunch of service discovery plugins for automatic peer discov
 * [justinfx/olric-nats-plugin](https://github.com/justinfx/olric-nats-plugin) provides a plugin using nats.io
 
 In order to get more info about installation and configuration of the plugins, see their GitHub page. 
+
+### Timeouts
+
+Olric nodes supports setting `KeepAlivePeriod` on TCP sockets. 
+
+**Server-side:**
+
+##### config.KeepAlivePeriod 
+
+KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
+
+**Client-side:**
+ 
+##### config.DialTimeout
+
+Timeout for TCP dial. The timeout includes name resolution, if required. When using TCP, and the host in the address 
+parameter resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
+given an appropriate fraction of the time to connect.
+
+##### config.ReadTimeout
+
+Timeout for socket reads. If reached, commands will fail with a timeout instead of blocking. Use value -1 for no 
+timeout and 0 for default. The default is config.DefaultReadTimeout
+
+##### config.WriteTimeout
+
+Timeout for socket writes. If reached, commands will fail with a timeout instead of blocking. The default is config.DefaultWriteTimeout
+
+##### config.KeepAlive
+
+KeepAlive specifies the interval between keep-alive probes for an active network connection. If zero, keep-alive probes 
+are sent with a default value (currently 15 seconds), if supported by the protocol and operating system. Network protocols 
+or operating systems that do not support keep-alives ignore this field. If negative, keep-alive probes are disabled.
 
 ## Architecture
 

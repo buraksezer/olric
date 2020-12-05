@@ -27,9 +27,11 @@ import (
 )
 
 var testConfig = &Config{
-	DialTimeout: time.Second,
-	KeepAlive:   time.Second,
-	MaxConn:     10,
+	Client: &config.Client{
+		DialTimeout: time.Second,
+		KeepAlive:   time.Second,
+		MaxConn:     10,
+	},
 }
 
 func getFreePort() (int, error) {
@@ -74,7 +76,7 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		close(done)
 	}()
 	time.Sleep(100 * time.Millisecond)
-	testConfig.Addrs = []string{"127.0.0.1:" + strconv.Itoa(port)}
+	testConfig.Servers = []string{"127.0.0.1:" + strconv.Itoa(port)}
 	return db, done, nil
 }
 
@@ -96,7 +98,7 @@ func TestClient_Ping(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	addr := testConfig.Addrs[0]
+	addr := testConfig.Servers[0]
 	err = c.Ping(addr)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -130,7 +132,7 @@ func TestClient_Stats(t *testing.T) {
 		}
 	}
 
-	addr := testConfig.Addrs[0]
+	addr := testConfig.Servers[0]
 	s, err := c.Stats(addr)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)

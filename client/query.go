@@ -48,7 +48,7 @@ func (c *Cursor) runQueryOnPartition(partID uint64) (olric.QueryResponse, error)
 	req.SetExtra(protocol.QueryExtra{
 		PartID: partID,
 	})
-	resp, err := c.dm.client.Request(req)
+	resp, err := c.dm.request(req)
 	if err != nil {
 		return nil, err
 	}

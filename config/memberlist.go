@@ -15,15 +15,19 @@
 package config
 
 import (
+	"fmt"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/buraksezer/olric/config/internal/loader"
-	mlist "github.com/hashicorp/memberlist"
+	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/memberlist"
 )
 
 // processMemberlistConfig creates a new *memberlist.Config by parsing olricd.yaml
-func processMemberlistConfig(c *loader.Loader, mc *mlist.Config) (*mlist.Config, error) {
+func processMemberlistConfig(c *loader.Loader, mc *memberlist.Config) (*memberlist.Config, error) {
 	var err error
 	if c.Memberlist.BindAddr == "" {
 		name, err := os.Hostname()
@@ -134,4 +138,49 @@ func processMemberlistConfig(c *loader.Loader, mc *mlist.Config) (*mlist.Config,
 		mc.UDPBufferSize = *c.Memberlist.UDPBufferSize
 	}
 	return mc, nil
+}
+
+func (c *Config) validateMemberlistConfig() error {
+	var result error
+	if len(c.MemberlistConfig.AdvertiseAddr) != 0 {
+		if ip := net.ParseIP(c.MemberlistConfig.AdvertiseAddr); ip == nil {
+			result = multierror.Append(result,
+				fmt.Errorf("memberlist: AdvertiseAddr has to be a valid IPv4 or IPv6 address"))
+		}
+	}
+	if len(c.MemberlistConfig.BindAddr) == 0 {
+		result = multierror.Append(result,
+			fmt.Errorf("memberlist: BindAddr cannot be an empty string"))
+	}
+	return result
+}
+
+// NewMemberlistConfig returns a new memberlist.Config from vendored version of that package.
+// It takes an env parameter: local, lan and wan.
+//
+// local:
+// DefaultLocalConfig works like DefaultConfig, however it returns a configuration that
+// is optimized for a local loopback environments. The default configuration is still very conservative
+// and errs on the side of caution.
+//
+// lan:
+// DefaultLANConfig returns a sane set of configurations for Memberlist. It uses the hostname
+// as the node name, and otherwise sets very conservative values that are sane for most LAN environments.
+// The default configuration errs on the side of caution, choosing values that are optimized for higher convergence
+// at the cost of higher bandwidth usage. Regardless, these values are a good starting point when getting started with memberlist.
+//
+// wan:
+// DefaultWANConfig works like DefaultConfig, however it returns a configuration that is optimized for most WAN environments.
+// The default configuration is still very conservative and errs on the side of caution.
+func NewMemberlistConfig(env string) (*memberlist.Config, error) {
+	e := strings.ToLower(env)
+	switch e {
+	case "local":
+		return memberlist.DefaultLocalConfig(), nil
+	case "lan":
+		return memberlist.DefaultLANConfig(), nil
+	case "wan":
+		return memberlist.DefaultWANConfig(), nil
+	}
+	return nil, fmt.Errorf("unknown env: %s", env)
 }

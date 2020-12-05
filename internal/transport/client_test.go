@@ -17,6 +17,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"github.com/buraksezer/olric/config"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -45,17 +46,17 @@ func TestClient_Request(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
-	<-s.StartCh
+	<-s.StartedCtx.Done()
 
-	cc := &ClientConfig{
-		Addrs:   []string{s.listener.Addr().String()},
+	cc := &config.Client{
 		MaxConn: 10,
 	}
+	cc.Sanitize()
 	c := NewClient(cc)
 
 	t.Run("Request with round-robin", func(t *testing.T) {
 		req := protocol.NewDMapMessage(protocol.OpPut)
-		resp, err := c.Request(req)
+		resp, err := c.RequestTo(s.listener.Addr().String(), req)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

@@ -79,7 +79,7 @@ func (db *Olric) registerOperations() {
 	// Node Stats
 	db.operations[protocol.OpStats] = db.statsOperation
 
-	// Operations on DMap data structure
+	// Operations on DTopic data structure
 	//
 	// DTopic.Publish
 	db.operations[protocol.OpPublishDTopicMessage] = db.publishDTopicMessageOperation

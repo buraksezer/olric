@@ -20,6 +20,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/buraksezer/olric/config/internal/loader"
@@ -27,6 +29,45 @@ import (
 	"github.com/buraksezer/olric/serializer"
 	"github.com/pkg/errors"
 )
+
+func durationCondition(name string) bool {
+	return strings.HasSuffix(name, "Duration") ||
+		strings.HasSuffix(name, "Timeout") ||
+		strings.HasSuffix(name, "Period")
+}
+
+func keepaliveCondition(name string, field reflect.Value) bool {
+	return strings.ToUpper(name) == "KEEPALIVE" && field.Kind() == reflect.Int64
+}
+
+// mapYamlToConfig maps a parsed yaml to related configuration struct.
+// TODO: Use this to create Olric and memberlist config from yaml file.
+func mapYamlToConfig(rawDst, rawSrc interface{}) error {
+	dst := reflect.ValueOf(rawDst).Elem()
+	src := reflect.ValueOf(rawSrc).Elem()
+	for j := 0; j < src.NumField(); j++ {
+		for i := 0; i < dst.NumField(); i++ {
+			if src.Type().Field(j).Name == dst.Type().Field(i).Name {
+				if src.Field(j).Kind() == dst.Field(i).Kind() {
+					dst.Field(i).Set(src.Field(j))
+					continue
+				}
+				// Special cases
+				name := src.Type().Field(j).Name
+				if src.Field(j).Kind() == reflect.String && !src.Field(j).IsZero() {
+					if durationCondition(name) || keepaliveCondition(name, dst.Field(i)) {
+						value, err := time.ParseDuration(src.Field(j).String())
+						if err != nil {
+							return err
+						}
+						dst.Field(i).Set(reflect.ValueOf(value))
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
 
 // Load reads and loads Olric configuration.
 func Load(filename string) (*Config, error) {
@@ -80,7 +121,7 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	var joinRetryInterval, keepAlivePeriod, requestTimeout time.Duration
+	var joinRetryInterval, keepAlivePeriod, bootstrapTimeout time.Duration
 	if c.Olricd.KeepAlivePeriod != "" {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
@@ -88,11 +129,11 @@ func Load(filename string) (*Config, error) {
 				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
-	if c.Olricd.RequestTimeout != "" {
-		requestTimeout, err = time.ParseDuration(c.Olricd.RequestTimeout)
+	if c.Olricd.BootstrapTimeout != "" {
+		bootstrapTimeout, err = time.ParseDuration(c.Olricd.BootstrapTimeout)
 		if err != nil {
 			return nil, errors.WithMessage(err,
-				fmt.Sprintf("failed to parse olricd.requestTimeout: '%s'", c.Olricd.RequestTimeout))
+				fmt.Sprintf("failed to parse olricd.bootstrapTimeout: '%s'", c.Olricd.BootstrapTimeout))
 		}
 	}
 	if c.Memberlist.JoinRetryInterval != "" {
@@ -103,6 +144,13 @@ func Load(filename string) (*Config, error) {
 					c.Memberlist.JoinRetryInterval))
 		}
 	}
+
+	cc := Client{}
+	err = mapYamlToConfig(&cc, &c.Client)
+	if err != nil {
+		return nil, err
+	}
+
 	cacheConfig, err := processCacheConfig(c)
 	if err != nil {
 		return nil, err
@@ -114,6 +162,7 @@ func Load(filename string) (*Config, error) {
 		ServiceDiscovery:    c.ServiceDiscovery,
 		MemberlistInterface: c.Memberlist.Interface,
 		MemberlistConfig:    mc,
+		Client:              &cc,
 		LogLevel:            c.Logging.Level,
 		JoinRetryInterval:   joinRetryInterval,
 		MaxJoinAttempts:     c.Memberlist.MaxJoinAttempts,
@@ -132,7 +181,7 @@ func Load(filename string) (*Config, error) {
 		Hasher:              hasher.NewDefaultHasher(),
 		Serializer:          sr,
 		KeepAlivePeriod:     keepAlivePeriod,
-		RequestTimeout:      requestTimeout,
+		BootstrapTimeout:    bootstrapTimeout,
 		Cache:               cacheConfig,
 		TableSize:           c.Olricd.TableSize,
 	}

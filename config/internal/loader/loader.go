@@ -14,9 +14,7 @@
 
 package loader
 
-import (
-	"gopkg.in/yaml.v2"
-)
+import "gopkg.in/yaml.v2"
 
 type olricd struct {
 	Name              string  `yaml:"name"`
@@ -28,13 +26,22 @@ type olricd struct {
 	LoadFactor        float64 `yaml:"loadFactor"`
 	Serializer        string  `yaml:"serializer"`
 	KeepAlivePeriod   string  `yaml:"keepAlivePeriod"`
-	RequestTimeout    string  `yaml:"requestTimeout"`
+	BootstrapTimeout  string  `yaml:"bootstrapTimeout"`
 	ReplicaCount      int     `yaml:"replicaCount"`
 	WriteQuorum       int     `yaml:"writeQuorum"`
 	ReadQuorum        int     `yaml:"readQuorum"`
 	ReadRepair        bool    `yaml:"readRepair"`
 	TableSize         int     `yaml:"tableSize"`
 	MemberCountQuorum int32   `yaml:"memberCountQuorum"`
+}
+
+type client struct {
+	DialTimeout  string `yaml:"dialTimeout"`
+	ReadTimeout  string `yaml:"readTimeout"`
+	WriteTimeout string `yaml:"writeTimeout"`
+	KeepAlive    string `yaml:"keepAlive"`
+	MinConn      int    `yaml:"minConn"`
+	MaxConn      int    `yaml:"maxConn"`
 }
 
 // logging contains configuration variables of logging section of config file.
@@ -95,6 +102,7 @@ type Loader struct {
 	Memberlist       memberlist
 	Logging          logging
 	Olricd           olricd
+	Client           client
 	Cache            cache
 	DMaps            map[string]cache       `yaml:"dmaps"`
 	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`

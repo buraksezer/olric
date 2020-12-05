@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olric provides distributed, in-memory and embeddable key/value store, used as a database and cache.*/
+/*Package olric provides distributed cache and in-memory key/value data store. It can be used both as an embedded Go
+library and as a language-independent service.
+
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
+
+Olric is designed to be a distributed cache. But it also provides distributed topics, data replication, failure detection
+and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.*/
 package olric
 
 import (
@@ -32,14 +38,15 @@ import (
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/flog"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
+	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -67,13 +74,13 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 )
 
-// ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.3.0"
-
 const (
-	nilTimeout                = 0 * time.Second
-	requiredCheckpoints int32 = 2
+	// ReleaseVersion is the current stable version of Olric
+	ReleaseVersion string = "0.3.0"
+	nilTimeout            = 0 * time.Second
 )
+
+var requiredCheckpoints int32 = 2
 
 // A full list of alive members. It's required for Pub/Sub and event dispatching systems.
 type members struct {
@@ -177,13 +184,7 @@ func New(c *config.Config) (*Olric, error) {
 		ReplicationFactor: 20, // TODO: This also may be a configuration param.
 		Load:              c.LoadFactor,
 	}
-	cc := &transport.ClientConfig{
-		DialTimeout: c.DialTimeout,
-		KeepAlive:   c.KeepAlivePeriod,
-		MaxConn:     1024, // TODO: Make this configurable.
-	}
-	client := transport.NewClient(cc)
-	ctx, cancel := context.WithCancel(context.Background())
+	client := transport.NewClient(c.Client)
 
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
@@ -205,7 +206,7 @@ func New(c *config.Config) (*Olric, error) {
 		GracefulPeriod:  10 * time.Second,
 	}
 	srv := transport.NewServer(sc, flogger)
-
+	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,
@@ -259,7 +260,7 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Check bootstrapping status
 	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this operation.
 	if r.OpCode() != protocol.OpUpdateRouting {
-		if err := db.checkOperationStatus(); err != nil {
+		if err := db.isOperable(); err != nil {
 			db.errorResponse(w, err)
 			return
 		}
@@ -531,7 +532,7 @@ func (db *Olric) checkBootstrap() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), db.config.RequestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), db.config.BootstrapTimeout)
 	defer cancel()
 
 	// This loop only works for the first moments of the process.
@@ -566,8 +567,8 @@ func (db *Olric) checkMemberCountQuorum() error {
 	return nil
 }
 
-// checkOperationStatus controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
-func (db *Olric) checkOperationStatus() error {
+// isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
+func (db *Olric) isOperable() error {
 	if err := db.checkMemberCountQuorum(); err != nil {
 		return err
 	}
@@ -578,25 +579,30 @@ func (db *Olric) checkOperationStatus() error {
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
 // Start function returns an early error.
 func (db *Olric) Start() error {
-	errCh := make(chan error, 1)
-	db.wg.Add(1)
-	go func() {
-		defer db.wg.Done()
-		errCh <- db.server.ListenAndServe()
-	}()
+	g, ctx := errgroup.WithContext(context.Background())
 
-	<-db.server.StartCh
+	// Start the TCP server
+	g.Go(func() error {
+		return db.server.ListenAndServe()
+	})
+
 	select {
-	case err := <-errCh:
-		return err
-	default:
+	case <-db.server.StartedCtx.Done():
+		// TCP server is started
+		db.passCheckpoint()
+	case <-ctx.Done():
+		if err := db.Shutdown(context.Background()); err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
+		}
+		return g.Wait()
 	}
-	// TCP server is started
-	db.passCheckpoint()
 
+	// Start discovery
+	// TODO: This should be blocker call like ListenAndServe
 	if err := db.startDiscovery(); err != nil {
 		return err
 	}
+
 	// Memberlist is started and this node joined the cluster.
 	db.passCheckpoint()
 
@@ -619,7 +625,7 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
-	return <-errCh
+	return g.Wait()
 }
 
 // Shutdown stops background servers and leaves the cluster.

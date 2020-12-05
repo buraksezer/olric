@@ -256,7 +256,7 @@ func (db *Olric) rebalancer() {
 	rebalanceMtx.Lock()
 	defer rebalanceMtx.Unlock()
 
-	if err := db.checkOperationStatus(); err != nil {
+	if err := db.isOperable(); err != nil {
 		db.log.V(2).Printf("[WARN] Rebalancer awaits for bootstrapping")
 		return
 	}
@@ -277,7 +277,7 @@ func (db *Olric) checkOwnership(part *partition) bool {
 }
 
 func (db *Olric) moveDMapOperation(w, r protocol.EncodeDecoder) {
-	err := db.checkOperationStatus()
+	err := db.isOperable()
 	if err != nil {
 		db.errorResponse(w, err)
 		return
