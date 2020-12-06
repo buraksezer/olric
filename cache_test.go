@@ -36,10 +36,10 @@ func TestSetCacheConfiguration(t *testing.T) {
 
 	t.Run("Custom cache config", func(t *testing.T) {
 		// Config for DMap foobar
-		db.config.Cache = &config.CacheConfig{
-			DMapConfigs: make(map[string]config.DMapCacheConfig),
+		db.config.DMaps = &config.DMaps{
+			Custom: make(map[string]config.DMap),
 		}
-		cc := config.DMapCacheConfig{
+		cc := config.DMap{
 			MaxIdleDuration: time.Second,
 			TTLDuration:     time.Second,
 			MaxKeys:         10,
@@ -47,7 +47,7 @@ func TestSetCacheConfiguration(t *testing.T) {
 			LRUSamples:      10,
 			EvictionPolicy:  config.LRUEviction,
 		}
-		db.config.Cache.DMapConfigs["foobar"] = cc
+		db.config.DMaps.Custom["foobar"] = cc
 		hkey := db.getHKey("foobar", "barfoo")
 		dm, err := db.getDMap("foobar", hkey)
 		if err != nil {

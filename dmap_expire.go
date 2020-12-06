@@ -20,8 +20,8 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/storage"
 )
 
 func (db *Olric) localExpire(hkey uint64, dm *dmap, w *writeop) error {

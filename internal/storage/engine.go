@@ -43,7 +43,7 @@ type Entry interface {
 type Engine interface {
 	NewEntry() Entry
 	Name() string
-	GetInstance(*Options) (Engine, error)
+	Fork() (Engine, error)
 	PutRaw(uint64, []byte) error
 	Put(uint64, Entry) error
 	GetRaw(uint64) ([]byte, error)

@@ -38,16 +38,16 @@ type cache struct {
 func (db *Olric) setCacheConfiguration(dm *dmap, name string) error {
 	// Try to set cache configuration for this dmap.
 	dm.cache = &cache{}
-	dm.cache.maxIdleDuration = db.config.Cache.MaxIdleDuration
-	dm.cache.ttlDuration = db.config.Cache.TTLDuration
-	dm.cache.maxKeys = db.config.Cache.MaxKeys
-	dm.cache.maxInuse = db.config.Cache.MaxInuse
-	dm.cache.lruSamples = db.config.Cache.LRUSamples
-	dm.cache.evictionPolicy = db.config.Cache.EvictionPolicy
+	dm.cache.maxIdleDuration = db.config.DMaps.MaxIdleDuration
+	dm.cache.ttlDuration = db.config.DMaps.TTLDuration
+	dm.cache.maxKeys = db.config.DMaps.MaxKeys
+	dm.cache.maxInuse = db.config.DMaps.MaxInuse
+	dm.cache.lruSamples = db.config.DMaps.LRUSamples
+	dm.cache.evictionPolicy = db.config.DMaps.EvictionPolicy
 
-	if db.config.Cache.DMapConfigs != nil {
-		// config.DMapCacheConfig struct can be used for fine-grained control.
-		c, ok := db.config.Cache.DMapConfigs[name]
+	if db.config.DMaps.Custom != nil {
+		// config.DMap struct can be used for fine-grained control.
+		c, ok := db.config.DMaps.Custom[name]
 		if ok {
 			if dm.cache.maxIdleDuration != c.MaxIdleDuration {
 				dm.cache.maxIdleDuration = c.MaxIdleDuration

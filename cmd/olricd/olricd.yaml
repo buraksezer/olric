@@ -14,12 +14,10 @@ olricd:
   memberCountQuorum: 1
 
 storage:
-  - name: "olric.kvstore"
-    config:
-      - tableSize: 102134
-  - name: "olric.docstore"
-    config:
-      - foobar: "barfoo"
+  io.olric.kvstore:
+    tableSize: 102134
+  io.olric.docstore:
+    foobar: "barfoo"
 
 client:
   dialTimeout: "-1s"
@@ -56,23 +54,21 @@ memberlist:
   #handoffQueueDepth: 1024
   #udpBufferSize: 1400
 
-
-# cache:
-#  numEvictionWorkers: 1
-#  maxIdleDuration: ""
-#  ttlDuration: "100s"
-#  maxKeys: 100000
-#  maxInuse: 1000000
-#  lRUSamples: 10
-#  evictionPolicy: "LRU"
-#
-#dmaps:
-#  foobar:
-#    maxIdleDuration: "60s"
-#    ttlDuration: "300s"
-#    maxKeys: 500000
-#    lRUSamples: 20
-#    evictionPolicy: "NONE"
+dmaps:
+  numEvictionWorkers: 1
+  maxIdleDuration: ""
+  ttlDuration: "100s"
+  maxKeys: 100000
+  maxInuse: 1000000
+  lRUSamples: 10
+  evictionPolicy: "LRU"
+  custom:
+   foobar:
+      maxIdleDuration: "60s"
+      ttlDuration: "300s"
+      maxKeys: 500000
+      lRUSamples: 20
+      evictionPolicy: "NONE"
 
 
 #serviceDiscovery:

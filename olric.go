@@ -24,7 +24,6 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"net"
 	"strconv"
 	"strings"
@@ -76,7 +75,7 @@ var (
 
 const (
 	// ReleaseVersion is the current stable version of Olric
-	ReleaseVersion string = "0.3.0"
+	ReleaseVersion string = "0.4.0-beta.1"
 	nilTimeout            = 0 * time.Second
 )
 
@@ -144,7 +143,6 @@ type Olric struct {
 
 	// Storage engine
 	storage        storage.Engine
-	storageOptions *storage.Options
 
 	// Structures for flow control
 	ctx    context.Context
@@ -228,13 +226,6 @@ func New(c *config.Config) (*Olric, error) {
 		streams:    &streams{m: make(map[uint64]*stream)},
 		started:    c.Started,
 	}
-
-	// FIXME: StorageConfig management will be fixed
-	db.storageOptions = kvstore.DefaultOptions()
-	//db.storageOptions = storage.NewOptions()
-	//for key, value := range db.config.StorageConfig {
-	//	db.storageOptions.Add(key, value)
-	//}
 
 	db.server.SetDispatcher(db.requestDispatcher)
 

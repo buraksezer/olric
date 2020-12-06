@@ -15,7 +15,6 @@
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -38,6 +37,12 @@ var testConfig = `olricd:
   replicationMode: 0 # sync mode. for async, set 1
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
+
+storage:
+  io.olric.kvstore:
+    tableSize: 102134
+  io.olric.document-store:
+    foobar: "barfoo"
 
 client:
   dialTimeout: "10s"
@@ -74,8 +79,7 @@ memberlist:
   handoffQueueDepth: 1024
   udpBufferSize: 1400
 
-
-cache:
+dmaps:
   numEvictionWorkers: 1
   maxIdleDuration: ""
   ttlDuration: "100s"
@@ -83,14 +87,15 @@ cache:
   maxInuse: 1000000
   lruSamples: 10
   evictionPolicy: "LRU"
-
-dmaps:
-  foobar:
-    maxIdleDuration: "60s"
-    ttlDuration: "300s"
-    maxKeys: 500000
-    lruSamples: 20
-    evictionPolicy: "NONE"
+  storageEngine: "io.olric.kvstore"
+  custom:
+    foobar:
+      maxIdleDuration: "60s"
+      ttlDuration: "300s"
+      maxKeys: 500000
+      lruSamples: 20
+      evictionPolicy: "NONE"
+      storageEngine: "io.olric.document-store"
 
 
 serviceDiscovery:
@@ -100,12 +105,7 @@ serviceDiscovery:
   passingOnly: true
   replaceExistingChecks: true
   insecureSkipVerify: true
-  payload: 'SAMPLE-PAYLOAD'
-
-storage:
-  - name: "olric.kvstore"
-    config:
-      tableSize: 123123`
+  payload: 'SAMPLE-PAYLOAD'`
 
 func TestConfig(t *testing.T) {
 	f, err := ioutil.TempFile("/tmp/", "olric-yaml-config-test")
@@ -141,6 +141,14 @@ func TestConfig(t *testing.T) {
 	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
 
+	c.StorageConfig = make(map[string]map[string]interface{})
+	c.StorageConfig["io.olric.document-store"] = map[string]interface{}{
+		"foobar": "barfoo",
+	}
+	c.StorageConfig["io.olric.kvstore"] = map[string]interface{}{
+		"tableSize": 102134,
+	}
+
 	c.Client.DialTimeout = 10 * time.Second
 	c.Client.ReadTimeout = 3 * time.Second
 	c.Client.WriteTimeout = 3 * time.Second
@@ -168,19 +176,21 @@ func TestConfig(t *testing.T) {
 	c.MemberlistConfig.HandoffQueueDepth = 1024
 	c.MemberlistConfig.UDPBufferSize = 1400
 
-	c.Cache.NumEvictionWorkers = 1
-	c.Cache.TTLDuration = 100 * time.Second
-	c.Cache.MaxKeys = 100000
-	c.Cache.MaxInuse = 1000000
-	c.Cache.LRUSamples = 10
-	c.Cache.EvictionPolicy = LRUEviction
+	c.DMaps.NumEvictionWorkers = 1
+	c.DMaps.TTLDuration = 100 * time.Second
+	c.DMaps.MaxKeys = 100000
+	c.DMaps.MaxInuse = 1000000
+	c.DMaps.LRUSamples = 10
+	c.DMaps.EvictionPolicy = LRUEviction
+	c.DMaps.StorageEngine = DefaultStorageEngine
 
-	c.Cache.DMapConfigs = map[string]DMapCacheConfig{"foobar": {
+	c.DMaps.Custom = map[string]DMap{"foobar": {
 		MaxIdleDuration: 60 * time.Second,
 		TTLDuration:     300 * time.Second,
 		MaxKeys:         500000,
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
+		StorageEngine:   "io.olric.document-store",
 	}}
 
 	c.ServiceDiscovery = make(map[string]interface{})
@@ -197,8 +207,6 @@ func TestConfig(t *testing.T) {
 	lc.LogOutput = nil
 	c.Logger = nil
 	lc.Logger = nil
-
-	fmt.Println(lc.StorageConfig)
 
 	if !reflect.DeepEqual(lc, c) {
 		t.Fatalf("Expected true. Got: false")

@@ -17,12 +17,12 @@ package kvstore
 import (
 	"bytes"
 	"fmt"
-	"github.com/buraksezer/olric/internal/storage"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/storage"
 	"github.com/cespare/xxhash"
 )
 

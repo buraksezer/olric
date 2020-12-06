@@ -29,8 +29,8 @@ func (db *Olric) evictKeysAtBackground() {
 	defer db.wg.Done()
 
 	num := int64(runtime.NumCPU())
-	if db.config.Cache != nil && db.config.Cache.NumEvictionWorkers != 0 {
-		num = db.config.Cache.NumEvictionWorkers
+	if db.config.DMaps != nil && db.config.DMaps.NumEvictionWorkers != 0 {
+		num = db.config.DMaps.NumEvictionWorkers
 	}
 	sem := semaphore.NewWeighted(num)
 	for {

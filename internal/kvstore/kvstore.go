@@ -56,12 +56,12 @@ func New(options *storage.Options) (*KVStore, error) {
 	return kv, nil
 }
 
-func (kv *KVStore) GetInstance(options *storage.Options) (storage.Engine, error) {
-	return New(options)
+func (kv *KVStore) Fork() (storage.Engine, error) {
+	return New(kv.options)
 }
 
 func (kv *KVStore) Name() string {
-	return "olric.kvstore"
+	return "io.olric.kvstore"
 }
 
 func (kv *KVStore) NewEntry() storage.Entry {

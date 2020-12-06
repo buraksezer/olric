@@ -104,6 +104,8 @@ const (
 
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
 	LRUEviction EvictionPolicy = "LRU"
+
+	DefaultStorageEngine = "io.olric.kvstore"
 )
 
 // Config is the configuration to create a Olric instance.
@@ -181,7 +183,7 @@ type Config struct {
 	// at the same time.
 	Logger *log.Logger
 
-	Cache *CacheConfig
+	DMaps *DMaps
 
 	// Minimum size(in-bytes) for append-only file
 	TableSize int
@@ -216,8 +218,9 @@ type Config struct {
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
 
+	// TODO: Find more appropriate names for the following fields
 	Storage       storage.Engine
-	StorageConfig map[string]interface{}
+	StorageConfig map[string]map[string]interface{}
 }
 
 // Validate validates the given configuration.
@@ -390,7 +393,7 @@ func New(env string) *Config {
 		ReadQuorum:        1,
 		MemberCountQuorum: 1,
 		Peers:             []string{},
-		Cache:             &CacheConfig{},
+		DMaps:             &DMaps{},
 	}
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))

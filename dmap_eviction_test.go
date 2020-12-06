@@ -80,7 +80,7 @@ func TestDMap_TTLDuration(t *testing.T) {
 	}()
 
 	// This is not recommended but forgivable for testing.
-	db.config.Cache = &config.CacheConfig{TTLDuration: 10 * time.Millisecond}
+	db.config.DMaps = &config.DMaps{TTLDuration: 10 * time.Millisecond}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -125,7 +125,7 @@ func TestDMap_TTLMaxIdleDuration(t *testing.T) {
 	}()
 
 	// This is not recommended but forgivable for testing.
-	db.config.Cache = &config.CacheConfig{MaxIdleDuration: 10 * time.Millisecond}
+	db.config.DMaps = &config.DMaps{MaxIdleDuration: 10 * time.Millisecond}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -172,7 +172,7 @@ func TestDMap_EvictionPolicyLRUMaxKeys(t *testing.T) {
 
 	// This is not recommended but forgivable for testing.
 	// We have 7 partitions in test setup. So MaxKeys is 10 for every partition.
-	db.config.Cache = &config.CacheConfig{MaxKeys: 70, EvictionPolicy: config.LRUEviction}
+	db.config.DMaps = &config.DMaps{MaxKeys: 70, EvictionPolicy: config.LRUEviction}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -214,7 +214,7 @@ func TestDMap_EvictionPolicyLRUMaxInuse(t *testing.T) {
 
 	// This is not recommended but forgivable for testing.
 	// We have 7 partitions in test setup. So MaxInuse is 293 bytes for every partition.
-	db.config.Cache = &config.CacheConfig{MaxInuse: 2048, EvictionPolicy: config.LRUEviction}
+	db.config.DMaps = &config.DMaps{MaxInuse: 2048, EvictionPolicy: config.LRUEviction}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {

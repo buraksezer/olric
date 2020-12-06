@@ -82,20 +82,31 @@ type memberlist struct {
 	UDPBufferSize           *int     `yaml:"udpBufferSize"`
 }
 
-type cache struct {
-	NumEvictionWorkers int64  `yaml:"numEvictionWorkers"`
-	MaxIdleDuration    string `yaml:"maxIdleDuration"`
-	TTLDuration        string `yaml:"ttlDuration"`
-	MaxKeys            int    `yaml:"maxKeys"`
-	MaxInuse           int    `yaml:"maxInuse"`
-	LRUSamples         int    `yaml:"lruSamples"`
-	EvictionPolicy     string `yaml:"evictionPolicy"`
+type dmap struct {
+	MaxIdleDuration string `yaml:"maxIdleDuration"`
+	TTLDuration     string `yaml:"ttlDuration"`
+	MaxKeys         int    `yaml:"maxKeys"`
+	MaxInuse        int    `yaml:"maxInuse"`
+	LRUSamples      int    `yaml:"lruSamples"`
+	EvictionPolicy  string `yaml:"evictionPolicy"`
+	StorageEngine   string `yaml:"storageEngine"`
 }
 
-type storage struct {
-	Name   string                 `yaml:"name"`
-	Config map[string]interface{} `yaml:"config"`
+type dmaps struct {
+	NumEvictionWorkers int64           `yaml:"numEvictionWorkers"`
+	MaxIdleDuration    string          `yaml:"maxIdleDuration"`
+	TTLDuration        string          `yaml:"ttlDuration"`
+	MaxKeys            int             `yaml:"maxKeys"`
+	MaxInuse           int             `yaml:"maxInuse"`
+	LRUSamples         int             `yaml:"lruSamples"`
+	EvictionPolicy     string          `yaml:"evictionPolicy"`
+	StorageEngine      string          `yaml:"storageEngine"`
+	Custom             map[string]dmap `yaml:"custom"`
 }
+
+type storage map[string]map[string]interface{}
+
+type serviceDiscovery map[string]interface{}
 
 // Loader is the main configuration struct
 type Loader struct {
@@ -103,10 +114,9 @@ type Loader struct {
 	Logging          logging
 	Olricd           olricd
 	Client           client
-	Cache            cache
-	DMaps            map[string]cache       `yaml:"dmaps"`
-	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
-	Storage          []storage                `yaml:"storage"`
+	DMaps            dmaps            `yaml:"dmaps"`
+	ServiceDiscovery serviceDiscovery `yaml:"serviceDiscovery"`
+	Storage          storage          `yaml:"storage"`
 }
 
 func New(data []byte) (*Loader, error) {

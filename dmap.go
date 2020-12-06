@@ -55,7 +55,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	// create a new map here.
 	nm := &dmap{}
-	if db.config.Cache != nil {
+	if db.config.DMaps != nil {
 		err := db.setCacheConfiguration(nm, name)
 		if err != nil {
 			return nil, err
@@ -63,7 +63,7 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	}
 	var err error
 	// rebalancer code may send a storage instance for the new dmap. Just use it.
-	nm.storage, err = db.storage.GetInstance(db.storageOptions)
+	nm.storage, err = db.storage.Fork()
 	if err != nil {
 		return nil, err
 	}
