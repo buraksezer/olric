@@ -24,7 +24,7 @@ import (
 type dmap struct {
 	sync.RWMutex
 
-	cache   *cache
+	config  *dmapConfig
 	storage storage.Engine
 }
 
@@ -56,7 +56,7 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	// create a new map here.
 	nm := &dmap{}
 	if db.config.DMaps != nil {
-		err := db.setCacheConfiguration(nm, name)
+		err := db.setDMapConfiguration(nm, name)
 		if err != nil {
 			return nil, err
 		}

@@ -108,6 +108,8 @@ const (
 	DefaultStorageEngine = "io.olric.kvstore"
 )
 
+type StorageEngine map[string]map[string]interface{}
+
 // Config is the configuration to create a Olric instance.
 type Config struct {
 	// Interface denotes a binding interface. It can be used instead of BindAddr if the interface is known but not the address.
@@ -218,9 +220,8 @@ type Config struct {
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
 
-	// TODO: Find more appropriate names for the following fields
 	Storage       storage.Engine
-	StorageConfig map[string]map[string]interface{}
+	StorageEngine StorageEngine
 }
 
 // Validate validates the given configuration.

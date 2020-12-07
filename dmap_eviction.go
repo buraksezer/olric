@@ -136,42 +136,42 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 }
 
 func (dm *dmap) updateAccessLog(hkey uint64) {
-	if dm.cache == nil || dm.cache.accessLog == nil {
+	if dm.config == nil || dm.config.accessLog == nil {
 		// Fail early. This's useful to avoid checking the configuration everywhere.
 		return
 	}
-	dm.cache.Lock()
-	defer dm.cache.Unlock()
-	dm.cache.accessLog[hkey] = time.Now().UnixNano()
+	dm.config.Lock()
+	defer dm.config.Unlock()
+	dm.config.accessLog[hkey] = time.Now().UnixNano()
 }
 
 func (dm *dmap) deleteAccessLog(hkey uint64) {
-	if dm.cache == nil || dm.cache.accessLog == nil {
+	if dm.config == nil || dm.config.accessLog == nil {
 		return
 	}
-	dm.cache.Lock()
-	defer dm.cache.Unlock()
-	delete(dm.cache.accessLog, hkey)
+	dm.config.Lock()
+	defer dm.config.Unlock()
+	delete(dm.config.accessLog, hkey)
 }
 
 func (dm *dmap) isKeyIdle(hkey uint64) bool {
-	if dm.cache == nil {
+	if dm.config == nil {
 		return false
 	}
-	if dm.cache.accessLog == nil || dm.cache.maxIdleDuration.Nanoseconds() == 0 {
+	if dm.config.accessLog == nil || dm.config.maxIdleDuration.Nanoseconds() == 0 {
 		return false
 	}
 	// Maximum time in seconds for each entry to stay idle in the map.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period
 	// exceeds this limit are expired and evicted automatically.
-	dm.cache.RLock()
-	defer dm.cache.RUnlock()
-	t, ok := dm.cache.accessLog[hkey]
+	dm.config.RLock()
+	defer dm.config.RUnlock()
+	t, ok := dm.config.accessLog[hkey]
 	if !ok {
 		return false
 	}
-	ttl := (dm.cache.maxIdleDuration.Nanoseconds() + t) / 1000000
+	ttl := (dm.config.maxIdleDuration.Nanoseconds() + t) / 1000000
 	return isKeyExpired(ttl)
 }
 
@@ -183,10 +183,10 @@ type lruItem struct {
 func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 	idx := 1
 	items := []lruItem{}
-	dm.cache.RLock()
+	dm.config.RLock()
 	// Pick random items from the distributed map and sort them by accessedAt.
-	for hkey, accessedAt := range dm.cache.accessLog {
-		if idx >= dm.cache.lruSamples {
+	for hkey, accessedAt := range dm.config.accessLog {
+		if idx >= dm.config.lruSamples {
 			break
 		}
 		idx++
@@ -196,7 +196,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 		}
 		items = append(items, i)
 	}
-	dm.cache.RUnlock()
+	dm.config.RUnlock()
 
 	if len(items) == 0 {
 		return fmt.Errorf("nothing found to expire with LRU")

@@ -156,6 +156,11 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
+	sc := make(StorageEngine)
+	for key, value := range c.Storage {
+		sc[key] = value
+	}
+
 	cfg := &Config{
 		BindAddr:            c.Olricd.BindAddr,
 		BindPort:            c.Olricd.BindPort,
@@ -175,17 +180,17 @@ func Load(filename string) (*Config, error) {
 		ReplicationMode:     c.Olricd.ReplicationMode,
 		ReadRepair:          c.Olricd.ReadRepair,
 		LoadFactor:          c.Olricd.LoadFactor,
-		MemberCountQuorum:   c.Olricd.MemberCountQuorum,
-		Logger:              log.New(logOutput, "", log.LstdFlags),
-		LogOutput:           logOutput,
-		LogVerbosity:        c.Logging.Verbosity,
-		Hasher:              hasher.NewDefaultHasher(),
-		Serializer:          sr,
-		KeepAlivePeriod:     keepAlivePeriod,
-		BootstrapTimeout:    bootstrapTimeout,
-		DMaps:               dmapConfig,
-		TableSize:           c.Olricd.TableSize,
-		StorageConfig:       c.Storage,
+		MemberCountQuorum: c.Olricd.MemberCountQuorum,
+		Logger:            log.New(logOutput, "", log.LstdFlags),
+		LogOutput:         logOutput,
+		LogVerbosity:      c.Logging.Verbosity,
+		Hasher:            hasher.NewDefaultHasher(),
+		Serializer:        sr,
+		KeepAlivePeriod:   keepAlivePeriod,
+		BootstrapTimeout:  bootstrapTimeout,
+		DMaps:             dmapConfig,
+		TableSize:         c.Olricd.TableSize,
+		StorageEngine:     sc,
 	}
 
 	if err := cfg.Sanitize(); err != nil {

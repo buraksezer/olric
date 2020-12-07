@@ -141,11 +141,11 @@ func TestConfig(t *testing.T) {
 	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
 
-	c.StorageConfig = make(map[string]map[string]interface{})
-	c.StorageConfig["io.olric.document-store"] = map[string]interface{}{
+	c.StorageEngine = make(map[string]map[string]interface{})
+	c.StorageEngine["io.olric.document-store"] = map[string]interface{}{
 		"foobar": "barfoo",
 	}
-	c.StorageConfig["io.olric.kvstore"] = map[string]interface{}{
+	c.StorageEngine["io.olric.kvstore"] = map[string]interface{}{
 		"tableSize": 102134,
 	}
 

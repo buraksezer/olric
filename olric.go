@@ -87,7 +87,7 @@ type members struct {
 	m   map[uint64]discovery.Member
 }
 
-// Olric implements a distributed, in-memory and embeddable key/value store and cache.
+// Olric implements a distributed, in-memory and embeddable key/value store and config.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
@@ -142,7 +142,8 @@ type Olric struct {
 	streams *streams
 
 	// Storage engine
-	storage        storage.Engine
+	storage       storage.Engine
+	engineConfigs map[string]*storage.Options
 
 	// Structures for flow control
 	ctx    context.Context
@@ -196,6 +197,7 @@ func New(c *config.Config) (*Olric, error) {
 	if c.LogLevel == "DEBUG" {
 		flogger.ShowLineNumber(1)
 	}
+
 	// Start a concurrent TCP server
 	sc := &transport.ServerConfig{
 		BindAddr:        c.BindAddr,
@@ -203,28 +205,38 @@ func New(c *config.Config) (*Olric, error) {
 		KeepAlivePeriod: c.KeepAlivePeriod,
 		GracefulPeriod:  10 * time.Second,
 	}
+
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
-		name:       c.MemberlistConfig.Name,
-		ctx:        ctx,
-		cancel:     cancel,
-		log:        flogger,
-		config:     c,
-		hasher:     c.Hasher,
-		locker:     locker.New(),
-		storage:    c.Storage,
-		serializer: c.Serializer,
-		consistent: consistent.New(nil, cfg),
-		client:     client,
-		partitions: make(map[uint64]*partition),
-		backups:    make(map[uint64]*partition),
-		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
-		server:     srv,
-		members:    members{m: make(map[uint64]discovery.Member)},
-		dtopic:     newDTopic(ctx),
-		streams:    &streams{m: make(map[uint64]*stream)},
-		started:    c.Started,
+		name:          c.MemberlistConfig.Name,
+		ctx:           ctx,
+		cancel:        cancel,
+		log:           flogger,
+		config:        c,
+		hasher:        c.Hasher,
+		locker:        locker.New(),
+		storage:       c.Storage,
+		serializer:    c.Serializer,
+		consistent:    consistent.New(nil, cfg),
+		client:        client,
+		partitions:    make(map[uint64]*partition),
+		backups:       make(map[uint64]*partition),
+		operations:    make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
+		server:        srv,
+		members:       members{m: make(map[uint64]discovery.Member)},
+		dtopic:        newDTopic(ctx),
+		streams:       &streams{m: make(map[uint64]*stream)},
+		engineConfigs: make(map[string]*storage.Options),
+		started:       c.Started,
+	}
+
+	for name, items := range db.config.StorageEngine {
+		opt := storage.NewOptions()
+		for key, value := range items {
+			opt.Add(key, value)
+		}
+		db.engineConfigs[name] = opt
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
