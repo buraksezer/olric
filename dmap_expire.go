@@ -21,12 +21,12 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 func (db *Olric) localExpire(hkey uint64, dm *dmap, w *writeop) error {
 	ttl := getTTL(w.timeout)
-	entry := db.storage.NewEntry()
+	entry := dm.storage.NewEntry()
 	entry.SetTimestamp(w.timestamp)
 	entry.SetTTL(ttl)
 	err := dm.storage.UpdateTTL(hkey, entry)

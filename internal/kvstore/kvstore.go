@@ -18,7 +18,7 @@ package kvstore
 import (
 	"regexp"
 
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -33,17 +33,17 @@ const (
 // The allocated memory is not a subject of Golang's GC.
 type KVStore struct {
 	tables  []*table
-	options *storage.Options
+	options *storage.Config
 }
 
-func DefaultOptions() *storage.Options {
-	options := storage.NewOptions()
+func DefaultOptions() *storage.Config {
+	options := storage.NewConfig(nil)
 	options.Add("TableSize", minimumSize)
 	return options
 }
 
 // New creates a new KVStore instance.
-func New(options *storage.Options) (*KVStore, error) {
+func New(options *storage.Config) (*KVStore, error) {
 	size, err := options.Get("TableSize")
 	if err != nil {
 		return nil, err
@@ -56,12 +56,25 @@ func New(options *storage.Options) (*KVStore, error) {
 	return kv, nil
 }
 
+func (kv *KVStore) SetConfig(options *storage.Config) {
+	kv.options = options
+}
+
 func (kv *KVStore) Fork() (storage.Engine, error) {
-	return New(kv.options)
+	size, err := kv.options.Get("TableSize")
+	if err != nil {
+		return nil, err
+	}
+	child := &KVStore{
+		options: kv.options,
+	}
+	t := newTable(size.(int))
+	child.tables = append(kv.tables, t)
+	return child, nil
 }
 
 func (kv *KVStore) Name() string {
-	return "io.olric.kvstore"
+	return "olric.kvstore"
 }
 
 func (kv *KVStore) NewEntry() storage.Entry {
@@ -303,11 +316,11 @@ func (kv *KVStore) Import(data []byte) (storage.Engine, error) {
 
 	options := kv.options.Copy()
 	options.Add("TableSize", tr.Allocated)
-	fresh, err := New(options)
+	fresh, err := kv.Fork()
 	if err != nil {
 		return nil, err
 	}
-	t := fresh.tables[0]
+	t := fresh.(*KVStore).tables[0]
 	t.hkeys = tr.HKeys
 	t.offset = tr.Offset
 	t.inuse = tr.Inuse

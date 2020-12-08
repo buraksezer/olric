@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"plugin"
 
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 type StorageEngines struct {

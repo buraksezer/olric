@@ -38,9 +38,9 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
@@ -85,6 +85,11 @@ var requiredCheckpoints int32 = 2
 type members struct {
 	mtx sync.RWMutex
 	m   map[uint64]discovery.Member
+}
+
+type storageEngines struct {
+	engines map[string]storage.Engine
+	configs map[string]map[string]interface{}
 }
 
 // Olric implements a distributed, in-memory and embeddable key/value store and config.
@@ -141,9 +146,8 @@ type Olric struct {
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams
 
-	// Storage engine
-	storage       storage.Engine
-	engineConfigs map[string]*storage.Options
+	// Map of storage engines
+	storageEngines *storageEngines
 
 	// Structures for flow control
 	ctx    context.Context
@@ -209,34 +213,45 @@ func New(c *config.Config) (*Olric, error) {
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
-		name:          c.MemberlistConfig.Name,
-		ctx:           ctx,
-		cancel:        cancel,
-		log:           flogger,
-		config:        c,
-		hasher:        c.Hasher,
-		locker:        locker.New(),
-		storage:       c.Storage,
-		serializer:    c.Serializer,
-		consistent:    consistent.New(nil, cfg),
-		client:        client,
-		partitions:    make(map[uint64]*partition),
-		backups:       make(map[uint64]*partition),
-		operations:    make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
-		server:        srv,
-		members:       members{m: make(map[uint64]discovery.Member)},
-		dtopic:        newDTopic(ctx),
-		streams:       &streams{m: make(map[uint64]*stream)},
-		engineConfigs: make(map[string]*storage.Options),
-		started:       c.Started,
+		name:       c.MemberlistConfig.Name,
+		ctx:        ctx,
+		cancel:     cancel,
+		log:        flogger,
+		config:     c,
+		hasher:     c.Hasher,
+		locker:     locker.New(),
+		serializer: c.Serializer,
+		consistent: consistent.New(nil, cfg),
+		client:     client,
+		partitions: make(map[uint64]*partition),
+		backups:    make(map[uint64]*partition),
+		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
+		server:     srv,
+		members:    members{m: make(map[uint64]discovery.Member)},
+		dtopic:     newDTopic(ctx),
+		streams:    &streams{m: make(map[uint64]*stream)},
+		storageEngines: &storageEngines{
+			engines: make(map[string]storage.Engine),
+			configs: make(map[string]map[string]interface{}),
+		},
+		started: c.Started,
 	}
 
-	for name, items := range db.config.StorageEngines.Config {
-		opt := storage.NewOptions()
-		for key, value := range items {
-			opt.Add(key, value)
+	// TODO: Move the following block to a dedicated function
+	db.storageEngines.configs = db.config.StorageEngines.Config
+	db.storageEngines.engines = db.config.StorageEngines.Engines
+	for _, pluginPath := range db.config.StorageEngines.Plugins {
+		engine, err := storage.LoadAsPlugin(pluginPath)
+		if err != nil {
+			return nil, err
 		}
-		db.engineConfigs[name] = opt
+		db.storageEngines.engines[engine.Name()] = engine
+	}
+
+	for e, ec := range db.config.StorageEngines.Config {
+		engine := db.storageEngines.engines[e]
+		engine.SetConfig(storage.NewConfig(ec))
+		db.log.V(2).Printf("[INFO] Enabled storage engine: %s", engine.Name())
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)

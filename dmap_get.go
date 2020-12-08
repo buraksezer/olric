@@ -21,9 +21,13 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 )
+
+// TODO: kvstore.NewEntry should not be used to create a new entry instance here. The DMap functions will be moved to
+// their own DMap struct and all they can access their own dmap instance without hacking.
 
 // Entry is a DMap entry with its metadata.
 type Entry struct {
@@ -62,7 +66,7 @@ func (db *Olric) lookupOnPreviousOwner(owner *discovery.Member, name, key string
 	if err != nil {
 		return nil, err
 	}
-	data := db.storage.NewEntry()
+	data := kvstore.NewEntry()
 	data.Decode(resp.Value())
 	v.entry = data
 	return v, nil
@@ -159,7 +163,7 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 				db.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
 			}
 		} else {
-			data := db.storage.NewEntry()
+			data := kvstore.NewEntry()
 			data.Decode(resp.Value())
 			ver.entry = data
 		}
@@ -285,7 +289,7 @@ func (db *Olric) get(name, key string) (storage.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entry := db.storage.NewEntry()
+	entry := kvstore.NewEntry()
 	entry.Decode(resp.Value())
 	return entry, nil
 }

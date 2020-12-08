@@ -13,11 +13,10 @@ olricd:
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
-storage:
-  io.olric.kvstore:
-    tableSize: 102134
-  io.olric.docstore:
-    foobar: "barfoo"
+storageEngines:
+  config:
+    olric.kvstore:
+      tableSize: 102134
 
 client:
   dialTimeout: "-1s"

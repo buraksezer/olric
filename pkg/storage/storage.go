@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package storage // import "github.com/buraksezer/olric/pkg/storage"
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"plugin"
+)
 
 // ErrFragmented is an error that indicates this storage instance is currently
 // fragmented and it cannot be serialized.
@@ -41,6 +45,7 @@ type Entry interface {
 }
 
 type Engine interface {
+	SetConfig(*Config)
 	NewEntry() Entry
 	Name() string
 	Fork() (Engine, error)
@@ -63,4 +68,20 @@ type Engine interface {
 	MatchOnKey(string, func(uint64, Entry) bool) error
 	CompactTables() bool
 	Close() error
+}
+
+func LoadAsPlugin(pluginPath string) (Engine, error) {
+	plug, err := plugin.Open(pluginPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open plugin: %w", err)
+	}
+	tmp, err := plug.Lookup("StorageEngines")
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup StorageEngines symbol: %w", err)
+	}
+	impl, ok := tmp.(Engine)
+	if !ok {
+		return nil, fmt.Errorf("unable to assert type to StorageEngines")
+	}
+	return impl, nil
 }

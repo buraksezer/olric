@@ -22,7 +22,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -98,7 +98,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 	defer dm.Unlock()
 	defer part.m.Store(data.Name, dm)
 
-	engine, err := db.storage.Import(data.Payload)
+	engine, err := dm.storage.Import(data.Payload)
 	if err != nil {
 		return err
 	}

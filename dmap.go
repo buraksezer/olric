@@ -15,9 +15,10 @@
 package olric
 
 import (
+	"fmt"
 	"sync"
 
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 // dmap defines the internal representation of a dmap.
@@ -63,7 +64,11 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	}
 	var err error
 	// rebalancer code may send a storage instance for the new dmap. Just use it.
-	nm.storage, err = db.storage.Fork()
+	engine, ok := db.storageEngines.engines[nm.config.storageEngine]
+	if !ok {
+		return nil, fmt.Errorf("storage engine could not be found: %s", nm.config.storageEngine)
+	}
+	nm.storage, err = engine.Fork()
 	if err != nil {
 		return nil, err
 	}

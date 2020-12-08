@@ -42,9 +42,9 @@ storageEngines:
   plugins:
     - /path/to/plugin.so
   config:
-    io.olric.kvstore:
+    olric.kvstore:
       tableSize: 102134
-    io.olric.document-store:
+    olric.document-store:
       foobar: "barfoo"
 
 client:
@@ -90,7 +90,7 @@ dmaps:
   maxInuse: 1000000
   lruSamples: 10
   evictionPolicy: "LRU"
-  storageEngine: "io.olric.kvstore"
+  storageEngine: "olric.kvstore"
   custom:
     foobar:
       maxIdleDuration: "60s"
@@ -98,7 +98,7 @@ dmaps:
       maxKeys: 500000
       lruSamples: 20
       evictionPolicy: "NONE"
-      storageEngine: "io.olric.document-store"
+      storageEngine: "olric.document-store"
 
 
 serviceDiscovery:
@@ -146,10 +146,10 @@ func TestConfig(t *testing.T) {
 
 	c.StorageEngines = NewStorageEngine()
 	c.StorageEngines.Plugins = []string{"/path/to/plugin.so"}
-	c.StorageEngines.Config["io.olric.document-store"] = map[string]interface{}{
+	c.StorageEngines.Config["olric.document-store"] = map[string]interface{}{
 		"foobar": "barfoo",
 	}
-	c.StorageEngines.Config["io.olric.kvstore"] = map[string]interface{}{
+	c.StorageEngines.Config["olric.kvstore"] = map[string]interface{}{
 		"tableSize": 102134,
 	}
 
@@ -194,7 +194,7 @@ func TestConfig(t *testing.T) {
 		MaxKeys:         500000,
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
-		StorageEngine:   "io.olric.document-store",
+		StorageEngine:   "olric.document-store",
 	}}
 
 	c.ServiceDiscovery = make(map[string]interface{})

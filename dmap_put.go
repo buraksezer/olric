@@ -22,7 +22,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
 )
 
@@ -132,7 +132,7 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	if w.timeout.Seconds() != 0 {
 		ttl = getTTL(w.timeout)
 	}
-	entry := db.storage.NewEntry()
+	entry := dm.storage.NewEntry()
 	entry.SetKey(w.key)
 	entry.SetValue(w.value)
 	entry.SetTTL(ttl)

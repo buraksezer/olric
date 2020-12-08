@@ -19,47 +19,50 @@ import (
 	"sync"
 )
 
-type Options struct {
+type Config struct {
 	m map[string]interface{}
 	sync.RWMutex
 }
 
-func NewOptions() *Options {
-	return &Options{
-		m: make(map[string]interface{}),
+func NewConfig(cfg map[string]interface{}) *Config {
+	if cfg == nil {
+		cfg = make(map[string]interface{})
+	}
+	return &Config{
+		m: cfg,
 	}
 }
 
-func (o *Options) Add(key string, value interface{}) {
-	o.Lock()
-	defer o.Unlock()
-	o.m[key] = value
+func (c *Config) Add(key string, value interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.m[key] = value
 }
 
-func (o *Options) Get(key string) (interface{}, error) {
-	o.Lock()
-	defer o.Unlock()
-	value, ok := o.m[key]
+func (c *Config) Get(key string) (interface{}, error) {
+	c.Lock()
+	defer c.Unlock()
+	value, ok := c.m[key]
 	if !ok {
 		return nil, fmt.Errorf("not found: %s", key)
 	}
 	return value, nil
 }
 
-func (o *Options) Delete(key string) {
-	o.Lock()
-	defer o.Unlock()
-	delete(o.m, key)
+func (c *Config) Delete(key string) {
+	c.Lock()
+	defer c.Unlock()
+	delete(c.m, key)
 }
 
-func (o *Options) Copy() *Options {
-	o.Lock()
-	defer o.Unlock()
-	n := &Options{
+func (c *Config) Copy() *Config {
+	c.Lock()
+	defer c.Unlock()
+	n := &Config{
 		m: make(map[string]interface{}),
 	}
-	for key, value := range o.m {
-		o.m[key] = value
+	for key, value := range c.m {
+		c.m[key] = value
 	}
 	return n
 }

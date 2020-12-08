@@ -24,8 +24,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/hasher"
-	"github.com/buraksezer/olric/internal/kvstore"
-	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/memberlist"
@@ -105,7 +103,7 @@ const (
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
 	LRUEviction EvictionPolicy = "LRU"
 
-	DefaultStorageEngine = "io.olric.kvstore"
+	DefaultStorageEngine = "olric.kvstore"
 )
 
 // Config is the configuration to create a Olric instance.
@@ -218,7 +216,6 @@ type Config struct {
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
 
-	Storage        storage.Engine
 	StorageEngines *StorageEngines
 }
 
@@ -326,15 +323,7 @@ func (c *Config) Sanitize() error {
 	if c.TableSize == 0 {
 		c.TableSize = DefaultTableSize
 	}
-	if c.Storage == nil {
-		// Use default storage engine
-		cfg := kvstore.DefaultOptions()
-		s, err := kvstore.New(cfg)
-		if err != nil {
-			return err
-		}
-		c.Storage = s
-	}
+
 	if c.BootstrapTimeout == 0*time.Second {
 		c.BootstrapTimeout = DefaultBootstrapTimeout
 	}
