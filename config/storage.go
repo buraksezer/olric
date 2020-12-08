@@ -24,14 +24,14 @@ import (
 
 type StorageEngines struct {
 	Plugins []string
-	Engines map[string]storage.Engine
+	Impls   map[string]storage.Engine
 	Config  map[string]map[string]interface{}
 }
 
 func NewStorageEngine() *StorageEngines {
 	return &StorageEngines{
 		Plugins: []string{},
-		Engines: make(map[string]storage.Engine),
+		Impls:   make(map[string]storage.Engine),
 		Config:  make(map[string]map[string]interface{}),
 	}
 }
@@ -61,9 +61,9 @@ func (s *StorageEngines) Register(engine interface{}) error {
 		return errors.New("cannot register the default storage engine")
 	}
 
-	if _, ok := s.Engines[impl.Name()]; ok {
+	if _, ok := s.Impls[impl.Name()]; ok {
 		return fmt.Errorf("already registered: %s", impl.Name())
 	}
-	s.Engines[impl.Name()] = impl
+	s.Impls[impl.Name()] = impl
 	return nil
 }

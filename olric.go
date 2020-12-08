@@ -239,7 +239,7 @@ func New(c *config.Config) (*Olric, error) {
 
 	// TODO: Move the following block to a dedicated function
 	db.storageEngines.configs = db.config.StorageEngines.Config
-	db.storageEngines.engines = db.config.StorageEngines.Engines
+	db.storageEngines.engines = db.config.StorageEngines.Impls
 	for _, pluginPath := range db.config.StorageEngines.Plugins {
 		engine, err := storage.LoadAsPlugin(pluginPath)
 		if err != nil {
