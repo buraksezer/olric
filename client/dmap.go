@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 // dmap provides methods to access distributed maps on Olric cluster.

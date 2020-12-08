@@ -21,6 +21,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 )
+
 // TODO: accessLog should be moved to its own struct
 // TODO: dmapConfig will be renamed dmap.Config after refactoring. See #70 for details.
 
@@ -35,7 +36,7 @@ type dmapConfig struct {
 	accessLog       map[uint64]int64
 	lruSamples      int
 	evictionPolicy  config.EvictionPolicy
-	storageEngine string
+	storageEngine   string
 }
 
 func (db *Olric) setDMapConfiguration(dm *dmap, name string) error {

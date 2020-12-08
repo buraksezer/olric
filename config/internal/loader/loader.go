@@ -104,9 +104,12 @@ type dmaps struct {
 	Custom             map[string]dmap `yaml:"custom"`
 }
 
-type storage map[string]map[string]interface{}
-
 type serviceDiscovery map[string]interface{}
+
+type storageEngines struct {
+	Plugins []string                          `yaml:"plugins"`
+	Config  map[string]map[string]interface{} `yaml:"config"`
+}
 
 // Loader is the main configuration struct
 type Loader struct {
@@ -116,7 +119,7 @@ type Loader struct {
 	Client           client
 	DMaps            dmaps            `yaml:"dmaps"`
 	ServiceDiscovery serviceDiscovery `yaml:"serviceDiscovery"`
-	Storage          storage          `yaml:"storage"`
+	StorageEngines   storageEngines   `yaml:"storageEngines"`
 }
 
 func New(data []byte) (*Loader, error) {

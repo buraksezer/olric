@@ -58,7 +58,7 @@ func (o *Options) Copy() *Options {
 	n := &Options{
 		m: make(map[string]interface{}),
 	}
-	for key, value := range o.m{
+	for key, value := range o.m {
 		o.m[key] = value
 	}
 	return n

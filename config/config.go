@@ -16,7 +16,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"io"
 	"log"
 	"net"
@@ -25,6 +24,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/hasher"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
@@ -107,8 +107,6 @@ const (
 
 	DefaultStorageEngine = "io.olric.kvstore"
 )
-
-type StorageEngine map[string]map[string]interface{}
 
 // Config is the configuration to create a Olric instance.
 type Config struct {
@@ -220,8 +218,8 @@ type Config struct {
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
 
-	Storage       storage.Engine
-	StorageEngine StorageEngine
+	Storage        storage.Engine
+	StorageEngines *StorageEngines
 }
 
 // Validate validates the given configuration.
@@ -395,6 +393,7 @@ func New(env string) *Config {
 		MemberCountQuorum: 1,
 		Peers:             []string{},
 		DMaps:             &DMaps{},
+		StorageEngines:    NewStorageEngine(),
 	}
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))

@@ -231,7 +231,7 @@ func New(c *config.Config) (*Olric, error) {
 		started:       c.Started,
 	}
 
-	for name, items := range db.config.StorageEngine {
+	for name, items := range db.config.StorageEngines.Config {
 		opt := storage.NewOptions()
 		for key, value := range items {
 			opt.Add(key, value)

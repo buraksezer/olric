@@ -38,11 +38,14 @@ var testConfig = `olricd:
   tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
-storage:
-  io.olric.kvstore:
-    tableSize: 102134
-  io.olric.document-store:
-    foobar: "barfoo"
+storageEngines:
+  plugins:
+    - /path/to/plugin.so
+  config:
+    io.olric.kvstore:
+      tableSize: 102134
+    io.olric.document-store:
+      foobar: "barfoo"
 
 client:
   dialTimeout: "10s"
@@ -141,11 +144,12 @@ func TestConfig(t *testing.T) {
 	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
 
-	c.StorageEngine = make(map[string]map[string]interface{})
-	c.StorageEngine["io.olric.document-store"] = map[string]interface{}{
+	c.StorageEngines = NewStorageEngine()
+	c.StorageEngines.Plugins = []string{"/path/to/plugin.so"}
+	c.StorageEngines.Config["io.olric.document-store"] = map[string]interface{}{
 		"foobar": "barfoo",
 	}
-	c.StorageEngine["io.olric.kvstore"] = map[string]interface{}{
+	c.StorageEngines.Config["io.olric.kvstore"] = map[string]interface{}{
 		"tableSize": 102134,
 	}
 
