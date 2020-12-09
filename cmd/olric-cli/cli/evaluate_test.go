@@ -25,6 +25,7 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/client"
 	"github.com/buraksezer/olric/config"
+	"github.com/hashicorp/memberlist"
 )
 
 var testConfig = &client.Config{
@@ -50,6 +51,10 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
+	mc := memberlist.DefaultLocalConfig()
+	mc.BindPort = 0
+
 	cfg := &config.Config{
 		PartitionCount:    7,
 		BindAddr:          "127.0.0.1",
@@ -58,6 +63,7 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		WriteQuorum:       config.MinimumReplicaCount,
 		ReadQuorum:        config.MinimumReplicaCount,
 		MemberCountQuorum: config.MinimumMemberCountQuorum,
+		MemberlistConfig:  mc,
 	}
 	db, err := olric.New(cfg)
 	if err != nil {
