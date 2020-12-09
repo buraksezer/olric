@@ -98,19 +98,26 @@ func (c *CLI) helpGetPut() {
 	c.print("GetPut atomically sets key to value and returns the old value stored at key.\n")
 }
 
+func (c *CLI) helpGetEntry() {
+	c.print("# GetEntry #\n\n")
+	c.print(">> getentry <key>\n\n")
+	c.print("GetEntry gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key. It's thread-safe.\n")
+}
+
 func (c *CLI) help(cmd string) error {
 	var commands = map[string]func(){
-		"put":     c.helpPut,
-		"putif":   c.helpPutIf,
-		"putex":   c.helpPutEx,
-		"putIfEx": c.helpPutIfEx,
-		"get":     c.helpGet,
-		"expire":  c.helpExpire,
-		"delete":  c.helpDelete,
-		"destroy": c.helpDestroy,
-		"incr":    c.helpIncr,
-		"decr":    c.helpDecr,
-		"getput":  c.helpGetPut,
+		"put":      c.helpPut,
+		"putif":    c.helpPutIf,
+		"putex":    c.helpPutEx,
+		"putIfEx":  c.helpPutIfEx,
+		"get":      c.helpGet,
+		"expire":   c.helpExpire,
+		"delete":   c.helpDelete,
+		"destroy":  c.helpDestroy,
+		"incr":     c.helpIncr,
+		"decr":     c.helpDecr,
+		"getput":   c.helpGetPut,
+		"getentry": c.helpGetEntry,
 	}
 
 	if cmd != "" {

@@ -141,6 +141,22 @@ func TestClient_Put(t *testing.T) {
 	if val.(string) != value {
 		t.Fatalf("Expected value %s. Got: %s", val.(string), value)
 	}
+
+	t.Run("check olric.Entry fields", func(t *testing.T) {
+		entry, err := dm.GetEntry(key)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if entry.Value.(string) != value {
+			t.Fatalf("Expected value %s. Got: %s", entry.Value.(string), value)
+		}
+		if entry.Timestamp == 0 {
+			t.Fatalf("Timestamp is invalid")
+		}
+		if entry.TTL != 0 {
+			t.Fatalf("TTL is invalid")
+		}
+	})
 }
 
 func TestClient_PutEx(t *testing.T) {

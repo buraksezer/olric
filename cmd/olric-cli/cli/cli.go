@@ -49,6 +49,7 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("incr"),
 	readline.PcItem("decr"),
 	readline.PcItem("expire"),
+	readline.PcItem("getentry"),
 )
 
 // CLI defines the command line client for Olric.
