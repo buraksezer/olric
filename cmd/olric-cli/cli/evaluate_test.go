@@ -332,4 +332,15 @@ func TestEvaluate(t *testing.T) {
 			t.Fatalf("Expected olric.ErrKeyNotFound, Got: %v", err)
 		}
 	})
+
+	t.Run("run evalGetEntry", func(t *testing.T) {
+		_ = dm.Put("evalGetEntry-test", "evalGetEntry-test")
+		fields := []string{
+			"evalGetEntry-test",
+		}
+		err := c.evalGetEntry(dm, fields)
+		if err != nil {
+			t.Fatalf("Expected nil, Got: %v", err)
+		}
+	})
 }

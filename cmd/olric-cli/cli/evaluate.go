@@ -15,6 +15,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,18 +26,33 @@ import (
 )
 
 const (
-	cmdPut     string = "put"
-	cmdPutEx   string = "putex"
-	cmdGet     string = "get"
-	cmdDelete  string = "delete"
-	cmdDestroy string = "destroy"
-	cmdExpire  string = "expire"
-	cmdPutIf   string = "putif"
-	cmdPutIfEx string = "putifex"
-	cmdIncr    string = "incr"
-	cmdDecr    string = "decr"
-	cmdGetPut  string = "getput"
+	cmdPut      string = "put"
+	cmdPutEx    string = "putex"
+	cmdGet      string = "get"
+	cmdDelete   string = "delete"
+	cmdDestroy  string = "destroy"
+	cmdExpire   string = "expire"
+	cmdPutIf    string = "putif"
+	cmdPutIfEx  string = "putifex"
+	cmdIncr     string = "incr"
+	cmdDecr     string = "decr"
+	cmdGetPut   string = "getput"
+	cmdGetEntry string = "getentry"
 )
+
+func (c *CLI) evalGetEntry(dm *client.DMap, fields []string) error {
+	key := strings.Join(fields, " ")
+	entry, err := dm.GetEntry(key)
+	if err != nil {
+		return err
+	}
+	text, err := json.MarshalIndent(entry, "", "\t")
+	if err != nil {
+		return err
+	}
+	c.print(fmt.Sprintf("%s\n", text))
+	return nil
+}
 
 func (c *CLI) evalPut(dm *client.DMap, fields []string) error {
 	if len(fields) < 1 {
@@ -227,6 +243,8 @@ func (c *CLI) evaluate(dmap, line string) error {
 		return c.evalPutIf(dm, fields)
 	case cmd == cmdPutIfEx:
 		return c.evalPutIfEx(dm, fields)
+	case cmd == cmdGetEntry:
+		return c.evalGetEntry(dm, fields)
 	default:
 		return fmt.Errorf("invalid command")
 	}
