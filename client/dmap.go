@@ -88,7 +88,7 @@ func (d *DMap) Put(key string, value interface{}) error {
 	req.SetDMap(d.name)
 	req.SetKey(key)
 	req.SetValue(data)
-	req.SetExtra(protocol.PutExExtra{
+	req.SetExtra(protocol.PutExtra{
 		Timestamp: time.Now().UnixNano(),
 	})
 	resp, err := d.request(req)
