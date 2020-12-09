@@ -24,6 +24,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"net"
 	"strconv"
 	"strings"
@@ -237,21 +238,8 @@ func New(c *config.Config) (*Olric, error) {
 		started: c.Started,
 	}
 
-	// TODO: Move the following block to a dedicated function
-	db.storageEngines.configs = db.config.StorageEngines.Config
-	db.storageEngines.engines = db.config.StorageEngines.Impls
-	for _, pluginPath := range db.config.StorageEngines.Plugins {
-		engine, err := storage.LoadAsPlugin(pluginPath)
-		if err != nil {
-			return nil, err
-		}
-		db.storageEngines.engines[engine.Name()] = engine
-	}
-
-	for e, ec := range db.config.StorageEngines.Config {
-		engine := db.storageEngines.engines[e]
-		engine.SetConfig(storage.NewConfig(ec))
-		db.log.V(2).Printf("[INFO] Enabled storage engine: %s", engine.Name())
+	if err = db.initializeAndLoadStorageEngines(); err != nil {
+		return nil, err
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
@@ -271,6 +259,37 @@ func New(c *config.Config) (*Olric, error) {
 
 	db.registerOperations()
 	return db, nil
+}
+
+func (db *Olric) initializeAndLoadStorageEngines() error {
+	db.storageEngines.configs = db.config.StorageEngines.Config
+	db.storageEngines.engines = db.config.StorageEngines.Impls
+	for _, pluginPath := range db.config.StorageEngines.Plugins {
+		engine, err := storage.LoadAsPlugin(pluginPath)
+		if err != nil {
+			return err
+		}
+		db.storageEngines.engines[engine.Name()] = engine
+	}
+
+	if len(db.config.StorageEngines.Impls) == 0 {
+		if _, ok := db.config.StorageEngines.Config[config.DefaultStorageEngine]; !ok {
+			return errors.New("no storage engine defined")
+		}
+		db.storageEngines.engines[config.DefaultStorageEngine] = &kvstore.KVStore{}
+	}
+
+	for name, ec := range db.config.StorageEngines.Config {
+		engine, ok := db.storageEngines.engines[name]
+		if !ok {
+			return fmt.Errorf("storage engine implementation is missing: %s", name)
+		}
+		engine.SetConfig(storage.NewConfig(ec))
+		if err := engine.Start(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (db *Olric) passCheckpoint() {

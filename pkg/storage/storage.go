@@ -31,45 +31,6 @@ var ErrKeyTooLarge = errors.New("key too large")
 // ErrKeyNotFound is an error that indicates that the requested key could not be found in the DB.
 var ErrKeyNotFound = errors.New("key not found")
 
-type Entry interface {
-	SetKey(string)
-	Key() string
-	SetValue([]byte)
-	Value() []byte
-	SetTTL(int64)
-	TTL() int64
-	SetTimestamp(int642 int64)
-	Timestamp() int64
-	Encode() []byte
-	Decode([]byte)
-}
-
-type Engine interface {
-	SetConfig(*Config)
-	NewEntry() Entry
-	Name() string
-	Fork() (Engine, error)
-	PutRaw(uint64, []byte) error
-	Put(uint64, Entry) error
-	GetRaw(uint64) ([]byte, error)
-	Get(uint64) (Entry, error)
-	GetTTL(uint64) (int64, error)
-	GetKey(uint64) (string, error)
-	Delete(uint64) error
-	UpdateTTL(uint64, Entry) error
-	Import([]byte) (Engine, error)
-	Export() ([]byte, error)
-	Len() int
-	Stats() map[string]int
-	NumTables() int
-	Inuse() int
-	Check(uint64) bool
-	Range(func(uint64, Entry) bool)
-	MatchOnKey(string, func(uint64, Entry) bool) error
-	CompactTables() bool
-	Close() error
-}
-
 func LoadAsPlugin(pluginPath string) (Engine, error) {
 	plug, err := plugin.Open(pluginPath)
 	if err != nil {

@@ -188,7 +188,6 @@ func Load(filename string) (*Config, error) {
 		KeepAlivePeriod:     keepAlivePeriod,
 		BootstrapTimeout:    bootstrapTimeout,
 		DMaps:               dmapConfig,
-		TableSize:           c.Olricd.TableSize,
 		StorageEngines:      se,
 	}
 

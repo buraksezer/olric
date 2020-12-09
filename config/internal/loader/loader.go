@@ -31,7 +31,6 @@ type olricd struct {
 	WriteQuorum       int     `yaml:"writeQuorum"`
 	ReadQuorum        int     `yaml:"readQuorum"`
 	ReadRepair        bool    `yaml:"readRepair"`
-	TableSize         int     `yaml:"tableSize"`
 	MemberCountQuorum int32   `yaml:"memberCountQuorum"`
 }
 

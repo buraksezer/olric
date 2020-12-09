@@ -25,48 +25,39 @@ import (
 const (
 	maxGarbageRatio = 0.40
 	// 65kb
-	minimumSize = 1 << 16
+	minimumTableSize = 1 << 16
+	// 1MB
+	defaultTableSize = 1 << 20
 )
 
 // KVStore implements a new off-heap data store which uses built-in map to
 // keep metadata and mmap syscall for allocating memory to store values.
 // The allocated memory is not a subject of Golang's GC.
 type KVStore struct {
-	tables  []*table
-	options *storage.Config
+	tables []*table
+	config *storage.Config
 }
 
-func DefaultOptions() *storage.Config {
+func DefaultConfig() *storage.Config {
 	options := storage.NewConfig(nil)
-	options.Add("TableSize", minimumSize)
+	options.Add("tableSize", defaultTableSize)
 	return options
 }
 
-// New creates a new KVStore instance.
-func New(options *storage.Config) (*KVStore, error) {
-	size, err := options.Get("TableSize")
-	if err != nil {
-		return nil, err
-	}
-	kv := &KVStore{
-		options: options,
-	}
-	t := newTable(size.(int))
-	kv.tables = append(kv.tables, t)
-	return kv, nil
+func (kv *KVStore) SetConfig(c *storage.Config) {
+	kv.config = c
 }
 
-func (kv *KVStore) SetConfig(options *storage.Config) {
-	kv.options = options
-}
+func (kv *KVStore) Start() error { return nil }
 
+// Fork creates a new KVStore instance.
 func (kv *KVStore) Fork() (storage.Engine, error) {
-	size, err := kv.options.Get("TableSize")
+	size, err := kv.config.Get("tableSize")
 	if err != nil {
 		return nil, err
 	}
 	child := &KVStore{
-		options: kv.options,
+		config: kv.config,
 	}
 	t := newTable(size.(int))
 	child.tables = append(kv.tables, t)
@@ -314,8 +305,8 @@ func (kv *KVStore) Import(data []byte) (storage.Engine, error) {
 		return nil, err
 	}
 
-	options := kv.options.Copy()
-	options.Add("TableSize", tr.Allocated)
+	options := kv.config.Copy()
+	options.Add("tableSize", tr.Allocated)
 	fresh, err := kv.Fork()
 	if err != nil {
 		return nil, err

@@ -17,6 +17,7 @@ package olric
 import (
 	"bytes"
 	"context"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"testing"
 	"time"
 
@@ -281,7 +282,12 @@ func TestDMap_PutIfFound(t *testing.T) {
 
 func TestDMap_compactTables(t *testing.T) {
 	cfg := testSingleReplicaConfig()
-	cfg.TableSize = 100 // 100 bytes
+	kv := &kvstore.KVStore{}
+	cfg.StorageEngines.Impls[kv.Name()] = kv
+	cfg.StorageEngines.Config[kv.Name()] = map[string]interface{}{
+		"tableSize": 100,
+	}
+
 	db, err := newDB(cfg)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)

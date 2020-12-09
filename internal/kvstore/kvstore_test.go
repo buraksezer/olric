@@ -36,8 +36,14 @@ func bval(i int) []byte {
 	return []byte(fmt.Sprintf("%025d", i))
 }
 
+func testKVStore() (storage.Engine, error){
+	kv := &KVStore{}
+	kv.SetConfig(DefaultConfig())
+	return kv.Fork()
+}
+
 func Test_Put(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -57,7 +63,7 @@ func Test_Put(t *testing.T) {
 }
 
 func Test_Get(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -98,7 +104,7 @@ func Test_Get(t *testing.T) {
 }
 
 func Test_Delete(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -128,7 +134,7 @@ func Test_Delete(t *testing.T) {
 		}
 	}
 
-	for _, item := range s.tables {
+	for _, item := range s.(*KVStore).tables {
 		if item.inuse != 0 {
 			t.Fatal("inuse is different than 0.")
 		}
@@ -139,7 +145,7 @@ func Test_Delete(t *testing.T) {
 }
 
 func Test_CompactTables(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -203,7 +209,7 @@ func Test_CompactTables(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		storageTestLock.Lock()
-		if len(s.tables) == 1 {
+		if len(s.(*KVStore).tables) == 1 {
 			storageTestLock.Unlock()
 			// It's OK.
 			return
@@ -215,7 +221,7 @@ func Test_CompactTables(t *testing.T) {
 }
 
 func Test_PurgeTables(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -275,7 +281,7 @@ func Test_PurgeTables(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		storageTestLock.Lock()
-		if isFragmented && len(s.tables) == 1 {
+		if isFragmented && len(s.(*KVStore).tables) == 1 {
 			storageTestLock.Unlock()
 			return
 		}
@@ -287,7 +293,7 @@ func Test_PurgeTables(t *testing.T) {
 
 func Test_ExportImport(t *testing.T) {
 	timestamp := time.Now().UnixNano()
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -334,7 +340,7 @@ func Test_ExportImport(t *testing.T) {
 }
 
 func Test_Len(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -357,7 +363,7 @@ func Test_Len(t *testing.T) {
 }
 
 func Test_Range(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -386,7 +392,7 @@ func Test_Range(t *testing.T) {
 }
 
 func Test_Check(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -414,7 +420,7 @@ func Test_Check(t *testing.T) {
 }
 
 func Test_UpdateTTL(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -460,7 +466,7 @@ func Test_UpdateTTL(t *testing.T) {
 }
 
 func Test_GetKey(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -485,7 +491,7 @@ func Test_GetKey(t *testing.T) {
 }
 
 func Test_PutRawGetRaw(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -506,7 +512,7 @@ func Test_PutRawGetRaw(t *testing.T) {
 }
 
 func Test_GetTTL(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -532,7 +538,7 @@ func Test_GetTTL(t *testing.T) {
 }
 
 func TestStorage_MatchOnKey(t *testing.T) {
-	s, err := New(DefaultOptions())
+	s, err := testKVStore()
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

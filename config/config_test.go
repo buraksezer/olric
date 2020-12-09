@@ -35,7 +35,6 @@ var testConfig = `olricd:
   readQuorum: 1
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
-  tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
 
 storageEngines:
@@ -141,7 +140,6 @@ func TestConfig(t *testing.T) {
 	c.ReadQuorum = 1
 	c.ReadRepair = false
 	c.ReplicationMode = SyncReplicationMode
-	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
 
 	c.StorageEngines = NewStorageEngine()

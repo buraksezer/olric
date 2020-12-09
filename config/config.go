@@ -95,9 +95,6 @@ const (
 	// MinimumMemberCountQuorum denotes minimum required count of members to form a cluster.
 	MinimumMemberCountQuorum = 1
 
-	// DefaultTableSize is 1MB if you don't set your own value.
-	DefaultTableSize = 1 << 20
-
 	DefaultLRUSamples int = 5
 
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
@@ -182,9 +179,6 @@ type Config struct {
 	Logger *log.Logger
 
 	DMaps *DMaps
-
-	// Minimum size(in-bytes) for append-only file
-	TableSize int
 
 	JoinRetryInterval time.Duration
 	MaxJoinAttempts   int
@@ -319,9 +313,6 @@ func (c *Config) Sanitize() error {
 		m.BindPort = DefaultDiscoveryPort
 		m.AdvertisePort = DefaultDiscoveryPort
 		c.MemberlistConfig = m
-	}
-	if c.TableSize == 0 {
-		c.TableSize = DefaultTableSize
 	}
 
 	if c.BootstrapTimeout == 0*time.Second {

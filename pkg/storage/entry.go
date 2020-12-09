@@ -12,22 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package storage
 
-import (
-	"github.com/buraksezer/olric/pkg/storage"
-)
-
-type StorageEngines struct {
-	Plugins []string
-	Impls   map[string]storage.Engine
-	Config  map[string]map[string]interface{}
-}
-
-func NewStorageEngine() *StorageEngines {
-	return &StorageEngines{
-		Plugins: []string{},
-		Impls:   make(map[string]storage.Engine),
-		Config:  make(map[string]map[string]interface{}),
-	}
+type Entry interface {
+	SetKey(string)
+	Key() string
+	SetValue([]byte)
+	Value() []byte
+	SetTTL(int64)
+	TTL() int64
+	SetTimestamp(int642 int64)
+	Timestamp() int64
+	Encode() []byte
+	Decode([]byte)
 }

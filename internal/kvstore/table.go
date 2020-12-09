@@ -39,8 +39,8 @@ type table struct {
 }
 
 func newTable(size int) *table {
-	if size < minimumSize {
-		size = minimumSize
+	if size < minimumTableSize {
+		size = minimumTableSize
 	}
 	t := &table{
 		hkeys:     make(map[uint64]int),
