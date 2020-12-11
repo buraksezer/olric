@@ -453,9 +453,13 @@ func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) compactTables(dm *dmap) {
 	defer db.wg.Done()
+	timer := time.NewTimer(50 * time.Millisecond)
+	defer timer.Stop()
+
 	for {
+		timer.Reset(50 * time.Millisecond)
 		select {
-		case <-time.After(50 * time.Millisecond):
+		case <-timer.C:
 			dm.Lock()
 			if done := dm.storage.CompactTables(); done {
 				// Fragmented tables are merged. Quit.
