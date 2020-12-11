@@ -392,9 +392,13 @@ func (db *Olric) startDiscovery() error {
 func (db *Olric) callStartedCallback() {
 	defer db.wg.Done()
 
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+
 	for {
+		timer.Reset(10 *  time.Millisecond)
 		select {
-		case <-time.After(10 * time.Millisecond):
+		case <-timer.C:
 			if requiredCheckpoints == atomic.LoadInt32(&db.passedCheckpoints) {
 				if db.started != nil {
 					db.started()

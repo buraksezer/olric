@@ -156,6 +156,9 @@ func (c *Client) createStream() (uint64, *stream, error) {
 		s.errCh <- createStreamFunction(ctx, addr, s.read, s.write)
 	}()
 
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+
 	select {
 	case err := <-s.errCh:
 		return 0, nil, err
@@ -187,7 +190,7 @@ func (c *Client) createStream() (uint64, *stream, error) {
 		}()
 
 		return streamID, s, nil
-	case <-time.After(5 * time.Second):
+	case <-timer.C:
 		return 0, nil, fmt.Errorf("streamID could not be retrieved")
 	}
 }
