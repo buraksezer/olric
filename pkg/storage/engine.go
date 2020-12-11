@@ -37,6 +37,6 @@ type Engine interface {
 	Check(uint64) bool
 	Range(func(uint64, Entry) bool)
 	MatchOnKey(string, func(uint64, Entry) bool) error
-	CompactTables() bool
+	Compaction() bool
 	Close() error
 }

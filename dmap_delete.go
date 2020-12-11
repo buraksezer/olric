@@ -82,7 +82,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 
@@ -143,7 +143,7 @@ func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 	if err != nil {
@@ -167,7 +167,7 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 	if err != nil {

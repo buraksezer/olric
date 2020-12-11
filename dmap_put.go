@@ -140,7 +140,7 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	err := dm.storage.Put(hkey, entry)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 	if err == nil {
@@ -450,13 +450,13 @@ func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (db *Olric) compactTables(dm *dmap) {
+func (db *Olric) callCompactionOnStorage(dm *dmap) {
 	defer db.wg.Done()
 	for {
 		select {
 		case <-time.After(50 * time.Millisecond):
 			dm.Lock()
-			if done := dm.storage.CompactTables(); done {
+			if done := dm.storage.Compaction(); done {
 				// Fragmented tables are merged. Quit.
 				dm.Unlock()
 				return

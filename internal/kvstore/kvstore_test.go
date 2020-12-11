@@ -153,7 +153,7 @@ func Test_CompactTables(t *testing.T) {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
-			if done := s.CompactTables(); done {
+			if done := s.Compaction(); done {
 				return
 			}
 		}
@@ -231,7 +231,7 @@ func Test_PurgeTables(t *testing.T) {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
-			if done := s.CompactTables(); done {
+			if done := s.Compaction(); done {
 				return
 			}
 		}

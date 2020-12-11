@@ -132,7 +132,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 		mergeErr = dm.storage.Put(hkey, winner)
 		if mergeErr == storage.ErrFragmented {
 			db.wg.Add(1)
-			go db.compactTables(dm)
+			go db.callCompactionOnStorage(dm)
 			mergeErr = nil
 		}
 		if mergeErr != nil {

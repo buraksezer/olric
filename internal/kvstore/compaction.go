@@ -16,7 +16,7 @@ package kvstore
 
 import "log"
 
-func (kv *KVStore) CompactTables() bool {
+func (kv *KVStore) Compaction() bool {
 	if len(kv.tables) == 1 {
 		return true
 	}

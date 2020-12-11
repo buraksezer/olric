@@ -24,7 +24,6 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"net"
 	"strconv"
 	"strings"
@@ -37,6 +36,7 @@ import (
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
