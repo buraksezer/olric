@@ -193,7 +193,12 @@ func (d *Discovery) dialDeadMember(member string) {
 func (d *Discovery) deadMemberTracker() {
 	d.wg.Done()
 
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+
 	for {
+		timer.Reset(time.Second)
+
 		select {
 		case <-d.ctx.Done():
 			return
@@ -207,7 +212,7 @@ func (d *Discovery) deadMemberTracker() {
 				d.log.V(2).Printf("[ERROR] Unknown memberlist event received for: %s: %v",
 					e.NodeName, e.Event)
 			}
-		case <-time.After(time.Second):
+		case <-timer.C:
 			// TODO: make this parametric
 			// Try to reconnect a random dead member every second.
 			// The Go runtime selects a random item in the map

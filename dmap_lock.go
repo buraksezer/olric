@@ -117,11 +117,15 @@ func (db *Olric) tryLock(w *writeop, deadline time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
 
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+
 	// Try to acquire lock.
 LOOP:
 	for {
+		timer.Reset(10 * time.Millisecond)
 		select {
-		case <-time.After(10 * time.Millisecond):
+		case <-timer.C:
 			err = db.put(w)
 			if err == ErrKeyFound {
 				// not released by the other process/goroutine. try again.
