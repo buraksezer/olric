@@ -57,7 +57,7 @@ func TestDMap_TTLEviction(t *testing.T) {
 			part := ins.partitions[partID]
 			part.m.Range(func(k, v interface{}) bool {
 				dm := v.(*dmap)
-				length += dm.storage.Len()
+				length += dm.storage.Stats().Length
 				return true
 			})
 		}
@@ -102,7 +102,7 @@ func TestDMap_TTLDuration(t *testing.T) {
 		part := db.partitions[partID]
 		part.m.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			length += dm.storage.Len()
+			length += dm.storage.Stats().Length
 			return true
 		})
 	}
@@ -148,7 +148,7 @@ func TestDMap_TTLMaxIdleDuration(t *testing.T) {
 		part := db.partitions[partID]
 		part.m.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			length += dm.storage.Len()
+			length += dm.storage.Stats().Length
 			return true
 		})
 	}
@@ -190,7 +190,7 @@ func TestDMap_EvictionPolicyLRUMaxKeys(t *testing.T) {
 		part := db.partitions[partID]
 		part.m.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			keyCount += dm.storage.Len()
+			keyCount += dm.storage.Stats().Length
 			return true
 		})
 	}
@@ -232,7 +232,7 @@ func TestDMap_EvictionPolicyLRUMaxInuse(t *testing.T) {
 		part := db.partitions[partID]
 		part.m.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			keyCount += dm.storage.Len()
+			keyCount += dm.storage.Stats().Length
 			return true
 		})
 	}

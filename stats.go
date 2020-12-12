@@ -57,24 +57,15 @@ func (db *Olric) stats() stats.Stats {
 		}
 		part.m.Range(func(name, dm interface{}) bool {
 			dm.(*dmap).Lock()
+			st := dm.(*dmap).storage.Stats()
+
 			tmp := stats.DMap{
-				Length:    dm.(*dmap).storage.Len(),
-				NumTables: dm.(*dmap).storage.NumTables(),
+				Length:    st.Length,
+				NumTables: st.NumTables,
 			}
-			// TODO: implement this(SlabInfo logic) by using reflection and write unit tests
-			sl := dm.(*dmap).storage.Stats()
-			allocated, ok := sl["allocated"]
-			if ok {
-				tmp.SlabInfo.Allocated = allocated
-			}
-			garbage, ok := sl["allocated"]
-			if ok {
-				tmp.SlabInfo.Garbage = garbage
-			}
-			inuse, ok := sl["inuse"]
-			if ok {
-				tmp.SlabInfo.Inuse = inuse
-			}
+			tmp.SlabInfo.Allocated = st.Allocated
+			tmp.SlabInfo.Garbage = st.Garbage
+			tmp.SlabInfo.Inuse = st.Inuse
 			p.DMaps[name.(string)] = tmp
 			dm.(*dmap).Unlock()
 			return true

@@ -243,6 +243,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 	// But I think that it's good to use only one of time in a production system.
 	// Because it should be easy to understand and debug.
 
+	stats := dm.storage.Stats()
 	// Try to make room for the new item, if it's required.
 	if dm.config != nil && dm.config.evictionPolicy == config.LRUEviction {
 		// This works for every request if you enabled LRU.
@@ -255,7 +256,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 			// We need ownedPartitionCount property because every partition
 			// manages itself independently. So if you set MaxKeys=70 and
 			// your partition count is 7, every partition 10 keys at maximum.
-			if dm.storage.Len() >= dm.config.maxKeys/int(ownedPartitionCount) {
+			if stats.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
 				err := db.evictKeyWithLRU(dm, w.dmap)
 				if err != nil {
 					return err
@@ -269,7 +270,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 			// manages itself independently. So if you set MaxInuse=70M(in bytes) and
 			// your partition count is 7, every partition consumes 10M in-use space at maximum.
 			// WARNING: Actual allocated memory can be different.
-			if dm.storage.Inuse() >= dm.config.maxInuse/int(ownedPartitionCount) {
+			if stats.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
 				err := db.evictKeyWithLRU(dm, w.dmap)
 				if err != nil {
 					return err

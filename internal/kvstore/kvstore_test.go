@@ -36,7 +36,7 @@ func bval(i int) []byte {
 	return []byte(fmt.Sprintf("%025d", i))
 }
 
-func testKVStore() (storage.Engine, error){
+func testKVStore() (storage.Engine, error) {
 	kv := &KVStore{}
 	kv.SetConfig(DefaultConfig())
 	return kv.Fork()
@@ -357,8 +357,8 @@ func Test_Len(t *testing.T) {
 		}
 	}
 
-	if s.Len() != 100 {
-		t.Fatalf("Expected length: 100. Got: %d", s.Len())
+	if s.Stats().Length != 100 {
+		t.Fatalf("Expected length: 100. Got: %d", s.Stats().Length)
 	}
 }
 

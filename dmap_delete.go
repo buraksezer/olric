@@ -27,7 +27,7 @@ func (db *Olric) deleteStaleDMaps() {
 			d := dm.(*dmap)
 			d.Lock()
 			defer d.Unlock()
-			if d.storage.Len() != 0 {
+			if d.storage.Stats().Length != 0 {
 				// Continue scanning.
 				return true
 			}

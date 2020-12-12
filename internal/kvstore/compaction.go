@@ -30,7 +30,7 @@ func (kv *KVStore) Compaction() bool {
 			err := fresh.putRaw(hkey, entry)
 			if err == errNotEnoughSpace {
 				// Create a new table and put the new k/v pair in it.
-				nt := newTable(kv.Inuse() * 2)
+				nt := newTable(kv.Stats().Inuse * 2)
 				kv.tables = append(kv.tables, nt)
 				return false
 			}

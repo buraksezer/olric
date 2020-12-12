@@ -85,7 +85,7 @@ func (kv *KVStore) PutRaw(hkey uint64, value []byte) error {
 		err := t.putRaw(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(kv.Inuse() * 2)
+			nt := newTable(kv.Stats().Inuse * 2)
 			kv.tables = append(kv.tables, nt)
 			res = storage.ErrFragmented
 			// try again
@@ -113,7 +113,7 @@ func (kv *KVStore) Put(hkey uint64, value storage.Entry) error {
 		err := t.put(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(kv.Inuse() * 2)
+			nt := newTable(kv.Stats().Inuse * 2)
 			kv.tables = append(kv.tables, nt)
 			res = storage.ErrFragmented
 			// try again
@@ -240,7 +240,7 @@ func (kv *KVStore) Delete(hkey uint64) error {
 	t := kv.tables[0]
 	if float64(t.allocated)*maxGarbageRatio <= float64(t.garbage) {
 		// Create a new table here.
-		nt := newTable(kv.Inuse() * 2)
+		nt := newTable(kv.Stats().Inuse * 2)
 		kv.tables = append(kv.tables, nt)
 		return storage.ErrFragmented
 	}
@@ -320,45 +320,18 @@ func (kv *KVStore) Import(data []byte) (storage.Engine, error) {
 	return fresh, nil
 }
 
-// Len returns the key cound in this storage.
-func (kv *KVStore) Len() int {
-	var total int
-	for _, t := range kv.tables {
-		total += len(t.hkeys)
-	}
-	return total
-}
-
 // Stats is a function which provides memory allocation and garbage ratio of a storage instance.
-func (kv *KVStore) Stats() map[string]int {
-	stats := map[string]int{
-		"allocated": 0,
-		"inuse":     0,
-		"garbage":   0,
+func (kv *KVStore) Stats() storage.Stats {
+	stats := storage.Stats{
+		NumTables: len(kv.tables),
 	}
 	for _, t := range kv.tables {
-		stats["allocated"] += t.allocated
-		stats["inuse"] += t.inuse
-		stats["garbage"] += t.garbage
-
+		stats.Allocated += t.allocated
+		stats.Inuse += t.inuse
+		stats.Garbage += t.garbage
+		stats.Length += len(t.hkeys)
 	}
 	return stats
-}
-
-// NumTables returns the number of tables in a storage instance.
-func (kv *KVStore) NumTables() int {
-	return len(kv.tables)
-}
-
-// Inuse returns total in-use space by the tables.
-func (kv *KVStore) Inuse() int {
-	// Stats does the same thing but we need
-	// to eliminate useless calls.
-	inuse := 0
-	for _, t := range kv.tables {
-		inuse += t.inuse
-	}
-	return inuse
 }
 
 // Check checks the key existence.

@@ -447,7 +447,7 @@ func (db *Olric) callStartedCallback() {
 	defer timer.Stop()
 
 	for {
-		timer.Reset(10 *  time.Millisecond)
+		timer.Reset(10 * time.Millisecond)
 		select {
 		case <-timer.C:
 			if requiredCheckpoints == atomic.LoadInt32(&db.passedCheckpoints) {

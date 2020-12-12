@@ -70,7 +70,7 @@ func (p *partition) length() int {
 		d.RLock()
 		defer d.RUnlock()
 
-		length += d.storage.Len()
+		length += d.storage.Stats().Length
 		// Continue scanning.
 		return true
 	})

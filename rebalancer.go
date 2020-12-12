@@ -114,7 +114,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 		dm.config.Unlock()
 	}
 
-	if dm.storage.Len() == 0 {
+	if dm.storage.Stats().Length == 0 {
 		// DMap has no keys. Set the imported storage instance.
 		// The old one will be garbage collected.
 		dm.storage = engine
