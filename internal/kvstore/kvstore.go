@@ -374,7 +374,7 @@ func (kv *KVStore) Range(f func(hkey uint64, entry storage.Entry) bool) {
 }
 
 // MatchOnKey calls a regular expression on keys and provides an iterator.
-func (kv *KVStore) MatchOnKey(expr string, f func(hkey uint64, entry storage.Entry) bool) error {
+func (kv *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, entry storage.Entry) bool) error {
 	if len(kv.tables) == 0 {
 		panic("tables cannot be empty")
 	}

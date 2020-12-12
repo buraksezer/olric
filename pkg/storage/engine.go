@@ -33,7 +33,7 @@ type Engine interface {
 	Stats() Stats
 	Check(uint64) bool
 	Range(func(uint64, Entry) bool)
-	MatchOnKey(string, func(uint64, Entry) bool) error
+	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
 	Compaction() bool
 	Close() error
 }

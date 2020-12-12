@@ -566,7 +566,7 @@ func TestStorage_MatchOnKey(t *testing.T) {
 	}
 
 	var count int
-	err = s.MatchOnKey("even:", func(hkey uint64, entry storage.Entry) bool {
+	err = s.RegexMatchOnKeys("even:", func(hkey uint64, entry storage.Entry) bool {
 		count++
 		return true
 	})
