@@ -18,10 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/pkg/storage"
 	"sync"
 
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/query"
 	"github.com/hashicorp/go-multierror"
 	"github.com/vmihailenco/msgpack"
@@ -38,7 +39,7 @@ var ErrEndOfQuery = errors.New("end of query")
 type QueryResponse map[string]interface{}
 
 // internal representation of query response
-type queryResponse map[uint64]storage.Entry
+type queryResponse map[uint64][]byte
 
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
@@ -139,7 +140,6 @@ func (db *Olric) localQueryOperation(w, r protocol.EncodeDecoder) {
 		db.errorResponse(w, err)
 		return
 	}
-
 	value, err := msgpack.Marshal(&result)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -149,10 +149,13 @@ func (db *Olric) localQueryOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
-func (c *Cursor) reconcileResponses(responses []queryResponse) queryResponse {
-	result := make(queryResponse)
+func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storage.Entry {
+	result := make(map[uint64]storage.Entry)
 	for _, response := range responses {
-		for hkey, val1 := range response {
+		for hkey, tmp1 := range response {
+			val1 := kvstore.NewEntry()
+			val1.Decode(tmp1)
+
 			if val2, ok := result[hkey]; ok {
 				if val1.Timestamp() > val2.Timestamp() {
 					result[hkey] = val1
@@ -325,7 +328,7 @@ func (db *Olric) exQueryOperation(w, r protocol.EncodeDecoder) {
 
 	data := make(QueryResponse)
 	for _, response := range responses {
-		data[response.Key()] = response.Value
+		data[response.Key()] = response.Value()
 	}
 
 	value, err := msgpack.Marshal(data)

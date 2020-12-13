@@ -56,7 +56,7 @@ func (p *queryPipeline) doOnKey(dm *dmap, q query.M) error {
 					}
 				}
 			}
-			p.result[hkey] = entry
+			p.result[hkey] = entry.Encode()
 		}
 		return true
 	})

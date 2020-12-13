@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -55,7 +56,11 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 // createDMap creates and returns a new dmap, internal representation of a dmap. This function is not thread-safe.
 func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	// create a new map here.
-	nm := &dmap{}
+	nm := &dmap{
+		config: &dmapConfig{
+			storageEngine: config.DefaultStorageEngine,
+		},
+	}
 	if db.config.DMaps != nil {
 		err := db.setDMapConfiguration(nm, name)
 		if err != nil {

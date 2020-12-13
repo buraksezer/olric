@@ -41,14 +41,15 @@ type dmapConfig struct {
 
 func (db *Olric) setDMapConfiguration(dm *dmap, name string) error {
 	// Try to set config configuration for this dmap.
-	dm.config = &dmapConfig{}
 	dm.config.maxIdleDuration = db.config.DMaps.MaxIdleDuration
 	dm.config.ttlDuration = db.config.DMaps.TTLDuration
 	dm.config.maxKeys = db.config.DMaps.MaxKeys
 	dm.config.maxInuse = db.config.DMaps.MaxInuse
 	dm.config.lruSamples = db.config.DMaps.LRUSamples
 	dm.config.evictionPolicy = db.config.DMaps.EvictionPolicy
-	dm.config.storageEngine = db.config.DMaps.StorageEngine
+	if db.config.DMaps.StorageEngine != "" {
+		dm.config.storageEngine = db.config.DMaps.StorageEngine
+	}
 
 	if db.config.DMaps.Custom != nil {
 		// config.DMap struct can be used for fine-grained control.
@@ -75,7 +76,7 @@ func (db *Olric) setDMapConfiguration(dm *dmap, name string) error {
 			if dm.config.evictionPolicy != c.EvictionPolicy {
 				dm.config.evictionPolicy = c.EvictionPolicy
 			}
-			if dm.config.storageEngine != c.StorageEngine {
+			if c.StorageEngine != "" && dm.config.storageEngine != c.StorageEngine {
 				dm.config.storageEngine = c.StorageEngine
 			}
 		}

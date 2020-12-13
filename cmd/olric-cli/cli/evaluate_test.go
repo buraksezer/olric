@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/kvstore"
+
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/client"
 	"github.com/buraksezer/olric/config"
@@ -55,6 +57,14 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 	mc := memberlist.DefaultLocalConfig()
 	mc.BindPort = 0
 
+	sc := config.NewStorageEngine()
+	// default storage engine: olric.kvstore
+	engine := &kvstore.KVStore{}
+	sc.Config[engine.Name()] = map[string]interface{}{
+		"tableSize": 102134,
+	}
+	sc.Impls[engine.Name()] = engine
+
 	cfg := &config.Config{
 		PartitionCount:    7,
 		BindAddr:          "127.0.0.1",
@@ -64,6 +74,7 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		ReadQuorum:        config.MinimumReplicaCount,
 		MemberCountQuorum: config.MinimumMemberCountQuorum,
 		MemberlistConfig:  mc,
+		StorageEngines:    sc,
 	}
 	db, err := olric.New(cfg)
 	if err != nil {

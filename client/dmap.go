@@ -35,7 +35,7 @@ func (c *Client) processGetResponse(resp protocol.EncodeDecoder) (interface{}, e
 	// TODO: Use engine.Entry interface
 	entry := kvstore.NewEntry()
 	entry.Decode(resp.Value())
-	return c.unmarshalValue(entry.Value)
+	return c.unmarshalValue(entry.Value())
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key.

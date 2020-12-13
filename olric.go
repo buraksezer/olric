@@ -264,6 +264,8 @@ func New(c *config.Config) (*Olric, error) {
 func (db *Olric) initializeAndLoadStorageEngines() error {
 	db.storageEngines.configs = db.config.StorageEngines.Config
 	db.storageEngines.engines = db.config.StorageEngines.Impls
+
+	// Load engines as plugin, if any.
 	for _, pluginPath := range db.config.StorageEngines.Plugins {
 		engine, err := storage.LoadAsPlugin(pluginPath)
 		if err != nil {
@@ -272,6 +274,7 @@ func (db *Olric) initializeAndLoadStorageEngines() error {
 		db.storageEngines.engines[engine.Name()] = engine
 	}
 
+	// Set a default engine, if required.
 	if len(db.config.StorageEngines.Impls) == 0 {
 		if _, ok := db.config.StorageEngines.Config[config.DefaultStorageEngine]; !ok {
 			return errors.New("no storage engine defined")
@@ -279,12 +282,17 @@ func (db *Olric) initializeAndLoadStorageEngines() error {
 		db.storageEngines.engines[config.DefaultStorageEngine] = &kvstore.KVStore{}
 	}
 
+	// Set configuration for the loaded engines.
 	for name, ec := range db.config.StorageEngines.Config {
 		engine, ok := db.storageEngines.engines[name]
 		if !ok {
 			return fmt.Errorf("storage engine implementation is missing: %s", name)
 		}
 		engine.SetConfig(storage.NewConfig(ec))
+	}
+
+	// Start the engines.
+	for _, engine := range db.storageEngines.engines {
 		if err := engine.Start(); err != nil {
 			return err
 		}

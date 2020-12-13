@@ -17,6 +17,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"net"
 	"strconv"
 	"sync"
@@ -54,6 +55,13 @@ func testConfig(peers []*Olric) *config.Config {
 	for _, peer := range peers {
 		speers = append(speers, peer.discovery.LocalNode().Address())
 	}
+	sc := config.NewStorageEngine()
+	// default storage engine: olric.kvstore
+	engine := &kvstore.KVStore{}
+	sc.Config[engine.Name()] = map[string]interface{}{
+		"tableSize": 102134,
+	}
+	sc.Impls[engine.Name()] = engine
 	return &config.Config{
 		PartitionCount:    7,
 		ReplicaCount:      2,
@@ -63,6 +71,7 @@ func testConfig(peers []*Olric) *config.Config {
 		KeepAlivePeriod:   10 * time.Millisecond,
 		LogVerbosity:      6,
 		MemberCountQuorum: config.MinimumMemberCountQuorum,
+		StorageEngines:    sc,
 	}
 }
 
