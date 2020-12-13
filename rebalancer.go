@@ -129,6 +129,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 			mergeErr = err
 			return false
 		}
+		// TODO: Don't put the winner again if it comes from dm.storage
 		mergeErr = dm.storage.Put(hkey, winner)
 		if mergeErr == storage.ErrFragmented {
 			db.wg.Add(1)

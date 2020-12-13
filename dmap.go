@@ -73,7 +73,7 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	if !ok {
 		return nil, fmt.Errorf("storage engine could not be found: %s", nm.config.storageEngine)
 	}
-	nm.storage, err = engine.Fork()
+	nm.storage, err = engine.Fork(nil)
 	if err != nil {
 		return nil, err
 	}

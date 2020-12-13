@@ -121,33 +121,25 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Started = func() {
+		defer cancel()
+	}
+
 	db, err := New(c)
 	if err != nil {
 		return nil, err
 	}
 
 	db.wg.Add(1)
-	go db.callStartedCallback()
-
-	db.wg.Add(1)
 	go func() {
 		defer db.wg.Done()
-		err = db.server.ListenAndServe()
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to run TCP server")
+		serr := db.Start()
+		if serr != nil {
+			db.log.V(2).Printf("[ERROR] Failed to start Olric node: %s", serr)
 		}
 	}()
-	<-db.server.StartedCtx.Done()
-	db.passCheckpoint()
-
-	err = db.startDiscovery()
-	if err != nil {
-		return nil, err
-	}
-	// Wait some time for goroutines
-	<-time.After(100 * time.Millisecond)
-	db.passCheckpoint()
-
+	<-ctx.Done()
 	return db, nil
 }
 

@@ -62,7 +62,7 @@ func (c *Config) Copy() *Config {
 		m: make(map[string]interface{}),
 	}
 	for key, value := range c.m {
-		c.m[key] = value
+		n.m[key] = value
 	}
 	return n
 }

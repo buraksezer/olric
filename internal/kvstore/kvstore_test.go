@@ -39,7 +39,7 @@ func bval(i int) []byte {
 func testKVStore() (storage.Engine, error) {
 	kv := &KVStore{}
 	kv.SetConfig(DefaultConfig())
-	return kv.Fork()
+	return kv.Fork(nil)
 }
 
 func Test_Put(t *testing.T) {

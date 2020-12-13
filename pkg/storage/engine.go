@@ -19,7 +19,7 @@ type Engine interface {
 	Start() error
 	NewEntry() Entry
 	Name() string
-	Fork() (Engine, error)
+	Fork(*Config) (Engine, error)
 	PutRaw(uint64, []byte) error
 	Put(uint64, Entry) error
 	GetRaw(uint64) ([]byte, error)

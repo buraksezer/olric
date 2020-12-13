@@ -16,6 +16,7 @@
 package kvstore
 
 import (
+	"errors"
 	"regexp"
 
 	"github.com/buraksezer/olric/pkg/storage"
@@ -48,16 +49,24 @@ func (kv *KVStore) SetConfig(c *storage.Config) {
 	kv.config = c
 }
 
-func (kv *KVStore) Start() error { return nil }
+func (kv *KVStore) Start() error {
+	if kv.config == nil {
+		return errors.New("config cannot be nil")
+	}
+	return nil
+}
 
 // Fork creates a new KVStore instance.
-func (kv *KVStore) Fork() (storage.Engine, error) {
-	size, err := kv.config.Get("tableSize")
+func (kv *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
+	if c == nil {
+		c = kv.config.Copy()
+	}
+	size, err := c.Get("tableSize")
 	if err != nil {
 		return nil, err
 	}
 	child := &KVStore{
-		config: kv.config,
+		config: c,
 	}
 	t := newTable(size.(int))
 	child.tables = append(kv.tables, t)
@@ -305,19 +314,20 @@ func (kv *KVStore) Import(data []byte) (storage.Engine, error) {
 		return nil, err
 	}
 
-	options := kv.config.Copy()
-	options.Add("tableSize", tr.Allocated)
-	fresh, err := kv.Fork()
+	c := kv.config.Copy()
+	c.Add("tableSize", tr.Allocated)
+
+	child, err := kv.Fork(c)
 	if err != nil {
 		return nil, err
 	}
-	t := fresh.(*KVStore).tables[0]
+	t := child.(*KVStore).tables[0]
 	t.hkeys = tr.HKeys
 	t.offset = tr.Offset
 	t.inuse = tr.Inuse
 	t.garbage = tr.Garbage
 	copy(t.memory, tr.Memory)
-	return fresh, nil
+	return child, nil
 }
 
 // Stats is a function which provides memory allocation and garbage ratio of a storage instance.
