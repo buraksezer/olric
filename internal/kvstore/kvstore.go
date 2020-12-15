@@ -17,6 +17,7 @@ package kvstore
 
 import (
 	"errors"
+	"log"
 	"regexp"
 
 	"github.com/buraksezer/olric/pkg/storage"
@@ -39,6 +40,8 @@ type KVStore struct {
 	config *storage.Config
 }
 
+var _ storage.Engine = (*KVStore)(nil)
+
 func DefaultConfig() *storage.Config {
 	options := storage.NewConfig(nil)
 	options.Add("tableSize", defaultTableSize)
@@ -48,6 +51,8 @@ func DefaultConfig() *storage.Config {
 func (kv *KVStore) SetConfig(c *storage.Config) {
 	kv.config = c
 }
+
+func (kv *KVStore) SetLogger(l *log.Logger) {}
 
 func (kv *KVStore) Start() error {
 	if kv.config == nil {
@@ -69,7 +74,7 @@ func (kv *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 		config: c,
 	}
 	t := newTable(size.(int))
-	child.tables = append(kv.tables, t)
+	child.tables = append(child.tables, t)
 	return child, nil
 }
 

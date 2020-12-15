@@ -14,29 +14,8 @@
 
 package storage
 
-import "log"
+import "testing"
 
-type Engine interface {
-	SetConfig(*Config)
-	SetLogger(*log.Logger)
-	Start() error
-	NewEntry() Entry
-	Name() string
-	Fork(*Config) (Engine, error)
-	PutRaw(uint64, []byte) error
-	Put(uint64, Entry) error
-	GetRaw(uint64) ([]byte, error)
-	Get(uint64) (Entry, error)
-	GetTTL(uint64) (int64, error)
-	GetKey(uint64) (string, error)
-	Delete(uint64) error
-	UpdateTTL(uint64, Entry) error
-	Import([]byte) (Engine, error)
-	Export() ([]byte, error)
-	Stats() Stats
-	Check(uint64) bool
-	Range(func(uint64, Entry) bool)
-	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
-	Compaction() bool
-	Close() error
+func Test_LoadAsPlugin(t *testing.T) {
+
 }

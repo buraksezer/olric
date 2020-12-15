@@ -293,9 +293,11 @@ func (db *Olric) initializeAndLoadStorageEngines() error {
 
 	// Start the engines.
 	for _, engine := range db.storageEngines.engines {
+		engine.SetLogger(db.config.Logger)
 		if err := engine.Start(); err != nil {
 			return err
 		}
+		db.log.V(2).Printf("[INFO] Storage engine has been loaded: %s", engine.Name())
 	}
 	return nil
 }

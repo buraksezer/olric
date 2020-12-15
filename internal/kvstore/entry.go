@@ -14,7 +14,11 @@
 
 package kvstore
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/buraksezer/olric/pkg/storage"
+)
 
 // In-memory layout for an entry:
 //
@@ -27,6 +31,8 @@ type Entry struct {
 	timestamp int64
 	value     []byte
 }
+
+var _ storage.Entry = (*Entry)(nil)
 
 func NewEntry() *Entry {
 	return &Entry{}

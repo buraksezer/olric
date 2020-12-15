@@ -39,7 +39,16 @@ func bval(i int) []byte {
 func testKVStore() (storage.Engine, error) {
 	kv := &KVStore{}
 	kv.SetConfig(DefaultConfig())
-	return kv.Fork(nil)
+	child, err := kv.Fork(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	err = child.Start()
+	if err != nil {
+		return nil, err
+	}
+	return child, nil
 }
 
 func Test_Put(t *testing.T) {
@@ -575,5 +584,60 @@ func TestStorage_MatchOnKey(t *testing.T) {
 	}
 	if count != 50 {
 		t.Fatalf("Expected count is 50. Got: %d", count)
+	}
+}
+
+func Test_Fork(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	timestamp := time.Now().UnixNano()
+	for i := 0; i < 10; i++ {
+		entry := &Entry{
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: timestamp,
+		}
+		hkey := xxhash.Sum64([]byte(entry.Key()))
+		err := s.Put(hkey, entry)
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+	}
+
+	child, err := s.Fork(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		hkey := xxhash.Sum64([]byte(bkey(i)))
+		_, err = child.Get(hkey)
+		if err != storage.ErrKeyNotFound {
+			t.Fatalf("Expected storage.ErrKeyNotFound. Got %v", err)
+		}
+	}
+
+	stats := child.Stats()
+	if stats.Allocated != defaultTableSize {
+		t.Fatalf("Expected Stats.Allocated: %d. Got: %d", defaultTableSize, stats.Allocated)
+	}
+
+	if stats.Inuse != 0 {
+		t.Fatalf("Expected Stats.Inuse: 0. Got: %d", stats.Inuse)
+	}
+
+	if stats.Garbage != 0 {
+		t.Fatalf("Expected Stats.Garbage: 0. Got: %d", stats.Garbage)
+	}
+
+	if stats.Length != 0 {
+		t.Fatalf("Expected Stats.Length: 0. Got: %d", stats.Length)
+	}
+
+	if stats.NumTables != 1 {
+		t.Fatalf("Expected Stats.NumTables: 1. Got: %d", stats.NumTables)
 	}
 }

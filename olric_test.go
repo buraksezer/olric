@@ -17,33 +17,16 @@ package olric
 import (
 	"context"
 	"testing"
-	"time"
 )
 
-func TestOlric_StartedCallback(t *testing.T) {
+func TestOlric_StartAndShutdown(t *testing.T) {
 	c := testSingleReplicaConfig()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	c.Started = func() {
-		cancel()
-	}
-
 	db, err := newDB(c)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	defer func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-
-	select {
-	case <-time.After(31 * time.Second):
-		t.Fatalf("Failed to callback function in 30 seconds")
-	case <-ctx.Done():
-		if ctx.Err() != context.Canceled {
-			t.Fatalf("context returned an error: %v", ctx.Err())
-		}
+	err = db.Shutdown(context.Background())
+	if err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 	}
 }

@@ -16,8 +16,8 @@ package olric
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"net"
 	"strconv"
 	"sync"
@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -121,9 +122,9 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	c.Started = func() {
-		defer cancel()
+		cancel()
 	}
 
 	db, err := New(c)
@@ -139,7 +140,15 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 			db.log.V(2).Printf("[ERROR] Failed to start Olric node: %s", serr)
 		}
 	}()
-	<-ctx.Done()
+
+	select {
+	case <-time.After(11 * time.Second):
+		return nil, errors.New("node cannot be started in 10 second")
+	case <-ctx.Done():
+		if ctx.Err() != context.Canceled {
+			return nil, fmt.Errorf("context returned an error: %v", ctx.Err())
+		}
+	}
 	return db, nil
 }
 

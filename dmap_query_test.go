@@ -17,23 +17,16 @@ package olric
 import (
 	"context"
 	"github.com/buraksezer/olric/config"
-	"strings"
-	"testing"
-	"time"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/query"
 	"github.com/vmihailenco/msgpack"
+	"strings"
+	"testing"
 )
 
 func TestDMap_QueryOnKeyStandalone(t *testing.T) {
 	c := testSingleReplicaConfig()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	c.Started = func() {
-		cancel()
-	}
-
 	db, err := newDB(c)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -44,7 +37,6 @@ func TestDMap_QueryOnKeyStandalone(t *testing.T) {
 			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	<-ctx.Done()
 
 	dm, err := db.NewDMap("mydmap")
 	if err != nil {
@@ -159,11 +151,6 @@ func TestDMap_QueryOnKeyCluster(t *testing.T) {
 
 func TestDMap_QueryOnKeyIgnoreValues(t *testing.T) {
 	c := testSingleReplicaConfig()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	c.Started = func() {
-		cancel()
-	}
-
 	db, err := newDB(c)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -174,7 +161,6 @@ func TestDMap_QueryOnKeyIgnoreValues(t *testing.T) {
 			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	<-ctx.Done()
 
 	dm, err := db.NewDMap("mydmap")
 	if err != nil {
@@ -291,11 +277,6 @@ func TestDMap_IteratorCluster(t *testing.T) {
 
 func TestDMap_Query(t *testing.T) {
 	c := testSingleReplicaConfig()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	c.Started = func() {
-		cancel()
-	}
-
 	db, err := newDB(c)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -306,7 +287,7 @@ func TestDMap_Query(t *testing.T) {
 			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	<-ctx.Done()
+
 	dm, err := db.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -375,11 +356,6 @@ func TestDMap_Query(t *testing.T) {
 
 func TestDMap_QueryEndOfKeySpace(t *testing.T) {
 	c := testSingleReplicaConfig()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	c.Started = func() {
-		cancel()
-	}
-
 	db, err := newDB(c)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -390,7 +366,6 @@ func TestDMap_QueryEndOfKeySpace(t *testing.T) {
 			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	}()
-	<-ctx.Done()
 
 	q := query.M{
 		"$onKey": query.M{

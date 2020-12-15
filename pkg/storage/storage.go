@@ -31,6 +31,9 @@ var ErrKeyTooLarge = errors.New("key too large")
 // ErrKeyNotFound is an error that indicates that the requested key could not be found in the DB.
 var ErrKeyNotFound = errors.New("key not found")
 
+// ErrNotImplemented means that the interface implementation does not support the functionality required to fulfill the request.
+var ErrNotImplemented = errors.New("not implemented yet")
+
 func LoadAsPlugin(pluginPath string) (Engine, error) {
 	plug, err := plugin.Open(pluginPath)
 	if err != nil {
