@@ -179,10 +179,10 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
-	backupOwners := db.backups.PartitionOwnersByHKey(hkey)
+	owners := db.backups.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
-	for _, backup := range backupOwners {
-		mem := backup
+	for _, owner := range owners {
+		mem := owner
 		g.Go(func() error {
 			// TODO: Add retry with backoff
 			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)
