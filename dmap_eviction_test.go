@@ -54,8 +54,8 @@ func TestDMap_TTLEviction(t *testing.T) {
 	length := 0
 	for _, ins := range []*Olric{db1, db2} {
 		for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
-			part := ins.partitions[partID]
-			part.m.Range(func(k, v interface{}) bool {
+			part := ins.primary.PartitionById(partID)
+			part.Map.Range(func(k, v interface{}) bool {
 				dm := v.(*dmap)
 				length += dm.storage.Stats().Length
 				return true
@@ -99,8 +99,8 @@ func TestDMap_TTLDuration(t *testing.T) {
 
 	length := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
 			length += dm.storage.Stats().Length
 			return true
@@ -145,8 +145,8 @@ func TestDMap_TTLMaxIdleDuration(t *testing.T) {
 
 	length := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
 			length += dm.storage.Stats().Length
 			return true
@@ -187,8 +187,8 @@ func TestDMap_EvictionPolicyLRUMaxKeys(t *testing.T) {
 
 	keyCount := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
 			keyCount += dm.storage.Stats().Length
 			return true
@@ -229,8 +229,8 @@ func TestDMap_EvictionPolicyLRUMaxInuse(t *testing.T) {
 
 	keyCount := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map.Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
 			keyCount += dm.storage.Stats().Length
 			return true

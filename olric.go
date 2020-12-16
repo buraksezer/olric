@@ -129,11 +129,8 @@ type Olric struct {
 	consistent *consistent.Consistent
 
 	// Logical units for data storage
-	partitions map[uint64]*partition
-	backups    map[uint64]*partition
-
-	primary  *partitions.Partitions
-	nbackups *partitions.Partitions
+	primary *partitions.Partitions
+	backups *partitions.Partitions
 
 	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
 	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
@@ -228,10 +225,8 @@ func New(c *config.Config) (*Olric, error) {
 		serializer: c.Serializer,
 		consistent: consistent.New(nil, cfg),
 		client:     client,
-		partitions: make(map[uint64]*partition),
 		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY, c.Hasher),
-		backups:    make(map[uint64]*partition),
-		nbackups:   partitions.New(c.PartitionCount, partitions.BACKUP, c.Hasher),
+		backups:    partitions.New(c.PartitionCount, partitions.BACKUP, c.Hasher),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		members:    members{m: make(map[uint64]discovery.Member)},
@@ -249,19 +244,6 @@ func New(c *config.Config) (*Olric, error) {
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
-
-	// Create all the partitions. It's read-only. No need for locking.
-	for i := uint64(0); i < c.PartitionCount; i++ {
-		db.partitions[i] = &partition{id: i}
-	}
-
-	// Create all the backup partitions. It's read-only. No need for locking.
-	for i := uint64(0); i < c.PartitionCount; i++ {
-		db.backups[i] = &partition{
-			id:     i,
-			backup: true,
-		}
-	}
 
 	db.registerOperations()
 	return db, nil

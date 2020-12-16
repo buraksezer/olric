@@ -50,19 +50,19 @@ func TestRebalance_Merge(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
-		part := db1.partitions[partID]
-		if !cmpMembersByID(part.owner(), db1.this) {
-			if part.length() != 0 {
+		part := db1.primary.PartitionById(partID)
+		if !cmpMembersByID(part.Owner(), db1.this) {
+			if part.Length() != 0 {
 				t.Fatalf("Expected key count is 0 for PartID: %d on %s. Got: %d",
-					partID, db1.this, part.length())
+					partID, db1.this, part.Length())
 			}
 		}
 	}
 
 	for partID := uint64(0); partID < db2.config.PartitionCount; partID++ {
-		part := db2.partitions[partID]
-		if cmpMembersByID(part.owner(), db2.this) {
-			if part.length() == 0 {
+		part := db2.primary.PartitionById(partID)
+		if cmpMembersByID(part.Owner(), db2.this) {
+			if part.Length() == 0 {
 				t.Fatalf("Expected key count is different than zero for PartID: %d on %s", partID, db2.this)
 			}
 		}
@@ -184,15 +184,15 @@ func TestRebalance_MergeBackups(t *testing.T) {
 	checkOwnerCount := func(db *Olric) {
 		syncClusterMembers(db1, db2, db3)
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-			backup := db.backups[partID]
-			if backup.ownerCount() != 1 {
+			backup := db.backups.PartitionById(partID)
+			if backup.OwnerCount() != 1 {
 				t.Fatalf("Expected backup owner count is 1 for PartID: %d on %s. Got: %d",
-					partID, db.this, backup.ownerCount())
+					partID, db.this, backup.OwnerCount())
 			}
 
-			part := db.partitions[partID]
-			for _, backupOwner := range backup.loadOwners() {
-				if cmpMembersByID(backupOwner, part.owner()) {
+			part := db.primary.PartitionById(partID)
+			for _, backupOwner := range backup.Owners() {
+				if cmpMembersByID(backupOwner, part.Owner()) {
 					t.Fatalf("Partition owner is also backup owner. PartID: %d: %s",
 						partID, backupOwner)
 				}
@@ -211,14 +211,14 @@ func TestRebalance_CheckOwnership(t *testing.T) {
 
 	checkOwnership := func(db *Olric) {
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-			backup := db.backups[partID]
-			part := db.partitions[partID]
+			backup := db.backups.PartitionById(partID)
+			part := db.primary.PartitionById(partID)
 			members := db.discovery.GetMembers()
-			if len(members) == 1 && len(backup.loadOwners()) != 0 {
+			if len(members) == 1 && len(backup.Owners()) != 0 {
 				t.Fatalf("Invalid ownership distribution")
 			}
-			for _, backupOwner := range backup.loadOwners() {
-				if cmpMembersByID(backupOwner, part.owner()) {
+			for _, backupOwner := range backup.Owners() {
+				if cmpMembersByID(backupOwner, part.Owner()) {
 					t.Fatalf("Partition owner is also backup owner. PartID: %d: %s",
 						partID, backupOwner)
 				}

@@ -43,7 +43,7 @@ func (db *Olric) deleteStaleDMaps() {
 		part := db.primary.PartitionById(partID)
 		janitor(part)
 		// Clean stale dmaps on backup partition table
-		backup := db.nbackups.PartitionById(partID)
+		backup := db.backups.PartitionById(partID)
 		janitor(backup)
 	}
 }
@@ -64,7 +64,7 @@ func (db *Olric) deleteKeyValFromPreviousOwners(name, key string, owners []disco
 }
 
 func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
-	owners := db.getPartitionOwners(hkey)
+	owners := db.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
@@ -96,7 +96,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 }
 
 func (db *Olric) deleteKey(name, key string) error {
-	member, hkey := db.findPartitionOwner(name, key)
+	member, hkey := db.primary.PartitionOwner(name, key)
 	if !cmpMembersByName(member, db.this) {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(name)
@@ -132,7 +132,7 @@ func (db *Olric) exDeleteOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := db.primary.HKey(req.DMap(), req.Key())
 	dm, err := db.getDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -156,7 +156,7 @@ func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := db.primary.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -179,7 +179,7 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
-	backupOwners := db.getBackupPartitionOwners(hkey)
+	backupOwners := db.backups.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
 	for _, backup := range backupOwners {
 		mem := backup

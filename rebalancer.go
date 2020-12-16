@@ -195,7 +195,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 			break
 		}
 
-		part := db.nbackups.PartitionById(partID)
+		part := db.backups.PartitionById(partID)
 		if part.Length() == 0 {
 			// Empty partition. Skip it.
 			continue
@@ -297,7 +297,7 @@ func (db *Olric) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	if box.Kind == partitions.PRIMARY {
 		part = db.primary.PartitionById(box.PartID)
 	} else {
-		part = db.nbackups.PartitionById(box.PartID)
+		part = db.backups.PartitionById(box.PartID)
 	}
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.

@@ -53,8 +53,8 @@ func TestDMap_PutBackup(t *testing.T) {
 			backup = db2
 		}
 		partID := db1.getPartitionID(hkey)
-		bpart := backup.backups[partID]
-		tmp, ok := bpart.m.Load(mname)
+		bpart := backup.backups.PartitionById(partID)
+		tmp, ok := bpart.Map.Load(mname)
 		if !ok {
 			t.Fatalf("mymap could not be found")
 		}
@@ -117,8 +117,8 @@ func TestDMap_DeleteBackup(t *testing.T) {
 			backup = db2
 		}
 		partID := db1.getPartitionID(hkey)
-		bpart := backup.backups[partID]
-		tmp, ok := bpart.m.Load(mname)
+		bpart := backup.backups.PartitionById(partID)
+		tmp, ok := bpart.Map.Load(mname)
 		data := tmp.(*dmap)
 		if !ok {
 			bpart.Unlock()

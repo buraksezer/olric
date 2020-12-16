@@ -99,6 +99,6 @@ func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
 }
 
 func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.nbackups.PartitionByHKey(hkey)
+	part := db.backups.PartitionByHKey(hkey)
 	return db.getOrCreateDMap(part, name)
 }

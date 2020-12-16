@@ -44,8 +44,8 @@ func (p *Partition) Owner() discovery.Member {
 	return owners[len(owners)-1]
 }
 
-// ownerCount returns the current Owner count of a partition.
-func (p *Partition) ownerCount() int {
+// OwnerCount returns the current Owner count of a partition.
+func (p *Partition) OwnerCount() int {
 	owners := p.owners.Load()
 	if owners == nil {
 		return 0
@@ -60,6 +60,10 @@ func (p *Partition) Owners() []discovery.Member {
 		return []discovery.Member{}
 	}
 	return owners.([]discovery.Member)
+}
+
+func (p *Partition) SetOwners(owners []discovery.Member) {
+	p.owners.Store(owners)
 }
 
 // TODO: This will be implemented properly

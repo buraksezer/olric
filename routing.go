@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -57,9 +58,9 @@ func (db *Olric) getReplicaOwners(partID uint64) ([]consistent.Member, error) {
 }
 
 func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
-	part := db.backups[partID]
-	owners := make([]discovery.Member, part.ownerCount())
-	copy(owners, part.loadOwners())
+	part := db.backups.PartitionById(partID)
+	owners := make([]discovery.Member, part.OwnerCount())
+	copy(owners, part.Owners())
 
 	newOwners, err := db.getReplicaOwners(partID)
 	if err != nil {
@@ -152,9 +153,9 @@ func (db *Olric) distributeBackups(partID uint64) []discovery.Member {
 
 func (db *Olric) distributePrimaryCopies(partID uint64) []discovery.Member {
 	// First you need to create a copy of the owners list. Don't modify the current list.
-	part := db.partitions[partID]
-	owners := make([]discovery.Member, part.ownerCount())
-	copy(owners, part.loadOwners())
+	part := db.primary.PartitionById(partID)
+	owners := make([]discovery.Member, part.OwnerCount())
+	copy(owners, part.Owners())
 
 	// Find the new partition owner.
 	newOwner := db.consistent.GetPartitionOwner(int(partID))
@@ -325,8 +326,8 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 		return false
 	}
 
-	ensureOwnership := func(member discovery.Member, partID uint64, part *partition) {
-		owners := part.loadOwners()
+	ensureOwnership := func(member discovery.Member, partID uint64, part *partitions.Partition) {
+		owners := part.Owners()
 		if check(member, owners) {
 			return
 		}
@@ -337,19 +338,19 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 		copy(newOwners, owners)
 		// Prepend
 		newOwners = append([]discovery.Member{member}, newOwners...)
-		part.owners.Store(newOwners)
-		db.log.V(2).Printf("[INFO] %s still have some data for PartID (backup:%v): %d", member, part.backup, partID)
+		part.SetOwners(newOwners)
+		db.log.V(2).Printf("[INFO] %s still have some data for PartID (kind: %s): %d", member, part.Kind, partID)
 	}
 
 	// data structures in this function is guarded by routingMtx
 	for member, report := range reports {
 		for _, partID := range report.Partitions {
-			part := db.partitions[partID]
+			part := db.primary.PartitionById(partID)
 			ensureOwnership(member, partID, part)
 		}
 
 		for _, partID := range report.Backups {
-			part := db.backups[partID]
+			part := db.backups.PartitionById(partID)
 			ensureOwnership(member, partID, part)
 		}
 	}
@@ -443,8 +444,8 @@ func (db *Olric) checkAndGetCoordinator(id uint64) (discovery.Member, error) {
 func (db *Olric) setOwnedPartitionCount() {
 	var count uint64
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		if cmpMembersByID(part.owner(), db.this) {
+		part := db.primary.PartitionById(partID)
+		if cmpMembersByID(part.Owner(), db.this) {
 			count++
 		}
 	}
@@ -485,12 +486,12 @@ func (db *Olric) updateRoutingOperation(w, r protocol.EncodeDecoder) {
 	atomic.StoreUint64(&routingSignature, db.hasher.Sum64(req.Value()))
 	for partID, data := range table {
 		// Set partition(primary copies) owners
-		part := db.partitions[partID]
-		part.owners.Store(data.Owners)
+		part := db.primary.PartitionById(partID)
+		part.SetOwners(data.Owners)
 
 		// Set backup owners
-		bpart := db.backups[partID]
-		bpart.owners.Store(data.Backups)
+		bpart := db.backups.PartitionById(partID)
+		bpart.SetOwners(data.Backups)
 	}
 
 	db.setOwnedPartitionCount()
@@ -526,13 +527,13 @@ type ownershipReport struct {
 func (db *Olric) prepareOwnershipReport() ([]byte, error) {
 	res := ownershipReport{}
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		if part.length() != 0 {
+		part := db.primary.PartitionById(partID)
+		if part.Length() != 0 {
 			res.Partitions = append(res.Partitions, partID)
 		}
 
-		backup := db.backups[partID]
-		if backup.length() != 0 {
+		backup := db.backups.PartitionById(partID)
+		if backup.Length() != 0 {
 			res.Backups = append(res.Backups, partID)
 		}
 	}
@@ -544,14 +545,14 @@ func (db *Olric) keyCountOnPartOperation(w, r protocol.EncodeDecoder) {
 	partID := req.Extra().(protocol.LengthOfPartExtra).PartID
 	isBackup := req.Extra().(protocol.LengthOfPartExtra).Backup
 
-	var part *partition
+	var part *partitions.Partition
 	if isBackup {
-		part = db.backups[partID]
+		part = db.backups.PartitionById(partID)
 	} else {
-		part = db.partitions[partID]
+		part = db.primary.PartitionById(partID)
 	}
 
-	value, err := msgpack.Marshal(part.length())
+	value, err := msgpack.Marshal(part.Length())
 	if err != nil {
 		db.errorResponse(w, err)
 		return

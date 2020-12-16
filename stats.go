@@ -18,6 +18,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
@@ -42,20 +43,20 @@ func (db *Olric) stats() stats.Stats {
 		Backups:    make(map[uint64]stats.Partition),
 	}
 
-	collect := func(partID uint64, part *partition) stats.Partition {
-		owners := part.loadOwners()
+	collect := func(partID uint64, part *partitions.Partition) stats.Partition {
+		owners := part.Owners()
 		p := stats.Partition{
-			Backups: db.backups[partID].loadOwners(),
-			Length:  part.length(),
+			Backups: db.backups.PartitionOwnersById(partID),
+			Length:  part.Length(),
 			DMaps:   make(map[string]stats.DMap),
 		}
-		if !part.backup {
-			p.Owner = part.owner()
+		if part.Kind == partitions.PRIMARY {
+			p.Owner = part.Owner()
 		}
 		if len(owners) > 0 {
 			p.PreviousOwners = owners[:len(owners)-1]
 		}
-		part.m.Range(func(name, dm interface{}) bool {
+		part.Map.Range(func(name, dm interface{}) bool {
 			dm.(*dmap).Lock()
 			st := dm.(*dmap).storage.Stats()
 
@@ -72,14 +73,15 @@ func (db *Olric) stats() stats.Stats {
 		})
 		return p
 	}
-	routingMtx.RLock()
-	for partID, part := range db.partitions {
-		s.Partitions[partID] = collect(partID, part)
-	}
 
-	for partID, part := range db.backups {
+	routingMtx.RLock()
+
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		part := db.primary.PartitionById(partID)
+		s.Partitions[partID] = collect(partID, part)
 		s.Backups[partID] = collect(partID, part)
 	}
+
 	routingMtx.RUnlock()
 	return s
 }
