@@ -232,7 +232,7 @@ func TestDMap_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	}
 
 	// Prepare fragmented partition owners list
-	hkey := db1.getHKey("mydmap", "mykey")
+	hkey := partitions.HKey("mydmap", "mykey")
 	owners := db1.getPartitionOwners(hkey)
 	owner := owners[len(owners)-1]
 

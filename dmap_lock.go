@@ -83,7 +83,7 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 // unlock takes key and token and tries to unlock the key.
 // It redirects the request to the partition owner, if required.
 func (db *Olric) unlock(name, key string, token []byte) error {
-	member, _ := db.findPartitionOwner(name, key)
+	member, _ := db.primary.PartitionOwner(name, key)
 	if cmpMembersByName(member, db.this) {
 		return db.unlockKey(name, key, token)
 	}

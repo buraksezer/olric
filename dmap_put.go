@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"sync/atomic"
 	"time"
 
@@ -152,7 +153,7 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 
 func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	// Fire and forget mode.
-	owners := db.getBackupPartitionOwners(hkey)
+	owners := db.backups.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
@@ -172,7 +173,7 @@ func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	// Quorum based replication.
 	var successful int
-	owners := db.getBackupPartitionOwners(hkey)
+	owners := db.backups.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		req := w.toReq(w.replicaOpcode)
 		_, err := db.requestTo(owner.String(), req)
@@ -303,7 +304,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 // put controls every write operation in Olric. It redirects the requests to its owner,
 // if the key belongs to another host.
 func (db *Olric) put(w *writeop) error {
-	member, hkey := db.findPartitionOwner(w.dmap, w.key)
+	member, hkey := db.primary.PartitionOwner(w.dmap, w.key)
 	if cmpMembersByName(member, db.this) {
 		// We are on the partition owner.
 		return db.callPutOnCluster(hkey, w)
@@ -432,7 +433,7 @@ func (db *Olric) exPutOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)

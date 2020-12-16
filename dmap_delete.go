@@ -132,7 +132,7 @@ func (db *Olric) exDeleteOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.primary.HKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -156,7 +156,7 @@ func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.primary.HKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)

@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -43,7 +44,7 @@ func (db *Olric) localExpire(hkey uint64, dm *dmap, w *writeop) error {
 func (db *Olric) asyncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	req := w.toReq(protocol.OpExpireReplica)
 	// Fire and forget mode.
-	owners := db.getBackupPartitionOwners(hkey)
+	owners := db.backups.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
@@ -64,7 +65,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 
 	// Quorum based replication.
 	var successful int
-	owners := db.getBackupPartitionOwners(hkey)
+	owners := db.backups.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		_, err := db.requestTo(owner.String(), req)
 		if err != nil {
@@ -116,7 +117,7 @@ func (db *Olric) callExpireOnCluster(hkey uint64, w *writeop) error {
 }
 
 func (db *Olric) expire(w *writeop) error {
-	member, hkey := db.findPartitionOwner(w.dmap, w.key)
+	member, hkey := db.primary.PartitionOwner(w.dmap, w.key)
 	if cmpMembersByName(member, db.this) {
 		// We are on the partition owner.
 		return db.callExpireOnCluster(hkey, w)
@@ -129,7 +130,7 @@ func (db *Olric) expire(w *writeop) error {
 
 func (db *Olric) expireReplicaOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)

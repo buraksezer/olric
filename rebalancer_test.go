@@ -17,6 +17,7 @@ package olric
 import (
 	"bytes"
 	"context"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -93,7 +94,7 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 	}
 
 	for i := 0; i < 100; i++ {
-		hkey := db1.getHKey("mymap", bkey(i))
+		hkey := partitions.HKey("mymap", bkey(i))
 		if underlying, err := db1.getDMap("mymap", hkey); err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		} else {

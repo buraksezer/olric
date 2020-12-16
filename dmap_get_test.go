@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 func TestDMap_Get(t *testing.T) {
@@ -243,7 +245,7 @@ func TestDMap_GetReadQuorum(t *testing.T) {
 	var hit bool
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		host, _ := db1.findPartitionOwner(dm.name, key)
+		host, _ := db1.primary.PartitionOwner(dm.name, key)
 		if cmpMembersByID(db1.this, host) {
 			_, err = dm.Get(key)
 			if err != ErrReadQuorum {
@@ -322,13 +324,13 @@ func TestDMap_ReadRepair(t *testing.T) {
 		}
 	}
 	for i := 0; i < 10; i++ {
-		hkey := db3.getHKey("mymap", bkey(i))
+		hkey := partitions.HKey("mymap", bkey(i))
 		dm3, err := db3.getBackupDMap("mymap", hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		dm3.RLock()
-		owners := db3.getBackupPartitionOwners(hkey)
+		owners := db3.backups.PartitionOwnersByHKey(hkey)
 		if cmpMembersByID(owners[0], db3.this) {
 			entry, err := dm3.storage.Get(hkey)
 			if err != nil {

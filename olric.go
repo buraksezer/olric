@@ -198,6 +198,9 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	c.Logger.SetOutput(filter)
 
+	// Set the hash function. Olric distributes keys over partitions by hashing.
+	partitions.SetHashFunc(c.Hasher)
+
 	flogger := flog.New(c.Logger)
 	flogger.SetLevel(c.LogVerbosity)
 	if c.LogLevel == "DEBUG" {
@@ -215,7 +218,7 @@ func New(c *config.Config) (*Olric, error) {
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
-		name:        c.MemberlistConfig.Name,
+		name:       c.MemberlistConfig.Name,
 		ctx:        ctx,
 		cancel:     cancel,
 		log:        flogger,

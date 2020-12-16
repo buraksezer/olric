@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 func TestSetCacheConfiguration(t *testing.T) {
@@ -48,7 +49,7 @@ func TestSetCacheConfiguration(t *testing.T) {
 			EvictionPolicy:  config.LRUEviction,
 		}
 		db.config.DMaps.Custom["foobar"] = cc
-		hkey := db.getHKey("foobar", "barfoo")
+		hkey := partitions.HKey("foobar", "barfoo")
 		dm, err := db.getDMap("foobar", hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

@@ -16,6 +16,7 @@ package olric
 
 import (
 	"errors"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"sort"
 	"time"
 
@@ -97,7 +98,7 @@ func (db *Olric) lookupOnThisNode(dm *dmap, hkey uint64, name, key string) *vers
 // lookupOnOwners collects versions of a key/value pair on the partition owner
 // by including previous partition owners.
 func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*version {
-	owners := db.getPartitionOwners(hkey)
+	owners := db.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
@@ -151,7 +152,7 @@ func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
 func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	var versions []*version
 	// Check backups.
-	backups := db.getBackupPartitionOwners(hkey)
+	backups := db.backups.PartitionOwnersByHKey(hkey)
 	for _, replica := range backups {
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(name)
@@ -199,7 +200,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 
 		// Sync
 		if cmpMembersByID(*ver.host, db.this) {
-			hkey := db.getHKey(name, winner.entry.Key())
+			hkey := partitions.HKey(name, winner.entry.Key())
 			w := &writeop{
 				dmap:      name,
 				key:       winner.entry.Key(),
@@ -275,7 +276,7 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (storage.Entry,
 }
 
 func (db *Olric) get(name, key string) (storage.Entry, error) {
-	member, hkey := db.findPartitionOwner(name, key)
+	member, hkey := db.primary.PartitionOwner(name, key)
 	// We are on the partition owner
 	if cmpMembersByName(member, db.this) {
 		return db.callGetOnCluster(hkey, name, key)
@@ -338,7 +339,7 @@ func (db *Olric) exGetOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) getBackupOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -361,9 +362,9 @@ func (db *Olric) getBackupOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) getPrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
-	part := db.getPartition(hkey)
-	tmp, ok := part.m.Load(req.DMap())
+	hkey := partitions.HKey(req.DMap(), req.Key())
+	part := db.primary.PartitionByHKey(hkey)
+	tmp, ok := part.Map.Load(req.DMap())
 	if !ok {
 		db.errorResponse(w, ErrKeyNotFound)
 		return

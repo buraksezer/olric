@@ -97,6 +97,6 @@ func (ps *Partitions) HKey(name, key string) uint64 {
 
 // findPartitionOwner finds the partition Owner for a key on a dmap.
 func (ps *Partitions) PartitionOwner(name, key string) (discovery.Member, uint64) {
-	hkey := ps.HKey(name, key)
+	hkey := HKey(name, key)
 	return ps.PartitionByHKey(hkey).Owner(), hkey
 }
