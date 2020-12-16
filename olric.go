@@ -35,6 +35,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
@@ -130,6 +131,9 @@ type Olric struct {
 	// Logical units for data storage
 	partitions map[uint64]*partition
 	backups    map[uint64]*partition
+
+	npartitions *partitions.Partitions
+	nbackups    *partitions.Partitions
 
 	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
 	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
