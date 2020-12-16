@@ -132,8 +132,8 @@ type Olric struct {
 	partitions map[uint64]*partition
 	backups    map[uint64]*partition
 
-	npartitions *partitions.Partitions
-	nbackups    *partitions.Partitions
+	primary  *partitions.Partitions
+	nbackups *partitions.Partitions
 
 	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
 	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
@@ -218,7 +218,7 @@ func New(c *config.Config) (*Olric, error) {
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
-		name:       c.MemberlistConfig.Name,
+		name:        c.MemberlistConfig.Name,
 		ctx:        ctx,
 		cancel:     cancel,
 		log:        flogger,
@@ -229,7 +229,9 @@ func New(c *config.Config) (*Olric, error) {
 		consistent: consistent.New(nil, cfg),
 		client:     client,
 		partitions: make(map[uint64]*partition),
+		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY, c.Hasher),
 		backups:    make(map[uint64]*partition),
+		nbackups:   partitions.New(c.PartitionCount, partitions.BACKUP, c.Hasher),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		members:    members{m: make(map[uint64]discovery.Member)},

@@ -112,7 +112,7 @@ func (dm *DMap) Query(q query.M) (*Cursor, error) {
 }
 
 func (db *Olric) runLocalQuery(partID uint64, name string, q query.M) (queryResponse, error) {
-	part := db.partitions[partID]
+	part := db.primary.PartitionById(partID)
 	dm, err := db.getOrCreateDMap(part, name)
 	if err != nil {
 		return nil, err
@@ -174,7 +174,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 		return nil, err
 	}
 
-	owners := c.db.partitions[partID].loadOwners()
+	owners := c.db.primary.PartitionOwnersById(partID)
 	var responses []queryResponse
 	for _, owner := range owners {
 		if cmpMembersByID(owner, c.db.this) {

@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"sync"
 	"sync/atomic"
 
@@ -33,13 +34,13 @@ var (
 
 type dmapbox struct {
 	PartID    uint64
-	Backup    bool
+	Kind      partitions.Kind
 	Name      string
 	Payload   []byte
 	AccessLog map[uint64]int64
 }
 
-func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner discovery.Member) error {
+func (db *Olric) moveDMap(part *partitions.Partition, name string, dm *dmap, owner discovery.Member) error {
 	dm.Lock()
 	defer dm.Unlock()
 
@@ -48,8 +49,8 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner discover
 		return err
 	}
 	data := &dmapbox{
-		PartID:  part.id,
-		Backup:  part.backup,
+		PartID:  part.Id,
+		Kind:    part.Kind,
 		Name:    name,
 		Payload: payload,
 	}
@@ -70,7 +71,7 @@ func (db *Olric) moveDMap(part *partition, name string, dm *dmap, owner discover
 	}
 
 	// Delete moved dmap instance. the gc will free the allocated memory.
-	part.m.Delete(name)
+	part.Map.Delete(name)
 	return nil
 }
 
@@ -87,7 +88,7 @@ func (db *Olric) selectVersionForMerge(dm *dmap, hkey uint64, entry storage.Entr
 	return versions[0].entry, nil
 }
 
-func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
+func (db *Olric) mergeDMaps(part *partitions.Partition, data *dmapbox) error {
 	dm, err := db.getOrCreateDMap(part, data.Name)
 	if err != nil {
 		return err
@@ -96,7 +97,7 @@ func (db *Olric) mergeDMaps(part *partition, data *dmapbox) error {
 	// Acquire dmap's lock. No one should work on it.
 	dm.Lock()
 	defer dm.Unlock()
-	defer part.m.Store(data.Name, dm)
+	defer part.Map.Store(data.Name, dm)
 
 	engine, err := dm.storage.Import(data.Payload)
 	if err != nil {
@@ -158,13 +159,13 @@ func (db *Olric) rebalancePrimaryPartitions() {
 			break
 		}
 
-		part := db.partitions[partID]
-		if part.length() == 0 {
+		part := db.primary.PartitionById(partID)
+		if part.Length() == 0 {
 			// Empty partition. Skip it.
 			continue
 		}
 
-		owner := part.owner()
+		owner := part.Owner()
 		// Here we don't use cmpMembersById function because the routing table has an eventually consistent
 		// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
 		// of itself. So just check the name.
@@ -173,13 +174,12 @@ func (db *Olric) rebalancePrimaryPartitions() {
 			continue
 		}
 		// This is a previous owner. Move the keys.
-		part.m.Range(func(name, dm interface{}) bool {
-			db.log.V(2).Printf("[INFO] Moving DMap: %s (backup: %v) on PartID: %d to %s",
-				name, part.backup, partID, owner)
+		part.Map.Range(func(name, dm interface{}) bool {
+			db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s", name, part.Kind, partID, owner)
+
 			err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 			if err != nil {
-				db.log.V(2).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v",
-					name, partID, owner, err)
+				db.log.V(2).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v", name, partID, owner, err)
 			}
 			// if this returns true, the iteration continues
 			return rsign == atomic.LoadUint64(&routingSignature)
@@ -195,12 +195,12 @@ func (db *Olric) rebalanceBackupPartitions() {
 			break
 		}
 
-		part := db.backups[partID]
-		if part.length() == 0 {
+		part := db.nbackups.PartitionById(partID)
+		if part.Length() == 0 {
 			// Empty partition. Skip it.
 			continue
 		}
-		owners := part.loadOwners()
+		owners := part.Owners()
 		if len(owners) == db.config.ReplicaCount-1 {
 			// everything is ok
 			continue
@@ -238,9 +238,9 @@ func (db *Olric) rebalanceBackupPartitions() {
 				continue
 			}
 
-			part.m.Range(func(name, dm interface{}) bool {
-				db.log.V(2).Printf("[INFO] Moving DMap: %s (backup: %v) on PartID: %d to %s",
-					name, part.backup, partID, owner)
+			part.Map.Range(func(name, dm interface{}) bool {
+				db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s",
+					name, part.Kind, partID, owner)
 				err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 				if err != nil {
 					db.log.V(2).Printf("[ERROR] Failed to move backup DMap: %s on PartID: %d to %s: %v",
@@ -267,8 +267,8 @@ func (db *Olric) rebalancer() {
 	}
 }
 
-func (db *Olric) checkOwnership(part *partition) bool {
-	owners := part.loadOwners()
+func (db *Olric) checkOwnership(part *partitions.Partition) bool {
+	owners := part.Owners()
 	for _, owner := range owners {
 		if cmpMembersByID(owner, db.this) {
 			return true
@@ -293,23 +293,23 @@ func (db *Olric) moveDMapOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	var part *partition
-	if box.Backup {
-		part = db.backups[box.PartID]
+	var part *partitions.Partition
+	if box.Kind == partitions.PRIMARY {
+		part = db.primary.PartitionById(box.PartID)
 	} else {
-		part = db.partitions[box.PartID]
+		part = db.nbackups.PartitionById(box.PartID)
 	}
+
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !db.checkOwnership(part) {
-		db.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (backup: %v) doesn't belong to this node (%s)",
-			box.Name, box.PartID, box.Backup, db.this)
-		err := fmt.Errorf("partID: %d (backup: %v) doesn't belong to %s: %w", box.PartID, box.Backup, db.this, ErrInvalidArgument)
+		db.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (kind: %s) doesn't belong to this node (%s)",
+			box.Name, box.PartID, box.Kind, db.this)
+		err := fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", box.PartID, box.Kind, db.this, ErrInvalidArgument)
 		db.errorResponse(w, err)
 		return
 	}
 
-	db.log.V(2).Printf("[INFO] Received DMap (backup:%v): %s on PartID: %d",
-		box.Backup, box.Name, box.PartID)
+	db.log.V(2).Printf("[INFO] Received DMap (kind: %s): %s on PartID: %d", box.Kind, box.Name, box.PartID)
 
 	err = db.mergeDMaps(part, box)
 	if err != nil {

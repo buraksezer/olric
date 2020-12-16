@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -22,8 +23,8 @@ import (
 )
 
 func (db *Olric) deleteStaleDMaps() {
-	janitor := func(part *partition) {
-		part.m.Range(func(name, dm interface{}) bool {
+	janitor := func(part *partitions.Partition) {
+		part.Map.Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
 			d.Lock()
 			defer d.Unlock()
@@ -31,18 +32,18 @@ func (db *Olric) deleteStaleDMaps() {
 				// Continue scanning.
 				return true
 			}
-			part.m.Delete(name)
-			db.log.V(4).Printf("[INFO] Stale dmap (backup: %v) has been deleted: %s on PartID: %d",
-				part.backup, name, part.id)
+			part.Map.Delete(name)
+			db.log.V(4).Printf("[INFO] Stale dmap (kind: %s) has been deleted: %s on PartID: %d",
+				part.Kind, name, part.Id)
 			return true
 		})
 	}
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		// Clean stale dmaps on partition table
-		part := db.partitions[partID]
+		part := db.primary.PartitionById(partID)
 		janitor(part)
 		// Clean stale dmaps on backup partition table
-		backup := db.backups[partID]
+		backup := db.nbackups.PartitionById(partID)
 		janitor(backup)
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -54,7 +55,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 }
 
 // createDMap creates and returns a new dmap, internal representation of a dmap. This function is not thread-safe.
-func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
+func (db *Olric) createDMap(part *partitions.Partition, name string) (*dmap, error) {
 	// create a new map here.
 	nm := &dmap{
 		config: &dmapConfig{
@@ -77,14 +78,14 @@ func (db *Olric) createDMap(part *partition, name string) (*dmap, error) {
 	if err != nil {
 		return nil, err
 	}
-	part.m.Store(name, nm)
+	part.Map.Store(name, nm)
 	return nm, nil
 }
 
-func (db *Olric) getOrCreateDMap(part *partition, name string) (*dmap, error) {
+func (db *Olric) getOrCreateDMap(part *partitions.Partition, name string) (*dmap, error) {
 	part.Lock()
 	defer part.Unlock()
-	dm, ok := part.m.Load(name)
+	dm, ok := part.Map.Load(name)
 	if ok {
 		return dm.(*dmap), nil
 	}
@@ -93,11 +94,11 @@ func (db *Olric) getOrCreateDMap(part *partition, name string) (*dmap, error) {
 
 // getDMap loads or creates a dmap.
 func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.getPartition(hkey)
+	part := db.primary.PartitionByHKey(hkey)
 	return db.getOrCreateDMap(part, name)
 }
 
 func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.getBackupPartition(hkey)
+	part := db.nbackups.PartitionByHKey(hkey)
 	return db.getOrCreateDMap(part, name)
 }

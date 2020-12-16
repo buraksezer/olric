@@ -25,15 +25,15 @@ import (
 type Partition struct {
 	sync.RWMutex
 
-	id     uint64
-	backup bool
-	m      sync.Map
+	Id     uint64
+	Kind   Kind
+	Map    sync.Map
 	owners atomic.Value
 }
 
-// owner returns partition owner. It's not thread-safe.
-func (p *Partition) owner() discovery.Member {
-	if p.backup {
+// Owner returns partition Owner. It's not thread-safe.
+func (p *Partition) Owner() discovery.Member {
+	if p.Kind == BACKUP {
 		// programming error. it cannot occur at production!
 		panic("cannot call this if backup is true")
 	}
@@ -44,7 +44,7 @@ func (p *Partition) owner() discovery.Member {
 	return owners[len(owners)-1]
 }
 
-// ownerCount returns the current owner count of a partition.
+// ownerCount returns the current Owner count of a partition.
 func (p *Partition) ownerCount() int {
 	owners := p.owners.Load()
 	if owners == nil {
@@ -53,11 +53,16 @@ func (p *Partition) ownerCount() int {
 	return len(owners.([]discovery.Member))
 }
 
-// loadOwners loads the partition owners from atomic.value and returns.
-func (p *Partition) loadOwners() []discovery.Member {
+// Owners loads the partition owners from atomic.value and returns.
+func (p *Partition) Owners() []discovery.Member {
 	owners := p.owners.Load()
 	if owners == nil {
 		return []discovery.Member{}
 	}
 	return owners.([]discovery.Member)
+}
+
+// TODO: This will be implemented properly
+func (p *Partition) Length() int {
+	return 0
 }

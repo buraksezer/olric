@@ -21,25 +21,49 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 )
 
+type Kind int
+
+func (k Kind) String() string {
+	if k == PRIMARY {
+		return "Primary"
+	} else if k == BACKUP {
+		return "Backup"
+	} else {
+		return "Unknown"
+	}
+}
+
 const (
-	PRIMARY = iota + 1
+	PRIMARY = Kind(iota + 1)
 	BACKUP
 )
 
 type Partitions struct {
 	count  uint64
-	kind   int
+	kind   Kind
 	hasher hasher.Hasher
 	m      map[uint64]*Partition
 }
 
-func New(count uint64, kind int, hs hasher.Hasher) *Partitions {
-	return &Partitions{
+func New(count uint64, kind Kind, hs hasher.Hasher) *Partitions {
+	ps := &Partitions{
 		kind:   kind,
 		count:  count,
 		hasher: hs,
 		m:      make(map[uint64]*Partition),
 	}
+	for i := uint64(0); i < count; i++ {
+		ps.m[i] = &Partition{
+			Id:   i,
+			Kind: kind,
+		}
+	}
+	return ps
+}
+
+// PartitionById returns the partition for the given HKey
+func (ps *Partitions) PartitionById(partID uint64) *Partition {
+	return ps.m[partID]
 }
 
 // PartitionIdByHKey returns partition ID for a given HKey.
@@ -47,15 +71,21 @@ func (ps *Partitions) PartitionIdByHKey(hkey uint64) uint64 {
 	return hkey % ps.count
 }
 
-// PartitionByHKey loads the owner partition for a given hkey.
+// PartitionByHKey returns the partition for the given HKey
 func (ps *Partitions) PartitionByHKey(hkey uint64) *Partition {
 	partID := ps.PartitionIdByHKey(hkey)
 	return ps.m[partID]
 }
 
-// PartitionOwners loads the partition owners list for a given hkey.
-func (ps *Partitions) PartitionOwners(hkey uint64) []discovery.Member {
+// PartitionOwnersByHKey loads the partition owners list for a given hkey.
+func (ps *Partitions) PartitionOwnersByHKey(hkey uint64) []discovery.Member {
 	part := ps.PartitionByHKey(hkey)
+	return part.owners.Load().([]discovery.Member)
+}
+
+// PartitionOwnersByHKey loads the partition owners list for a given hkey.
+func (ps *Partitions) PartitionOwnersById(partID uint64) []discovery.Member {
+	part := ps.PartitionById(partID)
 	return part.owners.Load().([]discovery.Member)
 }
 
@@ -65,8 +95,8 @@ func (ps *Partitions) HKey(name, key string) uint64 {
 	return ps.hasher.Sum64(*(*[]byte)(unsafe.Pointer(&tmp)))
 }
 
-// findPartitionOwner finds the partition owner for a key on a dmap.
+// findPartitionOwner finds the partition Owner for a key on a dmap.
 func (ps *Partitions) PartitionOwner(name, key string) (discovery.Member, uint64) {
 	hkey := ps.HKey(name, key)
-	return ps.PartitionByHKey(hkey).owner(), hkey
+	return ps.PartitionByHKey(hkey).Owner(), hkey
 }
