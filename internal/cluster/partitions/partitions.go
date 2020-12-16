@@ -15,8 +15,6 @@
 package partitions
 
 import (
-	"unsafe"
-
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/discovery"
 )
@@ -87,12 +85,6 @@ func (ps *Partitions) PartitionOwnersByHKey(hkey uint64) []discovery.Member {
 func (ps *Partitions) PartitionOwnersById(partID uint64) []discovery.Member {
 	part := ps.PartitionById(partID)
 	return part.owners.Load().([]discovery.Member)
-}
-
-// HKey returns hash-key, a.k.a hkey, for a key on a dmap.
-func (ps *Partitions) HKey(name, key string) uint64 {
-	tmp := name + key
-	return ps.hasher.Sum64(*(*[]byte)(unsafe.Pointer(&tmp)))
 }
 
 // findPartitionOwner finds the partition Owner for a key on a dmap.
