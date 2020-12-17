@@ -17,11 +17,12 @@ package olric
 import (
 	"bytes"
 	"context"
-	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/kvstore"
 )
 
 func TestDMap_Put(t *testing.T) {
@@ -187,7 +188,9 @@ func TestDMap_PutWriteQuorum(t *testing.T) {
 	}
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		host, _ := db1.findPartitionOwner(dm.name, key)
+
+		hkey := partitions.HKey(dm.name, key)
+		host := dm.db.primary.PartitionByHKey(hkey).Owner()
 		if cmpMembersByID(db1.this, host) {
 			err = dm.Put(key, bval(i))
 			if err != ErrWriteQuorum {

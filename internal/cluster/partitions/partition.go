@@ -25,7 +25,7 @@ import (
 type Partition struct {
 	sync.RWMutex
 
-	Id     uint64
+	id     uint64
 	kind   Kind
 	Map    sync.Map
 	owners atomic.Value
@@ -33,6 +33,10 @@ type Partition struct {
 
 func (p *Partition) Kind() Kind {
 	return p.kind
+}
+
+func (p *Partition) Id() uint64 {
+	return p.id
 }
 
 // Owner returns partition Owner. It's not thread-safe.

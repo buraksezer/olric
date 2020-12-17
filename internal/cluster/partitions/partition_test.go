@@ -31,7 +31,7 @@ func (su *testStorageUnit) Length() int {
 
 func TestPartition(t *testing.T) {
 	p := Partition{
-		Id:   1,
+		id:   1,
 		kind: PRIMARY,
 	}
 

@@ -49,7 +49,7 @@ func (db *Olric) moveDMap(part *partitions.Partition, name string, dm *dmap, own
 		return err
 	}
 	data := &dmapbox{
-		PartID:  part.Id,
+		PartID:  part.Id(),
 		Kind:    part.Kind(),
 		Name:    name,
 		Payload: payload,

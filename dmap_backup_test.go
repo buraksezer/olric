@@ -16,6 +16,7 @@ package olric
 
 import (
 	"bytes"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"testing"
 )
 
@@ -47,12 +48,13 @@ func TestDMap_PutBackup(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey := dm.db.findPartitionOwner(mname, key)
+		hkey := partitions.HKey(mname, key)
+		owner := dm.db.backups.PartitionByHKey(hkey).Owner()
 		var backup = db1
 		if cmpMembersByID(owner, db1.this) {
 			backup = db2
 		}
-		partID := db1.getPartitionID(hkey)
+		partID := db1.primary.PartitionIdByHKey(hkey)
 		bpart := backup.backups.PartitionById(partID)
 		tmp, ok := bpart.Map.Load(mname)
 		if !ok {
@@ -111,12 +113,13 @@ func TestDMap_DeleteBackup(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey := dm.db.findPartitionOwner(mname, key)
+		hkey := partitions.HKey(mname, key)
+		owner := dm.db.backups.PartitionByHKey(hkey).Owner()
 		var backup = db1
 		if cmpMembersByID(owner, db1.this) {
 			backup = db2
 		}
-		partID := db1.getPartitionID(hkey)
+		partID := db1.backups.PartitionIdByHKey(hkey)
 		bpart := backup.backups.PartitionById(partID)
 		tmp, ok := bpart.Map.Load(mname)
 		data := tmp.(*dmap)
@@ -159,7 +162,8 @@ func TestDMap_GetBackup(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey := dm.db.findPartitionOwner(mname, key)
+		hkey := partitions.HKey(mname, key)
+		owner := dm.db.backups.PartitionByHKey(hkey).Owner()
 		var kloc = db1
 		if !cmpMembersByID(owner, db1.this) {
 			kloc = db2

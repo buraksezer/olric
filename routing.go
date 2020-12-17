@@ -16,7 +16,6 @@ package olric
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/hashicorp/memberlist"

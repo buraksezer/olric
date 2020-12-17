@@ -16,13 +16,14 @@ package olric
 
 import (
 	"context"
+	"strings"
+	"testing"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/query"
 	"github.com/vmihailenco/msgpack"
-	"strings"
-	"testing"
 )
 
 func TestDMap_QueryOnKeyStandalone(t *testing.T) {

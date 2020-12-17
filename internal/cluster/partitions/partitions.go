@@ -36,20 +36,20 @@ const (
 )
 
 type Partitions struct {
-	count  uint64
-	kind   Kind
-	m      map[uint64]*Partition
+	count uint64
+	kind  Kind
+	m     map[uint64]*Partition
 }
 
 func New(count uint64, kind Kind) *Partitions {
 	ps := &Partitions{
-		kind:   kind,
-		count:  count,
-		m:      make(map[uint64]*Partition),
+		kind:  kind,
+		count: count,
+		m:     make(map[uint64]*Partition),
 	}
 	for i := uint64(0); i < count; i++ {
 		ps.m[i] = &Partition{
-			Id:   i,
+			id:   i,
 			kind: kind,
 		}
 	}

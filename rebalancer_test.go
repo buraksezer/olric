@@ -17,12 +17,13 @@ package olric
 import (
 	"bytes"
 	"context"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"net"
 	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 func TestRebalance_Merge(t *testing.T) {

@@ -34,7 +34,7 @@ func (db *Olric) deleteStaleDMaps() {
 			}
 			part.Map.Delete(name)
 			db.log.V(4).Printf("[INFO] Stale dmap (kind: %s) has been deleted: %s on PartID: %d",
-				part.Kind(), name, part.Id)
+				part.Kind(), name, part.Id())
 			return true
 		})
 	}

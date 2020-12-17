@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"testing"
 	"time"
 )
@@ -188,7 +189,9 @@ func TestDMap_ExpireWriteQuorum(t *testing.T) {
 	var hit bool
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		host, _ := db1.findPartitionOwner(dm.name, key)
+
+		hkey := partitions.HKey(dm.name, key)
+		host := dm.db.primary.PartitionByHKey(hkey).Owner()
 		if cmpMembersByID(db1.this, host) {
 			err = dm.Expire(key, time.Millisecond)
 			if err != ErrWriteQuorum {

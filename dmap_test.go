@@ -337,8 +337,8 @@ func TestDMap_PruneHosts(t *testing.T) {
 	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
 		for _, db := range instances {
 			part := db.primary.PartitionById(partID)
-			if part.ownerCount() != 1 {
-				t.Fatalf("Expected owner count is 1. Got: %d", part.ownerCount())
+			if part.OwnerCount() != 1 {
+				t.Fatalf("Expected owner count is 1. Got: %d", part.OwnerCount())
 			}
 		}
 	}
