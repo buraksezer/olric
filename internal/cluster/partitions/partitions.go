@@ -15,7 +15,6 @@
 package partitions
 
 import (
-	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/discovery"
 )
 
@@ -39,21 +38,19 @@ const (
 type Partitions struct {
 	count  uint64
 	kind   Kind
-	hasher hasher.Hasher
 	m      map[uint64]*Partition
 }
 
-func New(count uint64, kind Kind, hs hasher.Hasher) *Partitions {
+func New(count uint64, kind Kind) *Partitions {
 	ps := &Partitions{
 		kind:   kind,
 		count:  count,
-		hasher: hs,
 		m:      make(map[uint64]*Partition),
 	}
 	for i := uint64(0); i < count; i++ {
 		ps.m[i] = &Partition{
 			Id:   i,
-			Kind: kind,
+			kind: kind,
 		}
 	}
 	return ps
@@ -85,10 +82,4 @@ func (ps *Partitions) PartitionOwnersByHKey(hkey uint64) []discovery.Member {
 func (ps *Partitions) PartitionOwnersById(partID uint64) []discovery.Member {
 	part := ps.PartitionById(partID)
 	return part.owners.Load().([]discovery.Member)
-}
-
-// findPartitionOwner finds the partition Owner for a key on a dmap.
-func (ps *Partitions) PartitionOwner(name, key string) (discovery.Member, uint64) {
-	hkey := HKey(name, key)
-	return ps.PartitionByHKey(hkey).Owner(), hkey
 }

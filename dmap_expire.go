@@ -117,7 +117,8 @@ func (db *Olric) callExpireOnCluster(hkey uint64, w *writeop) error {
 }
 
 func (db *Olric) expire(w *writeop) error {
-	member, hkey := db.primary.PartitionOwner(w.dmap, w.key)
+	hkey := partitions.HKey(w.dmap, w.key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
 	if cmpMembersByName(member, db.this) {
 		// We are on the partition owner.
 		return db.callExpireOnCluster(hkey, w)

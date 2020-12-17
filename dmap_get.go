@@ -276,7 +276,8 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (storage.Entry,
 }
 
 func (db *Olric) get(name, key string) (storage.Entry, error) {
-	member, hkey := db.primary.PartitionOwner(name, key)
+	hkey := partitions.HKey(name, key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
 	if cmpMembersByName(member, db.this) {
 		return db.callGetOnCluster(hkey, name, key)

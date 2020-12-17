@@ -304,7 +304,8 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 // put controls every write operation in Olric. It redirects the requests to its owner,
 // if the key belongs to another host.
 func (db *Olric) put(w *writeop) error {
-	member, hkey := db.primary.PartitionOwner(w.dmap, w.key)
+	hkey := partitions.HKey(w.dmap, w.key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
 	if cmpMembersByName(member, db.this) {
 		// We are on the partition owner.
 		return db.callPutOnCluster(hkey, w)

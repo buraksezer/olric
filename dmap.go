@@ -31,6 +31,15 @@ type dmap struct {
 	storage storage.Engine
 }
 
+func (dm *dmap) Length() int {
+	dm.RLock()
+	defer dm.RUnlock()
+
+	return dm.storage.Stats().Length
+}
+
+var _ partitions.StorageUnit = (*dmap)(nil)
+
 // dmap represents a distributed map instance.
 type DMap struct {
 	name string

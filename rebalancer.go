@@ -50,7 +50,7 @@ func (db *Olric) moveDMap(part *partitions.Partition, name string, dm *dmap, own
 	}
 	data := &dmapbox{
 		PartID:  part.Id,
-		Kind:    part.Kind,
+		Kind:    part.Kind(),
 		Name:    name,
 		Payload: payload,
 	}
@@ -175,7 +175,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		}
 		// This is a previous owner. Move the keys.
 		part.Map.Range(func(name, dm interface{}) bool {
-			db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s", name, part.Kind, partID, owner)
+			db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s", name, part.Kind(), partID, owner)
 
 			err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 			if err != nil {
@@ -240,7 +240,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 
 			part.Map.Range(func(name, dm interface{}) bool {
 				db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s",
-					name, part.Kind, partID, owner)
+					name, part.Kind(), partID, owner)
 				err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
 				if err != nil {
 					db.log.V(2).Printf("[ERROR] Failed to move backup DMap: %s on PartID: %d to %s: %v",

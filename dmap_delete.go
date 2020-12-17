@@ -34,7 +34,7 @@ func (db *Olric) deleteStaleDMaps() {
 			}
 			part.Map.Delete(name)
 			db.log.V(4).Printf("[INFO] Stale dmap (kind: %s) has been deleted: %s on PartID: %d",
-				part.Kind, name, part.Id)
+				part.Kind(), name, part.Id)
 			return true
 		})
 	}
@@ -96,7 +96,8 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 }
 
 func (db *Olric) deleteKey(name, key string) error {
-	member, hkey := db.primary.PartitionOwner(name, key)
+	hkey := partitions.HKey(name, key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
 	if !cmpMembersByName(member, db.this) {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(name)

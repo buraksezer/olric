@@ -339,7 +339,7 @@ func (db *Olric) processOwnershipReports(reports map[discovery.Member]ownershipR
 		// Prepend
 		newOwners = append([]discovery.Member{member}, newOwners...)
 		part.SetOwners(newOwners)
-		db.log.V(2).Printf("[INFO] %s still have some data for PartID (kind: %s): %d", member, part.Kind, partID)
+		db.log.V(2).Printf("[INFO] %s still have some data for PartID (kind: %s): %d", member, part.Kind(), partID)
 	}
 
 	// data structures in this function is guarded by routingMtx

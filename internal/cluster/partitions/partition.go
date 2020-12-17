@@ -26,14 +26,18 @@ type Partition struct {
 	sync.RWMutex
 
 	Id     uint64
-	Kind   Kind
+	kind   Kind
 	Map    sync.Map
 	owners atomic.Value
 }
 
+func (p *Partition) Kind() Kind {
+	return p.kind
+}
+
 // Owner returns partition Owner. It's not thread-safe.
 func (p *Partition) Owner() discovery.Member {
-	if p.Kind == BACKUP {
+	if p.Kind() == BACKUP {
 		// programming error. it cannot occur at production!
 		panic("cannot call this if backup is true")
 	}
@@ -66,7 +70,13 @@ func (p *Partition) SetOwners(owners []discovery.Member) {
 	p.owners.Store(owners)
 }
 
-// TODO: This will be implemented properly
 func (p *Partition) Length() int {
-	return 0
+	var length int
+	p.Map.Range(func(_, tmp interface{}) bool {
+		u := tmp.(StorageUnit)
+		length += u.Length()
+		// Continue scanning.
+		return true
+	})
+	return length
 }

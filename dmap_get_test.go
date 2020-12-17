@@ -245,7 +245,8 @@ func TestDMap_GetReadQuorum(t *testing.T) {
 	var hit bool
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		host, _ := db1.primary.PartitionOwner(dm.name, key)
+		hkey := partitions.HKey(dm.name, key)
+		host := db1.primary.PartitionByHKey(hkey).Owner()
 		if cmpMembersByID(db1.this, host) {
 			_, err = dm.Get(key)
 			if err != ErrReadQuorum {

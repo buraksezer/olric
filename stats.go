@@ -50,7 +50,7 @@ func (db *Olric) stats() stats.Stats {
 			Length:  part.Length(),
 			DMaps:   make(map[string]stats.DMap),
 		}
-		if part.Kind == partitions.PRIMARY {
+		if part.Kind() == partitions.PRIMARY {
 			p.Owner = part.Owner()
 		}
 		if len(owners) > 0 {
