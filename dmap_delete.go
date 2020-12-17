@@ -24,7 +24,7 @@ import (
 
 func (db *Olric) deleteStaleDMaps() {
 	janitor := func(part *partitions.Partition) {
-		part.Map.Range(func(name, dm interface{}) bool {
+		part.Map().Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
 			d.Lock()
 			defer d.Unlock()
@@ -32,7 +32,7 @@ func (db *Olric) deleteStaleDMaps() {
 				// Continue scanning.
 				return true
 			}
-			part.Map.Delete(name)
+			part.Map().Delete(name)
 			db.log.V(4).Printf("[INFO] Stale dmap (kind: %s) has been deleted: %s on PartID: %d",
 				part.Kind(), name, part.Id())
 			return true

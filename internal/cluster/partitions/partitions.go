@@ -16,6 +16,7 @@ package partitions
 
 import (
 	"github.com/buraksezer/olric/internal/discovery"
+	"sync"
 )
 
 type Kind int
@@ -51,6 +52,7 @@ func New(count uint64, kind Kind) *Partitions {
 		ps.m[i] = &Partition{
 			id:   i,
 			kind: kind,
+			smap: &sync.Map{},
 		}
 	}
 	return ps

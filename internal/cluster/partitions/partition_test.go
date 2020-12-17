@@ -16,6 +16,7 @@ package partitions
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/discovery"
@@ -33,6 +34,7 @@ func TestPartition(t *testing.T) {
 	p := Partition{
 		id:   1,
 		kind: PRIMARY,
+		smap: &sync.Map{},
 	}
 
 	tmp := []discovery.Member{{
@@ -64,8 +66,8 @@ func TestPartition(t *testing.T) {
 	t.Run("Length", func(t *testing.T) {
 		s1 := &testStorageUnit{length: 10}
 		s2 := &testStorageUnit{length: 20}
-		p.Map.Store("s1", s1)
-		p.Map.Store("s2", s2)
+		p.Map().Store("s1", s1)
+		p.Map().Store("s2", s2)
 		length := p.Length()
 		if length != 30 {
 			t.Fatalf("Expected length: 30. Got: %d", length)

@@ -71,7 +71,7 @@ func (db *Olric) moveDMap(part *partitions.Partition, name string, dm *dmap, own
 	}
 
 	// Delete moved dmap instance. the gc will free the allocated memory.
-	part.Map.Delete(name)
+	part.Map().Delete(name)
 	return nil
 }
 
@@ -97,7 +97,7 @@ func (db *Olric) mergeDMaps(part *partitions.Partition, data *dmapbox) error {
 	// Acquire dmap's lock. No one should work on it.
 	dm.Lock()
 	defer dm.Unlock()
-	defer part.Map.Store(data.Name, dm)
+	defer part.Map().Store(data.Name, dm)
 
 	engine, err := dm.storage.Import(data.Payload)
 	if err != nil {
@@ -174,7 +174,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 			continue
 		}
 		// This is a previous owner. Move the keys.
-		part.Map.Range(func(name, dm interface{}) bool {
+		part.Map().Range(func(name, dm interface{}) bool {
 			db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s", name, part.Kind(), partID, owner)
 
 			err := db.moveDMap(part, name.(string), dm.(*dmap), owner)
@@ -238,7 +238,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 				continue
 			}
 
-			part.Map.Range(func(name, dm interface{}) bool {
+			part.Map().Range(func(name, dm interface{}) bool {
 				db.log.V(2).Printf("[INFO] Moving DMap: %s (kind: %s) on PartID: %d to %s",
 					name, part.Kind(), partID, owner)
 				err := db.moveDMap(part, name.(string), dm.(*dmap), owner)

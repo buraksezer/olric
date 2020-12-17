@@ -156,10 +156,10 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 		for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
 			for _, instance := range []*Olric{db1, db2} {
 				part := instance.primary.PartitionById(partID)
-				part.Map.Range(func(name, dm interface{}) bool { dc++; return true })
+				part.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 
 				bpart := instance.backups.PartitionById(partID)
-				bpart.Map.Range(func(name, dm interface{}) bool { dc++; return true })
+				bpart.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 			}
 		}
 		if dc == 0 {

@@ -87,14 +87,14 @@ func (db *Olric) createDMap(part *partitions.Partition, name string) (*dmap, err
 	if err != nil {
 		return nil, err
 	}
-	part.Map.Store(name, nm)
+	part.Map().Store(name, nm)
 	return nm, nil
 }
 
 func (db *Olric) getOrCreateDMap(part *partitions.Partition, name string) (*dmap, error) {
 	part.Lock()
 	defer part.Unlock()
-	dm, ok := part.Map.Load(name)
+	dm, ok := part.Map().Load(name)
 	if ok {
 		return dm.(*dmap), nil
 	}

@@ -61,7 +61,7 @@ func (db *Olric) evictKeysAtBackground() {
 func (db *Olric) evictKeys() {
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
 	part := db.primary.PartitionById(partID)
-	part.Map.Range(func(name, tmp interface{}) bool {
+	part.Map().Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
 		db.scanDMapForEviction(partID, name.(string), dm)
 		// this breaks the loop, we only scan one dmap instance per call

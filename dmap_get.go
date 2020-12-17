@@ -365,7 +365,7 @@ func (db *Olric) getPrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	hkey := partitions.HKey(req.DMap(), req.Key())
 	part := db.primary.PartitionByHKey(hkey)
-	tmp, ok := part.Map.Load(req.DMap())
+	tmp, ok := part.Map().Load(req.DMap())
 	if !ok {
 		db.errorResponse(w, ErrKeyNotFound)
 		return

@@ -27,7 +27,7 @@ type Partition struct {
 
 	id     uint64
 	kind   Kind
-	Map    sync.Map
+	smap   *sync.Map
 	owners atomic.Value
 }
 
@@ -37,6 +37,10 @@ func (p *Partition) Kind() Kind {
 
 func (p *Partition) Id() uint64 {
 	return p.id
+}
+
+func (p *Partition) Map() *sync.Map {
+	return p.smap
 }
 
 // Owner returns partition Owner. It's not thread-safe.
@@ -76,7 +80,7 @@ func (p *Partition) SetOwners(owners []discovery.Member) {
 
 func (p *Partition) Length() int {
 	var length int
-	p.Map.Range(func(_, tmp interface{}) bool {
+	p.Map().Range(func(_, tmp interface{}) bool {
 		u := tmp.(StorageUnit)
 		length += u.Length()
 		// Continue scanning.
