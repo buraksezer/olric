@@ -87,6 +87,18 @@ type Member struct {
 	Birthdate int64
 }
 
+// CompareByID returns true if two members denote the same member in the cluster.
+func (m Member) CompareByID(other Member) bool {
+	// ID variable is calculated by combining member's name and birthdate
+	return m.ID == other.ID
+}
+
+// CompareByName returns true if the two members has the same name in the cluster.
+// This function is intended to redirect the requests to the partition owner.
+func (m Member) CompareByName(other Member) bool {
+	return m.NameHash == other.NameHash
+}
+
 func (m Member) String() string {
 	return m.Name
 }

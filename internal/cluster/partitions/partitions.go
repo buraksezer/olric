@@ -15,8 +15,9 @@
 package partitions
 
 import (
-	"github.com/buraksezer/olric/internal/discovery"
 	"sync"
+
+	"github.com/buraksezer/olric/internal/discovery"
 )
 
 type Kind int
