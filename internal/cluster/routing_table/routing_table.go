@@ -17,12 +17,15 @@ package routing_table
 import (
 	"context"
 	"errors"
-	"fmt"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/buraksezer/olric/pkg/flog"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/transport"
 
 	"github.com/buraksezer/consistent"
 
@@ -41,7 +44,7 @@ type route struct {
 type RoutingTable struct {
 	sync.RWMutex // routingMtx
 
-	table map[uint64]route
+	table map[uint64]*route
 
 	// consistent hash ring implementation.
 	consistent *consistent.Consistent
@@ -49,10 +52,12 @@ type RoutingTable struct {
 	// numMembers is used to check cluster quorum.
 	numMembers   int32
 	signature    uint64
+	config       *config.Config
+	log          *flog.Logger
 	primary      *partitions.Partitions
 	backup       *partitions.Partitions
+	client       *transport.Client
 	discovery    *discovery.Discovery
-	config       *config.Config
 	updatePeriod time.Duration
 	updateMtx    sync.Mutex
 	ctx          context.Context
@@ -60,24 +65,28 @@ type RoutingTable struct {
 	wg           sync.WaitGroup
 }
 
-func New(c *config.Config, primary, backup *partitions.Partitions, discovery *discovery.Discovery) *RoutingTable {
+func New(c *config.Config,
+	log *flog.Logger,
+	primary, backup *partitions.Partitions,
+	client *transport.Client,
+	discovery *discovery.Discovery) *RoutingTable {
 	ctx, cancel := context.WithCancel(context.Background())
-
 	cc := consistent.Config{
 		Hasher:            c.Hasher,
 		PartitionCount:    int(c.PartitionCount),
 		ReplicationFactor: 20, // TODO: This also may be a configuration param.
 		Load:              c.LoadFactor,
 	}
-
 	return &RoutingTable{
 		config:       c,
+		log:          log,
 		consistent:   consistent.New(nil, cc),
 		primary:      primary,
 		backup:       backup,
+		client:       client,
 		discovery:    discovery,
 		updatePeriod: time.Second,
-		table:        make(map[uint64]route),
+		table:        make(map[uint64]*route),
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -110,15 +119,17 @@ func (r *RoutingTable) BootstrapRoutingTable() error {
 }
 
 func (r *RoutingTable) fillRoutingTable() {
-	r.table = make(map[uint64]route)
+	table := make(map[uint64]*route)
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
-		item := r.table[partID]
-		//item.Owners = db.distributePrimaryCopies(partID)
-		//if db.config.ReplicaCount > config.MinimumReplicaCount {
-		//	item.Backups = db.distributeBackups(partID)
-		//}
-		r.table[partID] = item
+		rt := &route{
+			Owners: r.distributePrimaryCopies(partID),
+		}
+		if r.config.ReplicaCount > config.MinimumReplicaCount {
+			rt.Backups = r.distributeBackups(partID)
+		}
+		table[partID] = rt
 	}
+	r.table = table
 }
 
 func (r *RoutingTable) updateRouting() {
@@ -136,7 +147,7 @@ func (r *RoutingTable) updateRouting() {
 	// as observed by the local member’s cluster membership manager
 	nr := atomic.LoadInt32(&r.numMembers)
 	if r.config.MemberCountQuorum > nr {
-		//db.log.V(2).Printf("[ERROR] Impossible to calculate and update routing table: %v", ErrClusterQuorum)
+		r.log.V(2).Printf("[ERROR] Impossible to calculate and update routing table: %v", ErrClusterQuorum)
 		return
 	}
 
@@ -196,42 +207,9 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 	if err != nil {
 		return nil, err
 	}
-
 	status := resp.Status()
-
-	switch {
-	case status == protocol.StatusOK:
+	if status == protocol.StatusOK {
 		return resp, nil
-	case status == protocol.StatusInternalServerError:
-		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value()))
-	case status == protocol.StatusErrNoSuchLock:
-		return nil, ErrNoSuchLock
-	case status == protocol.StatusErrLockNotAcquired:
-		return nil, ErrLockNotAcquired
-	case status == protocol.StatusErrKeyNotFound:
-		return nil, ErrKeyNotFound
-	case status == protocol.StatusErrWriteQuorum:
-		return nil, ErrWriteQuorum
-	case status == protocol.StatusErrReadQuorum:
-		return nil, ErrReadQuorum
-	case status == protocol.StatusErrOperationTimeout:
-		return nil, ErrOperationTimeout
-	case status == protocol.StatusErrKeyFound:
-		return nil, ErrKeyFound
-	case status == protocol.StatusErrClusterQuorum:
-		return nil, ErrClusterQuorum
-	case status == protocol.StatusErrEndOfQuery:
-		return nil, ErrEndOfQuery
-	case status == protocol.StatusErrUnknownOperation:
-		return nil, ErrUnknownOperation
-	case status == protocol.StatusErrServerGone:
-		return nil, ErrServerGone
-	case status == protocol.StatusErrInvalidArgument:
-		return nil, ErrInvalidArgument
-	case status == protocol.StatusErrKeyTooLarge:
-		return nil, ErrKeyTooLarge
-	case status == protocol.StatusErrNotImplemented:
-		return nil, ErrNotImplemented
 	}
-	return nil, fmt.Errorf("unknown status code: %d", status)
+	return nil, transport.NewOpError(status, string(resp.Value()))
 }
