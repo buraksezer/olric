@@ -16,15 +16,13 @@ package olric
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"sync"
-	"sync/atomic"
-
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack"
+	"sync"
 )
 
 var (
@@ -146,14 +144,14 @@ func (db *Olric) mergeDMaps(part *partitions.Partition, data *dmapbox) error {
 }
 
 func (db *Olric) rebalancePrimaryPartitions() {
-	rsign := atomic.LoadUint64(&routingSignature)
+	rsign := db.routingTable.Signature()
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		if !db.isAlive() {
 			// The server is gone.
 			break
 		}
 
-		if rsign != atomic.LoadUint64(&routingSignature) {
+		if rsign != db.routingTable.Signature() {
 			// Routing table is updated. Just quit. Another rebalancer goroutine will work on the
 			// new table immediately.
 			break
@@ -182,13 +180,13 @@ func (db *Olric) rebalancePrimaryPartitions() {
 				db.log.V(2).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v", name, partID, owner, err)
 			}
 			// if this returns true, the iteration continues
-			return rsign == atomic.LoadUint64(&routingSignature)
+			return rsign == db.routingTable.Signature()
 		})
 	}
 }
 
 func (db *Olric) rebalanceBackupPartitions() {
-	rsign := atomic.LoadUint64(&routingSignature)
+	rsign := db.routingTable.Signature()
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		if !db.isAlive() {
 			// The server is gone.
@@ -226,7 +224,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 				break
 			}
 
-			if rsign != atomic.LoadUint64(&routingSignature) {
+			if rsign != db.routingTable.Signature() {
 				// Routing table is updated. Just quit. Another rebalancer goroutine will work on the
 				// new table immediately.
 				break
@@ -247,7 +245,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 						name, partID, owner, err)
 				}
 				// if this returns true, the iteration continues
-				return rsign == atomic.LoadUint64(&routingSignature)
+				return rsign == db.routingTable.Signature()
 			})
 		}
 	}

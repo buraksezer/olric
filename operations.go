@@ -69,9 +69,9 @@ func (db *Olric) registerOperations() {
 	// System Messages
 	//
 	// Internal
-	db.operations[protocol.OpUpdateRouting] = db.updateRoutingOperation
+	db.operations[protocol.OpUpdateRouting] = db.routingTable.UpdateRoutingOperation
 	db.operations[protocol.OpMoveDMap] = db.moveDMapOperation
-	db.operations[protocol.OpLengthOfPart] = db.keyCountOnPartOperation
+	db.operations[protocol.OpLengthOfPart] = db.routingTable.KeyCountOnPartOperation
 
 	// Aliveness
 	db.operations[protocol.OpPing] = db.pingOperation

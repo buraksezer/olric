@@ -117,11 +117,11 @@ func (r *RoutingTable) Members() *members {
 }
 
 func (r *RoutingTable) setSignature(s uint64) {
-	r.signature = s
+	atomic.StoreUint64(&r.signature, s)
 }
 
 func (r *RoutingTable) Signature() uint64 {
-	return r.signature
+	return atomic.LoadUint64(&r.signature)
 }
 
 func (r *RoutingTable) setOwnedPartitionCount() {
@@ -158,14 +158,6 @@ func (r *RoutingTable) IsBootstrapped() bool {
 	return atomic.LoadInt32(&r.bootstrapped) == 1
 }
 
-func (r *RoutingTable) BootstrapRoutingTable() error {
-	if r.table != nil {
-		return errors.New("routing table had already been bootstrapped")
-	}
-	r.fillRoutingTable()
-	return nil
-}
-
 func (r *RoutingTable) fillRoutingTable() {
 	table := make(map[uint64]*route)
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
@@ -180,7 +172,7 @@ func (r *RoutingTable) fillRoutingTable() {
 	r.table = table
 }
 
-func (r *RoutingTable) updateRouting() {
+func (r *RoutingTable) UpdateRouting() {
 	// This function is called by listenMemberlistEvents and updateRoutingPeriodically
 	// So this lock prevents parallel execution.
 	r.Lock()
@@ -261,7 +253,7 @@ func (r *RoutingTable) listenClusterEvents(eventCh chan *discovery.ClusterEvent)
 				return
 			case e := <-eventCh:
 				r.processClusterEvent(e)
-				r.updateRouting()
+				r.UpdateRouting()
 			}
 		}
 	}()
@@ -279,7 +271,7 @@ func (r *RoutingTable) updatePeriodically() {
 			case <-r.ctx.Done():
 				return
 			case <-ticker.C:
-				r.updateRouting()
+				r.UpdateRouting()
 			}
 		}
 	}()
@@ -297,7 +289,7 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 	return nil, transport.NewOpError(status, string(resp.Value()))
 }
 
-func (r *RoutingTable) Close(ctx context.Context) error {
+func (r *RoutingTable) Shutdown(ctx context.Context) error {
 	r.cancel()
 	done := make(chan struct{})
 	go func() {
