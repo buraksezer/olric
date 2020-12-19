@@ -17,20 +17,18 @@ package routing_table
 import (
 	"context"
 	"errors"
+	"github.com/hashicorp/memberlist"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olric/pkg/flog"
-
+	"github.com/buraksezer/consistent"
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
-
-	"github.com/buraksezer/consistent"
-
-	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/pkg/flog"
 )
 
 // ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
@@ -44,6 +42,8 @@ type route struct {
 type RoutingTable struct {
 	sync.RWMutex // routingMtx
 
+	updateRoutingMtx sync.Mutex
+
 	table map[uint64]*route
 
 	// consistent hash ring implementation.
@@ -52,6 +52,8 @@ type RoutingTable struct {
 	// numMembers is used to check cluster quorum.
 	numMembers   int32
 	signature    uint64
+	this         discovery.Member
+	members      *members
 	config       *config.Config
 	log          *flog.Logger
 	primary      *partitions.Partitions
@@ -67,6 +69,7 @@ type RoutingTable struct {
 
 func New(c *config.Config,
 	log *flog.Logger,
+	this discovery.Member,
 	primary, backup *partitions.Partitions,
 	client *transport.Client,
 	discovery *discovery.Discovery) *RoutingTable {
@@ -78,6 +81,8 @@ func New(c *config.Config,
 		Load:              c.LoadFactor,
 	}
 	return &RoutingTable{
+		this:         this,
+		members:      newMembers(),
 		config:       c,
 		log:          log,
 		consistent:   consistent.New(nil, cc),
@@ -92,6 +97,22 @@ func New(c *config.Config,
 	}
 }
 
+// setNumMembers assigns the current number of members in the cluster to a variable.
+func (r *RoutingTable) setNumMembers() {
+	// Calling NumMembers in every request is quite expensive.
+	// It's rarely updated. Just call this when the membership info changed.
+	nr := int32(r.discovery.NumMembers())
+	atomic.StoreInt32(&r.numMembers, nr)
+}
+
+func (r *RoutingTable) NumMembers() int32 {
+	return atomic.LoadInt32(&r.numMembers)
+}
+
+func (r *RoutingTable) Members() *members {
+	return r.members
+}
+
 func (r *RoutingTable) SetSignature(s uint64) {
 	r.signature = s
 }
@@ -103,8 +124,7 @@ func (r *RoutingTable) Signature() uint64 {
 func (r *RoutingTable) CheckMemberCountQuorum() error {
 	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
 	// as observed by the local member’s cluster membership manager
-	nr := atomic.LoadInt32(&r.numMembers)
-	if r.config.MemberCountQuorum > nr {
+	if r.config.MemberCountQuorum > r.NumMembers() {
 		return ErrClusterQuorum
 	}
 	return nil
@@ -145,21 +165,62 @@ func (r *RoutingTable) updateRouting() {
 
 	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
 	// as observed by the local member’s cluster membership manager
-	nr := atomic.LoadInt32(&r.numMembers)
-	if r.config.MemberCountQuorum > nr {
+	if r.config.MemberCountQuorum > r.NumMembers() {
 		r.log.V(2).Printf("[ERROR] Impossible to calculate and update routing table: %v", ErrClusterQuorum)
 		return
 	}
 
 	r.fillRoutingTable()
-
-	/*table := db.distributePartitions()
-	reports, err := db.updateRoutingTableOnCluster(table)
+	reports, err := r.updateRoutingTableOnCluster()
 	if err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to update routing table on cluster: %v", err)
+		r.log.V(2).Printf("[ERROR] Failed to update routing table on cluster: %v", err)
 		return
 	}
-	db.processOwnershipReports(reports)*/
+	r.processOwnershipReports(reports)
+}
+
+func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
+	r.Members().Lock()
+	defer r.Members().Unlock()
+
+	member, _ := r.discovery.DecodeNodeMeta(event.NodeMeta)
+
+	switch event.Event {
+	case memberlist.NodeJoin:
+		r.Members().Add(member)
+		r.consistent.Add(member)
+		r.log.V(2).Printf("[INFO] Node joined: %s", member)
+	case memberlist.NodeLeave:
+		if _, err := r.Members().Get(member.ID); err != nil {
+			r.log.V(2).Printf("[ERROR] Unknown node left: %s: %d", event.NodeName, member.ID)
+			return
+		}
+		r.Members().Delete(member.ID)
+		r.consistent.Remove(event.NodeName)
+		// Don't try to used closed sockets again.
+		r.client.ClosePool(event.NodeName)
+		r.log.V(2).Printf("[INFO] Node left: %s", event.NodeName)
+	case memberlist.NodeUpdate:
+		// Node's birthdate may be changed. Close the pool and re-add to the hash ring.
+		// This takes linear time, but member count should be too small for a decent computer!
+		r.Members().Range(func(id uint64, item discovery.Member) {
+			if member.CompareByName(item) {
+				r.Members().Delete(id)
+				r.consistent.Remove(event.NodeName)
+				r.client.ClosePool(event.NodeName)
+			}
+		})
+		r.Members().Add(member)
+		r.consistent.Add(member)
+		r.log.V(2).Printf("[INFO] Node updated: %s", member)
+	default:
+		r.log.V(2).Printf("[ERROR] Unknown event received: %v", event)
+		return
+	}
+
+	// Store the current number of members in the member list.
+	// We need this to implement a simple split-brain protection algorithm.
+	r.setNumMembers()
 }
 
 func (r *RoutingTable) ListenClusterEvents(eventCh chan *discovery.ClusterEvent) {
@@ -170,8 +231,8 @@ func (r *RoutingTable) ListenClusterEvents(eventCh chan *discovery.ClusterEvent)
 			select {
 			case <-r.ctx.Done():
 				return
-			case _ = <-eventCh:
-				// db.processClusterEvent(e)
+			case e := <-eventCh:
+				r.processClusterEvent(e)
 				r.updateRouting()
 			}
 		}
