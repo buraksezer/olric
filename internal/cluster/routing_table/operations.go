@@ -15,10 +15,11 @@
 package routing_table
 
 import (
-	"sync/atomic"
+	"fmt"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/cespare/xxhash"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -44,6 +45,25 @@ func (r *RoutingTable) KeyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
+func (r *RoutingTable) verifyRoutingTable(id uint64, table map[uint64]*route) error {
+	// Check the coordinator
+	coordinator, err := r.discovery.FindMemberByID(id)
+	if err != nil {
+		return err
+	}
+
+	myCoordinator := r.discovery.GetCoordinator()
+	if !coordinator.CompareByID(myCoordinator) {
+		return fmt.Errorf("unrecognized cluster coordinator: %s: %s", coordinator, myCoordinator)
+	}
+
+	// Compare partition counts to catch a possible inconsistencies in configuration
+	if r.config.PartitionCount != uint64(len(table)) {
+		return fmt.Errorf("invalid partition count: %d", len(table))
+	}
+	return nil
+}
+
 func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	r.updateRoutingMtx.Lock()
 	defer r.updateRoutingMtx.Unlock()
@@ -58,24 +78,25 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	}
 
 	coordinatorID := req.Extra().(protocol.UpdateRoutingExtra).CoordinatorID
-	coordinator, err := db.checkAndGetCoordinator(coordinatorID)
+
+	// Log this event
+	coordinator, err := r.discovery.FindMemberByID(coordinatorID)
 	if err != nil {
-		r.log.V(2).Printf("[ERROR] Routing table cannot be updated: %v", err)
-		db.errorResponse(w, err)
+		w.SetStatus(protocol.StatusInternalServerError)
+		w.SetValue([]byte(err.Error()))
 		return
 	}
+	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
 
-	// Compare partition counts to catch a possible inconsistencies in configuration
-	if r.config.PartitionCount != uint64(len(table)) {
-		r.log.V(2).Printf("[ERROR] Routing table cannot be updated. "+
-			"Expected partition count is %d, got: %d", r.config.PartitionCount, uint64(len(table)))
-		db.errorResponse(w, ErrInvalidArgument)
+	if err = r.verifyRoutingTable(coordinatorID, table); err != nil {
+		w.SetStatus(protocol.StatusInternalServerError)
+		w.SetValue([]byte(err.Error()))
 		return
 	}
 
 	// owners(atomic.value) is guarded by routingUpdateMtx against parallel writers.
 	// Calculate routing signature. This is useful to control rebalancing tasks.
-	r.SetSignature(r.hasher.Sum64(req.Value()))
+	r.SetSignature(xxhash.Sum64(req.Value()))
 	for partID, data := range table {
 		// Set partition(primary copies) owners
 		part := r.primary.PartitionById(partID)
@@ -86,18 +107,19 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 		bpart.SetOwners(data.Backups)
 	}
 
-	db.setOwnedPartitionCount()
+	// Used by the LRU implementation.
+	r.setOwnedPartitionCount()
 
 	// Bootstrapped by the coordinator.
-	atomic.StoreInt32(&db.bootstrapped, 1)
+	r.markBootstrapped()
+
 	// Collect report
 	data, err := r.prepareOwnershipReport()
 	if err != nil {
-		db.errorResponse(w, ErrInvalidArgument)
+		w.SetStatus(protocol.StatusInternalServerError)
+		w.SetValue([]byte(err.Error()))
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(data)
 
 	// Call rebalancer to rebalance partitions
 	r.wg.Add(1)
@@ -110,5 +132,7 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 		// Clean stale dmaps
 		// db.deleteStaleDMaps()
 	}()
-	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
+
+	w.SetStatus(protocol.StatusOK)
+	w.SetValue(data)
 }

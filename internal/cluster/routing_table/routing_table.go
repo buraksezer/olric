@@ -42,6 +42,9 @@ type route struct {
 type RoutingTable struct {
 	sync.RWMutex // routingMtx
 
+	// These values is useful to control operation status.
+	bootstrapped int32
+
 	updateRoutingMtx sync.Mutex
 
 	table map[uint64]*route
@@ -51,6 +54,9 @@ type RoutingTable struct {
 
 	// numMembers is used to check cluster quorum.
 	numMembers   int32
+	// Currently owned partition count. Approximate LRU implementation
+	// uses that.
+	ownedPartitionCount uint64
 	signature    uint64
 	this         discovery.Member
 	members      *members
@@ -121,6 +127,22 @@ func (r *RoutingTable) Signature() uint64 {
 	return r.signature
 }
 
+func (r *RoutingTable) setOwnedPartitionCount() {
+	var count uint64
+	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
+		part := r.primary.PartitionById(partID)
+		if part.Owner().CompareByID(r.this) {
+			count++
+		}
+	}
+
+	atomic.StoreUint64(&r.ownedPartitionCount, count)
+}
+
+func (r *RoutingTable) OwnedPartitionCount() uint64 {
+	return atomic.LoadUint64(&r.ownedPartitionCount)
+}
+
 func (r *RoutingTable) CheckMemberCountQuorum() error {
 	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
 	// as observed by the local member’s cluster membership manager
@@ -128,6 +150,16 @@ func (r *RoutingTable) CheckMemberCountQuorum() error {
 		return ErrClusterQuorum
 	}
 	return nil
+}
+
+func (r *RoutingTable) markBootstrapped() {
+	// Bootstrapped by the coordinator.
+	atomic.StoreInt32(&r.bootstrapped, 1)
+}
+
+func (r *RoutingTable) IsBootstrapped() bool {
+	// Bootstrapped by the coordinator.
+	return atomic.LoadInt32(&r.bootstrapped) == 1
 }
 
 func (r *RoutingTable) BootstrapRoutingTable() error {
