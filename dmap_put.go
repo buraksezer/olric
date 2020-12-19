@@ -17,7 +17,6 @@ package olric
 import (
 	"fmt"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"sync/atomic"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -250,7 +249,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 		// This works for every request if you enabled LRU.
 		// But loading a number from memory should be very cheap.
 		// ownedPartitionCount changes in the case of node join or leave.
-		ownedPartitionCount := atomic.LoadUint64(&db.ownedPartitionCount)
+		ownedPartitionCount := db.routingTable.OwnedPartitionCount()
 
 		if dm.config.maxKeys > 0 {
 			// MaxKeys controls maximum key count owned by this node.

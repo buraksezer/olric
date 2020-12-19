@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/buraksezer/consistent"
@@ -101,14 +100,8 @@ type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
 
-	// These values is useful to control operation status.
-	bootstrapped int32
 	// numMembers is used to check cluster quorum.
 	numMembers int32
-
-	// Currently owned partition count. Approximate LRU implementation
-	// uses that.
-	ownedPartitionCount uint64
 
 	// this defines this Olric node in the cluster.
 	this   discovery.Member
@@ -446,7 +439,7 @@ func (db *Olric) isAlive() bool {
 // It has to be very fast for a smooth operation.
 func (db *Olric) checkBootstrap() error {
 	// check it immediately
-	if atomic.LoadInt32(&db.bootstrapped) == 1 {
+	if db.routingTable.IsBootstrapped() {
 		return nil
 	}
 
@@ -455,7 +448,7 @@ func (db *Olric) checkBootstrap() error {
 
 	// This loop only works for the first moments of the process.
 	for {
-		if atomic.LoadInt32(&db.bootstrapped) == 1 {
+		if db.routingTable.IsBootstrapped() {
 			return nil
 		}
 		<-time.After(100 * time.Millisecond)
@@ -465,15 +458,6 @@ func (db *Olric) checkBootstrap() error {
 		default:
 		}
 	}
-}
-
-// DEPRECATED
-// storeNumMembers assigns the current number of members in the cluster to a variable.
-func (db *Olric) storeNumMembers() {
-	// Calling NumMembers in every request is quite expensive.
-	// It's rarely updated. Just call this when the membership info changed.
-	nr := int32(db.discovery.NumMembers())
-	atomic.StoreInt32(&db.numMembers, nr)
 }
 
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
