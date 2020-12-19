@@ -44,7 +44,7 @@ func (db *Olric) localExpire(hkey uint64, dm *dmap, w *writeop) error {
 func (db *Olric) asyncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	req := w.toReq(protocol.OpExpireReplica)
 	// Fire and forget mode.
-	owners := db.backups.PartitionOwnersByHKey(hkey)
+	owners := db.backup.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
@@ -65,7 +65,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 
 	// Quorum based replication.
 	var successful int
-	owners := db.backups.PartitionOwnersByHKey(hkey)
+	owners := db.backup.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		_, err := db.requestTo(owner.String(), req)
 		if err != nil {

@@ -118,7 +118,7 @@ type Olric struct {
 
 	// Logical units for data storage
 	primary *partitions.Partitions
-	backups *partitions.Partitions
+	backup  *partitions.Partitions
 
 	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
 	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
@@ -210,7 +210,7 @@ func New(c *config.Config) (*Olric, error) {
 		serializer: c.Serializer,
 		client:     client,
 		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY),
-		backups:    partitions.New(c.PartitionCount, partitions.BACKUP), // TODO: rename > backup
+		backup:     partitions.New(c.PartitionCount, partitions.BACKUP), // TODO: rename > backup
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		members:    members{m: make(map[uint64]discovery.Member)},
@@ -223,7 +223,7 @@ func New(c *config.Config) (*Olric, error) {
 		started: c.Started,
 	}
 
-	db.routingTable = routing_table.New(c, flogger, db.primary, db.backups, client)
+	db.routingTable = routing_table.New(c, flogger, db.primary, db.backup, client)
 
 	if err = db.initializeAndLoadStorageEngines(); err != nil {
 		return nil, err

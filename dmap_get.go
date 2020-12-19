@@ -151,8 +151,8 @@ func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
 
 func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	var versions []*version
-	// Check backups.
-	backups := db.backups.PartitionOwnersByHKey(hkey)
+	// Check backup.
+	backups := db.backup.PartitionOwnersByHKey(hkey)
 	for _, replica := range backups {
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(name)

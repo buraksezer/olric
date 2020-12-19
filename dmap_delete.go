@@ -43,7 +43,7 @@ func (db *Olric) deleteStaleDMaps() {
 		part := db.primary.PartitionById(partID)
 		janitor(part)
 		// Clean stale dmaps on backup partition table
-		backup := db.backups.PartitionById(partID)
+		backup := db.backup.PartitionById(partID)
 		janitor(backup)
 	}
 }
@@ -180,7 +180,7 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
-	owners := db.backups.PartitionOwnersByHKey(hkey)
+	owners := db.backup.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
 	for _, owner := range owners {
 		mem := owner

@@ -158,7 +158,7 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 				part := instance.primary.PartitionById(partID)
 				part.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 
-				bpart := instance.backups.PartitionById(partID)
+				bpart := instance.backup.PartitionById(partID)
 				bpart.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 			}
 		}

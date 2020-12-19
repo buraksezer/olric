@@ -55,7 +55,7 @@ func TestDMap_PutBackup(t *testing.T) {
 			backup = db2
 		}
 		partID := db1.primary.PartitionIdByHKey(hkey)
-		bpart := backup.backups.PartitionById(partID)
+		bpart := backup.backup.PartitionById(partID)
 		tmp, ok := bpart.Map().Load(mname)
 		if !ok {
 			t.Fatalf("mymap could not be found")
@@ -119,8 +119,8 @@ func TestDMap_DeleteBackup(t *testing.T) {
 		if cmpMembersByID(owner, db1.this) {
 			backup = db2
 		}
-		partID := db1.backups.PartitionIdByHKey(hkey)
-		bpart := backup.backups.PartitionById(partID)
+		partID := db1.backup.PartitionIdByHKey(hkey)
+		bpart := backup.backup.PartitionById(partID)
 		tmp, ok := bpart.Map().Load(mname)
 		data := tmp.(*dmap)
 		if !ok {
@@ -253,7 +253,7 @@ func TestDMap_GetBackup(t *testing.T) {
 	syncClusterMembers(db1, db2)
 
 	db1.rebalancer()
-	for _, bpart := range db1.backups {
+	for _, bpart := range db1.backup {
 		bpart.RLock()
 		if len(bpart.owners) != 1 {
 			t.Fatalf("Expected backup owner count is 1. Got: %d", len(bpart.owners))

@@ -186,7 +186,7 @@ func TestRebalance_MergeBackups(t *testing.T) {
 	checkOwnerCount := func(db *Olric) {
 		syncClusterMembers(db1, db2, db3)
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-			backup := db.backups.PartitionById(partID)
+			backup := db.backup.PartitionById(partID)
 			if backup.OwnerCount() != 1 {
 				t.Fatalf("Expected backup owner count is 1 for PartID: %d on %s. Got: %d",
 					partID, db.this, backup.OwnerCount())
@@ -213,7 +213,7 @@ func TestRebalance_CheckOwnership(t *testing.T) {
 
 	checkOwnership := func(db *Olric) {
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-			backup := db.backups.PartitionById(partID)
+			backup := db.backup.PartitionById(partID)
 			part := db.primary.PartitionById(partID)
 			members := db.discovery.GetMembers()
 			if len(members) == 1 && len(backup.Owners()) != 0 {

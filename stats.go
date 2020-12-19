@@ -46,7 +46,7 @@ func (db *Olric) stats() stats.Stats {
 	collect := func(partID uint64, part *partitions.Partition) stats.Partition {
 		owners := part.Owners()
 		p := stats.Partition{
-			Backups: db.backups.PartitionOwnersById(partID),
+			Backups: db.backup.PartitionOwnersById(partID),
 			Length:  part.Length(),
 			DMaps:   make(map[string]stats.DMap),
 		}

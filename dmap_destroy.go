@@ -77,7 +77,7 @@ func (db *Olric) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 		part.Map().Delete(req.DMap())
 		// Delete from Backups
 		if db.config.ReplicaCount != 0 {
-			bpart := db.backups.PartitionById(partID)
+			bpart := db.backup.PartitionById(partID)
 			bpart.Map().Delete(req.DMap())
 		}
 	}

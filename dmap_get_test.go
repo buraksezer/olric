@@ -331,7 +331,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		dm3.RLock()
-		owners := db3.backups.PartitionOwnersByHKey(hkey)
+		owners := db3.backup.PartitionOwnersByHKey(hkey)
 		if cmpMembersByID(owners[0], db3.this) {
 			entry, err := dm3.storage.Get(hkey)
 			if err != nil {
