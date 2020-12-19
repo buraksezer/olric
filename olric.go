@@ -24,6 +24,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/routing_table"
 	"net"
 	"strconv"
 	"strings"
@@ -96,6 +97,8 @@ type storageEngines struct {
 
 // Olric implements a distributed, in-memory and embeddable key/value store and config.
 type Olric struct {
+	routingTable *routing_table.RoutingTable
+
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
 
@@ -229,7 +232,7 @@ func New(c *config.Config) (*Olric, error) {
 		consistent: consistent.New(nil, cfg),
 		client:     client,
 		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY),
-		backups:    partitions.New(c.PartitionCount, partitions.BACKUP),
+		backups:    partitions.New(c.PartitionCount, partitions.BACKUP), // TODO: rename > backup
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		members:    members{m: make(map[uint64]discovery.Member)},
@@ -241,6 +244,8 @@ func New(c *config.Config) (*Olric, error) {
 		},
 		started: c.Started,
 	}
+
+	db.routingTable = routing_table.New(c, flogger, db.primary, db.backups, client)
 
 	if err = db.initializeAndLoadStorageEngines(); err != nil {
 		return nil, err

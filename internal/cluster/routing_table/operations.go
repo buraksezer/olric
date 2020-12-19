@@ -64,7 +64,7 @@ func (r *RoutingTable) verifyRoutingTable(id uint64, table map[uint64]*route) er
 	return nil
 }
 
-func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
+func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	r.updateRoutingMtx.Lock()
 	defer r.updateRoutingMtx.Unlock()
 
@@ -96,7 +96,7 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 
 	// owners(atomic.value) is guarded by routingUpdateMtx against parallel writers.
 	// Calculate routing signature. This is useful to control rebalancing tasks.
-	r.SetSignature(xxhash.Sum64(req.Value()))
+	r.setSignature(xxhash.Sum64(req.Value()))
 	for partID, data := range table {
 		// Set partition(primary copies) owners
 		part := r.primary.PartitionById(partID)

@@ -17,16 +17,17 @@ package routing_table
 import (
 	"context"
 	"errors"
-	"github.com/hashicorp/memberlist"
+	"github.com/buraksezer/olric/internal/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/hashicorp/memberlist"
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 )
@@ -53,32 +54,30 @@ type RoutingTable struct {
 	consistent *consistent.Consistent
 
 	// numMembers is used to check cluster quorum.
-	numMembers   int32
+	numMembers int32
 	// Currently owned partition count. Approximate LRU implementation
 	// uses that.
 	ownedPartitionCount uint64
-	signature    uint64
-	this         discovery.Member
-	members      *members
-	config       *config.Config
-	log          *flog.Logger
-	primary      *partitions.Partitions
-	backup       *partitions.Partitions
-	client       *transport.Client
-	discovery    *discovery.Discovery
-	updatePeriod time.Duration
-	updateMtx    sync.Mutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	signature           uint64
+	this                discovery.Member
+	members             *members
+	config              *config.Config
+	log                 *flog.Logger
+	primary             *partitions.Partitions
+	backup              *partitions.Partitions
+	client              *transport.Client
+	discovery           *discovery.Discovery
+	updatePeriod        time.Duration
+	updateMtx           sync.Mutex
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	wg                  sync.WaitGroup
 }
 
 func New(c *config.Config,
 	log *flog.Logger,
-	this discovery.Member,
 	primary, backup *partitions.Partitions,
-	client *transport.Client,
-	discovery *discovery.Discovery) *RoutingTable {
+	client *transport.Client) *RoutingTable {
 	ctx, cancel := context.WithCancel(context.Background())
 	cc := consistent.Config{
 		Hasher:            c.Hasher,
@@ -87,7 +86,6 @@ func New(c *config.Config,
 		Load:              c.LoadFactor,
 	}
 	return &RoutingTable{
-		this:         this,
 		members:      newMembers(),
 		config:       c,
 		log:          log,
@@ -95,7 +93,6 @@ func New(c *config.Config,
 		primary:      primary,
 		backup:       backup,
 		client:       client,
-		discovery:    discovery,
 		updatePeriod: time.Second,
 		table:        make(map[uint64]*route),
 		ctx:          ctx,
@@ -119,7 +116,7 @@ func (r *RoutingTable) Members() *members {
 	return r.members
 }
 
-func (r *RoutingTable) SetSignature(s uint64) {
+func (r *RoutingTable) setSignature(s uint64) {
 	r.signature = s
 }
 
@@ -135,7 +132,6 @@ func (r *RoutingTable) setOwnedPartitionCount() {
 			count++
 		}
 	}
-
 	atomic.StoreUint64(&r.ownedPartitionCount, count)
 }
 
@@ -255,7 +251,7 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 	r.setNumMembers()
 }
 
-func (r *RoutingTable) ListenClusterEvents(eventCh chan *discovery.ClusterEvent) {
+func (r *RoutingTable) listenClusterEvents(eventCh chan *discovery.ClusterEvent) {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
@@ -271,7 +267,7 @@ func (r *RoutingTable) ListenClusterEvents(eventCh chan *discovery.ClusterEvent)
 	}()
 }
 
-func (r *RoutingTable) UpdatePeriodically() {
+func (r *RoutingTable) updatePeriodically() {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
@@ -289,12 +285,6 @@ func (r *RoutingTable) UpdatePeriodically() {
 	}()
 }
 
-func (r *RoutingTable) Close() {
-	r.cancel()
-	// TODO: Add graceperiod
-	r.wg.Wait()
-}
-
 func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	resp, err := r.client.RequestTo(addr, req)
 	if err != nil {
@@ -305,4 +295,22 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 		return resp, nil
 	}
 	return nil, transport.NewOpError(status, string(resp.Value()))
+}
+
+func (r *RoutingTable) Close(ctx context.Context) error {
+	r.cancel()
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-ctx.Done():
+		err := ctx.Err()
+		if err != nil {
+			return err
+		}
+	case <-done:
+	}
+	return nil
 }
