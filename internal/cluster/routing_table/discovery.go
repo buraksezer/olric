@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/consistent"
+	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/discovery"
 )
 
@@ -154,5 +155,7 @@ func (r *RoutingTable) Start() error {
 	}
 	r.log.V(2).Printf("[INFO] Memberlist bindAddr: %s, bindPort: %d", r.config.MemberlistConfig.BindAddr, r.config.MemberlistConfig.BindPort)
 	r.log.V(2).Printf("[INFO] Cluster coordinator: %s", r.discovery.GetCoordinator())
+
+	checkpoint.Pass()
 	return nil
 }
