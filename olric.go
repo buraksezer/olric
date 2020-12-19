@@ -30,7 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
@@ -117,9 +116,6 @@ type Olric struct {
 	serializer serializer.Serializer
 	discovery  *discovery.Discovery
 
-	// consistent hash ring implementation.
-	consistent *consistent.Consistent
-
 	// Logical units for data storage
 	primary *partitions.Partitions
 	backups *partitions.Partitions
@@ -175,12 +171,6 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 
-	cfg := consistent.Config{
-		Hasher:            c.Hasher,
-		PartitionCount:    int(c.PartitionCount),
-		ReplicationFactor: 20, // TODO: This also may be a configuration param.
-		Load:              c.LoadFactor,
-	}
 	client := transport.NewClient(c.Client)
 
 	filter := &logutils.LevelFilter{
@@ -218,7 +208,6 @@ func New(c *config.Config) (*Olric, error) {
 		hasher:     c.Hasher,
 		locker:     locker.New(),
 		serializer: c.Serializer,
-		consistent: consistent.New(nil, cfg),
 		client:     client,
 		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY),
 		backups:    partitions.New(c.PartitionCount, partitions.BACKUP), // TODO: rename > backup
