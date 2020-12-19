@@ -476,19 +476,9 @@ func (db *Olric) storeNumMembers() {
 	atomic.StoreInt32(&db.numMembers, nr)
 }
 
-func (db *Olric) checkMemberCountQuorum() error {
-	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
-	// as observed by the local member’s cluster membership manager
-	nr := atomic.LoadInt32(&db.numMembers)
-	if db.config.MemberCountQuorum > nr {
-		return ErrClusterQuorum
-	}
-	return nil
-}
-
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
-	if err := db.checkMemberCountQuorum(); err != nil {
+	if err := db.routingTable.CheckMemberCountQuorum(); err != nil {
 		return err
 	}
 	// An Olric node has to be bootstrapped to function properly.
