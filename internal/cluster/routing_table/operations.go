@@ -123,15 +123,7 @@ func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
 
 	// Call rebalancer to rebalance partitions
 	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		// TODO: Add rebalancer
-		// db.rebalancer()
-
-		// TODO: This can be moved
-		// Clean stale dmaps
-		// db.deleteStaleDMaps()
-	}()
+	go r.runCallbacks()
 
 	w.SetStatus(protocol.StatusOK)
 	w.SetValue(data)

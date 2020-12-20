@@ -66,6 +66,8 @@ type RoutingTable struct {
 	backup              *partitions.Partitions
 	client              *transport.Client
 	discovery           *discovery.Discovery
+	callbacks           []func()
+	callbackMtx         sync.Mutex
 	updatePeriod        time.Duration
 	updateMtx           sync.Mutex
 	ctx                 context.Context
@@ -73,10 +75,7 @@ type RoutingTable struct {
 	wg                  sync.WaitGroup
 }
 
-func New(c *config.Config,
-	log *flog.Logger,
-	primary, backup *partitions.Partitions,
-	client *transport.Client) *RoutingTable {
+func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partitions, client *transport.Client) *RoutingTable {
 	ctx, cancel := context.WithCancel(context.Background())
 	cc := consistent.Config{
 		Hasher:            c.Hasher,
@@ -171,7 +170,11 @@ func (r *RoutingTable) fillRoutingTable() {
 	r.table = table
 }
 
-func (r *RoutingTable) UpdateRouting() {
+func (r *RoutingTable) UpdateRoutingEagerly() {
+	r.updateRouting()
+}
+
+func (r *RoutingTable) updateRouting() {
 	// This function is called by listenMemberlistEvents and updateRoutingPeriodically
 	// So this lock prevents parallel execution.
 	r.Lock()
@@ -250,7 +253,7 @@ func (r *RoutingTable) listenClusterEvents(eventCh chan *discovery.ClusterEvent)
 			return
 		case e := <-eventCh:
 			r.processClusterEvent(e)
-			r.UpdateRouting()
+			r.updateRouting()
 		}
 	}
 }
@@ -265,7 +268,7 @@ func (r *RoutingTable) updatePeriodically() {
 		case <-r.ctx.Done():
 			return
 		case <-ticker.C:
-			r.UpdateRouting()
+			r.updateRouting()
 		}
 	}
 }

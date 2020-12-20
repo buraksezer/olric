@@ -223,6 +223,8 @@ func New(c *config.Config) (*Olric, error) {
 	}
 
 	db.routingTable = routing_table.New(c, flogger, db.primary, db.backup, client)
+	db.routingTable.AddCallback(db.rebalancer)
+	db.routingTable.AddCallback(db.deleteStaleDMaps)
 
 	if err = db.initializeAndLoadStorageEngines(); err != nil {
 		return nil, err
