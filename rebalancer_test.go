@@ -19,7 +19,6 @@ import (
 	"context"
 	"net"
 	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -263,7 +262,7 @@ func TestSplitBrain_ErrClusterQuorum(t *testing.T) {
 	}()
 	// It's not good to manipulate numMembers but it's very hard to prepare a test condition
 	// to test ErrClusterQuorum error.
-	atomic.StoreInt32(&db.numMembers, 0)
+	db.rt.SetNumMembersEagerly(0)
 
 	_, err = db.NewDMap("map")
 	if err != ErrClusterQuorum {

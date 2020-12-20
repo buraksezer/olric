@@ -90,9 +90,6 @@ type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
 
-	// numMembers is used to check cluster quorum.
-	numMembers int32
-
 	config *config.Config
 	log    *flog.Logger
 
@@ -440,7 +437,7 @@ func (db *Olric) checkBootstrap() error {
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
 	if err := db.rt.CheckMemberCountQuorum(); err != nil {
-		return err
+		return errInternalToPublic(err)
 	}
 	// An Olric node has to be bootstrapped to function properly.
 	return db.checkBootstrap()
@@ -535,4 +532,13 @@ func isKeyExpired(ttl int64) bool {
 	}
 	// convert nanoseconds to milliseconds
 	return (time.Now().UnixNano() / 1000000) >= ttl
+}
+
+func errInternalToPublic(err error) error {
+	switch err {
+	case routing_table.ErrClusterQuorum:
+		return ErrClusterQuorum
+	default:
+		return err
+	}
 }

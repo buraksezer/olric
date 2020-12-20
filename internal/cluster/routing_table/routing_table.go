@@ -107,6 +107,10 @@ func (r *RoutingTable) setNumMembers() {
 	atomic.StoreInt32(&r.numMembers, nr)
 }
 
+func (r *RoutingTable) SetNumMembersEagerly(nr int32) {
+	atomic.StoreInt32(&r.numMembers, nr)
+}
+
 func (r *RoutingTable) NumMembers() int32 {
 	return atomic.LoadInt32(&r.numMembers)
 }
@@ -288,6 +292,10 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 }
 
 func (r *RoutingTable) Shutdown(ctx context.Context) error {
+	if err := r.discovery.Shutdown(); err != nil {
+		return err
+	}
+
 	r.cancel()
 	done := make(chan struct{})
 	go func() {
