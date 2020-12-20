@@ -231,7 +231,7 @@ func TestDMap_GetReadQuorum(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.discovery.GetMembers()
+		members := db1.routingTable.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}
@@ -299,7 +299,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.discovery.GetMembers()
+		members := db1.routingTable.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}

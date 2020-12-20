@@ -230,7 +230,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 				break
 			}
 
-			owner, err := db.discovery.FindMemberByID(id)
+			owner, err := db.routingTable.Discovery().FindMemberByID(id)
 			if err != nil {
 				db.log.V(2).Printf("[ERROR] Failed to get host by id: %d: %v", id, err)
 				continue

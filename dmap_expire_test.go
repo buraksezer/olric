@@ -175,7 +175,7 @@ func TestDMap_ExpireWriteQuorum(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.discovery.GetMembers()
+		members := db1.routingTable.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}

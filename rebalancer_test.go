@@ -136,7 +136,7 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 	peer := net.JoinHostPort(
 		db1.config.MemberlistConfig.BindAddr,
 		strconv.Itoa(db1.config.MemberlistConfig.BindPort))
-	_, err = db2.discovery.Rejoin([]string{peer})
+	_, err = db2.routingTable.Discovery().Rejoin([]string{peer})
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestRebalance_CheckOwnership(t *testing.T) {
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 			backup := db.backup.PartitionById(partID)
 			part := db.primary.PartitionById(partID)
-			members := db.discovery.GetMembers()
+			members := db.routingTable.Discovery().GetMembers()
 			if len(members) == 1 && len(backup.Owners()) != 0 {
 				t.Fatalf("Invalid ownership distribution")
 			}
@@ -320,7 +320,7 @@ func TestSplitBrain_SimpleMerge(t *testing.T) {
 	// Merge the clusters.
 	port := strconv.Itoa(db2.config.MemberlistConfig.BindPort)
 	peer := net.JoinHostPort(db2.config.MemberlistConfig.BindAddr, port)
-	_, err = db1.discovery.Rejoin([]string{peer})
+	_, err = db1.routingTable.Discovery().Rejoin([]string{peer})
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

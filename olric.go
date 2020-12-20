@@ -114,7 +114,6 @@ type Olric struct {
 	// and distributed, optimistic lock implementation.
 	locker     *locker.Locker
 	serializer serializer.Serializer
-	discovery  *discovery.Discovery
 
 	// Logical units for data storage
 	primary *partitions.Partitions

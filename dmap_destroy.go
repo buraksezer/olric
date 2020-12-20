@@ -27,7 +27,7 @@ func (db *Olric) destroyDMap(name string) error {
 	sem := semaphore.NewWeighted(num)
 
 	var g errgroup.Group
-	for _, item := range db.discovery.GetMembers() {
+	for _, item := range db.routingTable.Discovery().GetMembers() {
 		addr := item.String()
 		g.Go(func() error {
 			if err := sem.Acquire(db.ctx, 1); err != nil {
