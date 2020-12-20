@@ -17,19 +17,18 @@ package routing_table
 import (
 	"context"
 	"errors"
-	"github.com/buraksezer/olric/internal/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/hashicorp/memberlist"
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
+	"github.com/hashicorp/memberlist"
 )
 
 // ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
@@ -244,37 +243,31 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 }
 
 func (r *RoutingTable) listenClusterEvents(eventCh chan *discovery.ClusterEvent) {
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		for {
-			select {
-			case <-r.ctx.Done():
-				return
-			case e := <-eventCh:
-				r.processClusterEvent(e)
-				r.UpdateRouting()
-			}
+	defer r.wg.Done()
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case e := <-eventCh:
+			r.processClusterEvent(e)
+			r.UpdateRouting()
 		}
-	}()
+	}
 }
 
 func (r *RoutingTable) updatePeriodically() {
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		ticker := time.NewTicker(r.updatePeriod)
-		defer ticker.Stop()
+	defer r.wg.Done()
 
-		for {
-			select {
-			case <-r.ctx.Done():
-				return
-			case <-ticker.C:
-				r.UpdateRouting()
-			}
+	ticker := time.NewTicker(r.updatePeriod)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-ticker.C:
+			r.UpdateRouting()
 		}
-	}()
+	}
 }
 
 func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {

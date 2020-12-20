@@ -490,8 +490,6 @@ func (db *Olric) Start() error {
 				db.config.WriteQuorum)
 	}
 
-	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
-
 	// Start periodic tasks.
 	db.wg.Add(1)
 	go db.evictKeysAtBackground()
@@ -501,6 +499,11 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
+	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
+	if db.config.Interface != "" {
+		db.log.V(2).Printf("[INFO] Olric uses interface: %s", db.config.Interface)
+	}
+	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d", db.config.BindAddr, db.config.BindPort)
 	return g.Wait()
 }
 

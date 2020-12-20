@@ -140,16 +140,15 @@ func (r *RoutingTable) Start() error {
 
 	r.wg.Add(1)
 	go r.listenClusterEvents(d.ClusterEvents)
+
 	r.checkOperatingStatus()
 	if err = r.initialize(); err != nil {
 		return err
 	}
-	r.updatePeriodically()
 
-	if r.config.Interface != "" {
-		r.log.V(2).Printf("[INFO] Olric uses interface: %s", r.config.Interface)
-	}
-	r.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d", r.config.BindAddr, r.config.BindPort)
+	r.wg.Add(1)
+	go r.updatePeriodically()
+
 	if r.config.MemberlistInterface != "" {
 		r.log.V(2).Printf("[INFO] Memberlist uses interface: %s", r.config.MemberlistInterface)
 	}
