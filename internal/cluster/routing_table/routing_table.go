@@ -99,6 +99,14 @@ func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partiti
 	}
 }
 
+func (r *RoutingTable) Discovery() *discovery.Discovery {
+	return r.discovery
+}
+
+func (r *RoutingTable) This() discovery.Member {
+	return r.this
+}
+
 // setNumMembers assigns the current number of members in the cluster to a variable.
 func (r *RoutingTable) setNumMembers() {
 	// Calling NumMembers in every request is quite expensive.

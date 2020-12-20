@@ -38,14 +38,6 @@ func (r *RoutingTable) bootstrapCoordinator() error {
 	return nil
 }
 
-func (r *RoutingTable) Discovery() *discovery.Discovery {
-	return r.discovery
-}
-
-func (r *RoutingTable) This() discovery.Member {
-	return r.this
-}
-
 func (r *RoutingTable) attemptToJoin() {
 	attempts := 0
 	for attempts < r.config.MaxJoinAttempts {

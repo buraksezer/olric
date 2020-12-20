@@ -18,25 +18,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/transport"
-	"github.com/buraksezer/olric/pkg/flog"
 )
-
-func testRoutingTable() *RoutingTable {
-	c := config.New("local")
-	flogger := flog.New(c.Logger)
-	flogger.SetLevel(c.LogVerbosity)
-	if c.LogLevel == "DEBUG" {
-		flogger.ShowLineNumber(1)
-	}
-	primary := partitions.New(7, partitions.PRIMARY)
-	backup := partitions.New(7, partitions.BACKUP)
-	client := transport.NewClient(c.Client)
-	return New(c, flogger, primary, backup, client)
-}
 
 func TestRoutingTable_Callback(t *testing.T) {
 	rt := testRoutingTable()
