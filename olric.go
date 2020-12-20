@@ -36,7 +36,6 @@ import (
 	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
-	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -81,12 +80,6 @@ const (
 	nilTimeout            = 0 * time.Second
 )
 
-// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
-type members struct {
-	mtx sync.RWMutex
-	m   map[uint64]discovery.Member
-}
-
 type storageEngines struct {
 	engines map[string]storage.Engine
 	configs map[string]map[string]interface{}
@@ -121,9 +114,6 @@ type Olric struct {
 	// Internal TCP server and its client for peer-to-peer communication.
 	client *transport.Client
 	server *transport.Server
-
-	// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
-	members members
 
 	rt *routing_table.RoutingTable
 
@@ -210,7 +200,6 @@ func New(c *config.Config) (*Olric, error) {
 		backup:     partitions.New(c.PartitionCount, partitions.BACKUP),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
-		members:    members{m: make(map[uint64]discovery.Member)},
 		dtopic:     newDTopic(ctx),
 		streams:    &streams{m: make(map[uint64]*stream)},
 		storageEngines: &storageEngines{

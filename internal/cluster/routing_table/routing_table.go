@@ -226,12 +226,13 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 	case memberlist.NodeUpdate:
 		// Node's birthdate may be changed. Close the pool and re-add to the hash ring.
 		// This takes linear time, but member count should be too small for a decent computer!
-		r.Members().Range(func(id uint64, item discovery.Member) {
+		r.Members().Range(func(id uint64, item discovery.Member) bool {
 			if member.CompareByName(item) {
 				r.Members().Delete(id)
 				r.consistent.Remove(event.NodeName)
 				r.client.ClosePool(event.NodeName)
 			}
+			return true
 		})
 		r.Members().Add(member)
 		r.consistent.Add(member)

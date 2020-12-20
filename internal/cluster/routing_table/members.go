@@ -60,8 +60,10 @@ func (m *members) Length() int {
 	return len(m.m)
 }
 
-func (m *members) Range(f func(id uint64, member discovery.Member)) {
+func (m *members) Range(f func(id uint64, member discovery.Member) bool) {
 	for id, member := range m.m {
-		f(id, member)
+		if !f(id, member) {
+			break
+		}
 	}
 }
