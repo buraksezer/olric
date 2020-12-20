@@ -199,7 +199,8 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 		}
 
 		// Sync
-		if cmpMembersByID(*ver.host, db.this) {
+		tmp := *ver.host
+		if tmp.CompareByID(db.this) {
 			hkey := partitions.HKey(name, winner.entry.Key())
 			w := &writeop{
 				dmap:      name,

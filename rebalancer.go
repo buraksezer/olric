@@ -268,7 +268,7 @@ func (db *Olric) rebalancer() {
 func (db *Olric) checkOwnership(part *partitions.Partition) bool {
 	owners := part.Owners()
 	for _, owner := range owners {
-		if cmpMembersByID(owner, db.this) {
+		if owner.CompareByID(db.this) {
 			return true
 		}
 	}

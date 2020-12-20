@@ -177,7 +177,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 	owners := c.db.primary.PartitionOwnersById(partID)
 	var responses []queryResponse
 	for _, owner := range owners {
-		if cmpMembersByID(owner, c.db.this) {
+		if owner.CompareByID(c.db.this) {
 			response, err := c.db.runLocalQuery(partID, c.name, c.query)
 			if err != nil {
 				return nil, err

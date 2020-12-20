@@ -545,12 +545,6 @@ func isKeyExpired(ttl int64) bool {
 	return (time.Now().UnixNano() / 1000000) >= ttl
 }
 
-// cmpMembersByID returns true if two members denote the same member in the cluster.
-func cmpMembersByID(one, two discovery.Member) bool {
-	// ID variable is calculated by combining member's name and birthdate
-	return one.ID == two.ID
-}
-
 // cmpMembersByName returns true if the two members has the same name in the cluster.
 // This function is intended to redirect the requests to the partition owner.
 func cmpMembersByName(one, two discovery.Member) bool {

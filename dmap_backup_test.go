@@ -51,7 +51,7 @@ func TestDMap_PutBackup(t *testing.T) {
 		hkey := partitions.HKey(mname, key)
 		owner := dm.db.primary.PartitionByHKey(hkey).Owner()
 		var backup = db1
-		if cmpMembersByID(owner, db1.this) {
+		if owner.CompareByID(db1.this) {
 			backup = db2
 		}
 		partID := db1.primary.PartitionIdByHKey(hkey)
@@ -116,7 +116,7 @@ func TestDMap_DeleteBackup(t *testing.T) {
 		hkey := partitions.HKey(mname, key)
 		owner := dm.db.primary.PartitionByHKey(hkey).Owner()
 		var backup = db1
-		if cmpMembersByID(owner, db1.this) {
+		if owner.CompareByID(db1.this) {
 			backup = db2
 		}
 		partID := db1.backup.PartitionIdByHKey(hkey)
@@ -165,7 +165,7 @@ func TestDMap_GetBackup(t *testing.T) {
 		hkey := partitions.HKey(mname, key)
 		owner := dm.db.primary.PartitionByHKey(hkey).Owner()
 		var kloc = db1
-		if !cmpMembersByID(owner, db1.this) {
+		if !owner.CompareByID(db1.this) {
 			kloc = db2
 		}
 

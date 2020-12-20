@@ -247,7 +247,7 @@ func TestDMap_GetReadQuorum(t *testing.T) {
 		key := bkey(i)
 		hkey := partitions.HKey(dm.name, key)
 		host := db1.primary.PartitionByHKey(hkey).Owner()
-		if cmpMembersByID(db1.this, host) {
+		if db1.this.CompareByID(host) {
 			_, err = dm.Get(key)
 			if err != ErrReadQuorum {
 				t.Errorf("Expected ErrReadQuorum. Got: %v", err)
@@ -332,7 +332,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 		}
 		dm3.RLock()
 		owners := db3.backup.PartitionOwnersByHKey(hkey)
-		if cmpMembersByID(owners[0], db3.this) {
+		if owners[0].CompareByID(db3.this) {
 			entry, err := dm3.storage.Get(hkey)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)

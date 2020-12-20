@@ -192,7 +192,7 @@ func TestDMap_ExpireWriteQuorum(t *testing.T) {
 
 		hkey := partitions.HKey(dm.name, key)
 		host := dm.db.primary.PartitionByHKey(hkey).Owner()
-		if cmpMembersByID(db1.this, host) {
+		if db1.this.CompareByID(host) {
 			err = dm.Expire(key, time.Millisecond)
 			if err != ErrWriteQuorum {
 				t.Fatalf("Expected ErrWriteQuorum. Got: %v", err)
