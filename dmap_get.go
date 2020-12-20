@@ -89,8 +89,9 @@ func (db *Olric) lookupOnThisNode(dm *dmap, hkey uint64, name, key string) *vers
 			db.log.V(3).Printf("[ERROR] Failed to get key: %s on %s could not be found: %s", key, name, err)
 		}
 	}
+	this := db.rt.This()
 	return &version{
-		host:  &db.this,
+		host:  &this,
 		entry: value,
 	}
 }
@@ -200,7 +201,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 
 		// Sync
 		tmp := *ver.host
-		if tmp.CompareByID(db.this) {
+		if tmp.CompareByID(db.rt.This()) {
 			hkey := partitions.HKey(name, winner.entry.Key())
 			w := &writeop{
 				dmap:      name,
@@ -280,7 +281,7 @@ func (db *Olric) get(name, key string) (storage.Entry, error) {
 	hkey := partitions.HKey(name, key)
 	member := db.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
-	if member.CompareByName(db.this) {
+	if member.CompareByName(db.rt.This()) {
 		return db.callGetOnCluster(hkey, name, key)
 	}
 

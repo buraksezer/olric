@@ -25,6 +25,8 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/hashicorp/memberlist"
+	"github.com/pkg/errors"
 )
 
 var testConfig = &Config{
@@ -61,6 +63,11 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		"tableSize": 102134,
 	}
 	sc.Impls[engine.Name()] = engine
+
+	mc := memberlist.DefaultLocalConfig()
+	mc.BindAddr = "127.0.0.1"
+	mc.BindPort = 0
+
 	cfg := &config.Config{
 		PartitionCount:    7,
 		BindAddr:          "127.0.0.1",
@@ -70,21 +77,33 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		ReadQuorum:        config.MinimumReplicaCount,
 		MemberCountQuorum: config.MinimumMemberCountQuorum,
 		StorageEngines:    sc,
+		MemberlistConfig:  mc,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cfg.Started = func() {
+		cancel()
 	}
 	db, err := olric.New(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	var startError error
 	done := make(chan struct{})
 	go func() {
-		rerr := db.Start()
-		if rerr != nil {
-			log.Printf("[ERROR] Expected nil. Got %v", rerr)
+		defer close(done)
+		startError = db.Start()
+		if startError != nil {
+			log.Printf("[ERROR] olric.Start returned an error: %v", startError)
 		}
-		close(done)
 	}()
-	time.Sleep(100 * time.Millisecond)
+
+	select {
+	case <-time.After(time.Second):
+		return nil, nil, errors.Wrap(startError, "olric node cannot be started in 1 second")
+	case <-ctx.Done():
+	}
 	testConfig.Servers = []string{"127.0.0.1:" + strconv.Itoa(port)}
 	return db, done, nil
 }

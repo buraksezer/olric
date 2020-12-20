@@ -94,16 +94,12 @@ type storageEngines struct {
 
 // Olric implements a distributed, in-memory and embeddable key/value store and config.
 type Olric struct {
-	routingTable *routing_table.RoutingTable
-
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
 
 	// numMembers is used to check cluster quorum.
 	numMembers int32
 
-	// this defines this Olric node in the cluster.
-	this   discovery.Member
 	config *config.Config
 	log    *flog.Logger
 
@@ -128,6 +124,8 @@ type Olric struct {
 
 	// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
 	members members
+
+	rt *routing_table.RoutingTable
 
 	// Dispatch topic messages
 	dtopic *dtopic
@@ -209,7 +207,7 @@ func New(c *config.Config) (*Olric, error) {
 		serializer: c.Serializer,
 		client:     client,
 		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY),
-		backup:     partitions.New(c.PartitionCount, partitions.BACKUP), // TODO: rename > backup
+		backup:     partitions.New(c.PartitionCount, partitions.BACKUP),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		members:    members{m: make(map[uint64]discovery.Member)},
@@ -222,9 +220,9 @@ func New(c *config.Config) (*Olric, error) {
 		started: c.Started,
 	}
 
-	db.routingTable = routing_table.New(c, flogger, db.primary, db.backup, client)
-	db.routingTable.AddCallback(db.rebalancer)
-	db.routingTable.AddCallback(db.deleteStaleDMaps)
+	db.rt = routing_table.New(c, flogger, db.primary, db.backup, client)
+	db.rt.AddCallback(db.rebalancer)
+	db.rt.AddCallback(db.deleteStaleDMaps)
 
 	if err = db.initializeAndLoadStorageEngines(); err != nil {
 		return nil, err
@@ -429,7 +427,7 @@ func (db *Olric) isAlive() bool {
 // It has to be very fast for a smooth operation.
 func (db *Olric) checkBootstrap() error {
 	// check it immediately
-	if db.routingTable.IsBootstrapped() {
+	if db.rt.IsBootstrapped() {
 		return nil
 	}
 
@@ -438,7 +436,7 @@ func (db *Olric) checkBootstrap() error {
 
 	// This loop only works for the first moments of the process.
 	for {
-		if db.routingTable.IsBootstrapped() {
+		if db.rt.IsBootstrapped() {
 			return nil
 		}
 		<-time.After(100 * time.Millisecond)
@@ -452,7 +450,7 @@ func (db *Olric) checkBootstrap() error {
 
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
-	if err := db.routingTable.CheckMemberCountQuorum(); err != nil {
+	if err := db.rt.CheckMemberCountQuorum(); err != nil {
 		return err
 	}
 	// An Olric node has to be bootstrapped to function properly.
@@ -481,7 +479,7 @@ func (db *Olric) Start() error {
 	}
 
 	// Start routing table service and member discovery subsystem.
-	if err := db.routingTable.Start(); err != nil {
+	if err := db.rt.Start(); err != nil {
 		return err
 	}
 
@@ -526,7 +524,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		result = multierror.Append(result, err)
 	}
 
-	if err := db.routingTable.Shutdown(ctx); err != nil {
+	if err := db.rt.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}
 

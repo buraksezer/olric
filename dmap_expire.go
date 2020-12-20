@@ -81,7 +81,7 @@ func (db *Olric) syncExpireOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	if err != nil {
 		if db.log.V(3).Ok() {
 			db.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
-				db.this, w.dmap, err)
+				db.rt.This(), w.dmap, err)
 		}
 	} else {
 		successful++
@@ -119,7 +119,7 @@ func (db *Olric) callExpireOnCluster(hkey uint64, w *writeop) error {
 func (db *Olric) expire(w *writeop) error {
 	hkey := partitions.HKey(w.dmap, w.key)
 	member := db.primary.PartitionByHKey(hkey).Owner()
-	if member.CompareByName(db.this) {
+	if member.CompareByName(db.rt.This()) {
 		// We are on the partition owner.
 		return db.callExpireOnCluster(hkey, w)
 	}

@@ -238,7 +238,7 @@ func TestDMap_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	owner := owners[len(owners)-1]
 
 	data := []discovery.Member{}
-	for _, member := range db1.routingTable.Discovery().GetMembers() {
+	for _, member := range db1.rt.Discovery().GetMembers() {
 		if member.CompareByID(owner) {
 			continue
 		}

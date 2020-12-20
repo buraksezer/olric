@@ -54,7 +54,7 @@ func getRandomAddr() (string, error) {
 func testConfig(peers []*Olric) *config.Config {
 	var speers []string
 	for _, peer := range peers {
-		speers = append(speers, peer.routingTable.Discovery().LocalNode().Address())
+		speers = append(speers, peer.rt.Discovery().LocalNode().Address())
 	}
 	sc := config.NewStorageEngine()
 	// default storage engine: olric.kvstore
@@ -90,7 +90,7 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	}
 	if len(c.Peers) == 0 {
 		for _, peer := range peers {
-			c.Peers = append(c.Peers, peer.routingTable.Discovery().LocalNode().Address())
+			c.Peers = append(c.Peers, peer.rt.Discovery().LocalNode().Address())
 		}
 	}
 
@@ -155,8 +155,8 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 func syncClusterMembers(peers ...*Olric) {
 	updateRouting := func() {
 		for _, peer := range peers {
-			if peer.routingTable.Discovery().IsCoordinator() {
-				peer.routingTable.UpdateRoutingEagerly()
+			if peer.rt.Discovery().IsCoordinator() {
+				peer.rt.UpdateRoutingEagerly()
 			}
 		}
 	}
@@ -246,7 +246,7 @@ func (t *testCluster) newDB() (*Olric, error) {
 		defer t.wg.Done()
 		err = db.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric on %s: %v", db.this, err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric on %s: %v", db.rt.This(), err)
 		}
 	}(db)
 	return db, nil
@@ -304,7 +304,7 @@ func TestDMap_PruneHosts(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	eventsDB1 := db1.routingTable.Discovery().SubscribeNodeEvents()
+	eventsDB1 := db1.rt.Discovery().SubscribeNodeEvents()
 	db2, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -324,7 +324,7 @@ func TestDMap_PruneHosts(t *testing.T) {
 		}
 	}
 
-	eventsDB2 := db2.routingTable.Discovery().SubscribeNodeEvents()
+	eventsDB2 := db2.rt.Discovery().SubscribeNodeEvents()
 	db3, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -366,7 +366,7 @@ func TestDMap_CrashServer(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db3.routingTable.Discovery().GetMembers()
+		members := db3.rt.Discovery().GetMembers()
 		if len(members) == 3 {
 			break
 		}
@@ -387,8 +387,8 @@ func TestDMap_CrashServer(t *testing.T) {
 		}
 	}
 
-	eventsDB2 := db2.routingTable.Discovery().SubscribeNodeEvents()
-	eventsDB3 := db3.routingTable.Discovery().SubscribeNodeEvents()
+	eventsDB2 := db2.rt.Discovery().SubscribeNodeEvents()
+	eventsDB3 := db3.rt.Discovery().SubscribeNodeEvents()
 	err = db1.Shutdown(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to shutdown Olric: %v", err)
@@ -406,7 +406,7 @@ func TestDMap_CrashServer(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		_, err = dm2.Get(bkey(i))
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for %s: %s", err, bkey(i), db1.this)
+			t.Fatalf("Expected nil. Got: %v for %s: %s", err, bkey(i), db1.rt.This())
 		}
 	}
 }

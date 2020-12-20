@@ -86,7 +86,7 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 func (db *Olric) unlock(name, key string, token []byte) error {
 	hkey := partitions.HKey(name, key)
 	member := db.primary.PartitionByHKey(hkey).Owner()
-	if member.CompareByName(db.this) {
+	if member.CompareByName(db.rt.This()) {
 		return db.unlockKey(name, key, token)
 	}
 	req := protocol.NewDMapMessage(protocol.OpUnlock)

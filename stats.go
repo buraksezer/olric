@@ -30,7 +30,7 @@ func (db *Olric) stats() stats.Stats {
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
-		ClusterCoordinator: db.routingTable.Discovery().GetCoordinator(),
+		ClusterCoordinator: db.rt.Discovery().GetCoordinator(),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,

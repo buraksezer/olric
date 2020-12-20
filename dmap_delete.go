@@ -98,7 +98,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 func (db *Olric) deleteKey(name, key string) error {
 	hkey := partitions.HKey(name, key)
 	member := db.primary.PartitionByHKey(hkey).Owner()
-	if !member.CompareByName(db.this) {
+	if !member.CompareByName(db.rt.This()) {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(name)
 		req.SetKey(key)

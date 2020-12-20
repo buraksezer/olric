@@ -144,14 +144,14 @@ func (db *Olric) mergeDMaps(part *partitions.Partition, data *dmapbox) error {
 }
 
 func (db *Olric) rebalancePrimaryPartitions() {
-	rsign := db.routingTable.Signature()
+	rsign := db.rt.Signature()
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		if !db.isAlive() {
 			// The server is gone.
 			break
 		}
 
-		if rsign != db.routingTable.Signature() {
+		if rsign != db.rt.Signature() {
 			// Routing table is updated. Just quit. Another rebalancer goroutine will work on the
 			// new table immediately.
 			break
@@ -167,7 +167,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		// Here we don't use cmpMembersById function because the routing table has an eventually consistent
 		// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
 		// of itself. So just check the name.
-		if owner.CompareByName(db.this) {
+		if owner.CompareByName(db.rt.This()) {
 			// Already belongs to me.
 			continue
 		}
@@ -180,13 +180,13 @@ func (db *Olric) rebalancePrimaryPartitions() {
 				db.log.V(2).Printf("[ERROR] Failed to move DMap: %s on PartID: %d to %s: %v", name, partID, owner, err)
 			}
 			// if this returns true, the iteration continues
-			return rsign == db.routingTable.Signature()
+			return rsign == db.rt.Signature()
 		})
 	}
 }
 
 func (db *Olric) rebalanceBackupPartitions() {
-	rsign := db.routingTable.Signature()
+	rsign := db.rt.Signature()
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		if !db.isAlive() {
 			// The server is gone.
@@ -211,7 +211,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 			// Here we don't use cmpMembersById function because the routing table has an eventually consistent
 			// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
 			// of itself. So just check the name.
-			if db.this.CompareByName(owner) {
+			if db.rt.This().CompareByName(owner) {
 				// Already belongs to me.
 				continue
 			}
@@ -224,13 +224,13 @@ func (db *Olric) rebalanceBackupPartitions() {
 				break
 			}
 
-			if rsign != db.routingTable.Signature() {
+			if rsign != db.rt.Signature() {
 				// Routing table is updated. Just quit. Another rebalancer goroutine will work on the
 				// new table immediately.
 				break
 			}
 
-			owner, err := db.routingTable.Discovery().FindMemberByID(id)
+			owner, err := db.rt.Discovery().FindMemberByID(id)
 			if err != nil {
 				db.log.V(2).Printf("[ERROR] Failed to get host by id: %d: %v", id, err)
 				continue
@@ -245,7 +245,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 						name, partID, owner, err)
 				}
 				// if this returns true, the iteration continues
-				return rsign == db.routingTable.Signature()
+				return rsign == db.rt.Signature()
 			})
 		}
 	}
@@ -268,7 +268,7 @@ func (db *Olric) rebalancer() {
 func (db *Olric) checkOwnership(part *partitions.Partition) bool {
 	owners := part.Owners()
 	for _, owner := range owners {
-		if owner.CompareByID(db.this) {
+		if owner.CompareByID(db.rt.This()) {
 			return true
 		}
 	}
@@ -301,8 +301,8 @@ func (db *Olric) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !db.checkOwnership(part) {
 		db.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (kind: %s) doesn't belong to this node (%s)",
-			box.Name, box.PartID, box.Kind, db.this)
-		err := fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", box.PartID, box.Kind, db.this, ErrInvalidArgument)
+			box.Name, box.PartID, box.Kind, db.rt.This())
+		err := fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", box.PartID, box.Kind, db.rt.This(), ErrInvalidArgument)
 		db.errorResponse(w, err)
 		return
 	}

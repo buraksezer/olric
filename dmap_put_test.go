@@ -170,7 +170,7 @@ func TestDMap_PutWriteQuorum(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.routingTable.Discovery().GetMembers()
+		members := db1.rt.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}
@@ -191,7 +191,7 @@ func TestDMap_PutWriteQuorum(t *testing.T) {
 
 		hkey := partitions.HKey(dm.name, key)
 		host := dm.db.primary.PartitionByHKey(hkey).Owner()
-		if db1.this.CompareByID(host) {
+		if db1.rt.This().CompareByID(host) {
 			err = dm.Put(key, bval(i))
 			if err != ErrWriteQuorum {
 				t.Fatalf("Expected ErrWriteQuorum. Got: %v", err)

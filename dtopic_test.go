@@ -254,8 +254,8 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		if msg.PublisherAddr != dbTwo.this.String() {
-			t.Fatalf("Expected %s. Got: %s", dbTwo.this.String(), msg.PublisherAddr)
+		if msg.PublisherAddr != dbTwo.rt.This().String() {
+			t.Fatalf("Expected %s. Got: %s", dbTwo.rt.This().String(), msg.PublisherAddr)
 		}
 
 		if msg.PublishedAt <= 0 {

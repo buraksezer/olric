@@ -16,9 +16,14 @@ package checkpoint
 
 import "sync/atomic"
 
-const required int32 = 2
+var (
+	required int32
+	passed   int32
+)
 
-var passed int32
+func Add() {
+	atomic.AddInt32(&required, 1)
+}
 
 func Pass() {
 	atomic.AddInt32(&passed, 1)

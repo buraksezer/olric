@@ -187,7 +187,7 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	err := db.localPut(hkey, dm, w)
 	if err != nil {
 		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.this, w.dmap, err)
+			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.rt.This(), w.dmap, err)
 		}
 	} else {
 		successful++
@@ -249,7 +249,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 		// This works for every request if you enabled LRU.
 		// But loading a number from memory should be very cheap.
 		// ownedPartitionCount changes in the case of node join or leave.
-		ownedPartitionCount := db.routingTable.OwnedPartitionCount()
+		ownedPartitionCount := db.rt.OwnedPartitionCount()
 
 		if dm.config.maxKeys > 0 {
 			// MaxKeys controls maximum key count owned by this node.
@@ -305,7 +305,7 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 func (db *Olric) put(w *writeop) error {
 	hkey := partitions.HKey(w.dmap, w.key)
 	member := db.primary.PartitionByHKey(hkey).Owner()
-	if member.CompareByName(db.this) {
+	if member.CompareByName(db.rt.This()) {
 		// We are on the partition owner.
 		return db.callPutOnCluster(hkey, w)
 	}

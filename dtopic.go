@@ -236,7 +236,7 @@ func (db *Olric) publishDTopicMessageToAddr(member discovery.Member, topic strin
 	defer db.wg.Done()
 	defer sem.Release(1)
 
-	if member.CompareByID(db.this) {
+	if member.CompareByID(db.rt.This()) {
 		// Dispatch messages in this process.
 		err := db.dtopic.dispatch(topic, msg)
 		if err != nil {
@@ -384,7 +384,7 @@ func (db *Olric) exDTopicPublishOperation(w, r protocol.EncodeDecoder) {
 func (dt *DTopic) Publish(msg interface{}) error {
 	tm := &DTopicMessage{
 		Message:       msg,
-		PublisherAddr: dt.db.this.String(),
+		PublisherAddr: dt.db.rt.This().String(),
 		PublishedAt:   time.Now().UnixNano(),
 	}
 	return dt.db.publishDTopicMessage(dt.name, tm)

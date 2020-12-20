@@ -23,6 +23,7 @@ import (
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -76,6 +77,7 @@ type RoutingTable struct {
 }
 
 func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partitions, client *transport.Client) *RoutingTable {
+	checkpoint.Add()
 	ctx, cancel := context.WithCancel(context.Background())
 	cc := consistent.Config{
 		Hasher:            c.Hasher,
@@ -91,8 +93,7 @@ func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partiti
 		primary:      primary,
 		backup:       backup,
 		client:       client,
-		updatePeriod: time.Second,
-		table:        make(map[uint64]*route),
+		updatePeriod: time.Minute,
 		ctx:          ctx,
 		cancel:       cancel,
 	}

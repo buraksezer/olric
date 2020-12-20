@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/checkpoint"
 	"io"
 	"net"
 	"strconv"
@@ -68,6 +69,8 @@ type Server struct {
 
 // NewServer creates and returns a new Server.
 func NewServer(c *ServerConfig, l *flog.Logger) *Server {
+	checkpoint.Add()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	startedCtx, started := context.WithCancel(context.Background())
 	return &Server{
