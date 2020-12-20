@@ -167,7 +167,7 @@ func (db *Olric) rebalancePrimaryPartitions() {
 		// Here we don't use cmpMembersById function because the routing table has an eventually consistent
 		// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
 		// of itself. So just check the name.
-		if cmpMembersByName(owner, db.this) {
+		if owner.CompareByName(db.this) {
 			// Already belongs to me.
 			continue
 		}
@@ -211,7 +211,7 @@ func (db *Olric) rebalanceBackupPartitions() {
 			// Here we don't use cmpMembersById function because the routing table has an eventually consistent
 			// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
 			// of itself. So just check the name.
-			if cmpMembersByName(db.this, owner) {
+			if db.this.CompareByName(owner) {
 				// Already belongs to me.
 				continue
 			}
