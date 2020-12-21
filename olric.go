@@ -205,7 +205,6 @@ func New(c *config.Config) (*Olric, error) {
 		},
 		started: c.Started,
 	}
-
 	db.rt = routing_table.New(c, flogger, db.primary, db.backup, client)
 	db.rt.AddCallback(db.rebalancer)
 	db.rt.AddCallback(db.deleteStaleDMaps)

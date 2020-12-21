@@ -15,30 +15,63 @@
 package routing_table
 
 import (
+	"context"
+	"fmt"
+	"testing"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/transport"
-	"github.com/buraksezer/olric/pkg/flog"
-	"testing"
 )
 
-func testRoutingTable() *RoutingTable {
-	c := config.New("local")
-	flogger := flog.New(c.Logger)
-	flogger.SetLevel(c.LogVerbosity)
-	if c.LogLevel == "DEBUG" {
-		flogger.ShowLineNumber(1)
-	}
-	primary := partitions.New(7, partitions.PRIMARY)
-	backup := partitions.New(7, partitions.BACKUP)
+func newRoutingTableForTest(c *config.Config, srv *transport.Server) *RoutingTable {
+	flogger := testutil.NewFlogger(c)
+	primary := partitions.New(c.PartitionCount, partitions.PRIMARY)
+	backup := partitions.New(c.PartitionCount, partitions.BACKUP)
 	client := transport.NewClient(c.Client)
-	return New(c, flogger, primary, backup, client)
+	rt := New(c, flogger, primary, backup, client)
+
+	if srv != nil {
+		ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
+			protocol.OpUpdateRouting: rt.UpdateRoutingOperation,
+			protocol.OpLengthOfPart:  rt.KeyCountOnPartOperation,
+		}
+		requestDispatcher := func(w, r protocol.EncodeDecoder) {
+			f := ops[r.OpCode()]
+			f(w, r)
+		}
+		srv.SetDispatcher(requestDispatcher)
+		go func() {
+			err := srv.ListenAndServe()
+			if err != nil {
+				panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
+			}
+		}()
+		<-srv.StartedCtx.Done()
+	}
+	return rt
 }
 
 func TestRoutingTable_Start(t *testing.T) {
-	rt := testRoutingTable()
+	c := testutil.NewConfig()
+	srv := testutil.NewTransportServer(c)
+	defer func() {
+		if err := srv.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
+
+	rt := newRoutingTableForTest(c, srv)
 	err := rt.Start()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	defer func() {
+		if err := rt.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
 }

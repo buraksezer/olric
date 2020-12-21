@@ -18,10 +18,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/testutil"
 )
 
 func TestRoutingTable_Callback(t *testing.T) {
-	rt := testRoutingTable()
+	rt := newRoutingTableForTest(testutil.NewConfig(), nil)
 	var num int32
 	increase := func() {
 		atomic.AddInt32(&num, 1)
