@@ -1,3 +1,17 @@
+// Copyright 2018-2020 Burak Sezer
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package testutil
 
 import (
@@ -12,7 +26,7 @@ import (
 	"github.com/hashicorp/memberlist"
 )
 
-func getFreePort() (int, error) {
+func GetFreePort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
@@ -22,8 +36,11 @@ func getFreePort() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
+	port := l.Addr().(*net.TCPAddr).Port
+	if err := l.Close(); err != nil {
+		return 0, err
+	}
+	return port, nil
 }
 
 func NewFlogger(c *config.Config) *flog.Logger {
@@ -43,9 +60,9 @@ func NewConfig() *config.Config {
 	mc.BindPort = 0
 	c.MemberlistConfig = mc
 
-	port, err := getFreePort()
+	port, err := GetFreePort()
 	if err != nil {
-		panic(fmt.Sprintf("getFreePort returned an error: %v", err))
+		panic(fmt.Sprintf("GetFreePort returned an error: %v", err))
 	}
 	c.BindAddr = "127.0.0.1"
 	c.BindPort = port
