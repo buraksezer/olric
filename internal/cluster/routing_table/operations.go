@@ -23,6 +23,11 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
+func response(w protocol.EncodeDecoder, statusCode protocol.StatusCode, value []byte) {
+	w.SetStatus(statusCode)
+	w.SetValue(value)
+}
+
 func (r *RoutingTable) KeyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 	req := rq.(*protocol.SystemMessage)
 	partID := req.Extra().(protocol.LengthOfPartExtra).PartID
@@ -37,12 +42,10 @@ func (r *RoutingTable) KeyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 
 	value, err := msgpack.Marshal(part.Length())
 	if err != nil {
-		w.SetStatus(protocol.StatusInternalServerError)
-		w.SetValue([]byte(err.Error()))
+		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
+	response(w, protocol.StatusOK, value)
 }
 
 func (r *RoutingTable) verifyRoutingTable(id uint64, table map[uint64]*route) error {
@@ -72,8 +75,7 @@ func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	table := make(map[uint64]*route)
 	err := msgpack.Unmarshal(req.Value(), &table)
 	if err != nil {
-		w.SetStatus(protocol.StatusInternalServerError)
-		w.SetValue([]byte(err.Error()))
+		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
 		return
 	}
 
@@ -82,15 +84,13 @@ func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	// Log this event
 	coordinator, err := r.discovery.FindMemberByID(coordinatorID)
 	if err != nil {
-		w.SetStatus(protocol.StatusInternalServerError)
-		w.SetValue([]byte(err.Error()))
+		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
 		return
 	}
 	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
 
 	if err = r.verifyRoutingTable(coordinatorID, table); err != nil {
-		w.SetStatus(protocol.StatusInternalServerError)
-		w.SetValue([]byte(err.Error()))
+		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
 		return
 	}
 
@@ -114,17 +114,14 @@ func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	r.markBootstrapped()
 
 	// Collect report
-	data, err := r.prepareOwnershipReport()
+	value, err := r.prepareOwnershipReport()
 	if err != nil {
-		w.SetStatus(protocol.StatusInternalServerError)
-		w.SetValue([]byte(err.Error()))
+		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
 		return
 	}
 
 	// Call rebalancer to rebalance partitions
 	r.wg.Add(1)
 	go r.runCallbacks()
-
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(data)
+	response(w, protocol.StatusOK, value)
 }
