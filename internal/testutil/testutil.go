@@ -82,3 +82,21 @@ func NewTransportServer(c *config.Config) *transport.Server {
 	return srv
 }
 
+func TryWithInterval(max int, interval time.Duration, f func() error) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	var count int
+	var err error
+loop:
+	for count < max {
+		select {
+		case <-ticker.C:
+			count++
+			err = f()
+			if err == nil {
+				break loop
+			}
+		}
+	}
+	return err
+}

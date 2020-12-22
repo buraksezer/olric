@@ -87,6 +87,7 @@ func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partiti
 	}
 	return &RoutingTable{
 		members:      newMembers(),
+		discovery:    discovery.New(log, c),
 		config:       c,
 		log:          log,
 		consistent:   consistent.New(nil, cc),
@@ -297,6 +298,55 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 		return resp, nil
 	}
 	return nil, transport.NewOpError(status, string(resp.Value()))
+}
+
+func (r *RoutingTable) Start() error {
+	err := r.discovery.Start()
+	if err != nil {
+		return err
+	}
+
+	r.attemptToJoin()
+	this, err := r.discovery.FindMemberByName(r.config.MemberlistConfig.Name)
+	if err != nil {
+		r.log.V(2).Printf("[ERROR] Failed to get this node in cluster: %v", err)
+		serr := r.discovery.Shutdown()
+		if serr != nil {
+			return serr
+		}
+		return err
+	}
+	r.this = this
+
+	// Store the current number of members in the member list.
+	// We need this to implement a simple split-brain protection algorithm.
+	r.setNumMembers()
+
+	r.wg.Add(1)
+	go r.listenClusterEvents(r.discovery.ClusterEvents)
+
+	r.checkOperationStatus()
+
+	r.Members().Add(r.this)
+	r.consistent.Add(r.this)
+
+	if r.discovery.IsCoordinator() {
+		err = r.bootstrapCoordinator()
+		if err != err {
+			return err
+		}
+	}
+
+	r.wg.Add(1)
+	go r.updatePeriodically()
+
+	if r.config.MemberlistInterface != "" {
+		r.log.V(2).Printf("[INFO] Memberlist uses interface: %s", r.config.MemberlistInterface)
+	}
+	r.log.V(2).Printf("[INFO] Memberlist bindAddr: %s, bindPort: %d", r.config.MemberlistConfig.BindAddr, r.config.MemberlistConfig.BindPort)
+	r.log.V(2).Printf("[INFO] Cluster coordinator: %s", r.discovery.GetCoordinator())
+	checkpoint.Pass()
+	return nil
 }
 
 func (r *RoutingTable) Shutdown(ctx context.Context) error {

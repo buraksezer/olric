@@ -109,8 +109,7 @@ func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
 	return *res, err
 }
 
-// New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
-func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
+func NewMember(c *config.Config) *Member {
 	// Calculate member's identity. It's useful to compare hosts.
 	birthdate := time.Now().UnixNano()
 
@@ -118,12 +117,21 @@ func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 	binary.BigEndian.PutUint64(buf, uint64(birthdate))
 	buf = append(buf, []byte(c.MemberlistConfig.Name)...)
 	nameHash := c.Hasher.Sum64([]byte(c.MemberlistConfig.Name))
-	member := &Member{
+	return &Member{
 		Name:      c.MemberlistConfig.Name,
 		NameHash:  nameHash,
 		ID:        c.Hasher.Sum64(buf),
 		Birthdate: birthdate,
 	}
+}
+
+func (m *Member) Encode() ([]byte, error){
+	return msgpack.Marshal(m)
+}
+
+// New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
+func New(log *flog.Logger, c *config.Config) *Discovery {
+	member := NewMember(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &Discovery{
 		member:      member,
@@ -133,13 +141,7 @@ func New(log *flog.Logger, c *config.Config) (*Discovery, error) {
 		ctx:         ctx,
 		cancel:      cancel,
 	}
-
-	if c.ServiceDiscovery != nil {
-		if err := d.loadServiceDiscoveryPlugin(); err != nil {
-			return nil, err
-		}
-	}
-	return d, nil
+	return d
 }
 
 func (d *Discovery) loadServiceDiscoveryPlugin() error {
@@ -242,6 +244,11 @@ func (d *Discovery) deadMemberTracker() {
 }
 
 func (d *Discovery) Start() error {
+	if d.config.ServiceDiscovery != nil {
+		if err := d.loadServiceDiscoveryPlugin(); err != nil {
+			return err
+		}
+	}
 	// ClusterEvents chan is consumed by the Olric package to maintain a consistent hash ring.
 	d.ClusterEvents = d.SubscribeNodeEvents()
 	d.deadMemberEvents = d.SubscribeNodeEvents()
@@ -391,7 +398,7 @@ func (d *Discovery) Shutdown() error {
 	return d.memberlist.Shutdown()
 }
 
-func toClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
+func ToClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
 	return &ClusterEvent{
 		Event:    e.Event,
 		NodeName: e.Node.Name,
@@ -409,7 +416,7 @@ func (d *Discovery) handleEvent(event memberlist.NodeEvent) {
 		if event.Node.Name == d.member.Name {
 			continue
 		}
-		ch <- toClusterEvent(event)
+		ch <- ToClusterEvent(event)
 	}
 }
 
@@ -443,7 +450,7 @@ type delegate struct {
 
 // newDelegate returns a new delegate instance.
 func (d *Discovery) newDelegate() (delegate, error) {
-	data, err := msgpack.Marshal(d.member)
+	data, err := d.member.Encode()
 	if err != nil {
 		return delegate{}, err
 	}

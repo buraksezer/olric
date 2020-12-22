@@ -16,10 +16,6 @@ package routing_table
 
 import (
 	"time"
-
-	"github.com/buraksezer/consistent"
-	"github.com/buraksezer/olric/internal/checkpoint"
-	"github.com/buraksezer/olric/internal/discovery"
 )
 
 // bootstrapCoordinator prepares the very first routing table and bootstraps the coordinator node.
@@ -67,7 +63,7 @@ func (r *RoutingTable) attemptToJoin() {
 	}
 }
 
-func (r *RoutingTable) checkOperatingStatus() {
+func (r *RoutingTable) checkOperationStatus() {
 	// Check member count quorum now. If there is no enough peers to work, wait forever.
 	for {
 		err := r.CheckMemberCountQuorum()
@@ -86,67 +82,4 @@ func (r *RoutingTable) checkOperatingStatus() {
 			return
 		}
 	}
-}
-
-func (r *RoutingTable) initialize() error {
-	r.Members().Add(r.this)
-	r.consistent.Add(r.this)
-	if !r.discovery.IsCoordinator() {
-		return nil
-	}
-	err := r.bootstrapCoordinator()
-	if err == consistent.ErrInsufficientMemberCount {
-		r.log.V(2).Printf("[ERROR] Failed to bootstrap the coordinator node: %v", err)
-		// Olric will try to form a cluster again.
-		err = nil
-	}
-	return err
-}
-
-func (r *RoutingTable) Start() error {
-	d, err := discovery.New(r.log, r.config)
-	if err != nil {
-		return err
-	}
-	err = d.Start()
-	if err != nil {
-		return err
-	}
-	r.discovery = d
-
-	r.attemptToJoin()
-	this, err := r.discovery.FindMemberByName(r.config.MemberlistConfig.Name)
-	if err != nil {
-		r.log.V(2).Printf("[ERROR] Failed to get this node in cluster: %v", err)
-		serr := r.discovery.Shutdown()
-		if serr != nil {
-			return serr
-		}
-		return err
-	}
-	r.this = this
-
-	// Store the current number of members in the member list.
-	// We need this to implement a simple split-brain protection algorithm.
-	r.setNumMembers()
-
-	r.wg.Add(1)
-	go r.listenClusterEvents(d.ClusterEvents)
-
-	r.checkOperatingStatus()
-	if err = r.initialize(); err != nil {
-		return err
-	}
-
-	r.wg.Add(1)
-	go r.updatePeriodically()
-
-	if r.config.MemberlistInterface != "" {
-		r.log.V(2).Printf("[INFO] Memberlist uses interface: %s", r.config.MemberlistInterface)
-	}
-	r.log.V(2).Printf("[INFO] Memberlist bindAddr: %s, bindPort: %d", r.config.MemberlistConfig.BindAddr, r.config.MemberlistConfig.BindPort)
-	r.log.V(2).Printf("[INFO] Cluster coordinator: %s", r.discovery.GetCoordinator())
-
-	checkpoint.Pass()
-	return nil
 }
