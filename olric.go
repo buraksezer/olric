@@ -537,6 +537,8 @@ func errInternalToPublic(err error) error {
 	switch err {
 	case routing_table.ErrClusterQuorum:
 		return ErrClusterQuorum
+	case routing_table.ErrServerGone:
+		return ErrServerGone
 	default:
 		return err
 	}

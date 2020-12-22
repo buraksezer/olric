@@ -15,7 +15,48 @@
 package routing_table
 
 import (
+	"errors"
+	"github.com/buraksezer/olric/internal/testutil"
 	"testing"
+	"time"
 )
 
-func TestRoutingTable_bootstrapCoordinator(t *testing.T) {}
+func TestRoutingTable_tryWithInterval(t *testing.T) {
+	c := testutil.NewConfig()
+	srv := testutil.NewTransportServer(c)
+	rt := newRoutingTableForTest(c, srv)
+
+	var foobarError = errors.New("foobar")
+	err := rt.tryWithInterval(10, time.Millisecond, func() error {
+		return foobarError
+	})
+
+	if err != foobarError {
+		t.Fatalf("Expected foobarError. Got: %v", foobarError)
+	}
+}
+
+func TestRoutingTable_attemptToJoin(t *testing.T) {
+	c := testutil.NewConfig()
+	c.MaxJoinAttempts = 3
+	c.JoinRetryInterval = 100 * time.Millisecond
+	c.Peers = []string{"127.0.0.1:0"} // An invalid peer
+	srv := testutil.NewTransportServer(c)
+	rt := newRoutingTableForTest(c, srv)
+
+	err := rt.discovery.Start()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = rt.discovery.Shutdown()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
+
+	err = rt.attemptToJoin()
+	if err != ErrClusterJoin {
+		t.Fatalf("Expected ErrClusterJoin. Got: %v", err)
+	}
+}

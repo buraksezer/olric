@@ -306,7 +306,15 @@ func (r *RoutingTable) Start() error {
 		return err
 	}
 
-	r.attemptToJoin()
+	err = r.attemptToJoin()
+	if err == ErrClusterJoin {
+		r.log.V(1).Printf("[INFO] Forming a new Olric cluster")
+		err = nil
+	}
+	if err != nil {
+		return err
+	}
+
 	this, err := r.discovery.FindMemberByName(r.config.MemberlistConfig.Name)
 	if err != nil {
 		r.log.V(2).Printf("[ERROR] Failed to get this node in cluster: %v", err)
@@ -325,7 +333,18 @@ func (r *RoutingTable) Start() error {
 	r.wg.Add(1)
 	go r.listenClusterEvents(r.discovery.ClusterEvents)
 
-	r.checkOperationStatus()
+	// 1 Hour
+	err = r.tryWithInterval(3600, time.Second, func() error {
+		// Check member count quorum now. If there is no enough peers to work, wait forever.
+		err := r.CheckMemberCountQuorum()
+		if err != nil {
+			r.log.V(2).Printf("[ERROR] Inoperable node: %v", err)
+		}
+		return err
+	})
+	if err != nil {
+		return err
+	}
 
 	r.Members().Add(r.this)
 	r.consistent.Add(r.this)

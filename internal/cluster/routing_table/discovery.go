@@ -15,7 +15,13 @@
 package routing_table
 
 import (
+	"errors"
 	"time"
+)
+
+var (
+	ErrServerGone  = errors.New("server is gone")
+	ErrClusterJoin = errors.New("cannot join the cluster")
 )
 
 // bootstrapCoordinator prepares the very first routing table and bootstraps the coordinator node.
@@ -34,13 +40,13 @@ func (r *RoutingTable) bootstrapCoordinator() error {
 	return nil
 }
 
-func (r *RoutingTable) attemptToJoin() {
+func (r *RoutingTable) attemptToJoin() error {
 	attempts := 0
 	for attempts < r.config.MaxJoinAttempts {
 		select {
 		case <-r.ctx.Done():
 			// The node is gone.
-			return
+			return ErrServerGone
 		default:
 		}
 
@@ -48,38 +54,47 @@ func (r *RoutingTable) attemptToJoin() {
 		n, err := r.discovery.Join()
 		if err == nil {
 			r.log.V(2).Printf("[INFO] Join completed. Synced with %d initial nodes", n)
-			break
+			return nil
 		}
 
 		r.log.V(2).Printf("[ERROR] Join attempt returned error: %s", err)
 		if r.IsBootstrapped() {
 			r.log.V(2).Printf("[INFO] Bootstrapped by the cluster coordinator")
-			break
+			return nil
 		}
 
 		r.log.V(2).Printf("[INFO] Awaits for %s to join again (%d/%d)",
 			r.config.JoinRetryInterval, attempts, r.config.MaxJoinAttempts)
 		<-time.After(r.config.JoinRetryInterval)
 	}
+	return ErrClusterJoin
 }
 
-func (r *RoutingTable) checkOperationStatus() {
-	// Check member count quorum now. If there is no enough peers to work, wait forever.
-	for {
-		err := r.CheckMemberCountQuorum()
-		if err == nil {
-			// It's OK. Continue as usual.
-			break
-		}
+func (r *RoutingTable) tryWithInterval(max int, interval time.Duration, f func() error) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-		r.log.V(2).Printf("[ERROR] Inoperable node: %v", err)
+	var err error
+	err = f()
+	if err == nil {
+		// Done. No need to try with interval
+		return nil
+	}
+
+	var count = 1
+loop:
+	for count < max {
 		select {
-		// TODO: Consider making this parametric
-		case <-time.After(time.Second):
-			// try again
+		case <-ticker.C:
+			count++
+			err = f()
+			if err == nil {
+				break loop
+			}
 		case <-r.ctx.Done():
 			// the server is gone
-			return
+			return ErrServerGone
 		}
 	}
+	return err
 }

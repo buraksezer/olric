@@ -85,8 +85,15 @@ func NewTransportServer(c *config.Config) *transport.Server {
 func TryWithInterval(max int, interval time.Duration, f func() error) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	var count int
+
 	var err error
+	err = f()
+	if err == nil {
+		// Done. No need to try with interval
+		return nil
+	}
+
+	var count = 1
 loop:
 	for count < max {
 		select {

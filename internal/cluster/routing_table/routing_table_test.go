@@ -360,7 +360,7 @@ func TestRoutingTable_NodeUpdate(t *testing.T) {
 		_, err = rt1.Members().Get(rt2.This().ID)
 		if err == nil {
 			// node id is updated.
-			return errors.New("id still the same")
+			return errors.New("rt2 could not be updated")
 		}
 		return nil
 	})

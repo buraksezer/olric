@@ -79,27 +79,27 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*owne
 	ownershipReports := make(map[discovery.Member]*ownershipReport)
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
-	// TODO: Use r.Members() instead of consistent.GetMembers()
-	for _, member := range r.consistent.GetMembers() {
-		m := member.(discovery.Member)
+	r.Members().Range(func(id uint64, tmp discovery.Member) bool {
+		member := tmp
 		g.Go(func() error {
 			if err := sem.Acquire(r.ctx, 1); err != nil {
-				r.log.V(3).Printf("[ERROR] Failed to acquire semaphore to update routing table on %s: %v", m, err)
+				r.log.V(3).Printf("[ERROR] Failed to acquire semaphore to update routing table on %s: %v", member, err)
 				return err
 			}
 			defer sem.Release(1)
 
-			report, err := r.updateRoutingTableOnMember(data, m)
+			report, err := r.updateRoutingTableOnMember(data, member)
 			if err != nil {
 				return err
 			}
 
 			mtx.Lock()
 			defer mtx.Unlock()
-			ownershipReports[m] = report
+			ownershipReports[member] = report
 			return nil
 		})
-	}
+		return true
+	})
 
 	if err := g.Wait(); err != nil {
 		return nil, err
