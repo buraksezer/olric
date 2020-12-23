@@ -25,13 +25,13 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-type ownershipReport struct {
+type leftOverDataReport struct {
 	Partitions []uint64
 	Backups    []uint64
 }
 
-func (r *RoutingTable) prepareOwnershipReport() ([]byte, error) {
-	res := ownershipReport{}
+func (r *RoutingTable) prepareLeftOverDataReport() ([]byte, error) {
+	res := leftOverDataReport{}
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
 		part := r.primary.PartitionById(partID)
 		if part.Length() != 0 {
@@ -46,7 +46,7 @@ func (r *RoutingTable) prepareOwnershipReport() ([]byte, error) {
 	return msgpack.Marshal(res)
 }
 
-func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.Member) (*ownershipReport, error) {
+func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.Member) (*leftOverDataReport, error) {
 	req := protocol.NewSystemMessage(protocol.OpUpdateRouting)
 	req.SetValue(data)
 	req.SetExtra(protocol.UpdateRoutingExtra{
@@ -59,7 +59,7 @@ func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.
 		return nil, err
 	}
 
-	report := ownershipReport{}
+	report := leftOverDataReport{}
 	err = msgpack.Unmarshal(resp.Value(), &report)
 	if err != nil {
 		r.log.V(3).Printf("[ERROR] Failed to call decode ownership report from %s: %v", member, err)
@@ -68,7 +68,7 @@ func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.
 	return &report, nil
 }
 
-func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*ownershipReport, error) {
+func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*leftOverDataReport, error) {
 	data, err := msgpack.Marshal(r.table)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*owne
 
 	var mtx sync.Mutex
 	var g errgroup.Group
-	ownershipReports := make(map[discovery.Member]*ownershipReport)
+	reports := make(map[discovery.Member]*leftOverDataReport)
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
 	r.Members().Range(func(id uint64, tmp discovery.Member) bool {
@@ -95,7 +95,7 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*owne
 
 			mtx.Lock()
 			defer mtx.Unlock()
-			ownershipReports[member] = report
+			reports[member] = report
 			return nil
 		})
 		return true
@@ -104,5 +104,5 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*owne
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	return ownershipReports, nil
+	return reports, nil
 }

@@ -114,7 +114,7 @@ func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	r.markBootstrapped()
 
 	// Collect report
-	value, err := r.prepareOwnershipReport()
+	value, err := r.prepareLeftOverDataReport()
 	if err != nil {
 		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
 		return

@@ -19,7 +19,7 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 )
 
-func (r *RoutingTable) processOwnershipReports(reports map[discovery.Member]*ownershipReport) {
+func (r *RoutingTable) processLeftOverDataReports(reports map[discovery.Member]*leftOverDataReport) {
 	check := func(member discovery.Member, owners []discovery.Member) bool {
 		for _, owner := range owners {
 			if member.CompareByID(owner) {

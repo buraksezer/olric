@@ -212,7 +212,7 @@ func (r *RoutingTable) updateRouting() {
 		r.log.V(2).Printf("[ERROR] Failed to update routing table on cluster: %v", err)
 		return
 	}
-	r.processOwnershipReports(reports)
+	r.processLeftOverDataReports(reports)
 }
 
 func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
