@@ -199,6 +199,7 @@ func New(c *config.Config) (*Olric, error) {
 		BindPort:        c.BindPort,
 		KeepAlivePeriod: c.KeepAlivePeriod,
 		GracefulPeriod:  10 * time.Second,
+		MaxAllowedConn:  c.MaxAllowedConnections,
 	}
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -397,7 +398,7 @@ func (db *Olric) callStartedCallback() {
 	defer timer.Stop()
 
 	for {
-		timer.Reset(10 *  time.Millisecond)
+		timer.Reset(10 * time.Millisecond)
 		select {
 		case <-timer.C:
 			if requiredCheckpoints == atomic.LoadInt32(&db.passedCheckpoints) {

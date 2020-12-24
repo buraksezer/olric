@@ -51,6 +51,7 @@ type ServerConfig struct {
 	KeepAlivePeriod time.Duration
 	// GracefulPeriod is useful to close busy connections when you want to shutdown the server.
 	GracefulPeriod time.Duration
+	MaxAllowedConn int
 }
 
 // Server implements a concurrent TCP server.
@@ -64,6 +65,8 @@ type Server struct {
 	started    context.CancelFunc
 	ctx        context.Context
 	cancel     context.CancelFunc
+	// for server side rate limiting
+	limit chan struct{}
 }
 
 // NewServer creates and returns a new Server.
@@ -77,6 +80,7 @@ func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 		StartedCtx: startedCtx,
 		ctx:        ctx,
 		cancel:     cancel,
+		limit:      make(chan struct{}, c.MaxAllowedConn),
 	}
 }
 
@@ -203,7 +207,10 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 // processConn waits for requests and calls request handlers to generate a response. The connections are reusable.
 func (s *Server) processConn(conn io.ReadWriteCloser) {
 	defer s.wg.Done()
-
+	defer func() {
+		// request processed, we have room for 1 more connection now
+		<-s.limit
+	}()
 	// connStatus is useful for closing the server gracefully.
 	var connStatus uint32
 	done := make(chan struct{})
@@ -232,6 +239,10 @@ func (s *Server) listenAndServe() error {
 	s.started()
 
 	for {
+		// trying to accept connections
+		// if we are not able to push into channel, it means we are at our limit for accepting connections
+		// block here until we are ready to accept connections, ie. one of the current connection is closed
+		s.limit <- struct{}{}
 		conn, err := s.listener.Accept()
 		if err != nil {
 			select {

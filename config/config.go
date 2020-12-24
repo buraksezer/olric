@@ -122,6 +122,9 @@ type Config struct {
 	// BindPort denotes the address that Olric will bind to for communication with other Olric nodes.
 	BindPort int
 
+	// MaxAllowedConnections denotes number of maximum tcp connections we can accept concurrently
+	MaxAllowedConnections int
+
 	Client *Client
 
 	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
