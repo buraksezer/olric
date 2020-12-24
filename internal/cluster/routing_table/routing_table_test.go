@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/environment"
 	"github.com/hashicorp/memberlist"
 	"net"
 	"strconv"
@@ -34,12 +35,14 @@ import (
 )
 
 func newRoutingTableForTest(c *config.Config, srv *transport.Server) *RoutingTable {
-	flogger := testutil.NewFlogger(c)
-	primary := partitions.New(c.PartitionCount, partitions.PRIMARY)
-	backup := partitions.New(c.PartitionCount, partitions.BACKUP)
-	client := transport.NewClient(c.Client)
-	rt := New(c, flogger, primary, backup, client)
+	e := environment.New()
+	e.Set("config", c)
+	e.Set("logger", testutil.NewFlogger(c))
+	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
+	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
+	e.Set("client", transport.NewClient(c.Client))
 
+	rt := New(e)
 	if srv != nil {
 		ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
 			protocol.OpUpdateRouting: rt.UpdateRoutingOperation,

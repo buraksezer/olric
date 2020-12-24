@@ -12,12 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package partitions
+package environment
 
-import "github.com/buraksezer/olric/internal/discovery"
+import "sync"
 
-type StorageUnit interface {
-	Name() string
-	Length() int
-	Move(partID uint64, kind Kind, name string, owner discovery.Member) error
+type Environment struct {
+	sync.RWMutex
+	m map[string]interface{}
+}
+
+func New() *Environment {
+	return &Environment{
+		m: make(map[string]interface{}),
+	}
+}
+
+func (e *Environment) Get(key string) interface{} {
+	e.RLock()
+	defer e.RUnlock()
+
+	value, ok := e.m[key]
+	if ok {
+		return value
+	}
+	return nil
+}
+
+func (e *Environment) Set(key string, value interface{}) {
+	e.Lock()
+	defer e.Unlock()
+
+	e.m[key] = value
 }

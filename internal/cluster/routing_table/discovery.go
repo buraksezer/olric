@@ -15,6 +15,7 @@
 package routing_table
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -22,6 +23,8 @@ import (
 var (
 	ErrServerGone  = errors.New("server is gone")
 	ErrClusterJoin = errors.New("cannot join the cluster")
+	// ErrOperationTimeout is returned when an operation times out.
+	ErrOperationTimeout = errors.New("operation timeout")
 )
 
 // bootstrapCoordinator prepares the very first routing table and bootstraps the coordinator node.
@@ -70,31 +73,37 @@ func (r *RoutingTable) attemptToJoin() error {
 	return ErrClusterJoin
 }
 
-func (r *RoutingTable) tryWithInterval(max int, interval time.Duration, f func() error) error {
+func (r *RoutingTable) tryWithInterval(ctx context.Context, interval time.Duration, f func() error) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	var err error
-	err = f()
-	if err == nil {
+	var funcErr error
+
+	funcErr = f()
+	if funcErr == nil {
 		// Done. No need to try with interval
 		return nil
 	}
 
-	var count = 1
 loop:
-	for count < max {
+	for {
 		select {
-		case <-ticker.C:
-			count++
-			err = f()
-			if err == nil {
+		case <-ctx.Done():
+			// context is done
+			err := ctx.Err()
+			if err == context.DeadlineExceeded {
 				break loop
 			}
-		case <-r.ctx.Done():
-			// the server is gone
-			return ErrServerGone
+			if err == context.Canceled {
+				return ErrServerGone
+			}
+			return err
+		case <-ticker.C:
+			funcErr = f()
+			if funcErr == nil {
+				break loop
+			}
 		}
 	}
-	return err
+	return funcErr
 }

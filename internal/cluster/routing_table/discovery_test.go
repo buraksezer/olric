@@ -15,6 +15,7 @@
 package routing_table
 
 import (
+	"context"
 	"errors"
 	"github.com/buraksezer/olric/internal/testutil"
 	"testing"
@@ -27,7 +28,9 @@ func TestRoutingTable_tryWithInterval(t *testing.T) {
 	rt := newRoutingTableForTest(c, srv)
 
 	var foobarError = errors.New("foobar")
-	err := rt.tryWithInterval(10, time.Millisecond, func() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Millisecond)
+	defer cancel()
+	err := rt.tryWithInterval(ctx, time.Millisecond, func() error {
 		return foobarError
 	})
 

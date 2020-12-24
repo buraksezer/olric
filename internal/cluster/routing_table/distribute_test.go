@@ -81,7 +81,7 @@ func TestRoutingTable_distributedBackups(t *testing.T) {
 			}
 		}
 	}
-	
+
 	err = cluster.shutdown()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)

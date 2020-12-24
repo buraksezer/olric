@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/buraksezer/olric/internal/environment"
+
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/checkpoint"
@@ -76,8 +78,11 @@ type RoutingTable struct {
 	wg                  sync.WaitGroup
 }
 
-func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partitions, client *transport.Client) *RoutingTable {
+func New(e *environment.Environment) *RoutingTable {
 	checkpoint.Add()
+	c := e.Get("config").(*config.Config)
+	log := e.Get("logger").(*flog.Logger)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cc := consistent.Config{
 		Hasher:            c.Hasher,
@@ -91,9 +96,9 @@ func New(c *config.Config, log *flog.Logger, primary, backup *partitions.Partiti
 		config:       c,
 		log:          log,
 		consistent:   consistent.New(nil, cc),
-		primary:      primary,
-		backup:       backup,
-		client:       client,
+		primary:      e.Get("primary").(*partitions.Partitions),
+		backup:       e.Get("backup").(*partitions.Partitions),
+		client:       e.Get("client").(*transport.Client),
 		updatePeriod: time.Minute,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -170,6 +175,20 @@ func (r *RoutingTable) IsBootstrapped() bool {
 	return atomic.LoadInt32(&r.bootstrapped) == 1
 }
 
+// checkBootstrap is called for every request and checks whether the node is bootstrapped.
+// It has to be very fast for a smooth operation.
+func (r *RoutingTable) CheckBootstrap() error {
+	ctx, cancel := context.WithTimeout(context.Background(), r.config.BootstrapTimeout)
+	defer cancel()
+	return r.tryWithInterval(ctx, 100*time.Millisecond, func() error {
+		if r.IsBootstrapped() {
+			return nil
+		}
+		// Final error
+		return ErrOperationTimeout
+	})
+}
+
 func (r *RoutingTable) fillRoutingTable() {
 	table := make(map[uint64]*route)
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
@@ -219,7 +238,7 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 	r.Members().Lock()
 	defer r.Members().Unlock()
 
-	member, _ := r.discovery.DecodeNodeMeta(event.NodeMeta)
+	member, _ := discovery.NewMemberFromMetadata(event.NodeMeta)
 
 	switch event.Event {
 	case memberlist.NodeJoin:
@@ -334,7 +353,9 @@ func (r *RoutingTable) Start() error {
 	go r.listenClusterEvents(r.discovery.ClusterEvents)
 
 	// 1 Hour
-	err = r.tryWithInterval(3600, time.Second, func() error {
+	ctx, cancel := context.WithTimeout(r.ctx, time.Hour)
+	defer cancel()
+	err = r.tryWithInterval(ctx, time.Second, func() error {
 		// Check member count quorum now. If there is no enough peers to work, wait forever.
 		err := r.CheckMemberCountQuorum()
 		if err != nil {

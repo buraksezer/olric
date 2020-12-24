@@ -17,7 +17,6 @@ package discovery
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -31,7 +30,6 @@ import (
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/service_discovery"
 	"github.com/hashicorp/memberlist"
-	"github.com/vmihailenco/msgpack"
 )
 
 const eventChanCapacity = 256
@@ -79,62 +77,12 @@ type Discovery struct {
 	cancel context.CancelFunc
 }
 
-// Member represents a node in the cluster.
-type Member struct {
-	Name      string
-	NameHash  uint64
-	ID        uint64
-	Birthdate int64
-}
-
-// CompareByID returns true if two members denote the same member in the cluster.
-func (m Member) CompareByID(other Member) bool {
-	// ID variable is calculated by combining member's name and birthdate
-	return m.ID == other.ID
-}
-
-// CompareByName returns true if the two members has the same name in the cluster.
-// This function is intended to redirect the requests to the partition owner.
-func (m Member) CompareByName(other Member) bool {
-	return m.NameHash == other.NameHash
-}
-
-func (m Member) String() string {
-	return m.Name
-}
-
-func (d *Discovery) DecodeNodeMeta(buf []byte) (Member, error) {
-	res := &Member{}
-	err := msgpack.Unmarshal(buf, res)
-	return *res, err
-}
-
-func NewMember(c *config.Config) *Member {
-	// Calculate member's identity. It's useful to compare hosts.
-	birthdate := time.Now().UnixNano()
-
-	buf := make([]byte, 8+len(c.MemberlistConfig.Name))
-	binary.BigEndian.PutUint64(buf, uint64(birthdate))
-	buf = append(buf, []byte(c.MemberlistConfig.Name)...)
-	nameHash := c.Hasher.Sum64([]byte(c.MemberlistConfig.Name))
-	return &Member{
-		Name:      c.MemberlistConfig.Name,
-		NameHash:  nameHash,
-		ID:        c.Hasher.Sum64(buf),
-		Birthdate: birthdate,
-	}
-}
-
-func (m *Member) Encode() ([]byte, error){
-	return msgpack.Marshal(m)
-}
-
 // New creates a new memberlist with a proper configuration and returns a new Discovery instance along with it.
 func New(log *flog.Logger, c *config.Config) *Discovery {
 	member := NewMember(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &Discovery{
-		member:      member,
+		member:      &member,
 		config:      c,
 		log:         log,
 		deadMembers: make(map[string]int64),
@@ -276,9 +224,12 @@ func (d *Discovery) Start() error {
 		}
 	}
 
-	d.wg.Add(2)
+	d.wg.Add(1)
 	go d.eventLoop(eventsCh)
+
+	d.wg.Add(1)
 	go d.deadMemberTracker()
+
 	return nil
 }
 
@@ -306,7 +257,7 @@ func (d *Discovery) GetMembers() []Member {
 	var members []Member
 	nodes := d.memberlist.Members()
 	for _, node := range nodes {
-		member, _ := d.DecodeNodeMeta(node.Meta)
+		member, _ := NewMemberFromMetadata(node.Meta)
 		members = append(members, member)
 	}
 
@@ -397,83 +348,3 @@ func (d *Discovery) Shutdown() error {
 	}
 	return d.memberlist.Shutdown()
 }
-
-func ToClusterEvent(e memberlist.NodeEvent) *ClusterEvent {
-	return &ClusterEvent{
-		Event:    e.Event,
-		NodeName: e.Node.Name,
-		NodeAddr: e.Node.Addr,
-		NodePort: e.Node.Port,
-		NodeMeta: e.Node.Meta,
-	}
-}
-
-func (d *Discovery) handleEvent(event memberlist.NodeEvent) {
-	d.clusterEventsMtx.RLock()
-	defer d.clusterEventsMtx.RUnlock()
-
-	for _, ch := range d.eventSubscribers {
-		if event.Node.Name == d.member.Name {
-			continue
-		}
-		ch <- ToClusterEvent(event)
-	}
-}
-
-// eventLoop awaits for messages from memberlist and broadcasts them to  event listeners.
-func (d *Discovery) eventLoop(eventsCh chan memberlist.NodeEvent) {
-	defer d.wg.Done()
-
-	for {
-		select {
-		case e := <-eventsCh:
-			d.handleEvent(e)
-		case <-d.ctx.Done():
-			return
-		}
-	}
-}
-
-func (d *Discovery) SubscribeNodeEvents() chan *ClusterEvent {
-	d.clusterEventsMtx.Lock()
-	defer d.clusterEventsMtx.Unlock()
-
-	ch := make(chan *ClusterEvent, eventChanCapacity)
-	d.eventSubscribers = append(d.eventSubscribers, ch)
-	return ch
-}
-
-// delegate is a struct which implements memberlist.Delegate interface.
-type delegate struct {
-	meta []byte
-}
-
-// newDelegate returns a new delegate instance.
-func (d *Discovery) newDelegate() (delegate, error) {
-	data, err := d.member.Encode()
-	if err != nil {
-		return delegate{}, err
-	}
-	return delegate{
-		meta: data,
-	}, nil
-}
-
-// NodeMeta is used to retrieve meta-data about the current node
-// when broadcasting an alive message. It's length is limited to
-// the given byte size. This metadata is available in the Node structure.
-func (d delegate) NodeMeta(limit int) []byte {
-	return d.meta
-}
-
-// NotifyMsg is called when a user-data message is received.
-func (d delegate) NotifyMsg(data []byte) {}
-
-// GetBroadcasts is called when user data messages can be broadcast.
-func (d delegate) GetBroadcasts(overhead, limit int) [][]byte { return nil }
-
-// LocalState is used for a TCP Push/Pull.
-func (d delegate) LocalState(join bool) []byte { return nil }
-
-// MergeRemoteState is invoked after a TCP Push/Pull.
-func (d delegate) MergeRemoteState(buf []byte, join bool) {}

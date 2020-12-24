@@ -30,6 +30,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buraksezer/olric/internal/cluster/balancer"
+	"github.com/buraksezer/olric/internal/environment"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
@@ -85,10 +88,12 @@ type storageEngines struct {
 	configs map[string]map[string]interface{}
 }
 
-// Olric implements a distributed, in-memory and embeddable key/value store and config.
+// Olric implements a distributed, in-memory and embeddable key/value store.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
+
+	env *environment.Environment
 
 	config *config.Config
 	log    *flog.Logger
@@ -112,7 +117,8 @@ type Olric struct {
 	client *transport.Client
 	server *transport.Server
 
-	rt *routing_table.RoutingTable
+	rt       *routing_table.RoutingTable
+	balancer *balancer.Balancer
 
 	// Dispatch topic messages
 	dtopic *dtopic
@@ -155,14 +161,15 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 
-	client := transport.NewClient(c.Client)
-
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
 		MinLevel: logutils.LogLevel(strings.ToUpper(c.LogLevel)),
 		Writer:   c.LogOutput,
 	}
 	c.Logger.SetOutput(filter)
+
+	e := environment.New()
+	e.Set("config", c)
 
 	// Set the hash function. Olric distributes keys over partitions by hashing.
 	partitions.SetHashFunc(c.Hasher)
@@ -172,6 +179,7 @@ func New(c *config.Config) (*Olric, error) {
 	if c.LogLevel == "DEBUG" {
 		flogger.ShowLineNumber(1)
 	}
+	e.Set("logger", flogger)
 
 	// Start a concurrent TCP server
 	sc := &transport.ServerConfig{
@@ -180,11 +188,17 @@ func New(c *config.Config) (*Olric, error) {
 		KeepAlivePeriod: c.KeepAlivePeriod,
 		GracefulPeriod:  10 * time.Second,
 	}
+	client := transport.NewClient(c.Client)
+	e.Set("client", client)
+
+	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
+	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
+		env:        e,
 		ctx:        ctx,
 		cancel:     cancel,
 		log:        flogger,
@@ -192,9 +206,9 @@ func New(c *config.Config) (*Olric, error) {
 		hasher:     c.Hasher,
 		locker:     locker.New(),
 		serializer: c.Serializer,
-		client:     client,
-		primary:    partitions.New(c.PartitionCount, partitions.PRIMARY),
-		backup:     partitions.New(c.PartitionCount, partitions.BACKUP),
+		client:     e.Get("client").(*transport.Client),
+		primary:    e.Get("primary").(*partitions.Partitions),
+		backup:     e.Get("primary").(*partitions.Partitions),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		dtopic:     newDTopic(ctx),
@@ -205,8 +219,15 @@ func New(c *config.Config) (*Olric, error) {
 		},
 		started: c.Started,
 	}
-	db.rt = routing_table.New(c, flogger, db.primary, db.backup, client)
-	db.rt.AddCallback(db.rebalancer)
+
+	db.rt = routing_table.New(e)
+	e.Set("routingTable", db.rt)
+
+	db.balancer = balancer.New(e)
+
+	// Add callback functions to routing table.
+	db.rt.AddCallback(db.balancer.Balance)
+	// TODO: deleteStaleDMaps can be moved to another part of the future internal/dmap package.
 	db.rt.AddCallback(db.deleteStaleDMaps)
 
 	if err = db.initializeAndLoadStorageEngines(); err != nil {
@@ -408,38 +429,13 @@ func (db *Olric) isAlive() bool {
 	return true
 }
 
-// checkBootstrap is called for every request and checks whether the node is bootstrapped.
-// It has to be very fast for a smooth operation.
-func (db *Olric) checkBootstrap() error {
-	// check it immediately
-	if db.rt.IsBootstrapped() {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.config.BootstrapTimeout)
-	defer cancel()
-
-	// This loop only works for the first moments of the process.
-	for {
-		if db.rt.IsBootstrapped() {
-			return nil
-		}
-		<-time.After(100 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			return ErrOperationTimeout
-		default:
-		}
-	}
-}
-
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
 	if err := db.rt.CheckMemberCountQuorum(); err != nil {
 		return errInternalToPublic(err)
 	}
 	// An Olric node has to be bootstrapped to function properly.
-	return db.checkBootstrap()
+	return db.rt.CheckBootstrap()
 }
 
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
@@ -505,6 +501,8 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	}
 	db.streams.mu.RUnlock()
 
+	db.balancer.Shutdown()
+
 	if err := db.server.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}
@@ -539,6 +537,8 @@ func errInternalToPublic(err error) error {
 		return ErrClusterQuorum
 	case routing_table.ErrServerGone:
 		return ErrServerGone
+	case routing_table.ErrOperationTimeout:
+		return ErrOperationTimeout
 	default:
 		return err
 	}

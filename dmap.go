@@ -16,6 +16,7 @@ package olric
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/transport"
 	"sync"
 
 	"github.com/buraksezer/olric/config"
@@ -28,7 +29,12 @@ type dmap struct {
 	sync.RWMutex
 
 	config  *dmapConfig
+	client  *transport.Client
 	storage storage.Engine
+}
+
+func (dm *dmap) Name() string {
+	return "DMap"
 }
 
 func (dm *dmap) Length() int {
@@ -67,6 +73,7 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 func (db *Olric) createDMap(part *partitions.Partition, name string) (*dmap, error) {
 	// create a new map here.
 	nm := &dmap{
+		client: db.client,
 		config: &dmapConfig{
 			storageEngine: config.DefaultStorageEngine,
 		},

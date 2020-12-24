@@ -26,8 +26,16 @@ type testStorageUnit struct {
 	length int
 }
 
+func (su *testStorageUnit) Name() string {
+	return "test-data-structure"
+}
+
 func (su *testStorageUnit) Length() int {
 	return su.length
+}
+
+func (su *testStorageUnit) Move(_ uint64, _ Kind, _ string, _ discovery.Member) error {
+	return nil
 }
 
 func TestPartition(t *testing.T) {

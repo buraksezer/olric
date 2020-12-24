@@ -74,15 +74,14 @@ func (db *Olric) stats() stats.Stats {
 		return p
 	}
 
-	routingMtx.RLock()
-
+	db.rt.RLock()
+	defer db.rt.RUnlock()
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		part := db.primary.PartitionById(partID)
 		s.Partitions[partID] = collect(partID, part)
 		s.Backups[partID] = collect(partID, part)
 	}
 
-	routingMtx.RUnlock()
 	return s
 }
 
