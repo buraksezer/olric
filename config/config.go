@@ -102,6 +102,9 @@ const (
 
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
 	LRUEviction EvictionPolicy = "LRU"
+
+	// DefaultMaxAllowedConnections denotes max number of clients that can be accepted concurrently
+	DefaultMaxAllowedConnections = 1024
 )
 
 // Config is the configuration to create a Olric instance.
@@ -330,6 +333,10 @@ func (c *Config) Sanitize() error {
 	}
 	if c.TableSize == 0 {
 		c.TableSize = DefaultTableSize
+	}
+
+	if c.MaxAllowedConnections == 0 {
+		c.MaxAllowedConnections = DefaultMaxAllowedConnections
 	}
 
 	// Check peers. If Peers slice contains node's itself, return an error.
