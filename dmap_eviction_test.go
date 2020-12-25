@@ -54,10 +54,10 @@ func TestDMap_TTLEviction(t *testing.T) {
 	length := 0
 	for _, ins := range []*Olric{db1, db2} {
 		for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
-			part := ins.partitions[partID]
-			part.m.Range(func(k, v interface{}) bool {
+			part := ins.primary.PartitionById(partID)
+			part.Map().Range(func(k, v interface{}) bool {
 				dm := v.(*dmap)
-				length += dm.storage.Len()
+				length += dm.storage.Stats().Length
 				return true
 			})
 		}
@@ -80,7 +80,7 @@ func TestDMap_TTLDuration(t *testing.T) {
 	}()
 
 	// This is not recommended but forgivable for testing.
-	db.config.Cache = &config.CacheConfig{TTLDuration: 10 * time.Millisecond}
+	db.config.DMaps = &config.DMaps{TTLDuration: 10 * time.Millisecond}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -99,10 +99,10 @@ func TestDMap_TTLDuration(t *testing.T) {
 
 	length := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map().Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			length += dm.storage.Len()
+			length += dm.storage.Stats().Length
 			return true
 		})
 	}
@@ -125,7 +125,7 @@ func TestDMap_TTLMaxIdleDuration(t *testing.T) {
 	}()
 
 	// This is not recommended but forgivable for testing.
-	db.config.Cache = &config.CacheConfig{MaxIdleDuration: 10 * time.Millisecond}
+	db.config.DMaps = &config.DMaps{MaxIdleDuration: 10 * time.Millisecond}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -145,10 +145,10 @@ func TestDMap_TTLMaxIdleDuration(t *testing.T) {
 
 	length := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map().Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			length += dm.storage.Len()
+			length += dm.storage.Stats().Length
 			return true
 		})
 	}
@@ -172,7 +172,7 @@ func TestDMap_EvictionPolicyLRUMaxKeys(t *testing.T) {
 
 	// This is not recommended but forgivable for testing.
 	// We have 7 partitions in test setup. So MaxKeys is 10 for every partition.
-	db.config.Cache = &config.CacheConfig{MaxKeys: 70, EvictionPolicy: config.LRUEviction}
+	db.config.DMaps = &config.DMaps{MaxKeys: 70, EvictionPolicy: config.LRUEviction}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -187,10 +187,10 @@ func TestDMap_EvictionPolicyLRUMaxKeys(t *testing.T) {
 
 	keyCount := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map().Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			keyCount += dm.storage.Len()
+			keyCount += dm.storage.Stats().Length
 			return true
 		})
 	}
@@ -214,7 +214,7 @@ func TestDMap_EvictionPolicyLRUMaxInuse(t *testing.T) {
 
 	// This is not recommended but forgivable for testing.
 	// We have 7 partitions in test setup. So MaxInuse is 293 bytes for every partition.
-	db.config.Cache = &config.CacheConfig{MaxInuse: 2048, EvictionPolicy: config.LRUEviction}
+	db.config.DMaps = &config.DMaps{MaxInuse: 2048, EvictionPolicy: config.LRUEviction}
 
 	dm, err := db.NewDMap("mymap")
 	if err != nil {
@@ -229,10 +229,10 @@ func TestDMap_EvictionPolicyLRUMaxInuse(t *testing.T) {
 
 	keyCount := 0
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.partitions[partID]
-		part.m.Range(func(k, v interface{}) bool {
+		part := db.primary.PartitionById(partID)
+		part.Map().Range(func(k, v interface{}) bool {
 			dm := v.(*dmap)
-			keyCount += dm.storage.Len()
+			keyCount += dm.storage.Stats().Length
 			return true
 		})
 	}

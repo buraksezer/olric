@@ -19,9 +19,10 @@ import (
 	"context"
 	"net"
 	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 func TestRebalance_Merge(t *testing.T) {
@@ -50,20 +51,20 @@ func TestRebalance_Merge(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
-		part := db1.partitions[partID]
-		if !cmpMembersByID(part.owner(), db1.this) {
-			if part.length() != 0 {
+		part := db1.primary.PartitionById(partID)
+		if !part.Owner().CompareByID(db1.rt.This()) {
+			if part.Length() != 0 {
 				t.Fatalf("Expected key count is 0 for PartID: %d on %s. Got: %d",
-					partID, db1.this, part.length())
+					partID, db1.rt.This(), part.Length())
 			}
 		}
 	}
 
 	for partID := uint64(0); partID < db2.config.PartitionCount; partID++ {
-		part := db2.partitions[partID]
-		if cmpMembersByID(part.owner(), db2.this) {
-			if part.length() == 0 {
-				t.Fatalf("Expected key count is different than zero for PartID: %d on %s", partID, db2.this)
+		part := db2.primary.PartitionById(partID)
+		if part.Owner().CompareByID(db2.rt.This()) {
+			if part.Length() == 0 {
+				t.Fatalf("Expected key count is different than zero for PartID: %d on %s", partID, db2.rt.This())
 			}
 		}
 	}
@@ -93,7 +94,7 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 	}
 
 	for i := 0; i < 100; i++ {
-		hkey := db1.getHKey("mymap", bkey(i))
+		hkey := partitions.HKey("mymap", bkey(i))
 		if underlying, err := db1.getDMap("mymap", hkey); err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		} else {
@@ -101,7 +102,7 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			entry.Timestamp = time.Now().Add(60 * time.Minute).UnixNano()
+			entry.SetTimestamp(time.Now().Add(60 * time.Minute).UnixNano())
 			err = underlying.storage.Put(hkey, entry)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
@@ -134,7 +135,7 @@ func TestRebalance_MergeWithNewValues(t *testing.T) {
 	peer := net.JoinHostPort(
 		db1.config.MemberlistConfig.BindAddr,
 		strconv.Itoa(db1.config.MemberlistConfig.BindPort))
-	_, err = db2.discovery.Rejoin([]string{peer})
+	_, err = db2.rt.Discovery().Rejoin([]string{peer})
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -184,15 +185,15 @@ func TestRebalance_MergeBackups(t *testing.T) {
 	checkOwnerCount := func(db *Olric) {
 		syncClusterMembers(db1, db2, db3)
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-			backup := db.backups[partID]
-			if backup.ownerCount() != 1 {
+			backup := db.backup.PartitionById(partID)
+			if backup.OwnerCount() != 1 {
 				t.Fatalf("Expected backup owner count is 1 for PartID: %d on %s. Got: %d",
-					partID, db.this, backup.ownerCount())
+					partID, db.rt.This(), backup.OwnerCount())
 			}
 
-			part := db.partitions[partID]
-			for _, backupOwner := range backup.loadOwners() {
-				if cmpMembersByID(backupOwner, part.owner()) {
+			part := db.primary.PartitionById(partID)
+			for _, backupOwner := range backup.Owners() {
+				if backupOwner.CompareByID(part.Owner()) {
 					t.Fatalf("Partition owner is also backup owner. PartID: %d: %s",
 						partID, backupOwner)
 				}
@@ -211,14 +212,14 @@ func TestRebalance_CheckOwnership(t *testing.T) {
 
 	checkOwnership := func(db *Olric) {
 		for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-			backup := db.backups[partID]
-			part := db.partitions[partID]
-			members := db.discovery.GetMembers()
-			if len(members) == 1 && len(backup.loadOwners()) != 0 {
+			backup := db.backup.PartitionById(partID)
+			part := db.primary.PartitionById(partID)
+			members := db.rt.Discovery().GetMembers()
+			if len(members) == 1 && len(backup.Owners()) != 0 {
 				t.Fatalf("Invalid ownership distribution")
 			}
-			for _, backupOwner := range backup.loadOwners() {
-				if cmpMembersByID(backupOwner, part.owner()) {
+			for _, backupOwner := range backup.Owners() {
+				if backupOwner.CompareByID(part.Owner()) {
 					t.Fatalf("Partition owner is also backup owner. PartID: %d: %s",
 						partID, backupOwner)
 				}
@@ -261,7 +262,7 @@ func TestSplitBrain_ErrClusterQuorum(t *testing.T) {
 	}()
 	// It's not good to manipulate numMembers but it's very hard to prepare a test condition
 	// to test ErrClusterQuorum error.
-	atomic.StoreInt32(&db.numMembers, 0)
+	db.rt.SetNumMembersEagerly(0)
 
 	_, err = db.NewDMap("map")
 	if err != ErrClusterQuorum {
@@ -318,7 +319,7 @@ func TestSplitBrain_SimpleMerge(t *testing.T) {
 	// Merge the clusters.
 	port := strconv.Itoa(db2.config.MemberlistConfig.BindPort)
 	peer := net.JoinHostPort(db2.config.MemberlistConfig.BindAddr, port)
-	_, err = db1.discovery.Rejoin([]string{peer})
+	_, err = db1.rt.Discovery().Rejoin([]string{peer})
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

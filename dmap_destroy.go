@@ -27,7 +27,7 @@ func (db *Olric) destroyDMap(name string) error {
 	sem := semaphore.NewWeighted(num)
 
 	var g errgroup.Group
-	for _, item := range db.discovery.GetMembers() {
+	for _, item := range db.rt.Discovery().GetMembers() {
 		addr := item.String()
 		g.Go(func() error {
 			if err := sem.Acquire(db.ctx, 1); err != nil {
@@ -73,12 +73,12 @@ func (db *Olric) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		// Delete primary copies
-		part := db.partitions[partID]
-		part.m.Delete(req.DMap())
+		part := db.primary.PartitionById(partID)
+		part.Map().Delete(req.DMap())
 		// Delete from Backups
 		if db.config.ReplicaCount != 0 {
-			bpart := db.backups[partID]
-			bpart.m.Delete(req.DMap())
+			bpart := db.backup.PartitionById(partID)
+			bpart.Map().Delete(req.DMap())
 		}
 	}
 	w.SetStatus(protocol.StatusOK)

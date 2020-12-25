@@ -47,8 +47,8 @@ func TestStatsStandalone(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	if !cmpMembersByID(s.ClusterCoordinator, db.this) {
-		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.this, s.ClusterCoordinator)
+	if !s.ClusterCoordinator.CompareByID(db.rt.This()) {
+		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.rt.This(), s.ClusterCoordinator)
 	}
 
 	var total int
@@ -64,8 +64,8 @@ func TestStatsStandalone(t *testing.T) {
 		if part.Length <= 0 {
 			t.Fatalf("Unexpected Length: %d", part.Length)
 		}
-		if !cmpMembersByID(part.Owner, db.this) {
-			t.Fatalf("Expected partition owner: %s. Got: %s", db.this, part.Owner)
+		if !part.Owner.CompareByID(db.rt.This()) {
+			t.Fatalf("Expected partition owner: %s. Got: %s", db.rt.This(), part.Owner)
 		}
 	}
 	if total != 100 {
@@ -136,8 +136,8 @@ func TestStatsCluster(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		if !cmpMembersByID(s.ClusterCoordinator, db1.this) {
-			t.Fatalf("Expected cluster coordinator: %v. Got: %v", db1.this, s.ClusterCoordinator)
+		if !s.ClusterCoordinator.CompareByID(db1.rt.This()) {
+			t.Fatalf("Expected cluster coordinator: %v. Got: %v", db1.rt.This(), s.ClusterCoordinator)
 		}
 	})
 }

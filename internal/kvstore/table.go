@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kvstore
 
 import (
 	"encoding/binary"
 
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
 )
 
@@ -24,13 +25,6 @@ const maxKeyLen = 256
 
 var (
 	errNotEnoughSpace = errors.New("not enough space")
-
-	// ErrKeyTooLarge is an error that indicates the given key is large than the determined key size.
-	// The current maximum key length is 256.
-	ErrKeyTooLarge = errors.New("key too large")
-
-	// ErrKeyNotFound is an error that indicates that the requested key could not be found in the DB.
-	ErrKeyNotFound = errors.New("key not found")
 )
 
 type table struct {
@@ -45,8 +39,8 @@ type table struct {
 }
 
 func newTable(size int) *table {
-	if size < minimumSize {
-		size = minimumSize
+	if size < minimumTableSize {
+		size = minimumTableSize
 	}
 	t := &table{
 		hkeys:     make(map[uint64]int),
@@ -80,13 +74,13 @@ func (t *table) putRaw(hkey uint64, value []byte) error {
 // In-memory layout for entry:
 //
 // KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
-func (t *table) put(hkey uint64, value *Entry) error {
-	if len(value.Key) >= maxKeyLen {
-		return ErrKeyTooLarge
+func (t *table) put(hkey uint64, value storage.Entry) error {
+	if len(value.Key()) >= maxKeyLen {
+		return storage.ErrKeyTooLarge
 	}
 
 	// Check empty space on allocated memory area.
-	inuse := len(value.Key) + len(value.Value) + 21 // TTL + Timestamp + value-Length + key-Length
+	inuse := len(value.Key()) + len(value.Value()) + 21 // TTL + Timestamp + value-Length + key-Length
 	if inuse+t.offset >= t.allocated {
 		return errNotEnoughSpace
 	}
@@ -100,29 +94,29 @@ func (t *table) put(hkey uint64, value *Entry) error {
 	t.inuse += inuse
 
 	// Set key length. It's 1 byte.
-	klen := uint8(len(value.Key))
+	klen := uint8(len(value.Key()))
 	copy(t.memory[t.offset:], []byte{klen})
 	t.offset++
 
 	// Set the key.
-	copy(t.memory[t.offset:], value.Key)
-	t.offset += len(value.Key)
+	copy(t.memory[t.offset:], value.Key())
+	t.offset += len(value.Key())
 
 	// Set the TTL. It's 8 bytes.
-	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.TTL))
+	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.TTL()))
 	t.offset += 8
 
 	// Set the Timestamp. It's 8 bytes.
-	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.Timestamp))
+	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.Timestamp()))
 	t.offset += 8
 
 	// Set the value length. It's 4 bytes.
-	binary.BigEndian.PutUint32(t.memory[t.offset:], uint32(len(value.Value)))
+	binary.BigEndian.PutUint32(t.memory[t.offset:], uint32(len(value.Value())))
 	t.offset += 4
 
 	// Set the value.
-	copy(t.memory[t.offset:], value.Value)
-	t.offset += len(value.Value)
+	copy(t.memory[t.offset:], value.Value())
+	t.offset += len(value.Value())
 	return nil
 }
 
@@ -184,7 +178,7 @@ func (t *table) getTTL(hkey uint64) (int64, bool) {
 	return ttl, false
 }
 
-func (t *table) get(hkey uint64) (*Entry, bool) {
+func (t *table) get(hkey uint64) (storage.Entry, bool) {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		return nil, true
@@ -197,18 +191,18 @@ func (t *table) get(hkey uint64) (*Entry, bool) {
 	klen := int(uint8(t.memory[offset]))
 	offset++
 
-	entry.Key = string(t.memory[offset : offset+klen])
+	entry.key = string(t.memory[offset : offset+klen])
 	offset += klen
 
-	entry.TTL = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
+	entry.ttl = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
 	offset += 8
 
-	entry.Timestamp = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
+	entry.timestamp = int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
 	offset += 4
-	entry.Value = t.memory[offset : offset+int(vlen)]
+	entry.value = t.memory[offset : offset+int(vlen)]
 	return entry, false
 }
 
@@ -245,7 +239,7 @@ func (t *table) delete(hkey uint64) bool {
 	return false
 }
 
-func (t *table) updateTTL(hkey uint64, value *Entry) bool {
+func (t *table) updateTTL(hkey uint64, value storage.Entry) bool {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		// Try the previous table.
@@ -257,10 +251,10 @@ func (t *table) updateTTL(hkey uint64, value *Entry) bool {
 	offset += 1 + klen
 
 	// Set the new TTL. It's 8 bytes.
-	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.TTL))
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.TTL()))
 	offset += 8
 
 	// Set the new Timestamp. It's 8 bytes.
-	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.Timestamp))
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.Timestamp()))
 	return false
 }

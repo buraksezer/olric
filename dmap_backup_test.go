@@ -16,6 +16,7 @@ package olric
 
 import (
 	"bytes"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"testing"
 )
 
@@ -47,14 +48,15 @@ func TestDMap_PutBackup(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey := dm.db.findPartitionOwner(mname, key)
+		hkey := partitions.HKey(mname, key)
+		owner := dm.db.primary.PartitionByHKey(hkey).Owner()
 		var backup = db1
-		if cmpMembersByID(owner, db1.this) {
+		if owner.CompareByID(db1.rt.This()) {
 			backup = db2
 		}
-		partID := db1.getPartitionID(hkey)
-		bpart := backup.backups[partID]
-		tmp, ok := bpart.m.Load(mname)
+		partID := db1.primary.PartitionIdByHKey(hkey)
+		bpart := backup.backup.PartitionById(partID)
+		tmp, ok := bpart.Map().Load(mname)
 		if !ok {
 			t.Fatalf("mymap could not be found")
 		}
@@ -65,7 +67,7 @@ func TestDMap_PutBackup(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		var val interface{}
-		err = db1.serializer.Unmarshal(entry.Value, &val)
+		err = db1.serializer.Unmarshal(entry.Value(), &val)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -111,14 +113,15 @@ func TestDMap_DeleteBackup(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey := dm.db.findPartitionOwner(mname, key)
+		hkey := partitions.HKey(mname, key)
+		owner := dm.db.primary.PartitionByHKey(hkey).Owner()
 		var backup = db1
-		if cmpMembersByID(owner, db1.this) {
+		if owner.CompareByID(db1.rt.This()) {
 			backup = db2
 		}
-		partID := db1.getPartitionID(hkey)
-		bpart := backup.backups[partID]
-		tmp, ok := bpart.m.Load(mname)
+		partID := db1.backup.PartitionIdByHKey(hkey)
+		bpart := backup.backup.PartitionById(partID)
+		tmp, ok := bpart.Map().Load(mname)
 		data := tmp.(*dmap)
 		if !ok {
 			bpart.Unlock()
@@ -159,9 +162,10 @@ func TestDMap_GetBackup(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		owner, hkey := dm.db.findPartitionOwner(mname, key)
+		hkey := partitions.HKey(mname, key)
+		owner := dm.db.primary.PartitionByHKey(hkey).Owner()
 		var kloc = db1
-		if !cmpMembersByID(owner, db1.this) {
+		if !owner.CompareByID(db1.rt.This()) {
 			kloc = db2
 		}
 
@@ -249,7 +253,7 @@ func TestDMap_GetBackup(t *testing.T) {
 	syncClusterMembers(db1, db2)
 
 	db1.rebalancer()
-	for _, bpart := range db1.backups {
+	for _, bpart := range db1.backup {
 		bpart.RLock()
 		if len(bpart.owners) != 1 {
 			t.Fatalf("Expected backup owner count is 1. Got: %d", len(bpart.owners))

@@ -16,13 +16,13 @@ package olric
 
 import (
 	"fmt"
-	"sync/atomic"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"time"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
 )
 
@@ -132,16 +132,15 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	if w.timeout.Seconds() != 0 {
 		ttl = getTTL(w.timeout)
 	}
-	val := &storage.Entry{
-		Key:       w.key,
-		Value:     w.value,
-		Timestamp: w.timestamp,
-		TTL:       ttl,
-	}
-	err := dm.storage.Put(hkey, val)
+	entry := dm.storage.NewEntry()
+	entry.SetKey(w.key)
+	entry.SetValue(w.value)
+	entry.SetTTL(ttl)
+	entry.SetTimestamp(w.timestamp)
+	err := dm.storage.Put(hkey, entry)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 	if err == nil {
@@ -153,7 +152,7 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 
 func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	// Fire and forget mode.
-	owners := db.getBackupPartitionOwners(hkey)
+	owners := db.backup.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		db.wg.Add(1)
 		go func(host discovery.Member) {
@@ -173,7 +172,7 @@ func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	// Quorum based replication.
 	var successful int
-	owners := db.getBackupPartitionOwners(hkey)
+	owners := db.backup.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		req := w.toReq(w.replicaOpcode)
 		_, err := db.requestTo(owner.String(), req)
@@ -188,7 +187,7 @@ func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
 	err := db.localPut(hkey, dm, w)
 	if err != nil {
 		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.this, w.dmap, err)
+			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.rt.This(), w.dmap, err)
 		}
 	} else {
 		successful++
@@ -244,19 +243,20 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 	// But I think that it's good to use only one of time in a production system.
 	// Because it should be easy to understand and debug.
 
+	stats := dm.storage.Stats()
 	// Try to make room for the new item, if it's required.
-	if dm.cache != nil && dm.cache.evictionPolicy == config.LRUEviction {
+	if dm.config != nil && dm.config.evictionPolicy == config.LRUEviction {
 		// This works for every request if you enabled LRU.
 		// But loading a number from memory should be very cheap.
 		// ownedPartitionCount changes in the case of node join or leave.
-		ownedPartitionCount := atomic.LoadUint64(&db.ownedPartitionCount)
+		ownedPartitionCount := db.rt.OwnedPartitionCount()
 
-		if dm.cache.maxKeys > 0 {
+		if dm.config.maxKeys > 0 {
 			// MaxKeys controls maximum key count owned by this node.
 			// We need ownedPartitionCount property because every partition
 			// manages itself independently. So if you set MaxKeys=70 and
 			// your partition count is 7, every partition 10 keys at maximum.
-			if dm.storage.Len() >= dm.cache.maxKeys/int(ownedPartitionCount) {
+			if stats.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
 				err := db.evictKeyWithLRU(dm, w.dmap)
 				if err != nil {
 					return err
@@ -264,13 +264,13 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 			}
 		}
 
-		if dm.cache.maxInuse > 0 {
+		if dm.config.maxInuse > 0 {
 			// MaxInuse controls maximum in-use memory of partitions on this node.
 			// We need ownedPartitionCount property because every partition
 			// manages itself independently. So if you set MaxInuse=70M(in bytes) and
 			// your partition count is 7, every partition consumes 10M in-use space at maximum.
 			// WARNING: Actual allocated memory can be different.
-			if dm.storage.Inuse() >= dm.cache.maxInuse/int(ownedPartitionCount) {
+			if stats.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
 				err := db.evictKeyWithLRU(dm, w.dmap)
 				if err != nil {
 					return err
@@ -279,8 +279,8 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 		}
 	}
 
-	if dm.cache != nil && dm.cache.ttlDuration.Seconds() != 0 && w.timeout.Seconds() == 0 {
-		w.timeout = dm.cache.ttlDuration
+	if dm.config != nil && dm.config.ttlDuration.Seconds() != 0 && w.timeout.Seconds() == 0 {
+		w.timeout = dm.config.ttlDuration
 	}
 
 	if db.config.ReplicaCount == config.MinimumReplicaCount {
@@ -303,8 +303,9 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 // put controls every write operation in Olric. It redirects the requests to its owner,
 // if the key belongs to another host.
 func (db *Olric) put(w *writeop) error {
-	member, hkey := db.findPartitionOwner(w.dmap, w.key)
-	if cmpMembersByName(member, db.this) {
+	hkey := partitions.HKey(w.dmap, w.key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
+	if member.CompareByName(db.rt.This()) {
 		// We are on the partition owner.
 		return db.callPutOnCluster(hkey, w)
 	}
@@ -432,7 +433,7 @@ func (db *Olric) exPutOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -451,7 +452,7 @@ func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (db *Olric) compactTables(dm *dmap) {
+func (db *Olric) callCompactionOnStorage(dm *dmap) {
 	defer db.wg.Done()
 	timer := time.NewTimer(50 * time.Millisecond)
 	defer timer.Stop()
@@ -461,7 +462,7 @@ func (db *Olric) compactTables(dm *dmap) {
 		select {
 		case <-timer.C:
 			dm.Lock()
-			if done := dm.storage.CompactTables(); done {
+			if done := dm.storage.Compaction(); done {
 				// Fragmented tables are merged. Quit.
 				dm.Unlock()
 				return

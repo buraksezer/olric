@@ -28,19 +28,23 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/consistent"
+	"github.com/buraksezer/olric/internal/cluster/balancer"
+	"github.com/buraksezer/olric/internal/environment"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
-	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/checkpoint"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
@@ -75,37 +79,22 @@ var (
 
 const (
 	// ReleaseVersion is the current stable version of Olric
-	ReleaseVersion string = "0.3.0"
+	ReleaseVersion string = "0.4.0-beta.1"
 	nilTimeout            = 0 * time.Second
 )
 
-var requiredCheckpoints int32 = 2
-
-// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
-type members struct {
-	mtx sync.RWMutex
-	m   map[uint64]discovery.Member
+type storageEngines struct {
+	engines map[string]storage.Engine
+	configs map[string]map[string]interface{}
 }
 
-// Olric implements a distributed, in-memory and embeddable key/value store and cache.
+// Olric implements a distributed, in-memory and embeddable key/value store.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
 
-	// These values is useful to control operation status.
-	bootstrapped int32
-	// numMembers is used to check cluster quorum.
-	numMembers int32
+	env *environment.Environment
 
-	// Number of successfully passed checkpoints
-	passedCheckpoints int32
-
-	// Currently owned partition count. Approximate LRU implementation
-	// uses that.
-	ownedPartitionCount uint64
-
-	// this defines this Olric node in the cluster.
-	this   discovery.Member
 	config *config.Config
 	log    *flog.Logger
 
@@ -116,14 +105,10 @@ type Olric struct {
 	// and distributed, optimistic lock implementation.
 	locker     *locker.Locker
 	serializer serializer.Serializer
-	discovery  *discovery.Discovery
-
-	// consistent hash ring implementation.
-	consistent *consistent.Consistent
 
 	// Logical units for data storage
-	partitions map[uint64]*partition
-	backups    map[uint64]*partition
+	primary *partitions.Partitions
+	backup  *partitions.Partitions
 
 	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
 	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
@@ -132,14 +117,17 @@ type Olric struct {
 	client *transport.Client
 	server *transport.Server
 
-	// A full list of alive members. It's required for Pub/Sub and event dispatching systems.
-	members members
+	rt       *routing_table.RoutingTable
+	balancer *balancer.Balancer
 
 	// Dispatch topic messages
 	dtopic *dtopic
 
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams
+
+	// Map of storage engines
+	storageEngines *storageEngines
 
 	// Structures for flow control
 	ctx    context.Context
@@ -173,14 +161,6 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
 
-	cfg := consistent.Config{
-		Hasher:            c.Hasher,
-		PartitionCount:    int(c.PartitionCount),
-		ReplicationFactor: 20, // TODO: This also may be a configuration param.
-		Load:              c.LoadFactor,
-	}
-	client := transport.NewClient(c.Client)
-
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
 		MinLevel: logutils.LogLevel(strings.ToUpper(c.LogLevel)),
@@ -188,11 +168,19 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	c.Logger.SetOutput(filter)
 
+	e := environment.New()
+	e.Set("config", c)
+
+	// Set the hash function. Olric distributes keys over partitions by hashing.
+	partitions.SetHashFunc(c.Hasher)
+
 	flogger := flog.New(c.Logger)
 	flogger.SetLevel(c.LogVerbosity)
 	if c.LogLevel == "DEBUG" {
 		flogger.ShowLineNumber(1)
 	}
+	e.Set("logger", flogger)
+
 	// Start a concurrent TCP server
 	sc := &transport.ServerConfig{
 		BindAddr:        c.BindAddr,
@@ -201,10 +189,17 @@ func New(c *config.Config) (*Olric, error) {
 		GracefulPeriod:  10 * time.Second,
 		MaxAllowedConn:  c.MaxAllowedConnections,
 	}
+	client := transport.NewClient(c.Client)
+	e.Set("client", client)
+
+	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
+	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
+
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
+		env:        e,
 		ctx:        ctx,
 		cancel:     cancel,
 		log:        flogger,
@@ -212,39 +207,79 @@ func New(c *config.Config) (*Olric, error) {
 		hasher:     c.Hasher,
 		locker:     locker.New(),
 		serializer: c.Serializer,
-		consistent: consistent.New(nil, cfg),
-		client:     client,
-		partitions: make(map[uint64]*partition),
-		backups:    make(map[uint64]*partition),
+		client:     e.Get("client").(*transport.Client),
+		primary:    e.Get("primary").(*partitions.Partitions),
+		backup:     e.Get("primary").(*partitions.Partitions),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
-		members:    members{m: make(map[uint64]discovery.Member)},
 		dtopic:     newDTopic(ctx),
 		streams:    &streams{m: make(map[uint64]*stream)},
-		started:    c.Started,
+		storageEngines: &storageEngines{
+			engines: make(map[string]storage.Engine),
+			configs: make(map[string]map[string]interface{}),
+		},
+		started: c.Started,
+	}
+
+	db.rt = routing_table.New(e)
+	e.Set("routingTable", db.rt)
+
+	db.balancer = balancer.New(e)
+
+	// Add callback functions to routing table.
+	db.rt.AddCallback(db.balancer.Balance)
+	// TODO: deleteStaleDMaps can be moved to another part of the future internal/dmap package.
+	db.rt.AddCallback(db.deleteStaleDMaps)
+
+	if err = db.initializeAndLoadStorageEngines(); err != nil {
+		return nil, err
 	}
 
 	db.server.SetDispatcher(db.requestDispatcher)
-
-	// Create all the partitions. It's read-only. No need for locking.
-	for i := uint64(0); i < c.PartitionCount; i++ {
-		db.partitions[i] = &partition{id: i}
-	}
-
-	// Create all the backup partitions. It's read-only. No need for locking.
-	for i := uint64(0); i < c.PartitionCount; i++ {
-		db.backups[i] = &partition{
-			id:     i,
-			backup: true,
-		}
-	}
 
 	db.registerOperations()
 	return db, nil
 }
 
-func (db *Olric) passCheckpoint() {
-	atomic.AddInt32(&db.passedCheckpoints, 1)
+func (db *Olric) initializeAndLoadStorageEngines() error {
+	db.storageEngines.configs = db.config.StorageEngines.Config
+	db.storageEngines.engines = db.config.StorageEngines.Impls
+
+	// Load engines as plugin, if any.
+	for _, pluginPath := range db.config.StorageEngines.Plugins {
+		engine, err := storage.LoadAsPlugin(pluginPath)
+		if err != nil {
+			return err
+		}
+		db.storageEngines.engines[engine.Name()] = engine
+	}
+
+	// Set a default engine, if required.
+	if len(db.config.StorageEngines.Impls) == 0 {
+		if _, ok := db.config.StorageEngines.Config[config.DefaultStorageEngine]; !ok {
+			return errors.New("no storage engine defined")
+		}
+		db.storageEngines.engines[config.DefaultStorageEngine] = &kvstore.KVStore{}
+	}
+
+	// Set configuration for the loaded engines.
+	for name, ec := range db.config.StorageEngines.Config {
+		engine, ok := db.storageEngines.engines[name]
+		if !ok {
+			return fmt.Errorf("storage engine implementation is missing: %s", name)
+		}
+		engine.SetConfig(storage.NewConfig(ec))
+	}
+
+	// Start the engines.
+	for _, engine := range db.storageEngines.engines {
+		engine.SetLogger(db.config.Logger)
+		if err := engine.Start(); err != nil {
+			return err
+		}
+		db.log.V(2).Printf("[INFO] Storage engine has been loaded: %s", engine.Name())
+	}
+	return nil
 }
 
 func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
@@ -266,130 +301,6 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	f(w, r)
 }
 
-// bootstrapCoordinator prepares the very first routing table and bootstraps the coordinator node.
-func (db *Olric) bootstrapCoordinator() error {
-	routingMtx.Lock()
-	defer routingMtx.Unlock()
-
-	table := db.distributePartitions()
-	_, err := db.updateRoutingTableOnCluster(table)
-	if err == nil {
-		// The coordinator bootstraps itself.
-		atomic.StoreInt32(&db.bootstrapped, 1)
-		db.log.V(2).Printf("[INFO] The cluster coordinator has been bootstrapped")
-	}
-	return err
-}
-
-// startDiscovery initializes and starts discovery subsystem.
-func (db *Olric) startDiscovery() error {
-	d, err := discovery.New(db.log, db.config)
-	if err != nil {
-		return err
-	}
-	err = d.Start()
-	if err != nil {
-		return err
-	}
-	db.discovery = d
-
-	attempts := 0
-	for attempts < db.config.MaxJoinAttempts {
-		if !db.isAlive() {
-			return nil
-		}
-
-		attempts++
-		n, err := db.discovery.Join()
-		if err == nil {
-			db.log.V(2).Printf("[INFO] Join completed. Synced with %d initial nodes", n)
-			break
-		}
-
-		db.log.V(2).Printf("[ERROR] Join attempt returned error: %s", err)
-		if atomic.LoadInt32(&db.bootstrapped) == 1 {
-			db.log.V(2).Printf("[INFO] Bootstrapped by the cluster coordinator")
-			break
-		}
-
-		db.log.V(2).Printf("[INFO] Awaits for %s to join again (%d/%d)",
-			db.config.JoinRetryInterval, attempts, db.config.MaxJoinAttempts)
-		<-time.After(db.config.JoinRetryInterval)
-	}
-
-	this, err := db.discovery.FindMemberByName(db.name)
-	if err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to get this node in cluster: %v", err)
-		serr := db.discovery.Shutdown()
-		if serr != nil {
-			return serr
-		}
-		return err
-	}
-	db.this = this
-
-	// Store the current number of members in the member list.
-	// We need this to implement a simple split-brain protection algorithm.
-	db.storeNumMembers()
-
-	db.wg.Add(1)
-	go db.listenMemberlistEvents(d.ClusterEvents)
-
-	// Check member count quorum now. If there is no enough peers to work, wait forever.
-	for {
-		err := db.checkMemberCountQuorum()
-		if err == nil {
-			// It's OK. Continue as usual.
-			break
-		}
-
-		db.log.V(2).Printf("[ERROR] Inoperable node: %v", err)
-		select {
-		// TODO: Consider making this parametric
-		case <-time.After(time.Second):
-		case <-db.ctx.Done():
-			// the server is gone
-			return nil
-		}
-	}
-
-	db.members.mtx.Lock()
-	db.members.m[db.this.ID] = db.this
-	db.members.mtx.Unlock()
-
-	db.consistent.Add(db.this)
-	if db.discovery.IsCoordinator() {
-		err = db.bootstrapCoordinator()
-		if err == consistent.ErrInsufficientMemberCount {
-			db.log.V(2).Printf("[ERROR] Failed to bootstrap the coordinator node: %v", err)
-			// Olric will try to form a cluster again.
-			err = nil
-		}
-		if err != nil {
-			return err
-		}
-	}
-
-	if db.config.Interface != "" {
-		db.log.V(2).Printf("[INFO] Olric uses interface: %s", db.config.Interface)
-	}
-
-	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d",
-		db.config.BindAddr,
-		db.config.BindPort)
-
-	if db.config.MemberlistInterface != "" {
-		db.log.V(2).Printf("[INFO] Memberlist uses interface: %s", db.config.MemberlistInterface)
-	}
-
-	db.log.V(2).Printf("[INFO] Memberlist bindAddr: %s, bindPort: %d",
-		db.config.MemberlistConfig.BindAddr,
-		db.config.MemberlistConfig.BindPort)
-
-	db.log.V(2).Printf("[INFO] Cluster coordinator: %s", db.discovery.GetCoordinator())
-	return nil
-}
-
 // callStartedCallback checks passed checkpoint count and calls the callback function.
 func (db *Olric) callStartedCallback() {
 	defer db.wg.Done()
@@ -401,7 +312,7 @@ func (db *Olric) callStartedCallback() {
 		timer.Reset(10 * time.Millisecond)
 		select {
 		case <-timer.C:
-			if requiredCheckpoints == atomic.LoadInt32(&db.passedCheckpoints) {
+			if checkpoint.AllPassed() {
 				if db.started != nil {
 					db.started()
 				}
@@ -519,56 +430,13 @@ func (db *Olric) isAlive() bool {
 	return true
 }
 
-// checkBootstrap is called for every request and checks whether the node is bootstrapped.
-// It has to be very fast for a smooth operation.
-func (db *Olric) checkBootstrap() error {
-	// check it immediately
-	if atomic.LoadInt32(&db.bootstrapped) == 1 {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), db.config.BootstrapTimeout)
-	defer cancel()
-
-	// This loop only works for the first moments of the process.
-	for {
-		if atomic.LoadInt32(&db.bootstrapped) == 1 {
-			return nil
-		}
-		<-time.After(100 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			return ErrOperationTimeout
-		default:
-		}
-	}
-}
-
-// storeNumMembers assigns the current number of members in the cluster to a variable.
-func (db *Olric) storeNumMembers() {
-	// Calling NumMembers in every request is quite expensive.
-	// It's rarely updated. Just call this when the membership info changed.
-	nr := int32(db.discovery.NumMembers())
-	atomic.StoreInt32(&db.numMembers, nr)
-}
-
-func (db *Olric) checkMemberCountQuorum() error {
-	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
-	// as observed by the local member’s cluster membership manager
-	nr := atomic.LoadInt32(&db.numMembers)
-	if db.config.MemberCountQuorum > nr {
-		return ErrClusterQuorum
-	}
-	return nil
-}
-
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
-	if err := db.checkMemberCountQuorum(); err != nil {
-		return err
+	if err := db.rt.CheckMemberCountQuorum(); err != nil {
+		return errInternalToPublic(err)
 	}
 	// An Olric node has to be bootstrapped to function properly.
-	return db.checkBootstrap()
+	return db.rt.CheckBootstrap()
 }
 
 // Start starts background servers and joins the cluster. You still need to call Shutdown method if
@@ -584,7 +452,7 @@ func (db *Olric) Start() error {
 	select {
 	case <-db.server.StartedCtx.Done():
 		// TCP server is started
-		db.passCheckpoint()
+		checkpoint.Pass()
 	case <-ctx.Done():
 		if err := db.Shutdown(context.Background()); err != nil {
 			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
@@ -592,14 +460,10 @@ func (db *Olric) Start() error {
 		return g.Wait()
 	}
 
-	// Start discovery
-	// TODO: This should be blocker call like ListenAndServe
-	if err := db.startDiscovery(); err != nil {
+	// Start routing table service and member discovery subsystem.
+	if err := db.rt.Start(); err != nil {
 		return err
 	}
-
-	// Memberlist is started and this node joined the cluster.
-	db.passCheckpoint()
 
 	// Warn the user about its choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
@@ -608,11 +472,8 @@ func (db *Olric) Start() error {
 				db.config.WriteQuorum)
 	}
 
-	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
-
 	// Start periodic tasks.
-	db.wg.Add(2)
-	go db.updateRoutingPeriodically()
+	db.wg.Add(1)
 	go db.evictKeysAtBackground()
 
 	if db.started != nil {
@@ -620,6 +481,11 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
+	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
+	if db.config.Interface != "" {
+		db.log.V(2).Printf("[INFO] Olric uses interface: %s", db.config.Interface)
+	}
+	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d", db.config.BindAddr, db.config.BindPort)
 	return g.Wait()
 }
 
@@ -636,15 +502,14 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	}
 	db.streams.mu.RUnlock()
 
+	db.balancer.Shutdown()
+
 	if err := db.server.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}
 
-	if db.discovery != nil {
-		err := db.discovery.Shutdown()
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
+	if err := db.rt.Shutdown(ctx); err != nil {
+		result = multierror.Append(result, err)
 	}
 
 	db.wg.Wait()
@@ -667,14 +532,15 @@ func isKeyExpired(ttl int64) bool {
 	return (time.Now().UnixNano() / 1000000) >= ttl
 }
 
-// cmpMembersByID returns true if two members denote the same member in the cluster.
-func cmpMembersByID(one, two discovery.Member) bool {
-	// ID variable is calculated by combining member's name and birthdate
-	return one.ID == two.ID
-}
-
-// cmpMembersByName returns true if the two members has the same name in the cluster.
-// This function is intended to redirect the requests to the partition owner.
-func cmpMembersByName(one, two discovery.Member) bool {
-	return one.NameHash == two.NameHash
+func errInternalToPublic(err error) error {
+	switch err {
+	case routing_table.ErrClusterQuorum:
+		return ErrClusterQuorum
+	case routing_table.ErrServerGone:
+		return ErrServerGone
+	case routing_table.ErrOperationTimeout:
+		return ErrOperationTimeout
+	default:
+		return err
+	}
 }

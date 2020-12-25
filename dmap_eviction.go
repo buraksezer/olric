@@ -21,7 +21,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -29,8 +29,8 @@ func (db *Olric) evictKeysAtBackground() {
 	defer db.wg.Done()
 
 	num := int64(runtime.NumCPU())
-	if db.config.Cache != nil && db.config.Cache.NumEvictionWorkers != 0 {
-		num = db.config.Cache.NumEvictionWorkers
+	if db.config.DMaps != nil && db.config.DMaps.NumEvictionWorkers != 0 {
+		num = db.config.DMaps.NumEvictionWorkers
 	}
 	sem := semaphore.NewWeighted(num)
 	for {
@@ -60,8 +60,8 @@ func (db *Olric) evictKeysAtBackground() {
 
 func (db *Olric) evictKeys() {
 	partID := uint64(rand.Intn(int(db.config.PartitionCount)))
-	part := db.partitions[partID]
-	part.m.Range(func(name, tmp interface{}) bool {
+	part := db.primary.PartitionById(partID)
+	part.Map().Range(func(name, tmp interface{}) bool {
 		dm := tmp.(*dmap)
 		db.scanDMapForEviction(partID, name.(string), dm)
 		// this breaks the loop, we only scan one dmap instance per call
@@ -93,14 +93,14 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 		}
 
 		count, keyCount := 0, 0
-		dm.storage.Range(func(hkey uint64, entry *storage.Entry) bool {
+		dm.storage.Range(func(hkey uint64, entry storage.Entry) bool {
 			keyCount++
 			if keyCount >= maxKeyCount {
 				// this means 'break'.
 				return false
 			}
-			if isKeyExpired(entry.TTL) || dm.isKeyIdle(hkey) {
-				err := db.delKeyVal(dm, hkey, name, entry.Key)
+			if isKeyExpired(entry.TTL()) || dm.isKeyIdle(hkey) {
+				err := db.delKeyVal(dm, hkey, name, entry.Key())
 				if err != nil {
 					// It will be tried again.
 					db.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
@@ -136,42 +136,42 @@ func (db *Olric) scanDMapForEviction(partID uint64, name string, dm *dmap) {
 }
 
 func (dm *dmap) updateAccessLog(hkey uint64) {
-	if dm.cache == nil || dm.cache.accessLog == nil {
+	if dm.config == nil || dm.config.accessLog == nil {
 		// Fail early. This's useful to avoid checking the configuration everywhere.
 		return
 	}
-	dm.cache.Lock()
-	defer dm.cache.Unlock()
-	dm.cache.accessLog[hkey] = time.Now().UnixNano()
+	dm.config.Lock()
+	defer dm.config.Unlock()
+	dm.config.accessLog[hkey] = time.Now().UnixNano()
 }
 
 func (dm *dmap) deleteAccessLog(hkey uint64) {
-	if dm.cache == nil || dm.cache.accessLog == nil {
+	if dm.config == nil || dm.config.accessLog == nil {
 		return
 	}
-	dm.cache.Lock()
-	defer dm.cache.Unlock()
-	delete(dm.cache.accessLog, hkey)
+	dm.config.Lock()
+	defer dm.config.Unlock()
+	delete(dm.config.accessLog, hkey)
 }
 
 func (dm *dmap) isKeyIdle(hkey uint64) bool {
-	if dm.cache == nil {
+	if dm.config == nil {
 		return false
 	}
-	if dm.cache.accessLog == nil || dm.cache.maxIdleDuration.Nanoseconds() == 0 {
+	if dm.config.accessLog == nil || dm.config.maxIdleDuration.Nanoseconds() == 0 {
 		return false
 	}
 	// Maximum time in seconds for each entry to stay idle in the map.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period
 	// exceeds this limit are expired and evicted automatically.
-	dm.cache.RLock()
-	defer dm.cache.RUnlock()
-	t, ok := dm.cache.accessLog[hkey]
+	dm.config.RLock()
+	defer dm.config.RUnlock()
+	t, ok := dm.config.accessLog[hkey]
 	if !ok {
 		return false
 	}
-	ttl := (dm.cache.maxIdleDuration.Nanoseconds() + t) / 1000000
+	ttl := (dm.config.maxIdleDuration.Nanoseconds() + t) / 1000000
 	return isKeyExpired(ttl)
 }
 
@@ -183,10 +183,10 @@ type lruItem struct {
 func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 	idx := 1
 	items := []lruItem{}
-	dm.cache.RLock()
+	dm.config.RLock()
 	// Pick random items from the distributed map and sort them by accessedAt.
-	for hkey, accessedAt := range dm.cache.accessLog {
-		if idx >= dm.cache.lruSamples {
+	for hkey, accessedAt := range dm.config.accessLog {
+		if idx >= dm.config.lruSamples {
 			break
 		}
 		idx++
@@ -196,7 +196,7 @@ func (db *Olric) evictKeyWithLRU(dm *dmap, name string) error {
 		}
 		items = append(items, i)
 	}
-	dm.cache.RUnlock()
+	dm.config.RUnlock()
 
 	if len(items) == 0 {
 		return fmt.Errorf("nothing found to expire with LRU")

@@ -6,6 +6,7 @@ on:
 
 jobs:
   test:
+    if: github.ref == 'refs/heads/master'
     strategy:
       # Default is true, cancels jobs for other platforms in the matrix if one fails
       fail-fast: false

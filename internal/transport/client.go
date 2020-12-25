@@ -189,3 +189,16 @@ func (c *Client) RequestTo(addr string, req protocol.EncodeDecoder) (protocol.En
 	}
 	return resp, nil
 }
+
+// this will replace RequestTo
+func (c *Client) RequestTo2(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	resp, err := c.RequestTo(addr, req)
+	if err != nil {
+		return nil, err
+	}
+	status := resp.Status()
+	if status == protocol.StatusOK {
+		return resp, nil
+	}
+	return nil, NewOpError(status, string(resp.Value()))
+}

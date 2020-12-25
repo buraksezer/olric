@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*Package flog is a simple wrapper around Golang's log package which adds verbosity support.*/
-package flog
+package flog // import "github.com/buraksezer/olric/pkg/flog"
 
 import (
 	"fmt"

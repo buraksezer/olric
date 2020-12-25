@@ -43,7 +43,7 @@ func (db *Olric) atomicIncrDecr(opcode protocol.OpCode, w *writeop, delta int) (
 	var newval, curval int
 	if entry != nil {
 		var value interface{}
-		if err := db.serializer.Unmarshal(entry.Value, &value); err != nil {
+		if err := db.serializer.Unmarshal(entry.Value(), &value); err != nil {
 			return 0, err
 		}
 
@@ -123,7 +123,7 @@ func (db *Olric) getPut(w *writeop) ([]byte, error) {
 	if entry == nil {
 		return nil, nil
 	}
-	return entry.Value, nil
+	return entry.Value(), nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.

@@ -16,7 +16,6 @@ package transport
 
 import (
 	"context"
-	"github.com/buraksezer/olric/config"
 	"io"
 	"log"
 	"net"
@@ -26,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/flog"
 )

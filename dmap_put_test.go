@@ -17,10 +17,12 @@ package olric
 import (
 	"bytes"
 	"context"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/kvstore"
 )
 
 func TestDMap_Put(t *testing.T) {
@@ -168,7 +170,7 @@ func TestDMap_PutWriteQuorum(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.discovery.GetMembers()
+		members := db1.rt.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}
@@ -186,8 +188,10 @@ func TestDMap_PutWriteQuorum(t *testing.T) {
 	}
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		host, _ := db1.findPartitionOwner(dm.name, key)
-		if cmpMembersByID(db1.this, host) {
+
+		hkey := partitions.HKey(dm.name, key)
+		host := dm.db.primary.PartitionByHKey(hkey).Owner()
+		if db1.rt.This().CompareByID(host) {
 			err = dm.Put(key, bval(i))
 			if err != ErrWriteQuorum {
 				t.Fatalf("Expected ErrWriteQuorum. Got: %v", err)
@@ -281,7 +285,12 @@ func TestDMap_PutIfFound(t *testing.T) {
 
 func TestDMap_compactTables(t *testing.T) {
 	cfg := testSingleReplicaConfig()
-	cfg.TableSize = 100 // 100 bytes
+	kv := &kvstore.KVStore{}
+	cfg.StorageEngines.Impls[kv.Name()] = kv
+	cfg.StorageEngines.Config[kv.Name()] = map[string]interface{}{
+		"tableSize": 100,
+	}
+
 	db, err := newDB(cfg)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)

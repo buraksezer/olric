@@ -95,9 +95,6 @@ const (
 	// MinimumMemberCountQuorum denotes minimum required count of members to form a cluster.
 	MinimumMemberCountQuorum = 1
 
-	// DefaultTableSize is 1MB if you don't set your own value.
-	DefaultTableSize = 1 << 20
-
 	DefaultLRUSamples int = 5
 
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
@@ -105,6 +102,8 @@ const (
 
 	// DefaultMaxAllowedConnections denotes max number of clients that can be accepted concurrently
 	DefaultMaxAllowedConnections = 1024
+
+	DefaultStorageEngine = "olric.kvstore"
 )
 
 // Config is the configuration to create a Olric instance.
@@ -185,10 +184,7 @@ type Config struct {
 	// at the same time.
 	Logger *log.Logger
 
-	Cache *CacheConfig
-
-	// Minimum size(in-bytes) for append-only file
-	TableSize int
+	DMaps *DMaps
 
 	JoinRetryInterval time.Duration
 	MaxJoinAttempts   int
@@ -219,6 +215,8 @@ type Config struct {
 	// You have to use NewMemberlistConfig to create a new one.
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
+
+	StorageEngines *StorageEngines
 }
 
 // Validate validates the given configuration.
@@ -322,6 +320,7 @@ func (c *Config) Sanitize() error {
 		m.AdvertisePort = DefaultDiscoveryPort
 		c.MemberlistConfig = m
 	}
+
 	if c.BootstrapTimeout == 0*time.Second {
 		c.BootstrapTimeout = DefaultBootstrapTimeout
 	}
@@ -330,9 +329,6 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
-	}
-	if c.TableSize == 0 {
-		c.TableSize = DefaultTableSize
 	}
 
 	if c.MaxAllowedConnections == 0 {
@@ -386,7 +382,8 @@ func New(env string) *Config {
 		ReadQuorum:        1,
 		MemberCountQuorum: 1,
 		Peers:             []string{},
-		Cache:             &CacheConfig{},
+		DMaps:             &DMaps{},
+		StorageEngines:    NewStorageEngine(),
 	}
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))

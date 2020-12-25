@@ -151,10 +151,15 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	cacheConfig, err := processCacheConfig(c)
+	dmapConfig, err := processDMapConfig(c)
 	if err != nil {
 		return nil, err
 	}
+
+	se := NewStorageEngine()
+	se.Plugins = c.StorageEngines.Plugins
+	se.Config = c.StorageEngines.Config
+
 	cfg := &Config{
 		BindAddr:            c.Olricd.BindAddr,
 		BindPort:            c.Olricd.BindPort,
@@ -182,9 +187,10 @@ func Load(filename string) (*Config, error) {
 		Serializer:          sr,
 		KeepAlivePeriod:     keepAlivePeriod,
 		BootstrapTimeout:    bootstrapTimeout,
-		Cache:               cacheConfig,
-		TableSize:           c.Olricd.TableSize,
+		DMaps:               dmapConfig,
+		StorageEngines:      se,
 	}
+
 	if err := cfg.Sanitize(); err != nil {
 		return nil, err
 	}

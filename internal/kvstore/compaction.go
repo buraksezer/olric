@@ -12,53 +12,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kvstore
 
-import (
-	"log"
-)
+import "log"
 
-func (s *Storage) CompactTables() bool {
-	if len(s.tables) == 1 {
+func (kv *KVStore) Compaction() bool {
+	if len(kv.tables) == 1 {
 		return true
 	}
 
 	var total int
-	fresh := s.tables[len(s.tables)-1]
-	for _, old := range s.tables[:len(s.tables)-1] {
+	fresh := kv.tables[len(kv.tables)-1]
+	for _, old := range kv.tables[:len(kv.tables)-1] {
 		// Removing keys while iterating on map is totally safe in Go.
 		for hkey := range old.hkeys {
 			entry, _ := old.getRaw(hkey)
 			err := fresh.putRaw(hkey, entry)
 			if err == errNotEnoughSpace {
 				// Create a new table and put the new k/v pair in it.
-				nt := newTable(s.Inuse() * 2)
-				s.tables = append(s.tables, nt)
+				nt := newTable(kv.Stats().Inuse * 2)
+				kv.tables = append(kv.tables, nt)
 				return false
 			}
 			if err != nil {
 				log.Printf("[ERROR] Failed to compact tables. HKey: %d: %v", hkey, err)
 			}
 
-			// Dont check the returned val, it's useless because
+			// Dont check the returned val, it'kv useless because
 			// we are sure that the key is already there.
 			old.delete(hkey)
 			total++
 			if total > 1000 {
-				// It's enough. Don't block the instance.
+				// It'kv enough. Don't block the instance.
 				return false
 			}
 		}
 	}
 
 	// Remove empty tables. Keep the last table.
-	tmp := []*table{s.tables[len(s.tables)-1]}
-	for _, t := range s.tables[:len(s.tables)-1] {
+	tmp := []*table{kv.tables[len(kv.tables)-1]}
+	for _, t := range kv.tables[:len(kv.tables)-1] {
 		if len(t.hkeys) == 0 {
 			continue
 		}
 		tmp = append(tmp, t)
 	}
-	s.tables = tmp
+	kv.tables = tmp
 	return true
 }

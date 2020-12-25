@@ -31,7 +31,7 @@ func TestDMap_Ping(t *testing.T) {
 		}
 	}()
 
-	err = db.Ping(db.this.String())
+	err = db.Ping(db.rt.This().String())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

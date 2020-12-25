@@ -15,34 +15,35 @@
 package olric
 
 import (
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"golang.org/x/sync/errgroup"
 )
 
 func (db *Olric) deleteStaleDMaps() {
-	janitor := func(part *partition) {
-		part.m.Range(func(name, dm interface{}) bool {
+	janitor := func(part *partitions.Partition) {
+		part.Map().Range(func(name, dm interface{}) bool {
 			d := dm.(*dmap)
 			d.Lock()
 			defer d.Unlock()
-			if d.storage.Len() != 0 {
+			if d.storage.Stats().Length != 0 {
 				// Continue scanning.
 				return true
 			}
-			part.m.Delete(name)
-			db.log.V(4).Printf("[INFO] Stale dmap (backup: %v) has been deleted: %s on PartID: %d",
-				part.backup, name, part.id)
+			part.Map().Delete(name)
+			db.log.V(4).Printf("[INFO] Stale dmap (kind: %s) has been deleted: %s on PartID: %d",
+				part.Kind(), name, part.Id())
 			return true
 		})
 	}
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		// Clean stale dmaps on partition table
-		part := db.partitions[partID]
+		part := db.primary.PartitionById(partID)
 		janitor(part)
 		// Clean stale dmaps on backup partition table
-		backup := db.backups[partID]
+		backup := db.backup.PartitionById(partID)
 		janitor(backup)
 	}
 }
@@ -63,7 +64,7 @@ func (db *Olric) deleteKeyValFromPreviousOwners(name, key string, owners []disco
 }
 
 func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
-	owners := db.getPartitionOwners(hkey)
+	owners := db.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
@@ -82,7 +83,7 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 
@@ -95,8 +96,9 @@ func (db *Olric) delKeyVal(dm *dmap, hkey uint64, name, key string) error {
 }
 
 func (db *Olric) deleteKey(name, key string) error {
-	member, hkey := db.findPartitionOwner(name, key)
-	if !cmpMembersByName(member, db.this) {
+	hkey := partitions.HKey(name, key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
+	if !member.CompareByName(db.rt.This()) {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(name)
 		req.SetKey(key)
@@ -131,7 +133,7 @@ func (db *Olric) exDeleteOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -143,7 +145,7 @@ func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 	if err != nil {
@@ -155,7 +157,7 @@ func (db *Olric) deletePrevOperation(w, r protocol.EncodeDecoder) {
 
 func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := db.getHKey(req.DMap(), req.Key())
+	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := db.getBackupDMap(req.DMap(), hkey)
 	if err != nil {
 		db.errorResponse(w, err)
@@ -167,7 +169,7 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	err = dm.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
 		db.wg.Add(1)
-		go db.compactTables(dm)
+		go db.callCompactionOnStorage(dm)
 		err = nil
 	}
 	if err != nil {
@@ -178,10 +180,10 @@ func (db *Olric) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (db *Olric) deleteKeyValBackup(hkey uint64, name, key string) error {
-	backupOwners := db.getBackupPartitionOwners(hkey)
+	owners := db.backup.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
-	for _, backup := range backupOwners {
-		mem := backup
+	for _, owner := range owners {
+		mem := owner
 		g.Go(func() error {
 			// TODO: Add retry with backoff
 			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)

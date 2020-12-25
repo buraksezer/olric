@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -52,8 +54,15 @@ func getRandomAddr() (string, error) {
 func testConfig(peers []*Olric) *config.Config {
 	var speers []string
 	for _, peer := range peers {
-		speers = append(speers, peer.discovery.LocalNode().Address())
+		speers = append(speers, peer.rt.Discovery().LocalNode().Address())
 	}
+	sc := config.NewStorageEngine()
+	// default storage engine: olric.kvstore
+	engine := &kvstore.KVStore{}
+	sc.Config[engine.Name()] = map[string]interface{}{
+		"tableSize": 102134,
+	}
+	sc.Impls[engine.Name()] = engine
 	return &config.Config{
 		PartitionCount:    7,
 		ReplicaCount:      2,
@@ -63,6 +72,7 @@ func testConfig(peers []*Olric) *config.Config {
 		KeepAlivePeriod:   10 * time.Millisecond,
 		LogVerbosity:      6,
 		MemberCountQuorum: config.MinimumMemberCountQuorum,
+		StorageEngines:    sc,
 	}
 }
 
@@ -80,7 +90,7 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 	}
 	if len(c.Peers) == 0 {
 		for _, peer := range peers {
-			c.Peers = append(c.Peers, peer.discovery.LocalNode().Address())
+			c.Peers = append(c.Peers, peer.rt.Discovery().LocalNode().Address())
 		}
 	}
 
@@ -112,41 +122,41 @@ func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	c.Started = func() {
+		cancel()
+	}
+
 	db, err := New(c)
 	if err != nil {
 		return nil, err
 	}
 
 	db.wg.Add(1)
-	go db.callStartedCallback()
-
-	db.wg.Add(1)
 	go func() {
 		defer db.wg.Done()
-		err = db.server.ListenAndServe()
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to run TCP server")
+		serr := db.Start()
+		if serr != nil {
+			db.log.V(2).Printf("[ERROR] Failed to start Olric node: %s", serr)
 		}
 	}()
-	<-db.server.StartedCtx.Done()
-	db.passCheckpoint()
 
-	err = db.startDiscovery()
-	if err != nil {
-		return nil, err
+	select {
+	case <-time.After(11 * time.Second):
+		return nil, errors.New("node cannot be started in 10 second")
+	case <-ctx.Done():
+		if ctx.Err() != context.Canceled {
+			return nil, fmt.Errorf("context returned an error: %v", ctx.Err())
+		}
 	}
-	// Wait some time for goroutines
-	<-time.After(100 * time.Millisecond)
-	db.passCheckpoint()
-
 	return db, nil
 }
 
 func syncClusterMembers(peers ...*Olric) {
 	updateRouting := func() {
 		for _, peer := range peers {
-			if peer.discovery.IsCoordinator() {
-				peer.updateRouting()
+			if peer.rt.Discovery().IsCoordinator() {
+				peer.rt.UpdateRoutingEagerly()
 			}
 		}
 	}
@@ -236,7 +246,7 @@ func (t *testCluster) newDB() (*Olric, error) {
 		defer t.wg.Done()
 		err = db.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric on %s: %v", db.this, err)
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric on %s: %v", db.rt.This(), err)
 		}
 	}(db)
 	return db, nil
@@ -294,7 +304,7 @@ func TestDMap_PruneHosts(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	eventsDB1 := db1.discovery.SubscribeNodeEvents()
+	eventsDB1 := db1.rt.Discovery().SubscribeNodeEvents()
 	db2, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -314,7 +324,7 @@ func TestDMap_PruneHosts(t *testing.T) {
 		}
 	}
 
-	eventsDB2 := db2.discovery.SubscribeNodeEvents()
+	eventsDB2 := db2.rt.Discovery().SubscribeNodeEvents()
 	db3, err := c.newDB()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -326,9 +336,9 @@ func TestDMap_PruneHosts(t *testing.T) {
 	instances := []*Olric{db1, db2, db3}
 	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
 		for _, db := range instances {
-			part := db.partitions[partID]
-			if part.ownerCount() != 1 {
-				t.Fatalf("Expected owner count is 1. Got: %d", part.ownerCount())
+			part := db.primary.PartitionById(partID)
+			if part.OwnerCount() != 1 {
+				t.Fatalf("Expected owner count is 1. Got: %d", part.OwnerCount())
 			}
 		}
 	}
@@ -356,7 +366,7 @@ func TestDMap_CrashServer(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db3.discovery.GetMembers()
+		members := db3.rt.Discovery().GetMembers()
 		if len(members) == 3 {
 			break
 		}
@@ -377,8 +387,8 @@ func TestDMap_CrashServer(t *testing.T) {
 		}
 	}
 
-	eventsDB2 := db2.discovery.SubscribeNodeEvents()
-	eventsDB3 := db3.discovery.SubscribeNodeEvents()
+	eventsDB2 := db2.rt.Discovery().SubscribeNodeEvents()
+	eventsDB3 := db3.rt.Discovery().SubscribeNodeEvents()
 	err = db1.Shutdown(context.Background())
 	if err != nil {
 		t.Fatalf("Failed to shutdown Olric: %v", err)
@@ -396,7 +406,7 @@ func TestDMap_CrashServer(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		_, err = dm2.Get(bkey(i))
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for %s: %s", err, bkey(i), db1.this)
+			t.Fatalf("Expected nil. Got: %v for %s: %s", err, bkey(i), db1.rt.This())
 		}
 	}
 }

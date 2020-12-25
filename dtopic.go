@@ -233,10 +233,9 @@ func (db *Olric) publishDTopicMessageOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (db *Olric) publishDTopicMessageToAddr(member discovery.Member, topic string, msg *DTopicMessage, sem *semaphore.Weighted) error {
-	defer db.wg.Done()
 	defer sem.Release(1)
 
-	if cmpMembersByID(member, db.this) {
+	if member.CompareByID(db.rt.This()) {
 		// Dispatch messages in this process.
 		err := db.dtopic.dispatch(topic, msg)
 		if err != nil {
@@ -266,8 +265,8 @@ func (db *Olric) publishDTopicMessageToAddr(member discovery.Member, topic strin
 }
 
 func (db *Olric) publishDTopicMessage(topic string, msg *DTopicMessage) error {
-	db.members.mtx.RLock()
-	defer db.members.mtx.RUnlock()
+	db.rt.Members().RLock()
+	defer db.rt.Members().RUnlock()
 
 	// Propagate the message to the cluster in a parallel manner but
 	// control concurrency. In order to prevent overloaded servers
@@ -275,22 +274,24 @@ func (db *Olric) publishDTopicMessage(topic string, msg *DTopicMessage) error {
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
 	var g errgroup.Group
-	for _, member := range db.members.m {
-		if !db.isAlive() {
-			return ErrServerGone
-		}
 
-		if err := sem.Acquire(db.ctx, 1); err != nil {
-			db.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
-			return err
-		}
-
+	db.rt.Members().Range(func(_ uint64, m discovery.Member) bool {
+		member := m // https://golang.org/doc/faq#closures_and_goroutines
 		db.wg.Add(1)
-		member := member // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
+			defer db.wg.Done()
+			if !db.isAlive() {
+				return ErrServerGone
+			}
+
+			if err := sem.Acquire(db.ctx, 1); err != nil {
+				db.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
+				return err
+			}
 			return db.publishDTopicMessageToAddr(member, topic, msg, sem)
 		})
-	}
+		return true
+	})
 	// Wait blocks until all function calls from the Go method have returned,
 	// then returns the first non-nil error (if any) from them.
 	return g.Wait()
@@ -384,7 +385,7 @@ func (db *Olric) exDTopicPublishOperation(w, r protocol.EncodeDecoder) {
 func (dt *DTopic) Publish(msg interface{}) error {
 	tm := &DTopicMessage{
 		Message:       msg,
-		PublisherAddr: dt.db.this.String(),
+		PublisherAddr: dt.db.rt.This().String(),
 		PublishedAt:   time.Now().UnixNano(),
 	}
 	return dt.db.publishDTopicMessage(dt.name, tm)
@@ -424,17 +425,16 @@ func (db *Olric) destroyDTopicOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (db *Olric) destroyDTopicOnCluster(topic string) error {
-	db.members.mtx.RLock()
-	defer db.members.mtx.RUnlock()
+	db.rt.Members().RLock()
+	defer db.rt.Members().RUnlock()
 
 	var g errgroup.Group
-	for _, member := range db.members.m {
-		if !db.isAlive() {
-			return ErrServerGone
-		}
-
-		member := member // https://golang.org/doc/faq#closures_and_goroutines
+	db.rt.Members().Range(func(_ uint64, m discovery.Member) bool {
+		member := m // https://golang.org/doc/faq#closures_and_goroutines
 		g.Go(func() error {
+			if !db.isAlive() {
+				return ErrServerGone
+			}
 			req := protocol.NewDTopicMessage(protocol.OpDestroyDTopic)
 			req.SetDTopic(topic)
 			_, err := db.requestTo(member.String(), req)
@@ -444,7 +444,9 @@ func (db *Olric) destroyDTopicOnCluster(topic string) error {
 			}
 			return nil
 		})
-	}
+		return true
+	})
+
 	return g.Wait()
 }
 

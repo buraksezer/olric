@@ -18,6 +18,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
@@ -29,7 +30,7 @@ func (db *Olric) stats() stats.Stats {
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
-		ClusterCoordinator: db.discovery.GetCoordinator(),
+		ClusterCoordinator: db.rt.Discovery().GetCoordinator(),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
@@ -42,41 +43,45 @@ func (db *Olric) stats() stats.Stats {
 		Backups:    make(map[uint64]stats.Partition),
 	}
 
-	collect := func(partID uint64, part *partition) stats.Partition {
-		owners := part.loadOwners()
+	collect := func(partID uint64, part *partitions.Partition) stats.Partition {
+		owners := part.Owners()
 		p := stats.Partition{
-			Backups: db.backups[partID].loadOwners(),
-			Length:  part.length(),
+			Backups: db.backup.PartitionOwnersById(partID),
+			Length:  part.Length(),
 			DMaps:   make(map[string]stats.DMap),
 		}
-		if !part.backup {
-			p.Owner = part.owner()
+		if part.Kind() == partitions.PRIMARY {
+			p.Owner = part.Owner()
 		}
 		if len(owners) > 0 {
 			p.PreviousOwners = owners[:len(owners)-1]
 		}
-		part.m.Range(func(name, dm interface{}) bool {
+		part.Map().Range(func(name, dm interface{}) bool {
 			dm.(*dmap).Lock()
+			st := dm.(*dmap).storage.Stats()
+
 			tmp := stats.DMap{
-				Length:    dm.(*dmap).storage.Len(),
-				NumTables: dm.(*dmap).storage.NumTables(),
-				SlabInfo:  stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),
+				Length:    st.Length,
+				NumTables: st.NumTables,
 			}
+			tmp.SlabInfo.Allocated = st.Allocated
+			tmp.SlabInfo.Garbage = st.Garbage
+			tmp.SlabInfo.Inuse = st.Inuse
 			p.DMaps[name.(string)] = tmp
 			dm.(*dmap).Unlock()
 			return true
 		})
 		return p
 	}
-	routingMtx.RLock()
-	for partID, part := range db.partitions {
-		s.Partitions[partID] = collect(partID, part)
-	}
 
-	for partID, part := range db.backups {
+	db.rt.RLock()
+	defer db.rt.RUnlock()
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		part := db.primary.PartitionById(partID)
+		s.Partitions[partID] = collect(partID, part)
 		s.Backups[partID] = collect(partID, part)
 	}
-	routingMtx.RUnlock()
+
 	return s
 }
 

@@ -35,8 +35,16 @@ var testConfig = `olricd:
   readQuorum: 1
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
-  tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
+
+storageEngines:
+  plugins:
+    - /path/to/plugin.so
+  config:
+    olric.kvstore:
+      tableSize: 102134
+    olric.document-store:
+      foobar: "barfoo"
 
 client:
   dialTimeout: "10s"
@@ -73,8 +81,7 @@ memberlist:
   handoffQueueDepth: 1024
   udpBufferSize: 1400
 
-
-cache:
+dmaps:
   numEvictionWorkers: 1
   maxIdleDuration: ""
   ttlDuration: "100s"
@@ -82,14 +89,15 @@ cache:
   maxInuse: 1000000
   lruSamples: 10
   evictionPolicy: "LRU"
-
-dmaps:
-  foobar:
-    maxIdleDuration: "60s"
-    ttlDuration: "300s"
-    maxKeys: 500000
-    lruSamples: 20
-    evictionPolicy: "NONE"
+  storageEngine: "olric.kvstore"
+  custom:
+    foobar:
+      maxIdleDuration: "60s"
+      ttlDuration: "300s"
+      maxKeys: 500000
+      lruSamples: 20
+      evictionPolicy: "NONE"
+      storageEngine: "olric.document-store"
 
 
 serviceDiscovery:
@@ -132,8 +140,16 @@ func TestConfig(t *testing.T) {
 	c.ReadQuorum = 1
 	c.ReadRepair = false
 	c.ReplicationMode = SyncReplicationMode
-	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
+
+	c.StorageEngines = NewStorageEngine()
+	c.StorageEngines.Plugins = []string{"/path/to/plugin.so"}
+	c.StorageEngines.Config["olric.document-store"] = map[string]interface{}{
+		"foobar": "barfoo",
+	}
+	c.StorageEngines.Config["olric.kvstore"] = map[string]interface{}{
+		"tableSize": 102134,
+	}
 
 	c.Client.DialTimeout = 10 * time.Second
 	c.Client.ReadTimeout = 3 * time.Second
@@ -162,19 +178,21 @@ func TestConfig(t *testing.T) {
 	c.MemberlistConfig.HandoffQueueDepth = 1024
 	c.MemberlistConfig.UDPBufferSize = 1400
 
-	c.Cache.NumEvictionWorkers = 1
-	c.Cache.TTLDuration = 100 * time.Second
-	c.Cache.MaxKeys = 100000
-	c.Cache.MaxInuse = 1000000
-	c.Cache.LRUSamples = 10
-	c.Cache.EvictionPolicy = LRUEviction
+	c.DMaps.NumEvictionWorkers = 1
+	c.DMaps.TTLDuration = 100 * time.Second
+	c.DMaps.MaxKeys = 100000
+	c.DMaps.MaxInuse = 1000000
+	c.DMaps.LRUSamples = 10
+	c.DMaps.EvictionPolicy = LRUEviction
+	c.DMaps.StorageEngine = DefaultStorageEngine
 
-	c.Cache.DMapConfigs = map[string]DMapCacheConfig{"foobar": {
+	c.DMaps.Custom = map[string]DMap{"foobar": {
 		MaxIdleDuration: 60 * time.Second,
 		TTLDuration:     300 * time.Second,
 		MaxKeys:         500000,
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
+		StorageEngine:   "olric.document-store",
 	}}
 
 	c.ServiceDiscovery = make(map[string]interface{})

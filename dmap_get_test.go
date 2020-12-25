@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 func TestDMap_Get(t *testing.T) {
@@ -229,7 +231,7 @@ func TestDMap_GetReadQuorum(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.discovery.GetMembers()
+		members := db1.rt.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}
@@ -243,8 +245,9 @@ func TestDMap_GetReadQuorum(t *testing.T) {
 	var hit bool
 	for i := 0; i < 10; i++ {
 		key := bkey(i)
-		host, _ := db1.findPartitionOwner(dm.name, key)
-		if cmpMembersByID(db1.this, host) {
+		hkey := partitions.HKey(dm.name, key)
+		host := db1.primary.PartitionByHKey(hkey).Owner()
+		if db1.rt.This().CompareByID(host) {
 			_, err = dm.Get(key)
 			if err != ErrReadQuorum {
 				t.Errorf("Expected ErrReadQuorum. Got: %v", err)
@@ -296,7 +299,7 @@ func TestDMap_ReadRepair(t *testing.T) {
 	var maxIteration int
 	for {
 		<-time.After(10 * time.Millisecond)
-		members := db1.discovery.GetMembers()
+		members := db1.rt.Discovery().GetMembers()
 		if len(members) == 1 {
 			break
 		}
@@ -322,23 +325,23 @@ func TestDMap_ReadRepair(t *testing.T) {
 		}
 	}
 	for i := 0; i < 10; i++ {
-		hkey := db3.getHKey("mymap", bkey(i))
+		hkey := partitions.HKey("mymap", bkey(i))
 		dm3, err := db3.getBackupDMap("mymap", hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		dm3.RLock()
-		owners := db3.getBackupPartitionOwners(hkey)
-		if cmpMembersByID(owners[0], db3.this) {
+		owners := db3.backup.PartitionOwnersByHKey(hkey)
+		if owners[0].CompareByID(db3.rt.This()) {
 			entry, err := dm3.storage.Get(hkey)
 			if err != nil {
 				t.Fatalf("Expected nil. Got: %v", err)
 			}
-			if entry.Key != bkey(i) {
-				t.Fatalf("Expected %s. Got: %s", entry.Key, bkey(i))
+			if entry.Key() != bkey(i) {
+				t.Fatalf("Expected %s. Got: %s", entry.Key(), bkey(i))
 			}
-			if bytes.Equal(entry.Value, bval(i)) {
-				t.Fatalf("Expected %s. Got: %s", string(entry.Value), string(bval(i)))
+			if bytes.Equal(entry.Value(), bval(i)) {
+				t.Fatalf("Expected %s. Got: %s", string(entry.Value()), string(bval(i)))
 			}
 		}
 		dm3.RUnlock()
@@ -407,22 +410,22 @@ func TestDMap_OpGetPrev(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-
-	v, err := db.lookupOnPreviousOwner(&db.this, "mymap", bkey(10))
+	this := db.rt.This()
+	v, err := db.lookupOnPreviousOwner(&this, "mymap", bkey(10))
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	if !reflect.DeepEqual(v.host, &db.this) {
+	if !reflect.DeepEqual(v.host, &this) {
 		t.Fatalf("Returned host is different: %v", v.host)
 	}
-	val, err := db.unmarshalValue(v.entry.Value)
+	val, err := db.unmarshalValue(v.entry.Value())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	if !bytes.Equal(val.([]byte), bval(10)) {
 		t.Fatalf("Returned value is different")
 	}
-	if v.entry.Key != bkey(10) {
+	if v.entry.Key() != bkey(10) {
 		t.Fatalf("Returned key is different")
 	}
 }

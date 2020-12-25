@@ -24,12 +24,12 @@ import (
 // EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
 type EvictionPolicy string
 
-// note on DMapCacheConfig and CacheConfig:
-// golang doesn't provide the typical notion of inheritance.
+// Important note on DMap and DMaps:
+// Golang does not provide the typical notion of inheritance.
 // because of that I preferred to define the types explicitly.
 
-// DMapCacheConfig denotes cache configuration for a particular dmap.
-type DMapCacheConfig struct {
+// DMap denotes cache configuration for a particular dmap.
+type DMap struct {
 	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period exceeds
@@ -56,13 +56,16 @@ type DMapCacheConfig struct {
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
+
+	StorageEngine string
 }
 
-// CacheConfig denotes a global cache configuration for DMaps. You can still overwrite it by setting a
-// DMapCacheConfig for a particular dmap. Don't set this if you use Olric as an ordinary key/value store.
-type CacheConfig struct {
+// DMaps denotes a global configuration for DMaps. You can still overwrite it by setting a
+// DMap for a particular dmap. Don't set this if you use Olric as an ordinary key/value store.
+type DMaps struct {
 	// NumEvictionWorkers denotes the number of goroutines that's used to find keys for eviction.
 	NumEvictionWorkers int64
+
 	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period exceeds
@@ -75,11 +78,11 @@ type CacheConfig struct {
 	TTLDuration time.Duration
 
 	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
-	// MaxKeys=100000, max key count in the cluster should around MaxKeys*10=1000000
+	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
 	MaxKeys int
 
 	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
-	// MaxInuse=100M (it has to be in bytes), max amount of in-use memory should be around MaxInuse*10=1G
+	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
 	MaxInuse int
 
 	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
@@ -90,55 +93,59 @@ type CacheConfig struct {
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
 
-	// DMapConfigs is useful to set custom cache config per dmap instance.
-	DMapConfigs map[string]DMapCacheConfig
+	StorageEngine string
+
+	// Custom is useful to set custom cache config per DMap instance.
+	Custom map[string]DMap
 }
 
-func processCacheConfig(c *loader.Loader) (*CacheConfig, error) {
-	res := &CacheConfig{}
-	if c.Cache.MaxIdleDuration != "" {
-		maxIdleDuration, err := time.ParseDuration(c.Cache.MaxIdleDuration)
+func processDMapConfig(c *loader.Loader) (*DMaps, error) {
+	res := &DMaps{}
+	if c.DMaps.MaxIdleDuration != "" {
+		maxIdleDuration, err := time.ParseDuration(c.DMaps.MaxIdleDuration)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to parse cache.MaxIdleDuration")
 		}
 		res.MaxIdleDuration = maxIdleDuration
 	}
-	if c.Cache.TTLDuration != "" {
-		ttlDuration, err := time.ParseDuration(c.Cache.TTLDuration)
+	if c.DMaps.TTLDuration != "" {
+		ttlDuration, err := time.ParseDuration(c.DMaps.TTLDuration)
 		if err != nil {
 			return nil, errors.WithMessage(err, "failed to parse cache.TTLDuration")
 		}
 		res.TTLDuration = ttlDuration
 	}
-	res.NumEvictionWorkers = c.Cache.NumEvictionWorkers
-	res.MaxKeys = c.Cache.MaxKeys
-	res.MaxInuse = c.Cache.MaxInuse
-	res.EvictionPolicy = EvictionPolicy(c.Cache.EvictionPolicy)
-	res.LRUSamples = c.Cache.LRUSamples
-	if c.DMaps != nil {
-		res.DMapConfigs = make(map[string]DMapCacheConfig)
-		for name, dc := range c.DMaps {
-			cc := DMapCacheConfig{
+	res.NumEvictionWorkers = c.DMaps.NumEvictionWorkers
+	res.MaxKeys = c.DMaps.MaxKeys
+	res.MaxInuse = c.DMaps.MaxInuse
+	res.EvictionPolicy = EvictionPolicy(c.DMaps.EvictionPolicy)
+	res.LRUSamples = c.DMaps.LRUSamples
+	res.StorageEngine = c.DMaps.StorageEngine
+	if c.DMaps.Custom != nil {
+		res.Custom = make(map[string]DMap)
+		for name, dc := range c.DMaps.Custom {
+			cc := DMap{
 				MaxInuse:       dc.MaxInuse,
 				MaxKeys:        dc.MaxKeys,
 				EvictionPolicy: EvictionPolicy(dc.EvictionPolicy),
 				LRUSamples:     dc.LRUSamples,
+				StorageEngine:  dc.StorageEngine,
 			}
 			if dc.MaxIdleDuration != "" {
 				maxIdleDuration, err := time.ParseDuration(dc.MaxIdleDuration)
 				if err != nil {
-					return nil, errors.WithMessagef(err, "failed to parse cache.%s.MaxIdleDuration", name)
+					return nil, errors.WithMessagef(err, "failed to parse dmaps.%s.MaxIdleDuration", name)
 				}
 				cc.MaxIdleDuration = maxIdleDuration
 			}
 			if dc.TTLDuration != "" {
 				ttlDuration, err := time.ParseDuration(dc.TTLDuration)
 				if err != nil {
-					return nil, errors.WithMessagef(err, "failed to parse cache.%s.TTLDuration", name)
+					return nil, errors.WithMessagef(err, "failed to parse dmaps.%s.TTLDuration", name)
 				}
 				cc.TTLDuration = ttlDuration
 			}
-			res.DMapConfigs[name] = cc
+			res.Custom[name] = cc
 		}
 	}
 	return res, nil

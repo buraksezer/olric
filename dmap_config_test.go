@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 func TestSetCacheConfiguration(t *testing.T) {
@@ -34,12 +35,12 @@ func TestSetCacheConfiguration(t *testing.T) {
 		}
 	}()
 
-	t.Run("Custom cache config", func(t *testing.T) {
+	t.Run("Custom config config", func(t *testing.T) {
 		// Config for DMap foobar
-		db.config.Cache = &config.CacheConfig{
-			DMapConfigs: make(map[string]config.DMapCacheConfig),
+		db.config.DMaps = &config.DMaps{
+			Custom: make(map[string]config.DMap),
 		}
-		cc := config.DMapCacheConfig{
+		cc := config.DMap{
 			MaxIdleDuration: time.Second,
 			TTLDuration:     time.Second,
 			MaxKeys:         10,
@@ -47,45 +48,45 @@ func TestSetCacheConfiguration(t *testing.T) {
 			LRUSamples:      10,
 			EvictionPolicy:  config.LRUEviction,
 		}
-		db.config.Cache.DMapConfigs["foobar"] = cc
-		hkey := db.getHKey("foobar", "barfoo")
+		db.config.DMaps.Custom["foobar"] = cc
+		hkey := partitions.HKey("foobar", "barfoo")
 		dm, err := db.getDMap("foobar", hkey)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = db.setCacheConfiguration(dm, "foobar")
+		err = db.setDMapConfiguration(dm, "foobar")
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		if dm.cache.maxIdleDuration != cc.MaxIdleDuration {
+		if dm.config.maxIdleDuration != cc.MaxIdleDuration {
 			t.Fatalf("Expected MaxIdleDuration: %v. Got: %v",
-				cc.MaxIdleDuration, dm.cache.maxIdleDuration)
+				cc.MaxIdleDuration, dm.config.maxIdleDuration)
 		}
 
-		if dm.cache.ttlDuration != cc.TTLDuration {
+		if dm.config.ttlDuration != cc.TTLDuration {
 			t.Fatalf("Expected TTLDuration: %v. Got: %v",
-				cc.TTLDuration, dm.cache.ttlDuration)
+				cc.TTLDuration, dm.config.ttlDuration)
 		}
 
-		if dm.cache.maxKeys != cc.MaxKeys {
+		if dm.config.maxKeys != cc.MaxKeys {
 			t.Fatalf("Expected MaxKeys: %v. Got: %v",
-				cc.MaxKeys, dm.cache.maxKeys)
+				cc.MaxKeys, dm.config.maxKeys)
 		}
 
-		if dm.cache.maxInuse != cc.MaxInuse {
+		if dm.config.maxInuse != cc.MaxInuse {
 			t.Fatalf("Expected MaxInuse: %v. Got: %v",
-				cc.MaxInuse, dm.cache.maxInuse)
+				cc.MaxInuse, dm.config.maxInuse)
 		}
 
-		if dm.cache.lruSamples != cc.LRUSamples {
+		if dm.config.lruSamples != cc.LRUSamples {
 			t.Fatalf("Expected LRUSamples: %v. Got: %v",
-				cc.LRUSamples, dm.cache.lruSamples)
+				cc.LRUSamples, dm.config.lruSamples)
 		}
 
-		if dm.cache.evictionPolicy != cc.EvictionPolicy {
+		if dm.config.evictionPolicy != cc.EvictionPolicy {
 			t.Fatalf("Expected EvictionPolicy: %v. Got: %v",
-				cc.EvictionPolicy, dm.cache.evictionPolicy)
+				cc.EvictionPolicy, dm.config.evictionPolicy)
 		}
 	})
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kvstore
 
 import (
 	"bytes"
@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/cespare/xxhash"
 )
 
@@ -35,17 +36,34 @@ func bval(i int) []byte {
 	return []byte(fmt.Sprintf("%025d", i))
 }
 
+func testKVStore() (storage.Engine, error) {
+	kv := &KVStore{}
+	kv.SetConfig(DefaultConfig())
+	child, err := kv.Fork(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	err = child.Start()
+	if err != nil {
+		return nil, err
+	}
+	return child, nil
+}
+
 func Test_Put(t *testing.T) {
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
-		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		entry := NewEntry()
+		entry.SetKey(bkey(i))
+		entry.SetValue(bval(i))
+		entry.SetTTL(int64(i))
+		entry.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -54,17 +72,19 @@ func Test_Put(t *testing.T) {
 }
 
 func Test_Get(t *testing.T) {
-	s := New(0)
-
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	timestamp := time.Now().UnixNano()
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: timestamp,
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: timestamp,
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -77,32 +97,34 @@ func Test_Get(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-		if entry.Key != bkey(i) {
-			t.Fatalf("Expected %s. Got %s", bkey(i), entry.Key)
+		if entry.Key() != bkey(i) {
+			t.Fatalf("Expected %s. Got %s", bkey(i), entry.Key())
 		}
-		if entry.TTL != int64(i) {
-			t.Fatalf("Expected %d. Got %v", i, entry.TTL)
+		if entry.TTL() != int64(i) {
+			t.Fatalf("Expected %d. Got %v", i, entry.TTL())
 		}
-		if !bytes.Equal(entry.Value, bval(i)) {
+		if !bytes.Equal(entry.Value(), bval(i)) {
 			t.Fatalf("value is malformed for %d", i)
 		}
-		if timestamp != entry.Timestamp {
-			t.Fatalf("Expected Timestamp: %d. Got: %d", timestamp, entry.Timestamp)
+		if timestamp != entry.Timestamp() {
+			t.Fatalf("Expected timestamp: %d. Got: %d", timestamp, entry.Timestamp())
 		}
 	}
 }
 
 func Test_Delete(t *testing.T) {
-	s := New(0)
-
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: time.Now().UnixNano(),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -116,12 +138,12 @@ func Test_Delete(t *testing.T) {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 		_, err = s.Get(hkey)
-		if err != ErrKeyNotFound {
+		if err != storage.ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
 
-	for _, item := range s.tables {
+	for _, item := range s.(*KVStore).tables {
 		if item.inuse != 0 {
 			t.Fatal("inuse is different than 0.")
 		}
@@ -132,13 +154,15 @@ func Test_Delete(t *testing.T) {
 }
 
 func Test_CompactTables(t *testing.T) {
-	s := New(0)
-
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	compaction := func() {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
-			if done := s.CompactTables(); done {
+			if done := s.Compaction(); done {
 				return
 			}
 		}
@@ -147,18 +171,18 @@ func Test_CompactTables(t *testing.T) {
 	// Current free space is 1MB. Trigger a compaction operation.
 	for i := 0; i < 1500; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     []byte(fmt.Sprintf("%01000d", i)),
-			Timestamp: timestamp,
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     []byte(fmt.Sprintf("%01000d", i)),
+			timestamp: timestamp,
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 
 		storageTestLock.Lock()
 		err := s.Put(hkey, entry)
 		storageTestLock.Unlock()
 
-		if err == ErrFragmented {
+		if err == storage.ErrFragmented {
 			go compaction()
 			err = nil
 		}
@@ -177,24 +201,24 @@ func Test_CompactTables(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-		if entry.Key != bkey(i) {
-			t.Fatalf("Expected %s. Got %s", bkey(i), entry.Key)
+		if entry.Key() != bkey(i) {
+			t.Fatalf("Expected %s. Got %s", bkey(i), entry.Key())
 		}
-		if entry.TTL != int64(i) {
-			t.Fatalf("Expected %d. Got %v", i, entry.TTL)
+		if entry.TTL() != int64(i) {
+			t.Fatalf("Expected %d. Got %v", i, entry.TTL())
 		}
-		if timestamp != entry.Timestamp {
-			t.Fatalf("Expected Timestamp: %d. Got: %d", timestamp, entry.Timestamp)
+		if timestamp != entry.Timestamp() {
+			t.Fatalf("Expected timestamp: %d. Got: %d", timestamp, entry.Timestamp())
 		}
 		val := []byte(fmt.Sprintf("%01000d", i))
-		if !bytes.Equal(entry.Value, val) {
+		if !bytes.Equal(entry.Value(), val) {
 			t.Fatalf("value is malformed for %d", i)
 		}
 	}
 
 	for i := 0; i < 10; i++ {
 		storageTestLock.Lock()
-		if len(s.tables) == 1 {
+		if len(s.(*KVStore).tables) == 1 {
 			storageTestLock.Unlock()
 			// It's OK.
 			return
@@ -206,15 +230,17 @@ func Test_CompactTables(t *testing.T) {
 }
 
 func Test_PurgeTables(t *testing.T) {
-	s := New(0)
-
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	var isFragmented bool
 
 	compaction := func() {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
-			if done := s.CompactTables(); done {
+			if done := s.Compaction(); done {
 				return
 			}
 		}
@@ -223,19 +249,19 @@ func Test_PurgeTables(t *testing.T) {
 	// Current free space is 65kb. Trigger a compaction operation.
 	for i := 0; i < 2000; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     []byte(fmt.Sprintf("%01000d", i)),
-			Timestamp: timestamp,
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     []byte(fmt.Sprintf("%01000d", i)),
+			timestamp: timestamp,
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 
 		// Simulate the real-world case.
 		storageTestLock.Lock()
 		err := s.Put(hkey, entry)
 		storageTestLock.Unlock()
 
-		if err == ErrFragmented {
+		if err == storage.ErrFragmented {
 			isFragmented = true
 			go compaction()
 			err = nil
@@ -252,7 +278,7 @@ func Test_PurgeTables(t *testing.T) {
 		storageTestLock.Lock()
 		err := s.Delete(hkey)
 		storageTestLock.Unlock()
-		if err == ErrFragmented {
+		if err == storage.ErrFragmented {
 			isFragmented = true
 			go compaction()
 			err = nil
@@ -264,7 +290,7 @@ func Test_PurgeTables(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		storageTestLock.Lock()
-		if isFragmented && len(s.tables) == 1 {
+		if isFragmented && len(s.(*KVStore).tables) == 1 {
 			storageTestLock.Unlock()
 			return
 		}
@@ -276,15 +302,18 @@ func Test_PurgeTables(t *testing.T) {
 
 func Test_ExportImport(t *testing.T) {
 	timestamp := time.Now().UnixNano()
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: timestamp,
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: timestamp,
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -294,7 +323,7 @@ func Test_ExportImport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	fresh, err := Import(data)
+	fresh, err := s.Import(data)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -304,52 +333,58 @@ func Test_ExportImport(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-		if entry.Key != bkey(i) {
-			t.Fatalf("Expected %s. Got %s", bkey(i), entry.Key)
+		if entry.Key() != bkey(i) {
+			t.Fatalf("Expected %s. Got %s", bkey(i), entry.Key())
 		}
-		if entry.TTL != int64(i) {
-			t.Fatalf("Expected %d. Got %v", i, entry.TTL)
+		if entry.TTL() != int64(i) {
+			t.Fatalf("Expected %d. Got %v", i, entry.TTL())
 		}
-		if !bytes.Equal(entry.Value, bval(i)) {
+		if !bytes.Equal(entry.Value(), bval(i)) {
 			t.Fatalf("value is malformed for %d", i)
 		}
-		if timestamp != entry.Timestamp {
-			t.Fatalf("Expected Timestamp: %d. Got: %d", timestamp, entry.Timestamp)
+		if timestamp != entry.Timestamp() {
+			t.Fatalf("Expected timestamp: %d. Got: %d", timestamp, entry.Timestamp())
 		}
 	}
 }
 
 func Test_Len(t *testing.T) {
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:   bkey(i),
-			TTL:   int64(i),
-			Value: bval(i),
+			key:   bkey(i),
+			ttl:   int64(i),
+			value: bval(i),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 	}
 
-	if s.Len() != 100 {
-		t.Fatalf("Expected length: 100. Got: %d", s.Len())
+	if s.Stats().Length != 100 {
+		t.Fatalf("Expected length: 100. Got: %d", s.Stats().Length)
 	}
 }
 
 func Test_Range(t *testing.T) {
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: time.Now().UnixNano(),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -357,7 +392,7 @@ func Test_Range(t *testing.T) {
 		hkeys[hkey] = struct{}{}
 	}
 
-	s.Range(func(hkey uint64, entry *Entry) bool {
+	s.Range(func(hkey uint64, entry storage.Entry) bool {
 		if _, ok := hkeys[hkey]; !ok {
 			t.Fatalf("Invalid hkey: %d", hkey)
 		}
@@ -366,16 +401,19 @@ func Test_Range(t *testing.T) {
 }
 
 func Test_Check(t *testing.T) {
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: time.Now().UnixNano(),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -391,15 +429,17 @@ func Test_Check(t *testing.T) {
 }
 
 func Test_UpdateTTL(t *testing.T) {
-	s := New(0)
-
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
+			key:       bkey(i),
+			value:     bval(i),
+			timestamp: time.Now().UnixNano(),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -408,11 +448,11 @@ func Test_UpdateTTL(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		entry := &Entry{
-			Key:       bkey(i),
-			TTL:       10,
-			Timestamp: time.Now().UnixNano(),
+			key:       bkey(i),
+			ttl:       10,
+			timestamp: time.Now().UnixNano(),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.UpdateTTL(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -425,24 +465,27 @@ func Test_UpdateTTL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
-		if entry.Key != bkey(i) {
-			t.Fatalf("Expected key: %s. Got %s", bkey(i), entry.Key)
+		if entry.Key() != bkey(i) {
+			t.Fatalf("Expected key: %s. Got %s", bkey(i), entry.Key())
 		}
-		if entry.TTL != 10 {
-			t.Fatalf("Expected TTL: %d. Got %v", i, entry.TTL)
+		if entry.TTL() != 10 {
+			t.Fatalf("Expected ttl: %d. Got %v", i, entry.TTL())
 		}
 	}
 }
 
 func Test_GetKey(t *testing.T) {
-	s := New(0)
-	entry := &Entry{
-		Key:   bkey(1),
-		TTL:   int64(1),
-		Value: bval(1),
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
 	}
-	hkey := xxhash.Sum64([]byte(entry.Key))
-	err := s.Put(hkey, entry)
+	entry := &Entry{
+		key:   bkey(1),
+		ttl:   int64(1),
+		value: bval(1),
+	}
+	hkey := xxhash.Sum64([]byte(entry.Key()))
+	err = s.Put(hkey, entry)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -457,10 +500,13 @@ func Test_GetKey(t *testing.T) {
 }
 
 func Test_PutRawGetRaw(t *testing.T) {
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	value := []byte("value")
 	hkey := xxhash.Sum64([]byte("key"))
-	err := s.PutRaw(hkey, value)
+	err = s.PutRaw(hkey, value)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -475,14 +521,17 @@ func Test_PutRawGetRaw(t *testing.T) {
 }
 
 func Test_GetTTL(t *testing.T) {
-	s := New(0)
-	entry := &Entry{
-		Key:   bkey(1),
-		TTL:   int64(1),
-		Value: bval(1),
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
 	}
-	hkey := xxhash.Sum64([]byte(entry.Key))
-	err := s.Put(hkey, entry)
+	entry := &Entry{
+		key:   bkey(1),
+		ttl:   int64(1),
+		value: bval(1),
+	}
+	hkey := xxhash.Sum64([]byte(entry.Key()))
+	err = s.Put(hkey, entry)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -492,13 +541,16 @@ func Test_GetTTL(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 
-	if ttl != entry.TTL {
-		t.Fatalf("Expected TTL %d. Got %d", ttl, entry.TTL)
+	if ttl != entry.TTL() {
+		t.Fatalf("Expected TTL %d. Got %d", ttl, entry.TTL())
 	}
 }
 
 func TestStorage_MatchOnKey(t *testing.T) {
-	s := New(0)
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
 	hkeys := make(map[uint64]struct{})
 	var key string
 	for i := 0; i < 100; i++ {
@@ -509,12 +561,12 @@ func TestStorage_MatchOnKey(t *testing.T) {
 		}
 
 		entry := &Entry{
-			Key:       key,
-			TTL:       int64(i),
-			Value:     bval(i),
-			Timestamp: time.Now().UnixNano(),
+			key:       key,
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: time.Now().UnixNano(),
 		}
-		hkey := xxhash.Sum64([]byte(entry.Key))
+		hkey := xxhash.Sum64([]byte(entry.Key()))
 		err := s.Put(hkey, entry)
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
@@ -523,7 +575,7 @@ func TestStorage_MatchOnKey(t *testing.T) {
 	}
 
 	var count int
-	err := s.MatchOnKey("even:", func(hkey uint64, entry *Entry) bool {
+	err = s.RegexMatchOnKeys("even:", func(hkey uint64, entry storage.Entry) bool {
 		count++
 		return true
 	})
@@ -532,5 +584,60 @@ func TestStorage_MatchOnKey(t *testing.T) {
 	}
 	if count != 50 {
 		t.Fatalf("Expected count is 50. Got: %d", count)
+	}
+}
+
+func Test_Fork(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	timestamp := time.Now().UnixNano()
+	for i := 0; i < 10; i++ {
+		entry := &Entry{
+			key:       bkey(i),
+			ttl:       int64(i),
+			value:     bval(i),
+			timestamp: timestamp,
+		}
+		hkey := xxhash.Sum64([]byte(entry.Key()))
+		err := s.Put(hkey, entry)
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+	}
+
+	child, err := s.Fork(nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		hkey := xxhash.Sum64([]byte(bkey(i)))
+		_, err = child.Get(hkey)
+		if err != storage.ErrKeyNotFound {
+			t.Fatalf("Expected storage.ErrKeyNotFound. Got %v", err)
+		}
+	}
+
+	stats := child.Stats()
+	if stats.Allocated != defaultTableSize {
+		t.Fatalf("Expected Stats.Allocated: %d. Got: %d", defaultTableSize, stats.Allocated)
+	}
+
+	if stats.Inuse != 0 {
+		t.Fatalf("Expected Stats.Inuse: 0. Got: %d", stats.Inuse)
+	}
+
+	if stats.Garbage != 0 {
+		t.Fatalf("Expected Stats.Garbage: 0. Got: %d", stats.Garbage)
+	}
+
+	if stats.Length != 0 {
+		t.Fatalf("Expected Stats.Length: 0. Got: %d", stats.Length)
+	}
+
+	if stats.NumTables != 1 {
+		t.Fatalf("Expected Stats.NumTables: 1. Got: %d", stats.NumTables)
 	}
 }

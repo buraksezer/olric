@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package kvstore
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+
+	"github.com/buraksezer/olric/pkg/storage"
+)
 
 // In-memory layout for an entry:
 //
@@ -22,22 +26,56 @@ import "encoding/binary"
 
 // Entry represents a value with its metadata.
 type Entry struct {
-	Key       string
-	TTL       int64
-	Timestamp int64
-	Value     []byte
+	key       string
+	ttl       int64
+	timestamp int64
+	value     []byte
 }
+
+var _ storage.Entry = (*Entry)(nil)
 
 func NewEntry() *Entry {
 	return &Entry{}
 }
 
+func (e *Entry) SetKey(key string) {
+	e.key = key
+}
+
+func (e *Entry) Key() string {
+	return e.key
+}
+
+func (e *Entry) SetValue(value []byte) {
+	e.value = value
+}
+
+func (e *Entry) Value() []byte {
+	return e.value
+}
+
+func (e *Entry) SetTTL(ttl int64) {
+	e.ttl = ttl
+}
+
+func (e *Entry) TTL() int64 {
+	return e.ttl
+}
+
+func (e *Entry) SetTimestamp(timestamp int64) {
+	e.timestamp = timestamp
+}
+
+func (e *Entry) Timestamp() int64 {
+	return e.timestamp
+}
+
 func (e *Entry) Encode() []byte {
 	var offset int
 
-	klen := uint8(len(e.Key))
-	vlen := len(e.Value)
-	length := 21 + len(e.Key) + vlen
+	klen := uint8(len(e.Key()))
+	vlen := len(e.Value())
+	length := 21 + len(e.Key()) + vlen
 
 	buf := make([]byte, length)
 
@@ -46,24 +84,24 @@ func (e *Entry) Encode() []byte {
 	offset++
 
 	// Set the key.
-	copy(buf[offset:], e.Key)
-	offset += len(e.Key)
+	copy(buf[offset:], e.Key())
+	offset += len(e.Key())
 
 	// Set the TTL. It's 8 bytes.
-	binary.BigEndian.PutUint64(buf[offset:], uint64(e.TTL))
+	binary.BigEndian.PutUint64(buf[offset:], uint64(e.TTL()))
 	offset += 8
 
 	// Set the Timestamp. It's 8 bytes.
-	binary.BigEndian.PutUint64(buf[offset:], uint64(e.Timestamp))
+	binary.BigEndian.PutUint64(buf[offset:], uint64(e.Timestamp()))
 	offset += 8
 
 	// Set the value length. It's 4 bytes.
-	binary.BigEndian.PutUint32(buf[offset:], uint32(len(e.Value)))
+	binary.BigEndian.PutUint32(buf[offset:], uint32(len(e.Value())))
 	offset += 4
 
 	// Set the value.
-	copy(buf[offset:], e.Value)
-	offset += len(e.Value)
+	copy(buf[offset:], e.Value())
+	offset += len(e.Value())
 	return buf
 }
 
@@ -73,16 +111,16 @@ func (e *Entry) Decode(buf []byte) {
 	klen := int(uint8(buf[offset]))
 	offset++
 
-	e.Key = string(buf[offset : offset+klen])
+	e.key = string(buf[offset : offset+klen])
 	offset += klen
 
-	e.TTL = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
+	e.ttl = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
 	offset += 8
 
-	e.Timestamp = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
+	e.timestamp = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(buf[offset : offset+4])
 	offset += 4
-	e.Value = buf[offset : offset+int(vlen)]
+	e.value = buf[offset : offset+int(vlen)]
 }

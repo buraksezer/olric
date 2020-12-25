@@ -31,7 +31,6 @@ type olricd struct {
 	WriteQuorum       int     `yaml:"writeQuorum"`
 	ReadQuorum        int     `yaml:"readQuorum"`
 	ReadRepair        bool    `yaml:"readRepair"`
-	TableSize         int     `yaml:"tableSize"`
 	MemberCountQuorum int32   `yaml:"memberCountQuorum"`
 }
 
@@ -82,14 +81,33 @@ type memberlist struct {
 	UDPBufferSize           *int     `yaml:"udpBufferSize"`
 }
 
-type cache struct {
-	NumEvictionWorkers int64  `yaml:"numEvictionWorkers"`
-	MaxIdleDuration    string `yaml:"maxIdleDuration"`
-	TTLDuration        string `yaml:"ttlDuration"`
-	MaxKeys            int    `yaml:"maxKeys"`
-	MaxInuse           int    `yaml:"maxInuse"`
-	LRUSamples         int    `yaml:"lruSamples"`
-	EvictionPolicy     string `yaml:"evictionPolicy"`
+type dmap struct {
+	MaxIdleDuration string `yaml:"maxIdleDuration"`
+	TTLDuration     string `yaml:"ttlDuration"`
+	MaxKeys         int    `yaml:"maxKeys"`
+	MaxInuse        int    `yaml:"maxInuse"`
+	LRUSamples      int    `yaml:"lruSamples"`
+	EvictionPolicy  string `yaml:"evictionPolicy"`
+	StorageEngine   string `yaml:"storageEngine"`
+}
+
+type dmaps struct {
+	NumEvictionWorkers int64           `yaml:"numEvictionWorkers"`
+	MaxIdleDuration    string          `yaml:"maxIdleDuration"`
+	TTLDuration        string          `yaml:"ttlDuration"`
+	MaxKeys            int             `yaml:"maxKeys"`
+	MaxInuse           int             `yaml:"maxInuse"`
+	LRUSamples         int             `yaml:"lruSamples"`
+	EvictionPolicy     string          `yaml:"evictionPolicy"`
+	StorageEngine      string          `yaml:"storageEngine"`
+	Custom             map[string]dmap `yaml:"custom"`
+}
+
+type serviceDiscovery map[string]interface{}
+
+type storageEngines struct {
+	Plugins []string                          `yaml:"plugins"`
+	Config  map[string]map[string]interface{} `yaml:"config"`
 }
 
 // Loader is the main configuration struct
@@ -98,9 +116,9 @@ type Loader struct {
 	Logging          logging
 	Olricd           olricd
 	Client           client
-	Cache            cache
-	DMaps            map[string]cache       `yaml:"dmaps"`
-	ServiceDiscovery map[string]interface{} `yaml:"serviceDiscovery"`
+	DMaps            dmaps            `yaml:"dmaps"`
+	ServiceDiscovery serviceDiscovery `yaml:"serviceDiscovery"`
+	StorageEngines   storageEngines   `yaml:"storageEngines"`
 }
 
 func New(data []byte) (*Loader, error) {

@@ -17,6 +17,7 @@ package olric
 import (
 	"bytes"
 	"context"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"testing"
 	"time"
 
@@ -154,11 +155,11 @@ func TestDMap_DeleteStaleDMaps(t *testing.T) {
 		dc = 0
 		for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
 			for _, instance := range []*Olric{db1, db2} {
-				part := instance.partitions[partID]
-				part.m.Range(func(name, dm interface{}) bool { dc++; return true })
+				part := instance.primary.PartitionById(partID)
+				part.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 
-				bpart := instance.backups[partID]
-				bpart.m.Range(func(name, dm interface{}) bool { dc++; return true })
+				bpart := instance.backup.PartitionById(partID)
+				bpart.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 			}
 		}
 		if dc == 0 {
@@ -232,13 +233,13 @@ func TestDMap_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	}
 
 	// Prepare fragmented partition owners list
-	hkey := db1.getHKey("mydmap", "mykey")
-	owners := db1.getPartitionOwners(hkey)
+	hkey := partitions.HKey("mydmap", "mykey")
+	owners := db1.primary.PartitionOwnersByHKey(hkey)
 	owner := owners[len(owners)-1]
 
 	data := []discovery.Member{}
-	for _, member := range db1.discovery.GetMembers() {
-		if cmpMembersByID(member, owner) {
+	for _, member := range db1.rt.Discovery().GetMembers() {
+		if member.CompareByID(owner) {
 			continue
 		}
 		data = append(data, member)

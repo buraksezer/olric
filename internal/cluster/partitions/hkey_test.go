@@ -12,33 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package partitions
 
 import (
-	"reflect"
 	"testing"
-	"time"
+
+	"github.com/buraksezer/olric/hasher"
 )
 
-func TestEntryEncodeDecode(t *testing.T) {
-	entry := NewEntry()
-	entry.Key = "mykey"
-	entry.TTL = 200
-	entry.Timestamp = time.Now().UnixNano()
-	entry.Value = []byte("mydata")
-
-	t.Run("Encode", func(t *testing.T) {
-		buf := entry.Encode()
-		if buf == nil {
-			t.Fatal("Expected some data. Got nil")
-		}
-
-		t.Run("Decode", func(t *testing.T) {
-			item := NewEntry()
-			item.Decode(buf)
-			if !reflect.DeepEqual(entry, item) {
-				t.Fatal("Decoded Entry is different")
-			}
-		})
-	})
+func TestHKey(t *testing.T) {
+	SetHashFunc(hasher.NewDefaultHasher())
+	hkey := HKey("storage-unit-name", "some-key")
+	if hkey == 0 {
+		t.Fatalf("HKey is zero. This shouldn't be normal")
+	}
 }

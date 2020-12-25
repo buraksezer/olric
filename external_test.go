@@ -16,12 +16,12 @@ package olric
 
 import (
 	"context"
-	"github.com/buraksezer/olric/config"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 )

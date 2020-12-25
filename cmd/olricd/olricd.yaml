@@ -10,8 +10,12 @@ olricd:
   readQuorum: 1
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
-  tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
+
+storageEngines:
+  config:
+    olric.kvstore:
+      tableSize: 102134
 
 client:
   dialTimeout: "-1s"
@@ -48,23 +52,21 @@ memberlist:
   #handoffQueueDepth: 1024
   #udpBufferSize: 1400
 
-
-# cache:
-#  numEvictionWorkers: 1
-#  maxIdleDuration: ""
-#  ttlDuration: "100s"
-#  maxKeys: 100000
-#  maxInuse: 1000000
-#  lRUSamples: 10
-#  evictionPolicy: "LRU"
-#
-#dmaps:
-#  foobar:
-#    maxIdleDuration: "60s"
-#    ttlDuration: "300s"
-#    maxKeys: 500000
-#    lRUSamples: 20
-#    evictionPolicy: "NONE"
+dmaps:
+  numEvictionWorkers: 1
+  maxIdleDuration: ""
+  ttlDuration: "100s"
+  maxKeys: 100000
+  maxInuse: 1000000
+  lRUSamples: 10
+  evictionPolicy: "LRU"
+  custom:
+   foobar:
+      maxIdleDuration: "60s"
+      ttlDuration: "300s"
+      maxKeys: 500000
+      lRUSamples: 20
+      evictionPolicy: "NONE"
 
 
 #serviceDiscovery:

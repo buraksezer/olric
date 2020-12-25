@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -62,7 +63,7 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 	if err != nil {
 		return err
 	}
-	val, err := db.unmarshalValue(entry.Value)
+	val, err := db.unmarshalValue(entry.Value())
 	if err != nil {
 		return err
 	}
@@ -83,8 +84,9 @@ func (db *Olric) unlockKey(name, key string, token []byte) error {
 // unlock takes key and token and tries to unlock the key.
 // It redirects the request to the partition owner, if required.
 func (db *Olric) unlock(name, key string, token []byte) error {
-	member, _ := db.findPartitionOwner(name, key)
-	if cmpMembersByName(member, db.this) {
+	hkey := partitions.HKey(name, key)
+	member := db.primary.PartitionByHKey(hkey).Owner()
+	if member.CompareByName(db.rt.This()) {
 		return db.unlockKey(name, key, token)
 	}
 	req := protocol.NewDMapMessage(protocol.OpUnlock)

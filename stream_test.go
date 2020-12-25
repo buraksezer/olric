@@ -42,7 +42,7 @@ func TestStream_CreateStream(t *testing.T) {
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	go func() {
-		err = db.client.CreateStream(ctx, db.this.String(), readCh, writeCh)
+		err = db.client.CreateStream(ctx, db.rt.This().String(), readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -92,7 +92,7 @@ func TestStream_EchoMessage(t *testing.T) {
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	go func() {
-		err = db.client.CreateStream(ctx, db.this.String(), readCh, writeCh)
+		err = db.client.CreateStream(ctx, db.rt.This().String(), readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -163,7 +163,7 @@ func TestStream_PingPong(t *testing.T) {
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	go func() {
-		err = db.client.CreateStream(ctx, db.this.String(), readCh, writeCh)
+		err = db.client.CreateStream(ctx, db.rt.This().String(), readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

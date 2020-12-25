@@ -17,7 +17,7 @@ package olric
 import (
 	"fmt"
 
-	"github.com/buraksezer/olric/internal/storage"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/query"
 )
 
@@ -43,20 +43,20 @@ func (p *queryPipeline) doOnKey(dm *dmap, q query.M) error {
 	}
 	nilValue, _ := p.db.serializer.Marshal(nil)
 
-	return dm.storage.MatchOnKey(expr, func(hkey uint64, entry *storage.Entry) bool {
+	return dm.storage.RegexMatchOnKeys(expr, func(hkey uint64, entry storage.Entry) bool {
 		// Eliminate already expired k/v pairs
-		if !isKeyExpired(entry.TTL) {
+		if !isKeyExpired(entry.TTL()) {
 			options, ok := q["$options"].(query.M)
 			if ok {
 				onValue, ok := options["$onValue"].(query.M)
 				if ok {
 					ignore, ok := onValue["$ignore"].(bool)
 					if ok && ignore {
-						entry.Value = nilValue
+						entry.SetValue(nilValue)
 					}
 				}
 			}
-			p.result[hkey] = entry
+			p.result[hkey] = entry.Encode()
 		}
 		return true
 	})
