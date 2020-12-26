@@ -66,6 +66,7 @@ func (b *Balancer) isAlive() bool {
 func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owner discovery.Member) {
 	part.Map().Range(func(name, tmp interface{}) bool {
 		if !b.isAlive() {
+			// Break the loop
 			return false
 		}
 		u := tmp.(partitions.StorageUnit)
@@ -76,7 +77,7 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owner 
 			b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v", u.Name(), name, part.Id(), owner, err)
 		}
 		if err == nil {
-			// Delete moved storage unit instance. the gc will free the allocated memory.
+			// Delete the moved storage unit instance. The GC will free the allocated memory.
 			part.Map().Delete(name)
 		}
 		// if this returns true, the iteration continues
@@ -121,18 +122,31 @@ func (b *Balancer) backupCopies() {
 		if !b.isAlive() {
 			break
 		}
+
+		if sign != b.rt.Signature() {
+			// Routing table is updated. Just quit. Another balancer goroutine will work on the
+			// new table immediately.
+			break
+		}
+
 		part := b.backup.PartitionById(partID)
 		if part.Length() == 0 {
 			// Empty partition. Skip it.
 			continue
 		}
-		owners := part.Owners()
-		if len(owners) == b.config.ReplicaCount-1 {
-			// everything is ok
+
+		if part.OwnerCount() == 0 {
+			// This partition doesn't have any backup owner
 			continue
 		}
 
-		var ids []uint64
+		owners := part.Owners()
+		if len(owners) == b.config.ReplicaCount-1 {
+			// Everything is ok
+			continue
+		}
+
+		var ownerIds []uint64
 		offset := len(owners) - 1 - (b.config.ReplicaCount - 1)
 		for i := len(owners) - 1; i > offset; i-- {
 			owner := owners[i]
@@ -143,10 +157,10 @@ func (b *Balancer) backupCopies() {
 				// Already belongs to me.
 				continue
 			}
-			ids = append(ids, owner.ID)
+			ownerIds = append(ownerIds, owner.ID)
 		}
 
-		for _, id := range ids {
+		for _, ownerId := range ownerIds {
 			if !b.isAlive() {
 				break
 			}
@@ -156,9 +170,9 @@ func (b *Balancer) backupCopies() {
 				break
 			}
 
-			owner, err := b.rt.Discovery().FindMemberByID(id)
+			owner, err := b.rt.Discovery().FindMemberByID(ownerId)
 			if err != nil {
-				b.log.V(2).Printf("[ERROR] Failed to get host by id: %d: %v", id, err)
+				b.log.V(2).Printf("[ERROR] Failed to get host by ownerId: %d: %v", ownerId, err)
 				continue
 			}
 			b.scanPartition(sign, part, owner)

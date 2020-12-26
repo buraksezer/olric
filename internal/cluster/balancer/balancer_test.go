@@ -16,7 +16,14 @@ package balancer
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
@@ -25,19 +32,23 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/transport"
 	"golang.org/x/sync/errgroup"
-	"net"
-	"strconv"
-	"testing"
 )
 
-func newBalancerForTest(c *config.Config, srv *transport.Server) *Balancer {
+func newTestEnvironment(c *config.Config) *environment.Environment {
+	if c == nil {
+		c = testutil.NewConfig()
+	}
+
 	e := environment.New()
 	e.Set("config", c)
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("client", transport.NewClient(c.Client))
+	return e
+}
 
+func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Balancer {
 	rt := routing_table.New(e)
 	if srv != nil {
 		ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
@@ -73,15 +84,17 @@ type testCluster struct {
 func newTestCluster() *testCluster {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &testCluster{
-		ctx: ctx,
+		ctx:    ctx,
 		cancel: cancel,
 	}
 }
 
-func (t *testCluster) addNode(c *config.Config) (*routing_table.RoutingTable, error) {
-	if c == nil {
-		c = testutil.NewConfig()
+func (t *testCluster) addNode(e *environment.Environment) (*Balancer, error) {
+	if e == nil {
+		e = newTestEnvironment(nil)
 	}
+	c := e.Get("config").(*config.Config)
+
 	port, err := testutil.GetFreePort()
 	if err != nil {
 		return nil, err
@@ -95,7 +108,7 @@ func (t *testCluster) addNode(c *config.Config) (*routing_table.RoutingTable, er
 	c.Peers = peers
 
 	srv := testutil.NewTransportServer(c)
-	b := newBalancerForTest(c, srv)
+	b := newBalancerForTest(e, srv)
 	err = b.rt.Start()
 	if err != nil {
 		return nil, err
@@ -112,7 +125,7 @@ func (t *testCluster) addNode(c *config.Config) (*routing_table.RoutingTable, er
 	})
 
 	t.peerPorts = append(t.peerPorts, port)
-	return rt, err
+	return b, err
 }
 
 func (t *testCluster) shutdown() error {
@@ -120,6 +133,175 @@ func (t *testCluster) shutdown() error {
 	return t.errGr.Wait()
 }
 
-func TestBalance_Merge(t *testing.T) {
-	b := New()
+func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
+	var total int
+	c := e.Get("config").(*config.Config)
+	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		part := part.PartitionById(partID)
+		s := testutil.NewMockStorageUnit()
+		s.Fill()
+		part.Map().Store("test-data", s)
+		total += part.Length()
+	}
+	return total
+}
+
+func checkKeyCountAfterBalance(e *environment.Environment, kind partitions.Kind, total int) error {
+	c := e.Get("config").(*config.Config)
+	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
+	var afterBalance int
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		part := part.PartitionById(partID)
+		afterBalance += part.Length()
+	}
+	if afterBalance == total {
+		return fmt.Errorf("node still has the same data set")
+	}
+	return nil
+}
+
+func checkBackupOwnership(e *environment.Environment) error {
+	c := e.Get("config").(*config.Config)
+	primary := e.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
+	backup := e.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		primaryOwner := primary.PartitionById(partID).Owner()
+		part := backup.PartitionById(partID)
+		for _, owner := range part.Owners() {
+			if primaryOwner.CompareByID(owner) {
+				return fmt.Errorf("%s is the primary and backup owner of partID: %d at the same time", primaryOwner, partID)
+			}
+		}
+	}
+	return nil
+}
+
+func TestBalance_Move(t *testing.T) {
+	cluster := newTestCluster()
+	defer func() {
+		if err := cluster.shutdown(); err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
+
+	e1 := newTestEnvironment(nil)
+	b1, err := cluster.addNode(e1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer b1.Shutdown()
+	keyCountOnNode1 := insertRandomData(e1, partitions.PRIMARY)
+
+	e2 := newTestEnvironment(nil)
+	b2, err := cluster.addNode(e2)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer b2.Shutdown()
+
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		if !b2.rt.IsBootstrapped() {
+			return errors.New("the second node cannot be bootstrapped")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	keyCountOnNode2 := insertRandomData(e1, partitions.PRIMARY)
+
+	b1.Balance()
+	b2.Balance()
+
+	err = checkKeyCountAfterBalance(e1, partitions.PRIMARY, keyCountOnNode1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	err = checkKeyCountAfterBalance(e2, partitions.PRIMARY, keyCountOnNode2)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+}
+
+
+func TestBalance_Backup_Move(t *testing.T) {
+	cluster := newTestCluster()
+	defer func() {
+		if err := cluster.shutdown(); err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
+
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	e1 := newTestEnvironment(c1)
+	b1, err := cluster.addNode(e1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer b1.Shutdown()
+	b1.rt.UpdateRoutingEagerly()
+
+	err = checkBackupOwnership(e1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	e2 := newTestEnvironment(c2)
+	b2, err := cluster.addNode(e2)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer b2.Shutdown()
+
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		if !b2.rt.IsBootstrapped() {
+			return errors.New("the second node cannot be bootstrapped")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	b1.rt.UpdateRoutingEagerly()
+
+	insertRandomData(e1, partitions.BACKUP)
+
+	err = checkBackupOwnership(e2)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	c3 := testutil.NewConfig()
+	c3.ReplicaCount = 2
+	e3 := newTestEnvironment(c3)
+	b3, err := cluster.addNode(e3)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer b3.Shutdown()
+
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		if !b3.rt.IsBootstrapped() {
+			return errors.New("the second node cannot be bootstrapped")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	b1.rt.UpdateRoutingEagerly()
+	// Call second time to clear the table.
+	b1.rt.UpdateRoutingEagerly()
+
+	err = checkBackupOwnership(e3)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 }

@@ -21,13 +21,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olric/internal/environment"
-
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -220,8 +219,8 @@ func (r *RoutingTable) updateRouting() {
 
 	// This type of quorum function determines the presence of quorum based on the count of members in the cluster,
 	// as observed by the local member’s cluster membership manager
-	if r.config.MemberCountQuorum > r.NumMembers() {
-		r.log.V(2).Printf("[ERROR] Impossible to calculate and update routing table: %v", ErrClusterQuorum)
+	if err := r.CheckMemberCountQuorum(); err != nil {
+		r.log.V(2).Printf("[ERROR] Impossible to calculate and update routing table: %v", err)
 		return
 	}
 

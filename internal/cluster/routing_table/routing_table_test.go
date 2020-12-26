@@ -18,9 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/environment"
-	"github.com/hashicorp/memberlist"
 	"net"
 	"strconv"
 	"testing"
@@ -28,9 +25,12 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/transport"
+	"github.com/hashicorp/memberlist"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -74,7 +74,7 @@ type testCluster struct {
 func newTestCluster() *testCluster {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &testCluster{
-		ctx: ctx,
+		ctx:    ctx,
 		cancel: cancel,
 	}
 }
@@ -204,7 +204,7 @@ func TestRoutingTable_Cluster(t *testing.T) {
 	}
 
 	totalPartitionCount := rt1.OwnedPartitionCount() + rt2.OwnedPartitionCount()
-	if  totalPartitionCount != c1.PartitionCount {
+	if totalPartitionCount != c1.PartitionCount {
 		t.Fatalf("Total partition count is wrong: %d", totalPartitionCount)
 	}
 

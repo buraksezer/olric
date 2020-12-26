@@ -23,6 +23,15 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
+// TODO: Rename this
+type dmapbox struct {
+	PartID    uint64
+	Kind      partitions.Kind
+	Name      string
+	Payload   []byte
+	AccessLog map[uint64]int64
+}
+
 func (dm *dmap) Move(partID uint64, kind partitions.Kind, name string, owner discovery.Member) error {
 	dm.Lock()
 	defer dm.Unlock()

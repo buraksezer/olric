@@ -22,14 +22,6 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-type testStorageUnit struct {
-
-}
-
-func (s testStorageUnit) Length() int {
-	return 100
-}
-
 func TestRoutingTable_LeftOverData(t *testing.T) {
 	cluster := newTestCluster()
 	defer cluster.cancel()
@@ -46,7 +38,8 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
 		part := rt1.primary.PartitionById(partID)
-		ts := testStorageUnit{}
+		ts := testutil.NewMockStorageUnit()
+		ts.Fill()
 		part.Map().Store("test-data", ts)
 	}
 
@@ -68,7 +61,8 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 
 	for partID := uint64(0); partID < c2.PartitionCount; partID++ {
 		part := rt2.primary.PartitionById(partID)
-		ts := testStorageUnit{}
+		ts := testutil.NewMockStorageUnit()
+		ts.Fill()
 		part.Map().Store("test-data", ts)
 	}
 
