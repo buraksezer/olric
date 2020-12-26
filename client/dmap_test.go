@@ -206,9 +206,9 @@ func TestClient_Delete(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			t.Errorf("Expected nil. Got %v", err)
 		}
 		<-done
 	}()

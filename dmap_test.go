@@ -166,7 +166,7 @@ func syncClusterMembers(peers ...*Olric) {
 	for _, peer := range peers {
 		peer.balancer.Balance()
 	}
-	// Update routing table again to get correct responses from the high level dmap API.
+	// Update routing table again to get correct responses from the high level DMap API.
 	updateRouting()
 }
 

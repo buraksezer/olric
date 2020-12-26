@@ -208,7 +208,7 @@ func New(c *config.Config) (*Olric, error) {
 		serializer: c.Serializer,
 		client:     e.Get("client").(*transport.Client),
 		primary:    e.Get("primary").(*partitions.Partitions),
-		backup:     e.Get("primary").(*partitions.Partitions),
+		backup:     e.Get("backup").(*partitions.Partitions),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		dtopic:     newDTopic(ctx),

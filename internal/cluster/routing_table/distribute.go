@@ -183,20 +183,20 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 	}
 
 	// Here add the new backup owners.
-	for _, backup := range newOwners {
+	for _, newOwner := range newOwners {
 		var exists bool
-		for i, bkp := range owners {
-			if bkp.CompareByID(backup.(discovery.Member)) {
+		for i, owner := range owners {
+			if owner.CompareByID(newOwner.(discovery.Member)) {
 				exists = true
 				// Remove it from the current position
 				owners = append(owners[:i], owners[i+1:]...)
 				// Append it again to head
-				owners = append(owners, backup.(discovery.Member))
+				owners = append(owners, newOwner.(discovery.Member))
 				break
 			}
 		}
 		if !exists {
-			owners = append(owners, backup.(discovery.Member))
+			owners = append(owners, newOwner.(discovery.Member))
 		}
 	}
 	return owners
