@@ -15,17 +15,12 @@
 package testutil
 
 import (
-	mrand "math/rand"
-	"crypto/rand"
 	"fmt"
 	"net"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/hashicorp/memberlist"
@@ -112,63 +107,3 @@ loop:
 	}
 	return err
 }
-
-type MockStorageUnit struct {
-	sync.RWMutex
-	m map[string]interface{}
-}
-
-func NewMockStorageUnit() *MockStorageUnit {
-	return &MockStorageUnit{
-		m: make(map[string]interface{}),
-	}
-}
-
-func (s *MockStorageUnit) Name() string {
-	return "Mock-DMap"
-}
-
-func (s *MockStorageUnit) Length() int {
-	s.RLock()
-	defer s.RUnlock()
-	return len(s.m)
-}
-
-func (s *MockStorageUnit) Put(key string, value interface{}) {
-	s.Lock()
-	defer s.Unlock()
-	s.m[key] = value
-}
-
-func (s *MockStorageUnit) Get(key string) interface{} {
-	s.Lock()
-	defer s.Unlock()
-	return s.m[key]
-}
-
-func (s *MockStorageUnit) Delete(key string) {
-	s.Lock()
-	defer s.Unlock()
-	delete(s.m, key)
-}
-
-func (s *MockStorageUnit) Fill() {
-	n := 5
-	b := make([]byte, n)
-	randKey := func() string {
-		if _, err := rand.Read(b); err != nil {
-			panic(err)
-		}
-		return fmt.Sprintf("%X", b)
-	}
-	num := mrand.Intn(100)
-	for i:=0; i < num; i++ {
-		s.Put(randKey(), i)
-	}
-}
-
-func (s *MockStorageUnit) Move(_ uint64, _ partitions.Kind, _ string, _ discovery.Member) error {
-	return nil
-}
-
-var _ partitions.StorageUnit = (*MockStorageUnit)(nil)

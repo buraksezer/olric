@@ -98,5 +98,5 @@ func (db *Olric) registerOperations() {
 	// Operations on message streams
 	//
 	// Bidirectional communication channel for clients and cluster members.
-	db.operations[protocol.OpCreateStream] = db.createStreamOperation
+	db.operations[protocol.OpCreateStream] = db.streams.CreateStreamOperation
 }

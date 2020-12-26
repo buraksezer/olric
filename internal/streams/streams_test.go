@@ -12,37 +12,77 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olric
+package streams
 
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/transport"
 )
 
-func TestStream_CreateStream(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
+func newTestServer(c *config.Config, ss *Streams) *transport.Server {
+	srv := testutil.NewTransportServer(c)
+	ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
+		protocol.OpCreateStream: ss.CreateStreamOperation,
 	}
+	requestDispatcher := func(w, r protocol.EncodeDecoder) {
+		f := ops[r.OpCode()]
+		f(w, r)
+	}
+	srv.SetDispatcher(requestDispatcher)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil {
+			panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
+		}
+	}()
+	<-srv.StartedCtx.Done()
+	return srv
+}
+
+func newStreamsForTest(c *config.Config) (*Streams, *transport.Server, *transport.Client) {
+	if c == nil {
+		c = testutil.NewConfig()
+	}
+	e := environment.New()
+	e.Set("logger", testutil.NewFlogger(c))
+	ss := New(e)
+	return ss, newTestServer(c, ss), transport.NewClient(c.Client)
+}
+
+func TestStream_CreateStream(t *testing.T) {
+	c := testutil.NewConfig()
+	ss, srv, client := newStreamsForTest(c)
+
 	streamClosed := make(chan struct{})
 	defer func() {
 		<-streamClosed
-		err = db.Shutdown(context.Background())
+		client.Close()
+		err := srv.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		err = ss.Shutdown(context.Background())
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	go func() {
-		err = db.client.CreateStream(ctx, db.rt.This().String(), readCh, writeCh)
+		err := client.CreateStream(ctx, c.MemberlistConfig.Name, readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -59,12 +99,12 @@ loop:
 			}
 
 			streamID := msg.Extra().(protocol.StreamCreatedExtra).StreamID
-			db.streams.mu.RLock()
-			_, ok := db.streams.m[streamID]
-			db.streams.mu.RUnlock()
-			if !ok {
+			s, err := ss.GetStreamById(streamID)
+			if err != nil {
 				t.Fatalf("StreamID is invalid: %d", streamID)
 			}
+			s.Close()
+
 			// Everything is OK
 			break loop
 		case <-time.After(5 * time.Second):
@@ -74,25 +114,30 @@ loop:
 }
 
 func TestStream_EchoMessage(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	c := testutil.NewConfig()
+	ss, srv, client := newStreamsForTest(c)
+
 	streamClosed := make(chan struct{})
 	defer func() {
 		<-streamClosed
-		err = db.Shutdown(context.Background())
+		client.Close()
+		err := srv.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		err = ss.Shutdown(context.Background())
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	go func() {
-		err = db.client.CreateStream(ctx, db.rt.This().String(), readCh, writeCh)
+		err := client.CreateStream(ctx, c.MemberlistConfig.Name, readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -101,11 +146,12 @@ func TestStream_EchoMessage(t *testing.T) {
 
 	f := func(m protocol.EncodeDecoder) {
 		streamID := m.Extra().(protocol.StreamCreatedExtra).StreamID
-		db.streams.mu.RLock()
-		s, _ := db.streams.m[streamID]
-		db.streams.mu.RUnlock()
-
-		s.write <- <-s.read
+		s, err := ss.GetStreamById(streamID)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		msg := <-s.read
+		s.Write(msg)
 	}
 
 loop:
@@ -145,25 +191,30 @@ loop:
 }
 
 func TestStream_PingPong(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	c := testutil.NewConfig()
+	ss, srv, client := newStreamsForTest(c)
+
 	streamClosed := make(chan struct{})
 	defer func() {
 		<-streamClosed
-		err = db.Shutdown(context.Background())
+		client.Close()
+		err := srv.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		err = ss.Shutdown(context.Background())
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	readCh := make(chan protocol.EncodeDecoder, 1)
 	writeCh := make(chan protocol.EncodeDecoder, 1)
 	go func() {
-		err = db.client.CreateStream(ctx, db.rt.This().String(), readCh, writeCh)
+		err := client.CreateStream(ctx, c.MemberlistConfig.Name, readCh, writeCh)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

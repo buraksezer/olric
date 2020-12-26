@@ -301,11 +301,8 @@ func (db *Olric) exDTopicAddListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	name := req.DTopic()
 	streamID := req.Extra().(protocol.DTopicAddListenerExtra).StreamID
-	db.streams.mu.RLock()
-	str, ok := db.streams.m[streamID]
-	db.streams.mu.RUnlock()
-	if !ok {
-		err := fmt.Errorf("%w: StreamID could not be found", ErrInvalidArgument)
+	ss, err := db.streams.GetStreamById(streamID)
+	if err != nil {
 		db.errorResponse(w, err)
 		return
 	}
@@ -317,7 +314,7 @@ func (db *Olric) exDTopicAddListenerOperation(w, r protocol.EncodeDecoder) {
 	go func() {
 		defer db.wg.Done()
 		select {
-		case <-str.ctx.Done():
+		case <-ss.Done():
 		case <-db.ctx.Done():
 		}
 		err := db.dtopic.removeListener(name, listenerID)
@@ -328,10 +325,8 @@ func (db *Olric) exDTopicAddListenerOperation(w, r protocol.EncodeDecoder) {
 	}()
 
 	f := func(msg DTopicMessage) {
-		db.streams.mu.RLock()
-		s, ok := db.streams.m[streamID]
-		db.streams.mu.RUnlock()
-		if !ok {
+		s, err := db.streams.GetStreamById(streamID)
+		if err != nil {
 			db.log.V(4).Printf("[ERROR] Stream could not be found with the given StreamID: %d", streamID)
 			err := db.dtopic.removeListener(name, listenerID)
 			if err != nil {
@@ -344,16 +339,16 @@ func (db *Olric) exDTopicAddListenerOperation(w, r protocol.EncodeDecoder) {
 			db.log.V(4).Printf("[ERROR] Failed to serialize DTopicMessage: %v", err)
 			return
 		}
-		m := protocol.NewDMapMessage(protocol.OpStreamMessage)
-		m.SetDMap(name)
+		m := protocol.NewDTopicMessage(protocol.OpStreamMessage)
+		m.SetDTopic(name)
 		m.SetValue(value)
 		m.SetExtra(protocol.StreamMessageExtra{
 			ListenerID: listenerID,
 		})
-		s.write <- m
+		s.Write(m)
 	}
 	// set concurrency parameter as 0. the registered listener will only make network i/o. NumCPU is good for this.
-	err := db.dtopic.addRemoteListener(listenerID, name, 0, f)
+	err = db.dtopic.addRemoteListener(listenerID, name, 0, f)
 	if err != nil {
 		db.errorResponse(w, err)
 		return

@@ -24,21 +24,21 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/streams"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/buraksezer/olric/internal/cluster/balancer"
-	"github.com/buraksezer/olric/internal/environment"
-
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/checkpoint"
+	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -124,7 +124,7 @@ type Olric struct {
 	dtopic *dtopic
 
 	// Bidirectional stream sockets for Olric clients and nodes.
-	streams *streams
+	streams *streams.Streams
 
 	// Map of storage engines
 	storageEngines *storageEngines
@@ -212,7 +212,7 @@ func New(c *config.Config) (*Olric, error) {
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		dtopic:     newDTopic(ctx),
-		streams:    &streams{m: make(map[uint64]*stream)},
+		streams:    streams.New(e),
 		storageEngines: &storageEngines{
 			engines: make(map[string]storage.Engine),
 			configs: make(map[string]map[string]interface{}),
@@ -494,12 +494,10 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	var result error
 
-	db.streams.mu.RLock()
 	db.log.V(2).Printf("[INFO] Closing active streams")
-	for _, s := range db.streams.m {
-		s.close()
+	if err := db.streams.Shutdown(ctx); err != nil {
+		result = multierror.Append(result, err)
 	}
-	db.streams.mu.RUnlock()
 
 	db.balancer.Shutdown()
 

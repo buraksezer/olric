@@ -30,6 +30,7 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/testutil/mock_storage_unit"
 	"github.com/buraksezer/olric/internal/transport"
 	"golang.org/x/sync/errgroup"
 )
@@ -139,7 +140,7 @@ func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
 	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
 		part := part.PartitionById(partID)
-		s := testutil.NewMockStorageUnit()
+		s := mock_storage_unit.New()
 		s.Fill()
 		part.Map().Store("test-data", s)
 		total += part.Length()
@@ -224,7 +225,6 @@ func TestBalance_Move(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }
-
 
 func TestBalance_Backup_Move(t *testing.T) {
 	cluster := newTestCluster()
