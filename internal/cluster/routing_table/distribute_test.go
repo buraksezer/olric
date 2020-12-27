@@ -67,7 +67,7 @@ func TestRoutingTable_distributedBackups(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	rt2.UpdateRoutingEagerly()
+	rt2.UpdateEagerly()
 
 	for partID := uint64(0); partID < c3.PartitionCount; partID++ {
 		part := rt3.backup.PartitionById(partID)

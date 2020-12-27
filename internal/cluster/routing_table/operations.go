@@ -28,7 +28,7 @@ func response(w protocol.EncodeDecoder, statusCode protocol.StatusCode, value []
 	w.SetValue(value)
 }
 
-func (r *RoutingTable) KeyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
+func (r *RoutingTable) keyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 	req := rq.(*protocol.SystemMessage)
 	partID := req.Extra().(protocol.LengthOfPartExtra).PartID
 	isBackup := req.Extra().(protocol.LengthOfPartExtra).Backup
@@ -67,7 +67,7 @@ func (r *RoutingTable) verifyRoutingTable(id uint64, table map[uint64]*route) er
 	return nil
 }
 
-func (r *RoutingTable) UpdateRoutingOperation(w, rq protocol.EncodeDecoder) {
+func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	r.updateRoutingMtx.Lock()
 	defer r.updateRoutingMtx.Unlock()
 

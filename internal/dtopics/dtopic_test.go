@@ -52,10 +52,8 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 
 func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *DTopics {
 	rt := routing_table.New(e)
-	ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
-		protocol.OpUpdateRouting: rt.UpdateRoutingOperation,
-		protocol.OpLengthOfPart:  rt.KeyCountOnPartOperation,
-	}
+	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
+	rt.RegisterOperations(ops)
 	requestDispatcher := func(w, r protocol.EncodeDecoder) {
 		f := ops[r.OpCode()]
 		f(w, r)

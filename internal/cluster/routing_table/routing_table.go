@@ -202,8 +202,13 @@ func (r *RoutingTable) fillRoutingTable() {
 	r.table = table
 }
 
-func (r *RoutingTable) UpdateRoutingEagerly() {
+func (r *RoutingTable) UpdateEagerly() {
 	r.updateRouting()
+}
+
+func (r *RoutingTable) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
+	operations[protocol.OpUpdateRouting] = r.updateRoutingOperation
+	operations[protocol.OpLengthOfPart] = r.keyCountOnPartOperation
 }
 
 func (r *RoutingTable) updateRouting() {

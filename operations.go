@@ -69,15 +69,16 @@ func (db *Olric) registerOperations() {
 	// System Messages
 	//
 	// Internal
-	db.operations[protocol.OpUpdateRouting] = db.rt.UpdateRoutingOperation
 	db.operations[protocol.OpMoveDMap] = db.moveDMapOperation
-	db.operations[protocol.OpLengthOfPart] = db.rt.KeyCountOnPartOperation
 
 	// Aliveness
 	db.operations[protocol.OpPing] = db.pingOperation
 
 	// Node Stats
 	db.operations[protocol.OpStats] = db.statsOperation
+
+	// Routing table
+	db.rt.RegisterOperations(db.operations)
 
 	// Operations on DTopic data structure
 	db.dtopics.RegisterOperations(db.operations)

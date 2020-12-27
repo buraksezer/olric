@@ -67,7 +67,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 		part.Map().Store("test-data", ts)
 	}
 
-	rt1.UpdateRoutingEagerly()
+	rt1.UpdateEagerly()
 
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
 		part := rt1.primary.PartitionById(partID)

@@ -44,10 +44,9 @@ func newRoutingTableForTest(c *config.Config, srv *transport.Server) *RoutingTab
 
 	rt := New(e)
 	if srv != nil {
-		ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
-			protocol.OpUpdateRouting: rt.UpdateRoutingOperation,
-			protocol.OpLengthOfPart:  rt.KeyCountOnPartOperation,
-		}
+		ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
+		rt.RegisterOperations(ops)
+
 		requestDispatcher := func(w, r protocol.EncodeDecoder) {
 			f := ops[r.OpCode()]
 			f(w, r)

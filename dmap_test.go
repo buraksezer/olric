@@ -156,7 +156,7 @@ func syncClusterMembers(peers ...*Olric) {
 	updateRouting := func() {
 		for _, peer := range peers {
 			if peer.rt.Discovery().IsCoordinator() {
-				peer.rt.UpdateRoutingEagerly()
+				peer.rt.UpdateEagerly()
 			}
 		}
 	}

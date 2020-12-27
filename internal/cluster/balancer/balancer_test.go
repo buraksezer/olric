@@ -52,10 +52,9 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Balancer {
 	rt := routing_table.New(e)
 	if srv != nil {
-		ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
-			protocol.OpUpdateRouting: rt.UpdateRoutingOperation,
-			protocol.OpLengthOfPart:  rt.KeyCountOnPartOperation,
-		}
+		ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
+		rt.RegisterOperations(ops)
+
 		requestDispatcher := func(w, r protocol.EncodeDecoder) {
 			f := ops[r.OpCode()]
 			f(w, r)
@@ -242,7 +241,7 @@ func TestBalance_Backup_Move(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer b1.Shutdown()
-	b1.rt.UpdateRoutingEagerly()
+	b1.rt.UpdateEagerly()
 
 	err = checkBackupOwnership(e1)
 	if err != nil {
@@ -268,7 +267,7 @@ func TestBalance_Backup_Move(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	b1.rt.UpdateRoutingEagerly()
+	b1.rt.UpdateEagerly()
 
 	insertRandomData(e1, partitions.BACKUP)
 
@@ -296,9 +295,9 @@ func TestBalance_Backup_Move(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	b1.rt.UpdateRoutingEagerly()
+	b1.rt.UpdateEagerly()
 	// Call second time to clear the table.
-	b1.rt.UpdateRoutingEagerly()
+	b1.rt.UpdateEagerly()
 
 	err = checkBackupOwnership(e3)
 	if err != nil {

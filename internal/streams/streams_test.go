@@ -30,9 +30,8 @@ import (
 
 func newTestServer(c *config.Config, ss *Streams) *transport.Server {
 	srv := testutil.NewTransportServer(c)
-	ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
-		protocol.OpCreateStream: ss.createStreamOperation,
-	}
+	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
+	ss.RegisterOperations(ops)
 	requestDispatcher := func(w, r protocol.EncodeDecoder) {
 		f := ops[r.OpCode()]
 		f(w, r)
