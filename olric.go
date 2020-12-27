@@ -24,7 +24,6 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/streams"
 	"net"
 	"strconv"
 	"strings"
@@ -38,10 +37,12 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/dtopics"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -120,8 +121,11 @@ type Olric struct {
 	rt       *routing_table.RoutingTable
 	balancer *balancer.Balancer
 
-	// Dispatch topic messages
-	dtopic *dtopic
+	// Distributed data structure implementations
+	//
+	// Distributed topic implementation
+	dtopics *dtopics.DTopics
+	// dmaps *dmaps.DMaps
 
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams.Streams
@@ -194,6 +198,7 @@ func New(c *config.Config) (*Olric, error) {
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 
+	ss := streams.New(e)
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
@@ -211,8 +216,8 @@ func New(c *config.Config) (*Olric, error) {
 		backup:     e.Get("backup").(*partitions.Partitions),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
-		dtopic:     newDTopic(ctx),
-		streams:    streams.New(e),
+		dtopics:    dtopics.New(e, ss),
+		streams:    ss,
 		storageEngines: &storageEngines{
 			engines: make(map[string]storage.Engine),
 			configs: make(map[string]map[string]interface{}),
@@ -493,6 +498,10 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
 	var result error
+
+	if err := db.dtopics.Shutdown(ctx); err != nil {
+		result = multierror.Append(result, err)
+	}
 
 	db.log.V(2).Printf("[INFO] Closing active streams")
 	if err := db.streams.Shutdown(ctx); err != nil {

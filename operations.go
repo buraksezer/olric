@@ -80,23 +80,10 @@ func (db *Olric) registerOperations() {
 	db.operations[protocol.OpStats] = db.statsOperation
 
 	// Operations on DTopic data structure
-	//
-	// DTopic.Publish
-	db.operations[protocol.OpPublishDTopicMessage] = db.publishDTopicMessageOperation
-	db.operations[protocol.OpDTopicPublish] = db.exDTopicPublishOperation
-
-	// DTopic.Destroy
-	db.operations[protocol.OpDestroyDTopic] = db.destroyDTopicOperation
-	db.operations[protocol.OpDTopicDestroy] = db.exDTopicDestroyOperation
-
-	// DTopic.AddListener
-	db.operations[protocol.OpDTopicAddListener] = db.exDTopicAddListenerOperation
-
-	// DTopic.RemoveListener
-	db.operations[protocol.OpDTopicRemoveListener] = db.exDTopicRemoveListenerOperation
+	db.dtopics.RegisterOperations(db.operations)
 
 	// Operations on message streams
 	//
 	// Bidirectional communication channel for clients and cluster members.
-	db.operations[protocol.OpCreateStream] = db.streams.CreateStreamOperation
+	db.streams.RegisterOperations(db.operations)
 }

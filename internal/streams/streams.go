@@ -54,6 +54,10 @@ func New(e *environment.Environment) *Streams {
 	}
 }
 
+func (ss *Streams) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
+	operations[protocol.OpCreateStream] = ss.createStreamOperation
+}
+
 func (ss *Streams) Shutdown(ctx context.Context) error {
 	ss.RLock()
 	defer ss.RUnlock()
@@ -122,7 +126,7 @@ loop:
 	}
 }
 
-func (ss *Streams) CreateStreamOperation(w, r protocol.EncodeDecoder) {
+func (ss *Streams) createStreamOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.StreamMessage)
 
 	streamID := rand.Uint64()

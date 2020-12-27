@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olric
+package dtopics
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func TestDTopic_PublishStandalone(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg DTopicMessage) {
+	onMessage := func(msg Message) {
 		defer cancel()
 		if msg.Message.(string) != "message" {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -87,7 +87,7 @@ func TestDTopic_RemoveListener(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	onMessage := func(msg DTopicMessage) {}
+	onMessage := func(msg Message) {}
 	listenerID, err := dt.AddListener(onMessage)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -121,7 +121,7 @@ func TestDTopic_PublishCluster(t *testing.T) {
 
 	var count int32
 	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg DTopicMessage) {
+	onMessage := func(msg Message) {
 		defer cancel()
 		if msg.Message.(string) != "message" {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -204,7 +204,7 @@ func TestDTopic_Destroy(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	onMessage := func(msg DTopicMessage) {}
+	onMessage := func(msg Message) {}
 	listenerID, err := dtOne.AddListener(onMessage)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -248,7 +248,7 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg DTopicMessage) {
+	onMessage := func(msg Message) {
 		defer cancel()
 		if msg.Message.(string) != "message" {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -316,7 +316,7 @@ func TestDTopic_PublishMessagesCluster(t *testing.T) {
 
 	var count int32
 	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg DTopicMessage) {
+	onMessage := func(msg Message) {
 		if msg.Message.(string) != "message" {
 			t.Fatalf("Expected message. Got: %v", err)
 		}

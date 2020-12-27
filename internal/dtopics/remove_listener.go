@@ -12,46 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package environment
+package dtopics
 
-import "sync"
+import (
+	"fmt"
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
-type Environment struct {
-	sync.RWMutex
-	m map[string]interface{}
-}
-
-func New() *Environment {
-	return &Environment{
-		m: make(map[string]interface{}),
+func (ds *DTopics) exRemoveListenerOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DTopicMessage)
+	extra, ok := req.Extra().(protocol.DTopicRemoveListenerExtra)
+	if !ok {
+		errorResponse(w, fmt.Errorf("%w: wrong extra type", ErrInvalidArgument))
+		return
 	}
-}
-
-func (e *Environment) Get(key string) interface{} {
-	e.RLock()
-	defer e.RUnlock()
-
-	value, ok := e.m[key]
-	if ok {
-		return value
+	err := ds.dispatcher.removeListener(req.DTopic(), extra.ListenerID)
+	if err != nil {
+		errorResponse(w, err)
+		return
 	}
-	return nil
-}
-
-func (e *Environment) Set(key string, value interface{}) {
-	e.Lock()
-	defer e.Unlock()
-
-	e.m[key] = value
-}
-
-func (e *Environment) Clone() *Environment {
-	e.RLock()
-	defer e.RUnlock()
-
-	f := New()
-	for key, value := range e.m {
-		f.Set(key, value)
-	}
-	return f
+	w.SetStatus(protocol.StatusOK)
 }
