@@ -48,4 +48,3 @@ func (d delegate) LocalState(join bool) []byte { return nil }
 
 // MergeRemoteState is invoked after a TCP Push/Pull.
 func (d delegate) MergeRemoteState(buf []byte, join bool) {}
-

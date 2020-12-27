@@ -55,7 +55,7 @@ type DTopic struct {
 	name        string
 	flag        int16
 	concurrency int
-	dt          *DTopics
+	ds          *DTopics
 }
 
 // NewDTopic returns a new distributed topic instance.
@@ -98,6 +98,7 @@ func (ds *DTopics) NewDTopic(name string, concurrency int, flag int16) (*DTopic,
 		name:        name,
 		flag:        flag,
 		concurrency: concurrency,
+		ds:          ds,
 	}
 
 	ds.m[name] = dt
@@ -108,25 +109,25 @@ func (ds *DTopics) NewDTopic(name string, concurrency int, flag int16) (*DTopic,
 func (d *DTopic) Publish(msg interface{}) error {
 	tm := &Message{
 		Message:       msg,
-		PublisherAddr: d.dt.rt.This().String(),
+		PublisherAddr: d.ds.rt.This().String(),
 		PublishedAt:   time.Now().UnixNano(),
 	}
-	return d.dt.publishDTopicMessage(d.name, tm)
+	return d.ds.publishDTopicMessage(d.name, tm)
 }
 
 // AddListener adds a new listener for the topic. Returns a registration ID or a non-nil error.
 // Registered functions are run by parallel.
 func (d *DTopic) AddListener(f func(Message)) (uint64, error) {
-	return d.dt.dispatcher.addListener(d.name, d.concurrency, f)
+	return d.ds.dispatcher.addListener(d.name, d.concurrency, f)
 }
 
 // RemoveListener removes a listener with the given listenerID.
 func (d *DTopic) RemoveListener(listenerID uint64) error {
-	return d.dt.dispatcher.removeListener(d.name, listenerID)
+	return d.ds.dispatcher.removeListener(d.name, listenerID)
 }
 
 // Destroy removes all listeners for this topic on the cluster. If Publish function is called again after Destroy, the topic will be
 // recreated.
 func (d *DTopic) Destroy() error {
-	return d.dt.destroyDTopicOnCluster(d.name)
+	return d.ds.destroyDTopicOnCluster(d.name)
 }

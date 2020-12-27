@@ -80,7 +80,7 @@ var (
 
 const (
 	// ReleaseVersion is the current stable version of Olric
-	ReleaseVersion string = "0.4.0-beta.1"
+	ReleaseVersion string = "0.4.0-beta.2"
 	nilTimeout            = 0 * time.Second
 )
 
@@ -216,7 +216,6 @@ func New(c *config.Config) (*Olric, error) {
 		backup:     e.Get("backup").(*partitions.Partitions),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
-		dtopics:    dtopics.New(e, ss),
 		streams:    ss,
 		storageEngines: &storageEngines{
 			engines: make(map[string]storage.Engine),
@@ -229,6 +228,7 @@ func New(c *config.Config) (*Olric, error) {
 	e.Set("routingTable", db.rt)
 
 	db.balancer = balancer.New(e)
+	db.dtopics = dtopics.New(e, ss)
 
 	// Add callback functions to routing table.
 	db.rt.AddCallback(db.balancer.Balance)

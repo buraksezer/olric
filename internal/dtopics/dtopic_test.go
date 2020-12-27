@@ -17,24 +17,140 @@ package dtopics
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/environment"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/streams"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/transport"
+	"golang.org/x/sync/errgroup"
 )
 
+func newTestEnvironment(c *config.Config) *environment.Environment {
+	if c == nil {
+		c = testutil.NewConfig()
+	}
+
+	e := environment.New()
+	e.Set("config", c)
+	e.Set("logger", testutil.NewFlogger(c))
+	e.Set("client", transport.NewClient(c.Client))
+	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
+	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
+	return e
+}
+
+func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *DTopics {
+	rt := routing_table.New(e)
+	ops := map[protocol.OpCode]func(w, r protocol.EncodeDecoder){
+		protocol.OpUpdateRouting: rt.UpdateRoutingOperation,
+		protocol.OpLengthOfPart:  rt.KeyCountOnPartOperation,
+	}
+	requestDispatcher := func(w, r protocol.EncodeDecoder) {
+		f := ops[r.OpCode()]
+		f(w, r)
+	}
+	srv.SetDispatcher(requestDispatcher)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil {
+			panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
+		}
+	}()
+	<-srv.StartedCtx.Done()
+
+	e.Set("routingTable", rt)
+
+	ss := streams.New(e)
+	ds := New(e, ss)
+	ds.RegisterOperations(ops)
+	return ds
+}
+
+type testCluster struct {
+	peerPorts []int
+	errGr     errgroup.Group
+	ctx       context.Context
+	cancel    context.CancelFunc
+}
+
+func newTestCluster() *testCluster {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &testCluster{
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+func (t *testCluster) addNode(e *environment.Environment) (*DTopics, error) {
+	if e == nil {
+		e = newTestEnvironment(nil)
+	}
+	c := e.Get("config").(*config.Config)
+
+	port, err := testutil.GetFreePort()
+	if err != nil {
+		return nil, err
+	}
+	c.MemberlistConfig.BindPort = port
+
+	var peers []string
+	for _, peerPort := range t.peerPorts {
+		peers = append(peers, net.JoinHostPort("127.0.0.1", strconv.Itoa(peerPort)))
+	}
+	c.Peers = peers
+
+	srv := testutil.NewTransportServer(c)
+	ds := newDTopicsForTest(e, srv)
+	err = ds.rt.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	t.errGr.Go(func() error {
+		<-t.ctx.Done()
+		return srv.Shutdown(context.Background())
+	})
+
+	t.errGr.Go(func() error {
+		<-t.ctx.Done()
+		return ds.rt.Shutdown(context.Background())
+	})
+
+	t.peerPorts = append(t.peerPorts, port)
+	return ds, err
+}
+
+func (t *testCluster) shutdown() error {
+	t.cancel()
+	return t.errGr.Wait()
+}
+
 func TestDTopic_PublishStandalone(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
+	cluster := newTestCluster()
+	e := newTestEnvironment(nil)
+	ds, err := cluster.addNode(e)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = db.Shutdown(context.Background())
+		err = ds.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
 		}
 	}()
 
-	dt, err := db.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt, err := ds.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -71,18 +187,20 @@ func TestDTopic_PublishStandalone(t *testing.T) {
 }
 
 func TestDTopic_RemoveListener(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
+	cluster := newTestCluster()
+	e := newTestEnvironment(nil)
+	ds, err := cluster.addNode(e)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = db.Shutdown(context.Background())
+		err = ds.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
 		}
 	}()
 
-	dt, err := db.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt, err := ds.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -99,22 +217,29 @@ func TestDTopic_RemoveListener(t *testing.T) {
 }
 
 func TestDTopic_PublishCluster(t *testing.T) {
-	c := newTestCluster(nil)
-	defer c.teardown()
-
-	db1, err := c.newDB()
+	cluster := newTestCluster()
+	e1 := newTestEnvironment(nil)
+	ds1, err := cluster.addNode(e1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-
-	db2, err := c.newDB()
+	e2 := newTestEnvironment(nil)
+	ds2, err := cluster.addNode(e2)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	defer func() {
+		for _, ds := range []*DTopics{ds1, ds2} {
+			err = ds.Shutdown(context.Background())
+			if err != nil {
+				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
+			}
+		}
+	}()
 
 	// Add listener
 
-	dt, err := db1.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt, err := ds1.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -142,7 +267,7 @@ func TestDTopic_PublishCluster(t *testing.T) {
 
 	// Publish
 
-	dt2, err := db2.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt2, err := ds2.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -163,18 +288,20 @@ func TestDTopic_PublishCluster(t *testing.T) {
 }
 
 func TestDTopic_RemoveListenerNotFound(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
+	cluster := newTestCluster()
+	e := newTestEnvironment(nil)
+	ds, err := cluster.addNode(e)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = db.Shutdown(context.Background())
+		err = ds.Shutdown(context.Background())
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
 		}
 	}()
 
-	dt, err := db.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt, err := ds.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -185,64 +312,78 @@ func TestDTopic_RemoveListenerNotFound(t *testing.T) {
 }
 
 func TestDTopic_Destroy(t *testing.T) {
-	c := newTestCluster(nil)
-	defer c.teardown()
-
-	dbOne, err := c.newDB()
+	cluster := newTestCluster()
+	e1 := newTestEnvironment(nil)
+	ds1, err := cluster.addNode(e1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-
-	dbTwo, err := c.newDB()
+	e2 := newTestEnvironment(nil)
+	ds2, err := cluster.addNode(e2)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	defer func() {
+		for _, ds := range []*DTopics{ds1, ds2} {
+			err = ds.Shutdown(context.Background())
+			if err != nil {
+				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
+			}
+		}
+	}()
 
 	// Add listener
-	dtOne, err := dbOne.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt1, err := ds1.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	onMessage := func(msg Message) {}
-	listenerID, err := dtOne.AddListener(onMessage)
+	listenerID, err := dt1.AddListener(onMessage)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dtTwo, err := dbTwo.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt2, err := ds2.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = dtTwo.Destroy()
+	err = dt2.Destroy()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	err = dtOne.RemoveListener(listenerID)
+	err = dt1.RemoveListener(listenerID)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("Expected ErrInvalidArgument. Got: %v", err)
 	}
 }
 
 func TestDTopic_DTopicMessage(t *testing.T) {
-	c := newTestCluster(nil)
-	defer c.teardown()
-
-	dbOne, err := c.newDB()
+	cluster := newTestCluster()
+	e1 := newTestEnvironment(nil)
+	ds1, err := cluster.addNode(e1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-
-	dbTwo, err := c.newDB()
+	e2 := newTestEnvironment(nil)
+	ds2, err := cluster.addNode(e2)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	defer func() {
+		for _, ds := range []*DTopics{ds1, ds2} {
+			err = ds.Shutdown(context.Background())
+			if err != nil {
+				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
+			}
+		}
+	}()
 
 	// Add listener
 
-	dtOne, err := dbOne.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt1, err := ds1.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -254,8 +395,8 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		if msg.PublisherAddr != dbTwo.rt.This().String() {
-			t.Fatalf("Expected %s. Got: %s", dbTwo.rt.This().String(), msg.PublisherAddr)
+		if msg.PublisherAddr != ds2.rt.This().String() {
+			t.Fatalf("Expected %s. Got: %s", ds2.rt.This().String(), msg.PublisherAddr)
 		}
 
 		if msg.PublishedAt <= 0 {
@@ -263,12 +404,12 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 		}
 	}
 
-	listenerID, err := dtOne.AddListener(onMessage)
+	listenerID, err := dt1.AddListener(onMessage)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = dtOne.RemoveListener(listenerID)
+		err = dt1.RemoveListener(listenerID)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -276,7 +417,7 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 
 	// Publish
 
-	dtTwo, err := dbTwo.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dtTwo, err := ds2.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -294,22 +435,29 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 }
 
 func TestDTopic_PublishMessagesCluster(t *testing.T) {
-	c := newTestCluster(nil)
-	defer c.teardown()
-
-	db1, err := c.newDB()
+	cluster := newTestCluster()
+	e1 := newTestEnvironment(nil)
+	ds1, err := cluster.addNode(e1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-
-	db2, err := c.newDB()
+	e2 := newTestEnvironment(nil)
+	ds2, err := cluster.addNode(e2)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	defer func() {
+		for _, ds := range []*DTopics{ds1, ds2} {
+			err = ds.Shutdown(context.Background())
+			if err != nil {
+				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
+			}
+		}
+	}()
 
 	// Add listener
 
-	dt, err := db1.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt1, err := ds1.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -326,12 +474,12 @@ func TestDTopic_PublishMessagesCluster(t *testing.T) {
 		}
 	}
 
-	listenerID, err := dt.AddListener(onMessage)
+	listenerID, err := dt1.AddListener(onMessage)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		err = dt.RemoveListener(listenerID)
+		err = dt1.RemoveListener(listenerID)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -339,7 +487,7 @@ func TestDTopic_PublishMessagesCluster(t *testing.T) {
 
 	// Publish
 
-	dt2, err := db2.NewDTopic("my-topic", 0, UnorderedDelivery)
+	dt2, err := ds2.NewDTopic("my-topic", 0, UnorderedDelivery)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -361,22 +509,39 @@ func TestDTopic_PublishMessagesCluster(t *testing.T) {
 }
 
 func TestDTopic_DeliveryOrder(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
+	cluster := newTestCluster()
+	e := newTestEnvironment(nil)
+	ds, err := cluster.addNode(e)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	_, err = db.NewDTopic("my-topic", 0, 0)
+	defer func() {
+		err = ds.Shutdown(context.Background())
+		if err != nil {
+			ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
+		}
+	}()
+	_, err = ds.NewDTopic("my-topic", 0, 0)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Errorf("Expected ErrInvalidArgument. Got: %v", err)
 	}
 }
 
+
 func TestDTopic_OrderedDelivery(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
+	cluster := newTestCluster()
+	e := newTestEnvironment(nil)
+	ds, err := cluster.addNode(e)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	_, err = db.NewDTopic("my-topic", 0, OrderedDelivery)
+	defer func() {
+		err = ds.Shutdown(context.Background())
+		if err != nil {
+			ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
+		}
+	}()
+	_, err = ds.NewDTopic("my-topic", 0, OrderedDelivery)
 	if err != ErrNotImplemented {
 		t.Errorf("Expected ErrNotImplemented. Got: %v", err)
 	}

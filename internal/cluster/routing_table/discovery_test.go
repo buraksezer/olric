@@ -28,7 +28,7 @@ func TestRoutingTable_tryWithInterval(t *testing.T) {
 	rt := newRoutingTableForTest(c, srv)
 
 	var foobarError = errors.New("foobar")
-	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 	err := rt.tryWithInterval(ctx, time.Millisecond, func() error {
 		return foobarError

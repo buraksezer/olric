@@ -47,14 +47,17 @@ type DTopics struct {
 }
 
 func New(e *environment.Environment, s *streams.Streams) *DTopics {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &DTopics{
 		streams:    s,
-		serializer: e.Get("client").(*config.Config).Serializer,
+		serializer: e.Get("config").(*config.Config).Serializer,
 		client:     e.Get("client").(*transport.Client),
 		log:        e.Get("logger").(*flog.Logger),
 		rt:         e.Get("routingTable").(*routing_table.RoutingTable),
 		dispatcher: NewDispatcher(context.Background()),
 		m:          make(map[string]*DTopic),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
