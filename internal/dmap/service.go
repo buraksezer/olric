@@ -130,7 +130,7 @@ func (s *Service) initializeAndLoadStorageEngines() error {
 	return nil
 }
 
-func (dm *DMap) loadFragment(part *partitions.Partition, name string) (*fragment, error) {
+func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition, name string) (*fragment, error) {
 	f, ok := part.Map().Load(name)
 	if !ok {
 		return nil, errFragmentNotFound
@@ -138,19 +138,19 @@ func (dm *DMap) loadFragment(part *partitions.Partition, name string) (*fragment
 	return f.(*fragment), nil
 }
 
-func (dm *DMap) createFragment(part *partitions.Partition, name string) (*fragment, error) {
+func (dm *DMap) createFragmentOnPartition(part *partitions.Partition, name string) (*fragment, error) {
 	engine, ok := dm.service.storage.engines[dm.config.storageEngine]
 	if !ok {
 		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
 	}
-	fg := &fragment{}
+	f := &fragment{}
 	var err error
-	fg.storage, err = engine.Fork(nil)
+	f.storage, err = engine.Fork(nil)
 	if err != nil {
 		return nil, err
 	}
-	part.Map().Store(name, fg)
-	return fg, nil
+	part.Map().Store(name, f)
+	return f, nil
 }
 
 func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
@@ -171,8 +171,7 @@ func (dm *DMap) getFragment(name string, hkey uint64, kind partitions.Kind) (*fr
 	part := dm.getPartitionByHKey(hkey, kind)
 	part.Lock()
 	defer part.Unlock()
-
-	return dm.loadFragment(part, name)
+	return dm.loadFragmentFromPartition(part, name)
 }
 
 func (dm *DMap) getOrCreateFragment(name string, hkey uint64, kind partitions.Kind) (*fragment, error) {
@@ -181,10 +180,10 @@ func (dm *DMap) getOrCreateFragment(name string, hkey uint64, kind partitions.Ki
 	defer part.Unlock()
 
 	// try to get
-	f, err := dm.loadFragment(part, name)
+	f, err := dm.loadFragmentFromPartition(part, name)
 	if err == errFragmentNotFound {
 		// create the fragment and return
-		return dm.createFragment(part, name)
+		return dm.createFragmentOnPartition(part, name)
 	}
 	return f, err
 }

@@ -27,9 +27,6 @@ import (
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
-// TODO: kvstore.NewEntry should not be used to create a new entry instance here. The DMap functions will be moved to
-// their own DMap struct and all they can access their own dmap instance without hacking.
-
 // Entry is a DMap entry with its metadata.
 type Entry struct {
 	Key       string
@@ -81,53 +78,47 @@ func (dm *DMap) valueToVersion(value storage.Entry) *version {
 	}
 }
 
+// TODO: remove useless key
+
 func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 	// Check on localhost, the partition owner.
-	logErr := func(err error) {
-		// still need to use "ver". just log this error.
-		if err != storage.ErrKeyNotFound || err != errFragmentNotFound {
-			// the requested key can be found on a replica or a previous partition owner.
-			if dm.service.log.V(5).Ok() {
-				dm.service.log.V(5).Printf(
-					"[DEBUG] key: %s, HKey: %d on DMap: %s could not be found on the local storage: %v",
-					key, hkey, name, err)
-			}
-		} else {
-			dm.service.log.V(3).Printf("[ERROR] Failed to get key: %s on %s could not be found: %s", key, name, err)
-		}
-	}
-
 	f, err := dm.getFragment(name, hkey, partitions.PRIMARY)
-	if err != nil && err != errFragmentNotFound {
-		dm.service.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)
+	if err != nil {
+		if err != errFragmentNotFound {
+			dm.service.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)
+		}
+		return dm.valueToVersion(nil)
 	}
 	value, err := f.storage.Get(hkey)
-	if err != nil && err != storage.ErrKeyNotFound {
-		// still need to use "ver". just log this error.
-		dm.service.log.V(3).Printf("[ERROR] Failed to get key: %s on %s: %s", key, name, err)
+	if err != nil {
+		if err != storage.ErrKeyNotFound {
+			// still need to use "ver". just log this error.
+			dm.service.log.V(3).Printf("[ERROR] Failed to get key: %s on %s: %s", key, name, err)
+		}
+		return dm.valueToVersion(nil)
 	}
 	return dm.valueToVersion(value)
 }
 
 // lookupOnOwners collects versions of a key/value pair on the partition owner
 // by including previous partition owners.
-func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*version {
-	owners := db.primary.PartitionOwnersByHKey(hkey)
+func (dm *DMap) lookupOnOwners(hkey uint64, name, key string) []*version {
+	owners := dm.service.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
 
 	var versions []*version
-	versions = append(versions, db.lookupOnThisNode(dm, hkey, name, key))
+	versions = append(versions, dm.lookupOnThisNode(hkey, name, key))
 
 	// Run a query on the previous owners.
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
-		v, err := db.lookupOnPreviousOwner(&owner, name, key)
+		v, err := dm.lookupOnPreviousOwner(&owner, name, key)
 		if err != nil {
-			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call get on a previous "+
+			if dm.service.log.V(3).Ok() {
+				dm.service.log.V(3).Printf("[ERROR] Failed to call get on a previous "+
 					"primary owner: %s: %v", owner, err)
 			}
 			continue
@@ -139,7 +130,7 @@ func (db *Olric) lookupOnOwners(dm *dmap, hkey uint64, name, key string) []*vers
 	return versions
 }
 
-func (db *Olric) sortVersions(versions []*version) []*version {
+func (dm *DMap) sortVersions(versions []*version) []*version {
 	sort.Slice(versions,
 		func(i, j int) bool {
 			return versions[i].entry.Timestamp() >= versions[j].entry.Timestamp()
@@ -149,7 +140,7 @@ func (db *Olric) sortVersions(versions []*version) []*version {
 	return versions
 }
 
-func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
+func (dm *DMap) sanitizeAndSortVersions(versions []*version) []*version {
 	var sanitized []*version
 	// We use versions slice for read-repair. Clear nil values first.
 	for _, ver := range versions {
@@ -160,22 +151,22 @@ func (db *Olric) sanitizeAndSortVersions(versions []*version) []*version {
 	if len(sanitized) <= 1 {
 		return sanitized
 	}
-	return db.sortVersions(sanitized)
+	return dm.sortVersions(sanitized)
 }
 
-func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
+func (dm *DMap) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	var versions []*version
 	// Check backup.
-	backups := db.backup.PartitionOwnersByHKey(hkey)
+	backups := dm.service.backup.PartitionOwnersByHKey(hkey)
 	for _, replica := range backups {
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(name)
 		req.SetKey(key)
 		ver := &version{host: &replica}
-		resp, err := db.requestTo(replica.String(), req)
+		resp, err := dm.service.client.RequestTo2(replica.String(), req)
 		if err != nil {
-			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
+			if dm.service.log.V(3).Ok() {
+				dm.service.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
 			}
 		} else {
 			data := kvstore.NewEntry()
@@ -187,7 +178,7 @@ func (db *Olric) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	return versions
 }
 
-func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*version) {
+func (dm *DMap) readRepair(name string, winner *version, versions []*version) {
 	for _, ver := range versions {
 		if ver.entry != nil && winner.entry.Timestamp() == ver.entry.Timestamp() {
 			continue
@@ -214,7 +205,7 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 
 		// Sync
 		tmp := *ver.host
-		if tmp.CompareByID(db.rt.This()) {
+		if tmp.CompareByID(dm.service.rt.This()) {
 			hkey := partitions.HKey(name, winner.entry.Key())
 			w := &writeop{
 				dmap:      name,
@@ -223,55 +214,44 @@ func (db *Olric) readRepair(name string, dm *dmap, winner *version, versions []*
 				timestamp: winner.entry.Timestamp(),
 				timeout:   time.Duration(winner.entry.TTL()),
 			}
-			dm.Lock()
-			err := db.localPut(hkey, dm, w)
+			err := dm.localPut(hkey, w)
 			if err != nil {
-				db.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
+				dm.service.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
-			dm.Unlock()
 		} else {
-			_, err := db.requestTo(ver.host.String(), req)
+			_, err := dm.service.client.RequestTo2(ver.host.String(), req)
 			if err != nil {
-				db.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
+				dm.service.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
 			}
 		}
 	}
 }
 
-func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (storage.Entry, error) {
-	dm, err := db.getDMap(name, hkey)
-	if err != nil {
-		return nil, err
-	}
-	dm.RLock()
+func (dm *DMap) callGetOnCluster(hkey uint64, name, key string) (storage.Entry, error) {
 	// RUnlock should not be called with defer statement here because
 	// readRepair function may call localPut function which needs a write
 	// lock. Please don't forget calling RUnlock before returning here.
 
-	versions := db.lookupOnOwners(dm, hkey, name, key)
-	if db.config.ReadQuorum >= config.MinimumReplicaCount {
-		v := db.lookupOnReplicas(hkey, name, key)
+	versions := dm.lookupOnOwners(hkey, name, key)
+	if dm.service.config.ReadQuorum >= config.MinimumReplicaCount {
+		v := dm.lookupOnReplicas(hkey, name, key)
 		versions = append(versions, v...)
 	}
-	if len(versions) < db.config.ReadQuorum {
-		dm.RUnlock()
+	if len(versions) < dm.service.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
-	sorted := db.sanitizeAndSortVersions(versions)
+	sorted := dm.sanitizeAndSortVersions(versions)
 	if len(sorted) == 0 {
 		// We checked everywhere, it's not here.
-		dm.RUnlock()
 		return nil, ErrKeyNotFound
 	}
-	if len(sorted) < db.config.ReadQuorum {
-		dm.RUnlock()
+	if len(sorted) < dm.service.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
 
 	// The most up-to-date version of the values.
 	winner := sorted[0]
 	if isKeyExpired(winner.entry.TTL()) || dm.isKeyIdle(hkey) {
-		dm.RUnlock()
 		return nil, ErrKeyNotFound
 	}
 	// LRU and MaxIdleDuration eviction policies are only valid on
@@ -281,28 +261,27 @@ func (db *Olric) callGetOnCluster(hkey uint64, name, key string) (storage.Entry,
 	// continue maintaining a reliable access log.
 	dm.updateAccessLog(hkey)
 
-	dm.RUnlock()
-	if db.config.ReadRepair {
+	if dm.service.config.ReadRepair {
 		// Parallel read operations may propagate different versions of
 		// the same key/value pair. The rule is simple: last write wins.
-		db.readRepair(name, dm, winner, versions)
+		dm.readRepair(name, winner, versions)
 	}
 	return winner.entry, nil
 }
 
-func (db *Olric) get(name, key string) (storage.Entry, error) {
+func (dm *DMap) get(name, key string) (storage.Entry, error) {
 	hkey := partitions.HKey(name, key)
-	member := db.primary.PartitionByHKey(hkey).Owner()
+	member := dm.service.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
-	if member.CompareByName(db.rt.This()) {
-		return db.callGetOnCluster(hkey, name, key)
+	if member.CompareByName(dm.service.rt.This()) {
+		return dm.callGetOnCluster(hkey, name, key)
 	}
 
 	// Redirect to the partition owner
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(name)
 	req.SetKey(key)
-	resp, err := db.requestTo(member.String(), req)
+	resp, err := dm.service.client.RequestTo2(member.String(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -315,22 +294,22 @@ func (db *Olric) get(name, key string) (storage.Entry, error) {
 // does not contains the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) Get(key string) (interface{}, error) {
-	rawval, err := dm.db.get(dm.name, key)
+	rawval, err := dm.get(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
-	return dm.db.unmarshalValue(rawval.Value())
+	return dm.unmarshalValue(rawval.Value())
 }
 
 // GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
 // does not contains the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) GetEntry(key string) (*Entry, error) {
-	entry, err := dm.db.get(dm.name, key)
+	entry, err := dm.get(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
-	value, err := dm.db.unmarshalValue(entry.Value())
+	value, err := dm.unmarshalValue(entry.Value())
 	if err != nil {
 		return nil, err
 	}
@@ -340,63 +319,4 @@ func (dm *DMap) GetEntry(key string) (*Entry, error) {
 		TTL:       entry.TTL(),
 		Timestamp: entry.Timestamp(),
 	}, nil
-}
-
-func (db *Olric) exGetOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	entry, err := db.get(req.DMap(), req.Key())
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
-}
-
-func (db *Olric) getBackupOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	dm, err := db.getBackupDMap(req.DMap(), hkey)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-	dm.RLock()
-	defer dm.RUnlock()
-	entry, err := dm.storage.Get(hkey)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-	if isKeyExpired(entry.TTL()) {
-		db.errorResponse(w, ErrKeyNotFound)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
-}
-
-func (db *Olric) getPrevOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	part := db.primary.PartitionByHKey(hkey)
-	tmp, ok := part.Map().Load(req.DMap())
-	if !ok {
-		db.errorResponse(w, ErrKeyNotFound)
-		return
-	}
-	dm := tmp.(*dmap)
-
-	entry, err := dm.storage.Get(hkey)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-
-	if isKeyExpired(entry.TTL()) {
-		db.errorResponse(w, ErrKeyNotFound)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
 }

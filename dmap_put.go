@@ -16,13 +16,13 @@ package olric
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"time"
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
+	"time"
 )
 
 const (
