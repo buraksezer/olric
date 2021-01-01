@@ -15,20 +15,36 @@
 package dmap
 
 import (
-	"sync"
+	"errors"
+	"time"
 )
+
+const nilTimeout = 0 * time.Second
+
+// ErrKeyNotFound is returned when a key could not be found.
+var ErrKeyNotFound = errors.New("key not found")
+var ErrDMapNotFound = errors.New("dmap not found")
 
 // DMap defines the internal representation of a dmap.
 type DMap struct {
-	sync.RWMutex
-
 	name    string
 	service *Service
 	config  *configuration
 }
 
-// New creates an returns a new DMap instance.
-func New(name string, s *Service) (*DMap, error) {
+func (s *Service) LoadDMap(name string) (*DMap, error) {
+	s.RLock()
+	defer s.RUnlock()
+
+	dm, ok := s.dmaps[name]
+	if !ok {
+		return nil, ErrDMapNotFound
+	}
+	return dm, nil
+}
+
+// NewDMap creates an returns a new DMap instance.
+func (s *Service) NewDMap(name string) (*DMap, error) {
 	// Check operation status first:
 	//
 	// * Checks member count in the cluster, returns ErrClusterQuorum if
@@ -42,7 +58,16 @@ func New(name string, s *Service) (*DMap, error) {
 	if err := s.rt.CheckBootstrap(); err != nil {
 		return nil, err
 	}
-	dm := &DMap{
+
+	s.Lock()
+	defer s.Unlock()
+
+	dm, ok := s.dmaps[name]
+	if ok {
+		return dm, nil
+	}
+
+	dm = &DMap{
 		config:  &configuration{},
 		name:    name,
 		service: s,
@@ -50,7 +75,19 @@ func New(name string, s *Service) (*DMap, error) {
 	if err := dm.config.load(s.config, name); err != nil {
 		return nil, err
 	}
+	s.dmaps[name] = dm
 	return dm, nil
 }
 
+func getTTL(timeout time.Duration) int64 {
+	// convert nanoseconds to milliseconds
+	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
+}
 
+func isKeyExpired(ttl int64) bool {
+	if ttl == 0 {
+		return false
+	}
+	// convert nanoseconds to milliseconds
+	return (time.Now().UnixNano() / 1000000) >= ttl
+}

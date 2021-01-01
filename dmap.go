@@ -44,7 +44,7 @@ func (dm *dmap) Length() int {
 	return dm.storage.Stats().Length
 }
 
-var _ partitions.StorageUnit = (*dmap)(nil)
+var _ partitions.Fragment = (*dmap)(nil)
 
 // dmap represents a distributed map instance.
 type DMap struct {

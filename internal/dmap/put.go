@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package olric
+package dmap
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"time"
+
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -45,15 +46,17 @@ type writeop struct {
 	timestamp     int64
 	timeout       time.Duration
 	flags         int16
+	kind          partitions.Kind
 }
 
 // fromReq generates a new protocol message from writeop instance.
-func (w *writeop) fromReq(r protocol.EncodeDecoder) {
+func (w *writeop) fromReq(r protocol.EncodeDecoder, kind partitions.Kind) {
 	req := r.(*protocol.DMapMessage)
 	w.dmap = req.DMap()
 	w.key = req.Key()
 	w.value = req.Value()
 	w.opcode = req.Op
+	w.kind = kind
 
 	// Set opcode for a possible replica operation
 	switch w.opcode {
@@ -125,21 +128,41 @@ func (w *writeop) toReq(opcode protocol.OpCode) *protocol.DMapMessage {
 	return req
 }
 
+func (dm *DMap) updateAccessLog(hkey uint64) {
+	if dm.config == nil || dm.config.accessLog == nil {
+		// Fail early. This's useful to avoid checking the configuration everywhere.
+		return
+	}
+	dm.config.Lock()
+	defer dm.config.Unlock()
+	dm.config.accessLog[hkey] = time.Now().UnixNano()
+}
+
 // localPut calls underlying storage engine's Put method to store the key/value pair.
-func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
+func (dm *DMap) localPut(hkey uint64, w *writeop) error {
 	var ttl int64
+	// TODO: This can be moved?
 	if w.timeout.Seconds() != 0 {
 		ttl = getTTL(w.timeout)
 	}
-	entry := dm.storage.NewEntry()
+
+	f, err := dm.getOrCreateFragment(w.dmap, hkey, w.kind)
+	if err != nil {
+		return err
+	}
+
+	f.Lock()
+	defer f.Unlock()
+
+	entry := f.storage.NewEntry()
 	entry.SetKey(w.key)
 	entry.SetValue(w.value)
 	entry.SetTTL(ttl)
 	entry.SetTimestamp(w.timestamp)
-	err := dm.storage.Put(hkey, entry)
+	err = f.storage.Put(hkey, entry)
 	if err == storage.ErrFragmented {
-		db.wg.Add(1)
-		go db.callCompactionOnStorage(dm)
+		dm.service.wg.Add(1)
+		go dm.service.callCompactionOnStorage(f)
 		err = nil
 	}
 	if err == nil {
@@ -149,66 +172,66 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	return err
 }
 
-func (db *Olric) asyncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
+func (dm *DMap) asyncPutOnCluster(hkey uint64, w *writeop) error {
 	// Fire and forget mode.
-	owners := db.backup.PartitionOwnersByHKey(hkey)
+	owners := dm.service.backup.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
-		db.wg.Add(1)
+		dm.service.wg.Add(1)
 		go func(host discovery.Member) {
-			defer db.wg.Done()
+			defer dm.service.wg.Done()
 			req := w.toReq(w.replicaOpcode)
-			_, err := db.requestTo(host.String(), req)
+			_, err := dm.service.client.RequestTo2(host.String(), req)
 			if err != nil {
-				if db.log.V(3).Ok() {
-					db.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
+				if dm.service.log.V(3).Ok() {
+					dm.service.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
 				}
 			}
 		}(owner)
 	}
-	return db.localPut(hkey, dm, w)
+	return dm.localPut(hkey, w)
 }
 
-func (db *Olric) syncPutOnCluster(hkey uint64, dm *dmap, w *writeop) error {
+func (dm *DMap) syncPutOnCluster(hkey uint64, w *writeop) error {
 	// Quorum based replication.
 	var successful int
-	owners := db.backup.PartitionOwnersByHKey(hkey)
+	owners := dm.service.backup.PartitionOwnersByHKey(hkey)
 	for _, owner := range owners {
 		req := w.toReq(w.replicaOpcode)
-		_, err := db.requestTo(owner.String(), req)
+		_, err := dm.service.client.RequestTo2(owner.String(), req)
 		if err != nil {
-			if db.log.V(3).Ok() {
-				db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, w.dmap, err)
+			if dm.service.log.V(3).Ok() {
+				dm.service.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, w.dmap, err)
 			}
 			continue
 		}
 		successful++
 	}
-	err := db.localPut(hkey, dm, w)
+	err := dm.localPut(hkey, w)
 	if err != nil {
-		if db.log.V(3).Ok() {
-			db.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", db.rt.This(), w.dmap, err)
+		if dm.service.log.V(3).Ok() {
+			dm.service.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", dm.service.rt.This(), w.dmap, err)
 		}
 	} else {
 		successful++
 	}
-	if successful >= db.config.WriteQuorum {
+	if successful >= dm.service.config.WriteQuorum {
 		return nil
 	}
 	return ErrWriteQuorum
 }
 
-func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
-	// Get the dmap and acquire its lock
-	dm, err := db.getDMap(w.dmap, hkey)
+func (dm *DMap) callPutOnCluster(hkey uint64, w *writeop) error {
+	f, err := dm.getOrCreateFragment(w.dmap, hkey, partitions.PRIMARY)
 	if err != nil {
 		return err
 	}
-	dm.Lock()
-	defer dm.Unlock()
+
+	f.Lock()
+	defer f.Unlock()
 
 	// Only set the key if it does not already exist.
 	if w.flags&IfNotFound != 0 {
-		ttl, err := dm.storage.GetTTL(hkey)
+		ttl, err := f.storage.GetTTL(hkey)
 		if err == nil {
 			if !isKeyExpired(ttl) {
 				return ErrKeyFound
@@ -223,8 +246,8 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 	}
 
 	// Only set the key if it already exist.
-	if w.flags&IfFound != 0 && !dm.storage.Check(hkey) {
-		ttl, err := dm.storage.GetTTL(hkey)
+	if w.flags&IfFound != 0 && !f.storage.Check(hkey) {
+		ttl, err := f.storage.GetTTL(hkey)
 		if err == nil {
 			if isKeyExpired(ttl) {
 				return ErrKeyNotFound
@@ -242,13 +265,13 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 	// But I think that it's good to use only one of time in a production system.
 	// Because it should be easy to understand and debug.
 
-	stats := dm.storage.Stats()
+	stats := f.storage.Stats()
 	// Try to make room for the new item, if it's required.
 	if dm.config != nil && dm.config.evictionPolicy == config.LRUEviction {
 		// This works for every request if you enabled LRU.
 		// But loading a number from memory should be very cheap.
 		// ownedPartitionCount changes in the case of node join or leave.
-		ownedPartitionCount := db.rt.OwnedPartitionCount()
+		ownedPartitionCount := dm.service.rt.OwnedPartitionCount()
 
 		if dm.config.maxKeys > 0 {
 			// MaxKeys controls maximum key count owned by this node.
@@ -256,10 +279,11 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 			// manages itself independently. So if you set MaxKeys=70 and
 			// your partition count is 7, every partition 10 keys at maximum.
 			if stats.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
-				err := db.evictKeyWithLRU(dm, w.dmap)
-				if err != nil {
-					return err
-				}
+				// TODO: Enable this when you move eviction code.
+				//err := db.evictKeyWithLRU(dm, w.dmap)
+				//if err != nil {
+				//	return err
+				//}
 			}
 		}
 
@@ -270,10 +294,11 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 			// your partition count is 7, every partition consumes 10M in-use space at maximum.
 			// WARNING: Actual allocated memory can be different.
 			if stats.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
-				err := db.evictKeyWithLRU(dm, w.dmap)
-				if err != nil {
-					return err
-				}
+				// TODO: Enable this when you move eviction code.
+				// err := db.evictKeyWithLRU(dm, w.dmap)
+				// if err != nil {
+				//	return err
+				//}
 			}
 		}
 	}
@@ -282,39 +307,39 @@ func (db *Olric) callPutOnCluster(hkey uint64, w *writeop) error {
 		w.timeout = dm.config.ttlDuration
 	}
 
-	if db.config.ReplicaCount == config.MinimumReplicaCount {
+	if dm.service.config.ReplicaCount == config.MinimumReplicaCount {
 		// MinimumReplicaCount is 1. So it's enough to put the key locally. There is no
 		// other replica host.
-		return db.localPut(hkey, dm, w)
+		return dm.localPut(hkey, w)
 	}
 
-	if db.config.ReplicationMode == config.AsyncReplicationMode {
+	if dm.service.config.ReplicationMode == config.AsyncReplicationMode {
 		// Fire and forget mode. Calls PutBackup command in different goroutines
 		// and stores the key/value pair on local storage instance.
-		return db.asyncPutOnCluster(hkey, dm, w)
-	} else if db.config.ReplicationMode == config.SyncReplicationMode {
+		return dm.asyncPutOnCluster(hkey, w)
+	} else if dm.service.config.ReplicationMode == config.SyncReplicationMode {
 		// Quorum based replication.
-		return db.syncPutOnCluster(hkey, dm, w)
+		return dm.syncPutOnCluster(hkey, w)
 	}
-	return fmt.Errorf("invalid replication mode: %v", db.config.ReplicationMode)
+	return fmt.Errorf("invalid replication mode: %v", dm.service.config.ReplicationMode)
 }
 
 // put controls every write operation in Olric. It redirects the requests to its owner,
 // if the key belongs to another host.
-func (db *Olric) put(w *writeop) error {
+func (dm *DMap) put(w *writeop) error {
 	hkey := partitions.HKey(w.dmap, w.key)
-	member := db.primary.PartitionByHKey(hkey).Owner()
-	if member.CompareByName(db.rt.This()) {
+	member := dm.service.primary.PartitionByHKey(hkey).Owner()
+	if member.CompareByName(dm.service.rt.This()) {
 		// We are on the partition owner.
-		return db.callPutOnCluster(hkey, w)
+		return dm.callPutOnCluster(hkey, w)
 	}
 	// Redirect to the partition owner.
 	req := w.toReq(w.opcode)
-	_, err := db.requestTo(member.String(), req)
+	_, err := dm.service.client.RequestTo2(member.String(), req)
 	return err
 }
 
-func (db *Olric) prepareWriteop(
+func (dm *DMap) prepareWriteop(
 	opcode protocol.OpCode,
 	name,
 	key string,
@@ -329,6 +354,7 @@ func (db *Olric) prepareWriteop(
 		timestamp: time.Now().UnixNano(),
 		timeout:   timeout,
 		flags:     flags,
+		kind:      partitions.PRIMARY,
 	}
 	switch {
 	case opcode == protocol.OpPut:
@@ -343,18 +369,18 @@ func (db *Olric) prepareWriteop(
 	return w, nil
 }
 
-func (db *Olric) prepareAndSerialize(
+func (dm *DMap) prepareAndSerialize(
 	opcode protocol.OpCode,
 	name,
 	key string,
 	value interface{},
 	timeout time.Duration,
 	flags int16) (*writeop, error) {
-	val, err := db.serializer.Marshal(value)
+	val, err := dm.service.serializer.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
-	return db.prepareWriteop(opcode, name, key, val, timeout, flags)
+	return dm.prepareWriteop(opcode, name, key, val, timeout, flags)
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous
@@ -362,11 +388,11 @@ func (db *Olric) prepareAndSerialize(
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	w, err := dm.db.prepareAndSerialize(protocol.OpPutEx, dm.name, key, value, timeout, 0)
+	w, err := dm.prepareAndSerialize(protocol.OpPutEx, dm.name, key, value, timeout, 0)
 	if err != nil {
 		return err
 	}
-	return dm.db.put(w)
+	return dm.put(w)
 }
 
 // Put sets the value for the given key. It overwrites any previous value
@@ -374,11 +400,11 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
-	w, err := dm.db.prepareAndSerialize(protocol.OpPut, dm.name, key, value, nilTimeout, 0)
+	w, err := dm.prepareAndSerialize(protocol.OpPut, dm.name, key, value, nilTimeout, 0)
 	if err != nil {
 		return err
 	}
-	return dm.db.put(w)
+	return dm.put(w)
 }
 
 // Put sets the value for the given key. It overwrites any previous value
@@ -393,11 +419,11 @@ func (dm *DMap) Put(key string, value interface{}) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
-	w, err := dm.db.prepareAndSerialize(protocol.OpPutIf, dm.name, key, value, nilTimeout, flags)
+	w, err := dm.prepareAndSerialize(protocol.OpPutIf, dm.name, key, value, nilTimeout, flags)
 	if err != nil {
 		return err
 	}
-	return dm.db.put(w)
+	return dm.put(w)
 }
 
 // PutIfEx sets the value for the given key with TTL. It overwrites any previous
@@ -412,63 +438,9 @@ func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
-	w, err := dm.db.prepareAndSerialize(protocol.OpPutIfEx, dm.name, key, value, timeout, flags)
+	w, err := dm.prepareAndSerialize(protocol.OpPutIfEx, dm.name, key, value, timeout, flags)
 	if err != nil {
 		return err
 	}
-	return dm.db.put(w)
-}
-
-func (db *Olric) exPutOperation(w, r protocol.EncodeDecoder) {
-	wo := &writeop{}
-	wo.fromReq(r)
-	err := db.put(wo)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
-
-func (db *Olric) putReplicaOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	dm, err := db.getBackupDMap(req.DMap(), hkey)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-	dm.Lock()
-	defer dm.Unlock()
-
-	wo := &writeop{}
-	wo.fromReq(req)
-	err = db.localPut(hkey, dm, wo)
-	if err != nil {
-		db.errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
-
-func (db *Olric) callCompactionOnStorage(dm *dmap) {
-	defer db.wg.Done()
-	timer := time.NewTimer(50 * time.Millisecond)
-	defer timer.Stop()
-
-	for {
-		timer.Reset(50 * time.Millisecond)
-		select {
-		case <-timer.C:
-			dm.Lock()
-			if done := dm.storage.Compaction(); done {
-				// Fragmented tables are merged. Quit.
-				dm.Unlock()
-				return
-			}
-			dm.Unlock()
-		case <-db.ctx.Done():
-			return
-		}
-	}
+	return dm.put(w)
 }

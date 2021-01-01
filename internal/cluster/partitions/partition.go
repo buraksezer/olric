@@ -81,7 +81,7 @@ func (p *Partition) SetOwners(owners []discovery.Member) {
 func (p *Partition) Length() int {
 	var length int
 	p.Map().Range(func(_, tmp interface{}) bool {
-		u := tmp.(StorageUnit)
+		u := tmp.(Fragment)
 		length += u.Length()
 		// Continue scanning.
 		return true

@@ -16,7 +16,7 @@ package partitions
 
 import "github.com/buraksezer/olric/internal/discovery"
 
-type StorageUnit interface {
+type Fragment interface {
 	Name() string
 	Length() int
 	Move(partID uint64, kind Kind, name string, owner discovery.Member) error

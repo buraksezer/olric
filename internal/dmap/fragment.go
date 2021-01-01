@@ -44,4 +44,4 @@ func (f *fragment) Move(_ uint64, _ partitions.Kind, _ string, _ discovery.Membe
 	return nil
 }
 
-var _ partitions.StorageUnit = (*fragment)(nil)
+var _ partitions.Fragment = (*fragment)(nil)

@@ -69,7 +69,7 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owner 
 			// Break the loop
 			return false
 		}
-		u := tmp.(partitions.StorageUnit)
+		u := tmp.(partitions.Fragment)
 
 		b.log.V(2).Printf("[INFO] Moving %s: %s (kind: %s) on PartID: %d to %s", u.Name(), name, part.Kind(), part.Id(), owner)
 		err := u.Move(part.Id(), part.Kind(), name.(string), owner)
