@@ -16,11 +16,11 @@ package olric
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/transport"
 	"sync"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 

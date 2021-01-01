@@ -81,7 +81,7 @@ func (db *Olric) registerOperations() {
 	db.rt.RegisterOperations(db.operations)
 
 	// Operations on DTopic data structure
-	db.dtopics.RegisterOperations(db.operations)
+	db.services.dtopic.RegisterOperations(db.operations)
 
 	// Operations on message streams
 	//

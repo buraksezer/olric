@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopics
+package dtopic
 
 import (
 	"errors"
@@ -55,7 +55,7 @@ type DTopic struct {
 	name        string
 	flag        int16
 	concurrency int
-	ds          *DTopics
+	ds          *Service
 }
 
 // NewDTopic returns a new distributed topic instance.
@@ -66,11 +66,11 @@ type DTopic struct {
 // Flags for delivery options:
 //   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
-func (ds *DTopics) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
-	ds.Lock()
-	defer ds.Unlock()
+func New(name string, concurrency int, flag int16, s *Service) (*DTopic, error) {
+	s.Lock()
+	defer s.Unlock()
 
-	if dt, ok := ds.m[name]; ok {
+	if dt, ok := s.m[name]; ok {
 		return dt, nil
 	}
 
@@ -86,11 +86,11 @@ func (ds *DTopics) NewDTopic(name string, concurrency int, flag int16) (*DTopic,
 	//   the quorum value cannot be satisfied,
 	// * Checks bootstrapping status and awaits for a short period before
 	//   returning ErrRequest timeout.
-	if err := ds.rt.CheckMemberCountQuorum(); err != nil {
+	if err := s.rt.CheckMemberCountQuorum(); err != nil {
 		return nil, err
 	}
 	// An Olric node has to be bootstrapped to function properly.
-	if err := ds.rt.CheckBootstrap(); err != nil {
+	if err := s.rt.CheckBootstrap(); err != nil {
 		return nil, err
 	}
 
@@ -98,10 +98,10 @@ func (ds *DTopics) NewDTopic(name string, concurrency int, flag int16) (*DTopic,
 		name:        name,
 		flag:        flag,
 		concurrency: concurrency,
-		ds:          ds,
+		ds:          s,
 	}
 
-	ds.m[name] = dt
+	s.m[name] = dt
 	return dt, nil
 }
 

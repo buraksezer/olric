@@ -374,7 +374,7 @@ func (r *RoutingTable) Start() error {
 	r.Members().Lock()
 	r.Members().Add(r.this)
 	r.Members().Unlock()
-	
+
 	r.consistent.Add(r.this)
 
 	if r.discovery.IsCoordinator() {

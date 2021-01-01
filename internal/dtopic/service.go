@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopics
+package dtopic
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 
 var ErrServerGone = errors.New("server is gone")
 
-type DTopics struct {
+type Service struct {
 	sync.RWMutex
 
 	log        *flog.Logger
@@ -46,9 +46,9 @@ type DTopics struct {
 	cancel     context.CancelFunc
 }
 
-func New(e *environment.Environment, s *streams.Streams) *DTopics {
+func NewService(e *environment.Environment, s *streams.Streams) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &DTopics{
+	return &Service{
 		streams:    s,
 		serializer: e.Get("config").(*config.Config).Serializer,
 		client:     e.Get("client").(*transport.Client),
@@ -61,9 +61,9 @@ func New(e *environment.Environment, s *streams.Streams) *DTopics {
 	}
 }
 
-func (ds *DTopics) isAlive() bool {
+func (s *Service) isAlive() bool {
 	select {
-	case <-ds.ctx.Done():
+	case <-s.ctx.Done():
 		// The node is gone.
 		return false
 	default:
@@ -71,9 +71,9 @@ func (ds *DTopics) isAlive() bool {
 	return true
 }
 
-func (ds *DTopics) unmarshalValue(raw []byte) (interface{}, error) {
+func (s *Service) unmarshalValue(raw []byte) (interface{}, error) {
 	var value interface{}
-	err := ds.serializer.Unmarshal(raw, &value)
+	err := s.serializer.Unmarshal(raw, &value)
 	if err != nil {
 		return nil, err
 	}
@@ -83,30 +83,30 @@ func (ds *DTopics) unmarshalValue(raw []byte) (interface{}, error) {
 	return value, nil
 }
 
-func (ds *DTopics) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
+func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
 	// Operations on DTopic data structure
 	//
 	// DTopic.Publish
-	operations[protocol.OpPublishDTopicMessage] = ds.publishMessageOperation
-	operations[protocol.OpDTopicPublish] = ds.exPublishOperation
+	operations[protocol.OpPublishDTopicMessage] = s.publishMessageOperation
+	operations[protocol.OpDTopicPublish] = s.exPublishOperation
 
 	// DTopic.Destroy
-	operations[protocol.OpDestroyDTopic] = ds.destroyOperation
-	operations[protocol.OpDTopicDestroy] = ds.exDestroyOperation
+	operations[protocol.OpDestroyDTopic] = s.destroyOperation
+	operations[protocol.OpDTopicDestroy] = s.exDestroyOperation
 
 	// DTopic.AddListener
-	operations[protocol.OpDTopicAddListener] = ds.exAddListenerOperation
+	operations[protocol.OpDTopicAddListener] = s.exAddListenerOperation
 
 	// DTopic.RemoveListener
-	operations[protocol.OpDTopicRemoveListener] = ds.exRemoveListenerOperation
+	operations[protocol.OpDTopicRemoveListener] = s.exRemoveListenerOperation
 }
 
-func (ds *DTopics) Shutdown(ctx context.Context) error {
-	ds.cancel()
+func (s *Service) Shutdown(ctx context.Context) error {
+	s.cancel()
 	done := make(chan struct{})
 
 	go func() {
-		ds.wg.Wait()
+		s.wg.Wait()
 		close(done)
 	}()
 

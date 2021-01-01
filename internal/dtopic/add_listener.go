@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopics
+package dtopic
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/vmihailenco/msgpack"
 )
 
-func (ds *DTopics) exAddListenerOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) exAddListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	name := req.DTopic()
 	streamID := req.Extra().(protocol.DTopicAddListenerExtra).StreamID
-	ss, err := ds.streams.GetStreamById(streamID)
+	ss, err := s.streams.GetStreamById(streamID)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -32,33 +32,33 @@ func (ds *DTopics) exAddListenerOperation(w, r protocol.EncodeDecoder) {
 	// Local listener
 	listenerID := req.Extra().(protocol.DTopicAddListenerExtra).ListenerID
 
-	ds.wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer ds.wg.Done()
+		defer s.wg.Done()
 		select {
 		case <-ss.Done():
-		case <-ds.ctx.Done():
+		case <-s.ctx.Done():
 		}
-		err := ds.dispatcher.removeListener(name, listenerID)
+		err := s.dispatcher.removeListener(name, listenerID)
 		if err != nil {
-			ds.log.V(4).Printf("[ERROR] ListenerID: %d could not be removed: %v", listenerID, err)
+			s.log.V(4).Printf("[ERROR] ListenerID: %d could not be removed: %v", listenerID, err)
 		}
-		ds.log.V(4).Printf("[INFO] ListenerID: %d has been removed", listenerID)
+		s.log.V(4).Printf("[INFO] ListenerID: %d has been removed", listenerID)
 	}()
 
 	f := func(msg Message) {
-		s, err := ds.streams.GetStreamById(streamID)
+		ss, err := s.streams.GetStreamById(streamID)
 		if err != nil {
-			ds.log.V(4).Printf("[ERROR] Stream could not be found with the given StreamID: %d", streamID)
-			err := ds.dispatcher.removeListener(name, listenerID)
+			s.log.V(4).Printf("[ERROR] Stream could not be found with the given StreamID: %d", streamID)
+			err := s.dispatcher.removeListener(name, listenerID)
 			if err != nil {
-				ds.log.V(4).Printf("[ERROR] Listener could not be removed with ListenerID: %d: %v", listenerID, err)
+				s.log.V(4).Printf("[ERROR] Listener could not be removed with ListenerID: %d: %v", listenerID, err)
 			}
 			return
 		}
 		value, err := msgpack.Marshal(msg)
 		if err != nil {
-			ds.log.V(4).Printf("[ERROR] Failed to serialize DTopicMessage: %v", err)
+			s.log.V(4).Printf("[ERROR] Failed to serialize DTopicMessage: %v", err)
 			return
 		}
 		m := protocol.NewDTopicMessage(protocol.OpStreamMessage)
@@ -67,10 +67,10 @@ func (ds *DTopics) exAddListenerOperation(w, r protocol.EncodeDecoder) {
 		m.SetExtra(protocol.StreamMessageExtra{
 			ListenerID: listenerID,
 		})
-		s.Write(m)
+		ss.Write(m)
 	}
 	// set concurrency parameter as 0. the registered listener will only make network i/o. NumCPU is good for this.
-	err = ds.dispatcher.addRemoteListener(listenerID, name, 0, f)
+	err = s.dispatcher.addRemoteListener(listenerID, name, 0, f)
 	if err != nil {
 		errorResponse(w, err)
 		return

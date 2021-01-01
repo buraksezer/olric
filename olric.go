@@ -37,7 +37,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
-	"github.com/buraksezer/olric/internal/dtopics"
+	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
@@ -89,6 +89,10 @@ type storageEngines struct {
 	configs map[string]map[string]interface{}
 }
 
+type services struct {
+	dtopic *dtopic.Service
+}
+
 // Olric implements a distributed, in-memory and embeddable key/value store.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
@@ -121,11 +125,7 @@ type Olric struct {
 	rt       *routing_table.RoutingTable
 	balancer *balancer.Balancer
 
-	// Distributed data structure implementations
-	//
-	// Distributed topic implementation
-	dtopics *dtopics.DTopics
-	// dmaps *dmaps.DMaps
+	services *services
 
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams.Streams
@@ -228,7 +228,11 @@ func New(c *config.Config) (*Olric, error) {
 	e.Set("routingTable", db.rt)
 
 	db.balancer = balancer.New(e)
-	db.dtopics = dtopics.New(e, ss)
+
+	// Add Services
+	db.services = &services{
+		dtopic: dtopic.NewService(e, ss),
+	}
 
 	// Add callback functions to routing table.
 	db.rt.AddCallback(db.balancer.Balance)
@@ -499,7 +503,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	var result error
 
-	if err := db.dtopics.Shutdown(ctx); err != nil {
+	if err := db.services.dtopic.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
 	}
 

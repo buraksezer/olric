@@ -14,7 +14,9 @@
 
 package olric
 
-import "github.com/buraksezer/olric/internal/dtopics"
+import (
+	"github.com/buraksezer/olric/internal/dtopic"
+)
 
 const (
 	// Messages are delivered in random order. It's good to distribute independent events in a distributed system.
@@ -32,7 +34,7 @@ type DTopicMessage struct {
 }
 
 type DTopic struct {
-	dt *dtopics.DTopic
+	dt *dtopic.DTopic
 }
 
 // NewDTopic returns a new distributed topic instance.
@@ -44,7 +46,7 @@ type DTopic struct {
 //   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
 func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
-	dt, err := db.dtopics.NewDTopic(name, concurrency, flag)
+	dt, err := dtopic.New(name, concurrency, flag, db.services.dtopic)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +60,7 @@ func (dt *DTopic) Publish(msg interface{}) error {
 }
 
 func (dt *DTopic) AddListener(f func(DTopicMessage)) (uint64, error) {
-	return dt.dt.AddListener(func(msg dtopics.Message) {
+	return dt.dt.AddListener(func(msg dtopic.Message) {
 		f(DTopicMessage(msg))
 	})
 }

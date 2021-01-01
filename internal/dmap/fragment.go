@@ -12,24 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopics
+package dmap
 
 import (
-	"fmt"
-	"github.com/buraksezer/olric/internal/protocol"
+	"sync"
+
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
-func (ds *DTopics) exRemoveListenerOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DTopicMessage)
-	extra, ok := req.Extra().(protocol.DTopicRemoveListenerExtra)
-	if !ok {
-		errorResponse(w, fmt.Errorf("%w: wrong extra type", ErrInvalidArgument))
-		return
-	}
-	err := ds.dispatcher.removeListener(req.DTopic(), extra.ListenerID)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
+type fragment struct {
+	sync.RWMutex
+
+	service *Service
+	storage storage.Engine
 }
+
+func (f *fragment) Name() string {
+	return "DMap"
+}
+
+func (f *fragment) Length() int {
+	f.RLock()
+	defer f.RUnlock()
+
+	return f.storage.Stats().Length
+}
+
+func (f *fragment) Move(_ uint64, _ partitions.Kind, _ string, _ discovery.Member) error {
+	return nil
+}
+
+var _ partitions.StorageUnit = (*fragment)(nil)

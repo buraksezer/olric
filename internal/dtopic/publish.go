@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopics
+package dtopic
 
 import (
 	"errors"
@@ -26,7 +26,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (ds *DTopics) publishMessageOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) publishMessageOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	var msg Message
 	err := msgpack.Unmarshal(req.Value(), &msg)
@@ -36,7 +36,7 @@ func (ds *DTopics) publishMessageOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	err = ds.dispatcher.dispatch(req.DTopic(), &msg)
+	err = s.dispatcher.dispatch(req.DTopic(), &msg)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -44,15 +44,15 @@ func (ds *DTopics) publishMessageOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (ds *DTopics) publishDTopicMessageToAddr(member discovery.Member, topic string, msg *Message, sem *semaphore.Weighted) error {
+func (s *Service) publishDTopicMessageToAddr(member discovery.Member, topic string, msg *Message, sem *semaphore.Weighted) error {
 	defer sem.Release(1)
 
-	if member.CompareByID(ds.rt.This()) {
+	if member.CompareByID(s.rt.This()) {
 		// Dispatch messages in this process.
-		err := ds.dispatcher.dispatch(topic, msg)
+		err := s.dispatcher.dispatch(topic, msg)
 		if err != nil {
-			if ds.log.V(6).Ok() {
-				ds.log.V(6).Printf("[ERROR] Failed to dispatch message on this node: %v", err)
+			if s.log.V(6).Ok() {
+				s.log.V(6).Printf("[ERROR] Failed to dispatch message on this node: %v", err)
 			}
 			if !errors.Is(err, ErrInvalidArgument) {
 				return err
@@ -68,17 +68,17 @@ func (ds *DTopics) publishDTopicMessageToAddr(member discovery.Member, topic str
 	req := protocol.NewDTopicMessage(protocol.OpPublishDTopicMessage)
 	req.SetDTopic(topic)
 	req.SetValue(data)
-	_, err = ds.client.RequestTo2(member.String(), req)
+	_, err = s.client.RequestTo2(member.String(), req)
 	if err != nil {
-		ds.log.V(2).Printf("[ERROR] Failed to publish message to %s: %v", member, err)
+		s.log.V(2).Printf("[ERROR] Failed to publish message to %s: %v", member, err)
 		return err
 	}
 	return nil
 }
 
-func (ds *DTopics) publishDTopicMessage(topic string, msg *Message) error {
-	ds.rt.Members().RLock()
-	defer ds.rt.Members().RUnlock()
+func (s *Service) publishDTopicMessage(topic string, msg *Message) error {
+	s.rt.Members().RLock()
+	defer s.rt.Members().RUnlock()
 
 	// Propagate the message to the cluster in a parallel manner but
 	// control concurrency. In order to prevent overloaded servers
@@ -87,20 +87,20 @@ func (ds *DTopics) publishDTopicMessage(topic string, msg *Message) error {
 	sem := semaphore.NewWeighted(num)
 	var g errgroup.Group
 
-	ds.rt.Members().Range(func(_ uint64, m discovery.Member) bool {
+	s.rt.Members().Range(func(_ uint64, m discovery.Member) bool {
 		member := m // https://golang.org/doc/faq#closures_and_goroutines
-		ds.wg.Add(1)
+		s.wg.Add(1)
 		g.Go(func() error {
-			defer ds.wg.Done()
-			if !ds.isAlive() {
+			defer s.wg.Done()
+			if !s.isAlive() {
 				return ErrServerGone
 			}
 
-			if err := sem.Acquire(ds.ctx, 1); err != nil {
-				ds.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
+			if err := sem.Acquire(s.ctx, 1); err != nil {
+				s.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
 				return err
 			}
-			return ds.publishDTopicMessageToAddr(member, topic, msg, sem)
+			return s.publishDTopicMessageToAddr(member, topic, msg, sem)
 		})
 		return true
 	})
@@ -109,9 +109,9 @@ func (ds *DTopics) publishDTopicMessage(topic string, msg *Message) error {
 	return g.Wait()
 }
 
-func (ds *DTopics) exPublishOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) exPublishOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
-	msg, err := ds.unmarshalValue(req.Value())
+	msg, err := s.unmarshalValue(req.Value())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -121,7 +121,7 @@ func (ds *DTopics) exPublishOperation(w, r protocol.EncodeDecoder) {
 		PublisherAddr: "",
 		PublishedAt:   time.Now().UnixNano(),
 	}
-	err = ds.publishDTopicMessage(req.DTopic(), tm)
+	err = s.publishDTopicMessage(req.DTopic(), tm)
 	if err != nil {
 		errorResponse(w, err)
 		return

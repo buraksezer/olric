@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopics
+package dtopic
 
 import (
 	"context"
@@ -50,7 +50,7 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 	return e
 }
 
-func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *DTopics {
+func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *Service {
 	rt := routing_table.New(e)
 	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
 	rt.RegisterOperations(ops)
@@ -70,7 +70,7 @@ func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *DTopi
 	e.Set("routingTable", rt)
 
 	ss := streams.New(e)
-	ds := New(e, ss)
+	ds := NewService(e, ss)
 	ds.RegisterOperations(ops)
 	return ds
 }
@@ -90,7 +90,7 @@ func newTestCluster() *testCluster {
 	}
 }
 
-func (t *testCluster) addNode(e *environment.Environment) (*DTopics, error) {
+func (t *testCluster) addNode(e *environment.Environment) (*Service, error) {
 	if e == nil {
 		e = newTestEnvironment(nil)
 	}
@@ -227,7 +227,7 @@ func TestDTopic_PublishCluster(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		for _, ds := range []*DTopics{ds1, ds2} {
+		for _, ds := range []*Service{ds1, ds2} {
 			err = ds.Shutdown(context.Background())
 			if err != nil {
 				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
@@ -322,7 +322,7 @@ func TestDTopic_Destroy(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		for _, ds := range []*DTopics{ds1, ds2} {
+		for _, ds := range []*Service{ds1, ds2} {
 			err = ds.Shutdown(context.Background())
 			if err != nil {
 				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
@@ -371,7 +371,7 @@ func TestDTopic_DTopicMessage(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		for _, ds := range []*DTopics{ds1, ds2} {
+		for _, ds := range []*Service{ds1, ds2} {
 			err = ds.Shutdown(context.Background())
 			if err != nil {
 				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
@@ -445,7 +445,7 @@ func TestDTopic_PublishMessagesCluster(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	defer func() {
-		for _, ds := range []*DTopics{ds1, ds2} {
+		for _, ds := range []*Service{ds1, ds2} {
 			err = ds.Shutdown(context.Background())
 			if err != nil {
 				ds.log.V(2).Printf("[ERROR] Failed to shutdown the node: %v", err)
@@ -524,7 +524,6 @@ func TestDTopic_DeliveryOrder(t *testing.T) {
 		t.Errorf("Expected ErrInvalidArgument. Got: %v", err)
 	}
 }
-
 
 func TestDTopic_OrderedDelivery(t *testing.T) {
 	cluster := newTestCluster()
