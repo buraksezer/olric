@@ -66,3 +66,7 @@ func (c *Config) Copy() *Config {
 	}
 	return n
 }
+
+func (c *Config) ToMap() map[string]interface{} {
+	return c.Copy().m
+}

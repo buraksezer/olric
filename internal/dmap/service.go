@@ -81,9 +81,13 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
 		locker:     e.Get("locker").(*locker.Locker),
-		dmaps:      make(map[string]*DMap),
-		ctx:        ctx,
-		cancel:     cancel,
+		storage: &storageMap{
+			engines: make(map[string]storage.Engine),
+			configs: make(map[string]map[string]interface{}),
+		},
+		dmaps:  make(map[string]*DMap),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	err := s.initializeAndLoadStorageEngines()
 	if err != nil {
@@ -108,7 +112,7 @@ func (s *Service) initializeAndLoadStorageEngines() error {
 	// Set a default engine, if required.
 	if len(s.config.StorageEngines.Impls) == 0 {
 		if _, ok := s.config.StorageEngines.Config[config.DefaultStorageEngine]; !ok {
-			return errors.New("no storage engine defined")
+			s.config.StorageEngines.Config[config.DefaultStorageEngine] = kvstore.DefaultConfig().ToMap()
 		}
 		s.storage.engines[config.DefaultStorageEngine] = &kvstore.KVStore{}
 	}
@@ -131,64 +135,6 @@ func (s *Service) initializeAndLoadStorageEngines() error {
 		s.log.V(2).Printf("[INFO] Storage engine has been loaded: %s", engine.Name())
 	}
 	return nil
-}
-
-func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition, name string) (*fragment, error) {
-	f, ok := part.Map().Load(name)
-	if !ok {
-		return nil, errFragmentNotFound
-	}
-	return f.(*fragment), nil
-}
-
-func (dm *DMap) createFragmentOnPartition(part *partitions.Partition, name string) (*fragment, error) {
-	engine, ok := dm.service.storage.engines[dm.config.storageEngine]
-	if !ok {
-		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
-	}
-	f := &fragment{}
-	var err error
-	f.storage, err = engine.Fork(nil)
-	if err != nil {
-		return nil, err
-	}
-	part.Map().Store(name, f)
-	return f, nil
-}
-
-func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
-	var part *partitions.Partition
-	if kind == partitions.PRIMARY {
-		part = dm.service.primary.PartitionByHKey(hkey)
-	} else if kind == partitions.BACKUP {
-		part = dm.service.backup.PartitionByHKey(hkey)
-	} else {
-		// impossible
-		panic("unknown partition kind")
-	}
-
-	return part
-}
-
-func (dm *DMap) getFragment(name string, hkey uint64, kind partitions.Kind) (*fragment, error) {
-	part := dm.getPartitionByHKey(hkey, kind)
-	part.Lock()
-	defer part.Unlock()
-	return dm.loadFragmentFromPartition(part, name)
-}
-
-func (dm *DMap) getOrCreateFragment(name string, hkey uint64, kind partitions.Kind) (*fragment, error) {
-	part := dm.getPartitionByHKey(hkey, kind)
-	part.Lock()
-	defer part.Unlock()
-
-	// try to get
-	f, err := dm.loadFragmentFromPartition(part, name)
-	if err == errFragmentNotFound {
-		// create the fragment and return
-		return dm.createFragmentOnPartition(part, name)
-	}
-	return f, err
 }
 
 func (s *Service) callCompactionOnStorage(f *fragment) {

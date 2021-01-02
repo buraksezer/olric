@@ -15,21 +15,40 @@
 package dmap
 
 import (
-	"context"
+	"bytes"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testcluster"
+	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func TestDMap_Service(t *testing.T) {
+func Test_Put(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s, err := cluster.AddNode(nil)
+	s1 := cluster.AddNode(nil).(*Service)
+	s2 := cluster.AddNode(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s1.NewDMap("mymap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-
-	err = s.Shutdown(context.Background())
+	for i := 0; i < 10; i++ {
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+	dm2, err := s2.NewDMap("mymap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		val, err := dm2.Get(testutil.ToKey(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
+			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
+		}
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"sync"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -33,7 +34,10 @@ import (
 )
 
 type TestCluster struct {
-	peerPorts   []int
+	mu sync.Mutex
+
+	nodes       []service.Service
+	nodePorts   []int
 	constructor func(e *environment.Environment) (service.Service, error)
 	errGr       errgroup.Group
 	ctx         context.Context
@@ -98,30 +102,33 @@ func New(constructor func(e *environment.Environment) (service.Service, error)) 
 	}
 }
 
-func (t *TestCluster) AddNode(e *environment.Environment) (service.Service, error) {
+func (t *TestCluster) AddNode(e *environment.Environment) service.Service {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if e == nil {
 		e = NewEnvironment(nil)
 	}
 	c := e.Get("config").(*config.Config)
+	partitions.SetHashFunc(c.Hasher)
 
 	port, err := testutil.GetFreePort()
 	if err != nil {
-		return nil, err
+		panic(fmt.Sprintf("failed to a random port: %v", err))
 	}
 	c.MemberlistConfig.BindPort = port
 
 	var peers []string
-	for _, peerPort := range t.peerPorts {
+	for _, peerPort := range t.nodePorts {
 		peers = append(peers, net.JoinHostPort("127.0.0.1", strconv.Itoa(peerPort)))
 	}
 	c.Peers = peers
 
 	s := t.newService(e)
-
 	rt := e.Get("routingTable").(*routing_table.RoutingTable)
 	err = rt.Start()
 	if err != nil {
-		return nil, err
+		panic(fmt.Sprintf("failed to start the routing table: %v", err))
 	}
 
 	t.errGr.Go(func() error {
@@ -133,11 +140,19 @@ func (t *TestCluster) AddNode(e *environment.Environment) (service.Service, erro
 		return s.Start()
 	})
 
-	t.peerPorts = append(t.peerPorts, port)
-	return s, err
+	t.errGr.Go(func() error {
+		<-t.ctx.Done()
+		return s.Shutdown(context.Background())
+	})
+
+	t.nodePorts = append(t.nodePorts, port)
+	return s
 }
 
-func (t *TestCluster) Shutdown() error {
+func (t *TestCluster) Shutdown() {
 	t.cancel()
-	return t.errGr.Wait()
+	err := t.errGr.Wait()
+	if err != nil {
+		panic(fmt.Sprintf("failed to shutdown the cluster: %v", err))
+	}
 }
