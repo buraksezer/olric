@@ -15,81 +15,88 @@
 package dmap
 
 import (
+	"time"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) exGetOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
+	var delta interface{}
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
+	err := s.serializer.Unmarshal(req.Value(), &delta)
 	if err != nil {
 		errorResponse(w, err)
+		return
 	}
 
-	entry, err := dm.get(req.DMap(), req.Key())
+	dm, err := s.LoadDMap(req.DMap())
+	if err == ErrDMapNotFound {
+		dm, err = s.NewDMap(req.DMap())
+		if err != nil {
+			errorResponse(w, err)
+			return
+		}
+	}
+	if err != nil {
+		errorResponse(w, err)
+		return
+	}
+	wo := &writeop{
+		opcode:        protocol.OpPut,
+		replicaOpcode: protocol.OpPutReplica,
+		dmap:          req.DMap(),
+		key:           req.Key(),
+		timestamp:     time.Now().UnixNano(),
+		kind:          partitions.PRIMARY,
+	}
+	newval, err := dm.atomicIncrDecr(req.Op, wo, delta.(int))
+	if err != nil {
+		errorResponse(w, err)
+		return
+	}
+
+	value, err := s.serializer.Marshal(newval)
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
+	w.SetValue(value)
 }
 
-func (s *Service) getBackupOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
+
 	dm, err := s.LoadDMap(req.DMap())
+	if err == ErrDMapNotFound {
+		dm, err = s.NewDMap(req.DMap())
+		if err != nil {
+			errorResponse(w, err)
+			return
+		}
+	}
 	if err != nil {
 		errorResponse(w, err)
+		return
 	}
 
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	f, err := dm.getFragment(req.DMap(), hkey, partitions.BACKUP)
+	wo := &writeop{
+		opcode:        protocol.OpPut,
+		replicaOpcode: protocol.OpPutReplica,
+		dmap:          req.DMap(),
+		key:           req.Key(),
+		value:         req.Value(),
+		timestamp:     time.Now().UnixNano(),
+		kind: partitions.PRIMARY,
+	}
+	oldval, err := dm.getPut(wo)
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
-	f.RLock()
-	defer f.RUnlock()
-	entry, err := f.storage.Get(hkey)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	if isKeyExpired(entry.TTL()) {
-		errorResponse(w, ErrKeyNotFound)
-		return
+	if oldval != nil {
+		w.SetValue(oldval)
 	}
 	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
-}
-
-func (s *Service) getPrevOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-	}
-
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	f, err := dm.getFragment(req.DMap(), hkey, partitions.PRIMARY)
-	if err != nil {
-		errorResponse(w, err)
-	}
-
-	f.RLock()
-	defer f.RUnlock()
-
-	entry, err := f.storage.Get(hkey)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	if isKeyExpired(entry.TTL()) {
-		errorResponse(w, ErrKeyNotFound)
-		return
-	}
-
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
 }

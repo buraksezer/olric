@@ -198,6 +198,8 @@ func New(c *config.Config) (*Olric, error) {
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 
+	e.Set("locker", locker.New())
+
 	ss := streams.New(e)
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -209,8 +211,8 @@ func New(c *config.Config) (*Olric, error) {
 		log:        flogger,
 		config:     c,
 		hasher:     c.Hasher,
-		locker:     locker.New(),
 		serializer: c.Serializer,
+		locker:     e.Get("locker").(*locker.Locker), // TODO: this can be removed from here after DMap refactor.
 		client:     e.Get("client").(*transport.Client),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),

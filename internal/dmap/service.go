@@ -18,9 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/protocol"
 	"sync"
 	"time"
+
+	"github.com/buraksezer/olric/internal/locker"
+	"github.com/buraksezer/olric/internal/protocol"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -61,6 +63,7 @@ type Service struct {
 	serializer serializer.Serializer
 	primary    *partitions.Partitions
 	backup     *partitions.Partitions
+	locker     *locker.Locker
 	dmaps      map[string]*DMap
 	storage    *storageMap
 	wg         sync.WaitGroup
@@ -78,6 +81,7 @@ func NewService(e *environment.Environment) (*Service, error) {
 		rt:         e.Get("routingTable").(*routing_table.RoutingTable),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
+		locker:     e.Get("locker").(*locker.Locker),
 		dmaps:      make(map[string]*DMap),
 		ctx:        ctx,
 		cancel:     cancel,
@@ -256,6 +260,8 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusErrInvalidArgument)
 	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
 		w.SetStatus(protocol.StatusErrNotImplemented)
+	case err == ErrKeyNotFound || err == storage.ErrKeyNotFound || err == errFragmentNotFound:
+		w.SetStatus(protocol.StatusErrKeyNotFound)
 	default:
 		w.SetStatus(protocol.StatusInternalServerError)
 	}
