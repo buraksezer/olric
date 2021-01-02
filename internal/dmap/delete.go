@@ -22,31 +22,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (dm *DMap) deleteStaleDMaps() {
-	janitor := func(part *partitions.Partition) {
-		part.Map().Range(func(name, tmp interface{}) bool {
-			f := tmp.(*fragment)
-			f.Lock()
-			defer f.Unlock()
-			if f.storage.Stats().Length != 0 {
-				// Continue scanning.
-				return true
-			}
-			part.Map().Delete(name)
-			dm.service.log.V(4).Printf("[INFO] Stale dmap (kind: %s) has been deleted: %s on PartID: %d",
-				part.Kind(), name, part.Id())
-			return true
-		})
-	}
-	for partID := uint64(0); partID < dm.service.config.PartitionCount; partID++ {
-		// Clean stale dmaps on partition table
-		part := dm.service.primary.PartitionById(partID)
-		janitor(part)
-		// Clean stale dmaps on backup partition table
-		backup := dm.service.backup.PartitionById(partID)
-		janitor(backup)
-	}
-}
 
 func (dm *DMap) deleteKeyValFromPreviousOwners(name, key string, owners []discovery.Member) error {
 	// Traverse in reverse order. Except from the latest host, this one.
