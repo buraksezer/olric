@@ -24,9 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"

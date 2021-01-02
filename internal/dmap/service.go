@@ -28,15 +28,15 @@ import (
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/serializer"
 )
 
-var ErrServerGone = errors.New("server is gone")
-
 var (
+	ErrServerGone      = errors.New("server is gone")
 	ErrInvalidArgument = errors.New("invalid argument")
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
 	ErrUnknownOperation = errors.New("unknown operation")
@@ -70,7 +70,7 @@ type Service struct {
 	cancel     context.CancelFunc
 }
 
-func NewService(e *environment.Environment) (*Service, error) {
+func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
 		config:     e.Get("config").(*config.Config),
@@ -271,3 +271,5 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusInternalServerError)
 	}
 }
+
+var _ service.Service = (*Service)(nil)
