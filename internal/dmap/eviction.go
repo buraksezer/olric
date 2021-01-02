@@ -34,3 +34,12 @@ func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	ttl := (dm.config.maxIdleDuration.Nanoseconds() + t) / 1000000
 	return isKeyExpired(ttl)
 }
+
+func (dm *DMap) deleteAccessLog(hkey uint64) {
+	if dm.config == nil || dm.config.accessLog == nil {
+		return
+	}
+	dm.config.Lock()
+	defer dm.config.Unlock()
+	delete(dm.config.accessLog, hkey)
+}
