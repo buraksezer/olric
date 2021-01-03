@@ -22,7 +22,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-
 func (dm *DMap) deleteKeyValFromPreviousOwners(name, key string, owners []discovery.Member) error {
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {

@@ -88,7 +88,7 @@ func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
 		key:           req.Key(),
 		value:         req.Value(),
 		timestamp:     time.Now().UnixNano(),
-		kind: partitions.PRIMARY,
+		kind:          partitions.PRIMARY,
 	}
 	oldval, err := dm.getPut(e)
 	if err != nil {

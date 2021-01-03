@@ -34,5 +34,3 @@ func TestService(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 }
-
-
