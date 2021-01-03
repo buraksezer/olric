@@ -24,9 +24,9 @@ import (
 func TestService(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	defer cluster.Shutdown()
-	s, ok := cluster.AddNode(nil).(*Service)
+	s, ok := cluster.AddMember(nil).(*Service)
 	if !ok {
-		t.Fatal("AddNode returned a different service.Service implementation")
+		t.Fatal("AddMember returned a different service.Service implementation")
 	}
 
 	err := s.Shutdown(context.Background())

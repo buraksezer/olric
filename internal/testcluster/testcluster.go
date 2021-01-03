@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routing_table"
 	"github.com/buraksezer/olric/internal/environment"
@@ -36,12 +37,12 @@ import (
 type TestCluster struct {
 	mu sync.Mutex
 
-	nodes       []service.Service
-	nodePorts   []int
-	constructor func(e *environment.Environment) (service.Service, error)
-	errGr       errgroup.Group
-	ctx         context.Context
-	cancel      context.CancelFunc
+	environments []*environment.Environment
+	memberPorts  []int
+	constructor  func(e *environment.Environment) (service.Service, error)
+	errGr        errgroup.Group
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 func NewEnvironment(c *config.Config) *environment.Environment {
@@ -65,6 +66,15 @@ func (t *TestCluster) newService(e *environment.Environment) service.Service {
 
 	rt := routing_table.New(e)
 	e.Set("routingTable", rt)
+
+	b := balancer.New(e)
+	e.Set("balancer", b)
+	t.errGr.Go(func() error {
+		<-t.ctx.Done()
+		b.Shutdown()
+		return nil
+	})
+
 	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
 	rt.RegisterOperations(ops)
 
@@ -102,7 +112,25 @@ func New(constructor func(e *environment.Environment) (service.Service, error)) 
 	}
 }
 
-func (t *TestCluster) AddNode(e *environment.Environment) service.Service {
+func (t *TestCluster) syncCluster() {
+	// Update routing table on the cluster before running balancer
+	for _, e := range t.environments {
+		rt := e.Get("routingTable").(*routing_table.RoutingTable)
+		if rt.Discovery().IsCoordinator() {
+			// The coordinator pushes the routing table immediately.
+			// Normally, this is triggered by every cluster event but we don't want to
+			// do this asynchronously to avoid randomness in tests.
+			rt.UpdateEagerly()
+		}
+	}
+	// Normally, balancer is triggered by routing table after a successful update, but we don't want to
+	// balance the test cluster asynchronously. So we balance the partitions here explicitly.
+	for _, e := range t.environments {
+		e.Get("balancer").(*balancer.Balancer).Balance()
+	}
+}
+
+func (t *TestCluster) AddMember(e *environment.Environment) service.Service {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -119,7 +147,7 @@ func (t *TestCluster) AddNode(e *environment.Environment) service.Service {
 	c.MemberlistConfig.BindPort = port
 
 	var peers []string
-	for _, peerPort := range t.nodePorts {
+	for _, peerPort := range t.memberPorts {
 		peers = append(peers, net.JoinHostPort("127.0.0.1", strconv.Itoa(peerPort)))
 	}
 	c.Peers = peers
@@ -145,7 +173,9 @@ func (t *TestCluster) AddNode(e *environment.Environment) service.Service {
 		return s.Shutdown(context.Background())
 	})
 
-	t.nodePorts = append(t.nodePorts, port)
+	t.environments = append(t.environments, e)
+	t.memberPorts = append(t.memberPorts, port)
+	t.syncCluster()
 	return s
 }
 

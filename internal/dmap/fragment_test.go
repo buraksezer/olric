@@ -22,7 +22,7 @@ import (
 
 func TestDMap_Fragment(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s := cluster.AddNode(nil).(*Service)
+	s := cluster.AddMember(nil).(*Service)
 	dm, err := s.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
