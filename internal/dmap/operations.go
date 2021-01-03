@@ -43,4 +43,8 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	operations[protocol.OpIncr] = s.exIncrDecrOperation
 	operations[protocol.OpDecr] = s.exIncrDecrOperation
 	operations[protocol.OpGetPut] = s.exGetPutOperation
+
+	// DMap.Destroy
+	operations[protocol.OpDestroy] = s.exDestroyOperation
+	operations[protocol.OpDestroyDMap] = s.destroyDMapOperation
 }
