@@ -35,9 +35,8 @@ func (s *Service) exPutOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	wo := &writeop{}
-	wo.fromReq(r, partitions.PRIMARY)
-	err = dm.put(wo)
+	e := newEnvFromReq(r, partitions.PRIMARY)
+	err = dm.put(e)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -55,16 +54,13 @@ func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
 			return
 		}
 	}
-
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
 
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	wo := &writeop{}
-	wo.fromReq(req, partitions.BACKUP)
-	err = dm.localPut(hkey, wo)
+	e := newEnvFromReq(r, partitions.BACKUP)
+	err = dm.putOnReplicaFragment(e)
 	if err != nil {
 		errorResponse(w, err)
 		return

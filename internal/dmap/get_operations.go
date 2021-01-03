@@ -35,61 +35,28 @@ func (s *Service) exGetOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(entry.Encode())
 }
 
-func (s *Service) getBackupOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) getPrevOrBackupCommon(w, r protocol.EncodeDecoder, kind partitions.Kind) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.LoadDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 	}
 
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	f, err := dm.getFragment(req.DMap(), hkey, partitions.BACKUP)
+	e := newEnvFromReq(r, kind)
+	entry, err := dm.getOnFragment(e)
 	if err != nil {
 		errorResponse(w, err)
-		return
 	}
-	f.RLock()
-	defer f.RUnlock()
-	entry, err := f.storage.Get(hkey)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	if isKeyExpired(entry.TTL()) {
-		errorResponse(w, ErrKeyNotFound)
-		return
-	}
+
 	w.SetStatus(protocol.StatusOK)
 	w.SetValue(entry.Encode())
 }
 
+func (s *Service) getBackupOperation(w, r protocol.EncodeDecoder) {
+	s.getPrevOrBackupCommon(w, r, partitions.BACKUP)
+}
+
 func (s *Service) getPrevOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-	}
+	s.getPrevOrBackupCommon(w, r, partitions.PRIMARY)
 
-	hkey := partitions.HKey(req.DMap(), req.Key())
-	f, err := dm.getFragment(req.DMap(), hkey, partitions.PRIMARY)
-	if err != nil {
-		errorResponse(w, err)
-	}
-
-	f.RLock()
-	defer f.RUnlock()
-
-	entry, err := f.storage.Get(hkey)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	if isKeyExpired(entry.TTL()) {
-		errorResponse(w, ErrKeyNotFound)
-		return
-	}
-
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
 }

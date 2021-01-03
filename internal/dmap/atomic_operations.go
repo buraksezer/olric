@@ -42,7 +42,7 @@ func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 		errorResponse(w, err)
 		return
 	}
-	wo := &writeop{
+	e := &env{
 		opcode:        protocol.OpPut,
 		replicaOpcode: protocol.OpPutReplica,
 		dmap:          req.DMap(),
@@ -50,7 +50,7 @@ func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 		timestamp:     time.Now().UnixNano(),
 		kind:          partitions.PRIMARY,
 	}
-	newval, err := dm.atomicIncrDecr(req.Op, wo, delta.(int))
+	newval, err := dm.atomicIncrDecr(req.Op, e, delta.(int))
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -81,7 +81,7 @@ func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	wo := &writeop{
+	e := &env{
 		opcode:        protocol.OpPut,
 		replicaOpcode: protocol.OpPutReplica,
 		dmap:          req.DMap(),
@@ -90,7 +90,7 @@ func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
 		timestamp:     time.Now().UnixNano(),
 		kind: partitions.PRIMARY,
 	}
-	oldval, err := dm.getPut(wo)
+	oldval, err := dm.getPut(e)
 	if err != nil {
 		errorResponse(w, err)
 		return

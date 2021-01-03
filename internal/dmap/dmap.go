@@ -79,7 +79,10 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	return dm, nil
 }
 
-func getTTL(timeout time.Duration) int64 {
+func timeoutToTTL(timeout time.Duration) int64 {
+	if timeout.Seconds() == 0 {
+		return 0
+	}
 	// convert nanoseconds to milliseconds
 	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
 }

@@ -22,13 +22,12 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Put(t *testing.T) {
+func Test_Put_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddNode(nil).(*Service)
-	s2 := cluster.AddNode(nil).(*Service)
+	s := cluster.AddNode(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("mymap")
+	dm, err := s.NewDMap("mymap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -38,12 +37,9 @@ func Test_Put(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+
 	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
+		val, err := dm.Get(testutil.ToKey(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

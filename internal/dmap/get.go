@@ -54,6 +54,26 @@ func (dm *DMap) unmarshalValue(rawval []byte) (interface{}, error) {
 	return value, nil
 }
 
+func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
+	f, err := dm.getFragment(e.dmap, e.hkey, e.kind)
+	if err != nil {
+		return nil, err
+	}
+
+	f.RLock()
+	defer f.RUnlock()
+
+	entry, err := f.storage.Get(e.hkey)
+	if err != nil {
+		return nil, err
+	}
+
+	if isKeyExpired(entry.TTL()) {
+		return nil, ErrKeyNotFound
+	}
+	return entry, nil
+}
+
 func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, name, key string) (*version, error) {
 	req := protocol.NewDMapMessage(protocol.OpGetPrev)
 	req.SetDMap(name)
@@ -89,6 +109,8 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 		}
 		return dm.valueToVersion(nil)
 	}
+	f.RLock()
+	defer f.RUnlock()
 	value, err := f.storage.Get(hkey)
 	if err != nil {
 		if err != storage.ErrKeyNotFound {
@@ -207,14 +229,16 @@ func (dm *DMap) readRepair(name string, winner *version, versions []*version) {
 		tmp := *ver.host
 		if tmp.CompareByID(dm.service.rt.This()) {
 			hkey := partitions.HKey(name, winner.entry.Key())
-			w := &writeop{
+			e := &env{
 				dmap:      name,
 				key:       winner.entry.Key(),
 				value:     winner.entry.Value(),
 				timestamp: winner.entry.Timestamp(),
 				timeout:   time.Duration(winner.entry.TTL()),
+				hkey:      hkey,
 			}
-			err := dm.localPut(hkey, w)
+			// TODO: We need to set fragment and lock it before calling putOnFragment. It's not thread-safe.
+			err := dm.putOnFragment(e)
 			if err != nil {
 				dm.service.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
@@ -227,9 +251,9 @@ func (dm *DMap) readRepair(name string, winner *version, versions []*version) {
 	}
 }
 
-func (dm *DMap) callGetOnCluster(hkey uint64, name, key string) (storage.Entry, error) {
+func (dm *DMap) getOnCluster(hkey uint64, name, key string) (storage.Entry, error) {
 	// RUnlock should not be called with defer statement here because
-	// readRepair function may call localPut function which needs a write
+	// readRepair function may call putOnFragment function which needs a write
 	// lock. Please don't forget calling RUnlock before returning here.
 
 	versions := dm.lookupOnOwners(hkey, name, key)
@@ -274,7 +298,7 @@ func (dm *DMap) get(name, key string) (storage.Entry, error) {
 	member := dm.service.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
 	if member.CompareByName(dm.service.rt.This()) {
-		return dm.callGetOnCluster(hkey, name, key)
+		return dm.getOnCluster(hkey, name, key)
 	}
 
 	// Redirect to the partition owner
@@ -294,11 +318,11 @@ func (dm *DMap) get(name, key string) (storage.Entry, error) {
 // does not contains the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) Get(key string) (interface{}, error) {
-	rawval, err := dm.get(dm.name, key)
+	raw, err := dm.get(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
-	return dm.unmarshalValue(rawval.Value())
+	return dm.unmarshalValue(raw.Value())
 }
 
 // GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB

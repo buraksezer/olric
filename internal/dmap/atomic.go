@@ -20,21 +20,20 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, w *writeop, delta int) (int, error) {
-	atomicKey := w.dmap + w.key
+func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
+	atomicKey := e.dmap + e.key
 	dm.service.locker.Lock(atomicKey)
 	defer func() {
 		err := dm.service.locker.Unlock(atomicKey)
 		if err != nil {
-			dm.service.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", w.key, w.dmap, err)
+			dm.service.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
 		}
 	}()
 
-	entry, err := dm.get(w.dmap, w.key)
+	entry, err := dm.get(e.dmap, e.key)
 	if err == ErrKeyNotFound {
 		err = nil
 	}
@@ -69,8 +68,8 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, w *writeop, delta int) (i
 	if err != nil {
 		return 0, err
 	}
-	w.value = nval
-	err = dm.put(w)
+	e.value = nval
+	err = dm.put(e)
 	if err != nil {
 		return 0, err
 	}
@@ -79,7 +78,7 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, w *writeop, delta int) (i
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (dm *DMap) Incr(key string, delta int) (int, error) {
-	w := &writeop{
+	e := &env{
 		opcode:        protocol.OpPut,
 		replicaOpcode: protocol.OpPutReplica,
 		dmap:          dm.name,
@@ -87,12 +86,12 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 		timestamp:     time.Now().UnixNano(),
 		kind:          partitions.PRIMARY,
 	}
-	return dm.atomicIncrDecr(protocol.OpIncr, w, delta)
+	return dm.atomicIncrDecr(protocol.OpIncr, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (dm *DMap) Decr(key string, delta int) (int, error) {
-	w := &writeop{
+	e := &env{
 		opcode:        protocol.OpPut,
 		replicaOpcode: protocol.OpPutReplica,
 		dmap:          dm.name,
@@ -100,27 +99,27 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 		timestamp:     time.Now().UnixNano(),
 		kind:          partitions.PRIMARY,
 	}
-	return dm.atomicIncrDecr(protocol.OpDecr, w, delta)
+	return dm.atomicIncrDecr(protocol.OpDecr, e, delta)
 }
 
-func (dm *DMap) getPut(w *writeop) ([]byte, error) {
-	atomicKey := w.dmap + w.key
+func (dm *DMap) getPut(e *env) ([]byte, error) {
+	atomicKey := e.dmap + e.key
 	dm.service.locker.Lock(atomicKey)
 	defer func() {
 		err := dm.service.locker.Unlock(atomicKey)
 		if err != nil {
-			dm.service.log.V(3).Printf("[ERROR] Failed to release the lock for key: %s on DMap: %s: %v", w.key, w.dmap, err)
+			dm.service.log.V(3).Printf("[ERROR] Failed to release the lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
 		}
 	}()
 
-	entry, err := dm.get(w.dmap, w.key)
+	entry, err := dm.get(e.dmap, e.key)
 	if err == ErrKeyNotFound {
 		err = nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	err = dm.put(w)
+	err = dm.put(e)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +139,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writeop{
+	e := &env{
 		opcode:        protocol.OpPut,
 		replicaOpcode: protocol.OpPutReplica,
 		dmap:          dm.name,
@@ -148,7 +147,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 		value:         val,
 		timestamp:     time.Now().UnixNano(),
 	}
-	rawval, err := dm.getPut(w)
+	rawval, err := dm.getPut(e)
 	if err != nil {
 		return nil, err
 	}
