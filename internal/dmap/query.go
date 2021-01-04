@@ -122,29 +122,6 @@ func (dm *DMap) runLocalQuery(partID uint64, q query.M) (queryResponse, error) {
 	return result, nil
 }
 
-func (dm *DMap) localQueryOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	q, err := query.FromByte(req.Value())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	partID := req.Extra().(protocol.LocalQueryExtra).PartID
-	result, err := dm.runLocalQuery(partID, q)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	value, err := msgpack.Marshal(&result)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
-}
-
 func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storage.Entry {
 	result := make(map[uint64]storage.Entry)
 	for _, response := range responses {
@@ -290,47 +267,4 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 // Close cancels the underlying context and background goroutines stops running.
 func (c *Cursor) Close() {
 	c.cancel()
-}
-
-func (s *Service) exQueryOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-	}
-	q, err := query.FromByte(req.Value())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	c, err := dm.Query(q)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	defer c.Close()
-
-	partID := req.Extra().(protocol.QueryExtra).PartID
-	if partID >= s.config.PartitionCount {
-		errorResponse(w, ErrEndOfQuery)
-		return
-	}
-	responses, err := c.runQueryOnOwners(partID)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	data := make(QueryResponse)
-	for _, response := range responses {
-		data[response.Key()] = response.Value()
-	}
-
-	value, err := msgpack.Marshal(data)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
 }

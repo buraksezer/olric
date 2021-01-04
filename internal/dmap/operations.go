@@ -47,4 +47,25 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	// DMap.Destroy
 	operations[protocol.OpDestroy] = s.exDestroyOperation
 	operations[protocol.OpDestroyDMap] = s.destroyDMapOperation
+
+
+	// DMap.Lock
+	operations[protocol.OpLockWithTimeout] = s.exLockWithTimeoutOperation
+	operations[protocol.OpLock] = s.exLockOperation
+
+	// DMap.Unlock
+	operations[protocol.OpUnlock] = s.exUnlockOperation
+
+	// DMap.Atomic
+	operations[protocol.OpIncr] = s.exIncrDecrOperation
+	operations[protocol.OpDecr] = s.exIncrDecrOperation
+	operations[protocol.OpGetPut] = s.exGetPutOperation
+
+	// DMap.Expire
+	operations[protocol.OpExpire] = s.exExpireOperation
+	operations[protocol.OpExpireReplica] = s.expireReplicaOperation
+
+	// DMap.Query (distributed query)
+	operations[protocol.OpLocalQuery] = s.localQueryOperation
+	operations[protocol.OpQuery] = s.exQueryOperation
 }

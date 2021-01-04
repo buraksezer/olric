@@ -141,11 +141,10 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 		// manages itself independently. So if you set MaxKeys=70 and
 		// your partition count is 7, every partition 10 keys at maximum.
 		if stats.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
-			// TODO: Enable this when you move eviction code.
-			//err := db.evictKeyWithLRU(dm, e.dmap)
-			//if err != nil {
-			//	return err
-			//}
+			err := dm.evictKeyWithLRU(e)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -156,11 +155,10 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 		// your partition count is 7, every partition consumes 10M in-use space at maximum.
 		// WARNING: Actual allocated memory can be different.
 		if stats.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
-			// TODO: Enable this when you move eviction code.
-			// err := db.evictKeyWithLRU(dm, e.dmap)
-			// if err != nil {
-			//	return err
-			//}
+			err := dm.evictKeyWithLRU(e)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

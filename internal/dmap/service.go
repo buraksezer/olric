@@ -96,6 +96,16 @@ func NewService(e *environment.Environment) (service.Service, error) {
 	return s, nil
 }
 
+func (s *Service) isAlive() bool {
+	select {
+	case <-s.ctx.Done():
+		// The node is gone.
+		return false
+	default:
+	}
+	return true
+}
+
 func (s *Service) initializeAndLoadStorageEngines() error {
 	s.storage.configs = s.config.StorageEngines.Config
 	s.storage.engines = s.config.StorageEngines.Impls
@@ -162,6 +172,9 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 func (s *Service) Start() error {
 	s.wg.Add(1)
 	go s.Janitor()
+
+	s.wg.Add(1)
+	go s.evictKeysAtBackground()
 	return nil
 }
 

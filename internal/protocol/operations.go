@@ -41,7 +41,7 @@ const (
 	OpGetBackup
 	OpDeleteBackup
 	OpDestroyDMap
-	OpMoveDMap
+	OpMoveDMap // TODO: Rename to OpMoveFragment
 	OpLengthOfPart
 	OpPipeline
 	OpPing
