@@ -27,9 +27,9 @@ var ErrDMapNotFound = errors.New("dmap not found")
 
 // DMap defines the internal representation of a dmap.
 type DMap struct {
-	name    string
-	service *Service
-	config  *configuration
+	name   string
+	s      *Service
+	config *configuration
 }
 
 func (s *Service) LoadDMap(name string) (*DMap, error) {
@@ -68,9 +68,9 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	}
 
 	dm = &DMap{
-		config:  &configuration{},
-		name:    name,
-		service: s,
+		config: &configuration{},
+		name:   name,
+		s:      s,
 	}
 	if err := dm.config.load(s.config, name); err != nil {
 		return nil, err

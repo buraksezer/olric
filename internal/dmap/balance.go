@@ -89,8 +89,8 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) e
 		// TODO: Don't put the winner again if it comes from dm.storage
 		mergeErr = f.storage.Put(hkey, winner)
 		if mergeErr == storage.ErrFragmented {
-			dm.service.wg.Add(1)
-			go dm.service.callCompactionOnStorage(f)
+			dm.s.wg.Add(1)
+			go dm.s.callCompactionOnStorage(f)
 			mergeErr = nil
 		}
 		if mergeErr != nil {

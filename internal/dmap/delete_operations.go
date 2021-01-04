@@ -67,8 +67,8 @@ func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
 
 	err = f.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
-		dm.service.wg.Add(1)
-		go dm.service.callCompactionOnStorage(f)
+		dm.s.wg.Add(1)
+		go dm.s.callCompactionOnStorage(f)
 		err = nil
 	}
 	if err != nil {
@@ -103,8 +103,8 @@ func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 
 	err = f.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
-		dm.service.wg.Add(1)
-		go dm.service.callCompactionOnStorage(f)
+		dm.s.wg.Add(1)
+		go dm.s.callCompactionOnStorage(f)
 		err = nil
 	}
 	if err != nil {

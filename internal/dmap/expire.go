@@ -43,15 +43,15 @@ func (dm *DMap) localExpire(e *env) error {
 func (dm *DMap) asyncExpireOnCluster(e *env) error {
 	req := e.toReq(protocol.OpExpireReplica)
 	// Fire and forget mode.
-	owners := dm.service.backup.PartitionOwnersByHKey(e.hkey)
+	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
-		dm.service.wg.Add(1)
+		dm.s.wg.Add(1)
 		go func(host discovery.Member) {
-			defer dm.service.wg.Done()
-			_, err := dm.service.client.RequestTo2(host.String(), req)
+			defer dm.s.wg.Done()
+			_, err := dm.s.client.RequestTo2(host.String(), req)
 			if err != nil {
-				if dm.service.log.V(3).Ok() {
-					dm.service.log.V(3).Printf("[ERROR] Failed to set expire in async mode: %v", err)
+				if dm.s.log.V(3).Ok() {
+					dm.s.log.V(3).Printf("[ERROR] Failed to set expire in async mode: %v", err)
 				}
 			}
 		}(owner)
@@ -64,12 +64,12 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 
 	// Quorum based replication.
 	var successful int
-	owners := dm.service.backup.PartitionOwnersByHKey(e.hkey)
+	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
-		_, err := dm.service.client.RequestTo2(owner.String(), req)
+		_, err := dm.s.client.RequestTo2(owner.String(), req)
 		if err != nil {
-			if dm.service.log.V(3).Ok() {
-				dm.service.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
+			if dm.s.log.V(3).Ok() {
+				dm.s.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
 					owner, e.dmap, err)
 			}
 			continue
@@ -78,14 +78,14 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 	}
 	err := dm.localExpire(e)
 	if err != nil {
-		if dm.service.log.V(3).Ok() {
-			dm.service.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
-				dm.service.rt.This(), e.dmap, err)
+		if dm.s.log.V(3).Ok() {
+			dm.s.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
+				dm.s.rt.This(), e.dmap, err)
 		}
 	} else {
 		successful++
 	}
-	if successful >= dm.service.config.WriteQuorum {
+	if successful >= dm.s.config.WriteQuorum {
 		return nil
 	}
 	return ErrWriteQuorum
@@ -103,31 +103,31 @@ func (dm *DMap) callExpireOnCluster(e *env) error {
 	f.Lock()
 	defer f.Unlock()
 
-	if dm.service.config.ReplicaCount == config.MinimumReplicaCount {
+	if dm.s.config.ReplicaCount == config.MinimumReplicaCount {
 		// MinimumReplicaCount is 1. So it's enough to put the key locally. There is no
 		// other replica host.
 		return dm.localExpire(e)
 	}
 
-	if dm.service.config.ReplicationMode == config.AsyncReplicationMode {
+	if dm.s.config.ReplicationMode == config.AsyncReplicationMode {
 		return dm.asyncExpireOnCluster(e)
-	} else if dm.service.config.ReplicationMode == config.SyncReplicationMode {
+	} else if dm.s.config.ReplicationMode == config.SyncReplicationMode {
 		return dm.syncExpireOnCluster(e)
 	}
 
-	return fmt.Errorf("invalid replication mode: %v", dm.service.config.ReplicationMode)
+	return fmt.Errorf("invalid replication mode: %v", dm.s.config.ReplicationMode)
 }
 
 func (dm *DMap) expire(e *env) error {
 	e.hkey = partitions.HKey(e.dmap, e.key)
-	member := dm.service.primary.PartitionByHKey(e.hkey).Owner()
-	if member.CompareByName(dm.service.rt.This()) {
+	member := dm.s.primary.PartitionByHKey(e.hkey).Owner()
+	if member.CompareByName(dm.s.rt.This()) {
 		// We are on the partition owner.
 		return dm.callExpireOnCluster(e)
 	}
 	// Redirect to the partition owner
 	req := e.toReq(protocol.OpExpire)
-	_, err := dm.service.client.RequestTo2(member.String(), req)
+	_, err := dm.s.client.RequestTo2(member.String(), req)
 	return err
 }
 

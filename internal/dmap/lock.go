@@ -47,11 +47,11 @@ type LockContext struct {
 func (dm *DMap) unlockKey(name, key string, token []byte) error {
 	lkey := name + key
 	// Only one unlockKey should work for a given key.
-	dm.service.locker.Lock(lkey)
+	dm.s.locker.Lock(lkey)
 	defer func() {
-		err := dm.service.locker.Unlock(lkey)
+		err := dm.s.locker.Unlock(lkey)
 		if err != nil {
-			dm.service.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
+			dm.s.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
 		}
 	}()
 
@@ -85,15 +85,15 @@ func (dm *DMap) unlockKey(name, key string, token []byte) error {
 // It redirects the request to the partition owner, if required.
 func (dm *DMap) unlock(name, key string, token []byte) error {
 	hkey := partitions.HKey(name, key)
-	member := dm.service.primary.PartitionByHKey(hkey).Owner()
-	if member.CompareByName(dm.service.rt.This()) {
+	member := dm.s.primary.PartitionByHKey(hkey).Owner()
+	if member.CompareByName(dm.s.rt.This()) {
 		return dm.unlockKey(name, key, token)
 	}
 	req := protocol.NewDMapMessage(protocol.OpUnlock)
 	req.SetDMap(name)
 	req.SetKey(key)
 	req.SetValue(token)
-	_, err := dm.service.client.RequestTo2(member.String(), req)
+	_, err := dm.s.client.RequestTo2(member.String(), req)
 	return err
 }
 
@@ -142,7 +142,7 @@ LOOP:
 		case <-ctx.Done():
 			// Deadline exceeded. Quit with an error.
 			return ErrLockNotAcquired
-		case <-dm.service.ctx.Done():
+		case <-dm.s.ctx.Done():
 			return fmt.Errorf("server is gone")
 		}
 	}

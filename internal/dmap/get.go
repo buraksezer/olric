@@ -44,7 +44,7 @@ type version struct {
 
 func (dm *DMap) unmarshalValue(rawval []byte) (interface{}, error) {
 	var value interface{}
-	err := dm.service.serializer.Unmarshal(rawval, &value)
+	err := dm.s.serializer.Unmarshal(rawval, &value)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, name, key string)
 	req.SetKey(key)
 
 	v := &version{host: owner}
-	resp, err := dm.service.client.RequestTo2(owner.String(), req)
+	resp, err := dm.s.client.RequestTo2(owner.String(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, name, key string)
 }
 
 func (dm *DMap) valueToVersion(value storage.Entry) *version {
-	this := dm.service.rt.This()
+	this := dm.s.rt.This()
 	return &version{
 		host:  &this,
 		entry: value,
@@ -105,7 +105,7 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 	f, err := dm.getFragment(name, hkey, partitions.PRIMARY)
 	if err != nil {
 		if err != errFragmentNotFound {
-			dm.service.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)
+			dm.s.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)
 		}
 		return dm.valueToVersion(nil)
 	}
@@ -115,7 +115,7 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 	if err != nil {
 		if err != storage.ErrKeyNotFound {
 			// still need to use "ver". just log this error.
-			dm.service.log.V(3).Printf("[ERROR] Failed to get key: %s on %s: %s", key, name, err)
+			dm.s.log.V(3).Printf("[ERROR] Failed to get key: %s on %s: %s", key, name, err)
 		}
 		return dm.valueToVersion(nil)
 	}
@@ -125,7 +125,7 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 // lookupOnOwners collects versions of a key/value pair on the partition owner
 // by including previous partition owners.
 func (dm *DMap) lookupOnOwners(hkey uint64, name, key string) []*version {
-	owners := dm.service.primary.PartitionOwnersByHKey(hkey)
+	owners := dm.s.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
@@ -139,8 +139,8 @@ func (dm *DMap) lookupOnOwners(hkey uint64, name, key string) []*version {
 		owner := owners[i]
 		v, err := dm.lookupOnPreviousOwner(&owner, name, key)
 		if err != nil {
-			if dm.service.log.V(3).Ok() {
-				dm.service.log.V(3).Printf("[ERROR] Failed to call get on a previous "+
+			if dm.s.log.V(3).Ok() {
+				dm.s.log.V(3).Printf("[ERROR] Failed to call get on a previous "+
 					"primary owner: %s: %v", owner, err)
 			}
 			continue
@@ -179,16 +179,16 @@ func (dm *DMap) sanitizeAndSortVersions(versions []*version) []*version {
 func (dm *DMap) lookupOnReplicas(hkey uint64, name, key string) []*version {
 	var versions []*version
 	// Check backup.
-	backups := dm.service.backup.PartitionOwnersByHKey(hkey)
+	backups := dm.s.backup.PartitionOwnersByHKey(hkey)
 	for _, replica := range backups {
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(name)
 		req.SetKey(key)
 		ver := &version{host: &replica}
-		resp, err := dm.service.client.RequestTo2(replica.String(), req)
+		resp, err := dm.s.client.RequestTo2(replica.String(), req)
 		if err != nil {
-			if dm.service.log.V(3).Ok() {
-				dm.service.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
+			if dm.s.log.V(3).Ok() {
+				dm.s.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
 			}
 		} else {
 			data := kvstore.NewEntry()
@@ -227,7 +227,7 @@ func (dm *DMap) readRepair(name string, winner *version, versions []*version) {
 
 		// Sync
 		tmp := *ver.host
-		if tmp.CompareByID(dm.service.rt.This()) {
+		if tmp.CompareByID(dm.s.rt.This()) {
 			hkey := partitions.HKey(name, winner.entry.Key())
 			e := &env{
 				dmap:      name,
@@ -240,12 +240,12 @@ func (dm *DMap) readRepair(name string, winner *version, versions []*version) {
 			// TODO: We need to set fragment and lock it before calling putOnFragment. It's not thread-safe.
 			err := dm.putOnFragment(e)
 			if err != nil {
-				dm.service.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
 		} else {
-			_, err := dm.service.client.RequestTo2(ver.host.String(), req)
+			_, err := dm.s.client.RequestTo2(ver.host.String(), req)
 			if err != nil {
-				dm.service.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
 			}
 		}
 	}
@@ -257,11 +257,11 @@ func (dm *DMap) getOnCluster(hkey uint64, name, key string) (storage.Entry, erro
 	// lock. Please don't forget calling RUnlock before returning here.
 
 	versions := dm.lookupOnOwners(hkey, name, key)
-	if dm.service.config.ReadQuorum >= config.MinimumReplicaCount {
+	if dm.s.config.ReadQuorum >= config.MinimumReplicaCount {
 		v := dm.lookupOnReplicas(hkey, name, key)
 		versions = append(versions, v...)
 	}
-	if len(versions) < dm.service.config.ReadQuorum {
+	if len(versions) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
 	sorted := dm.sanitizeAndSortVersions(versions)
@@ -269,7 +269,7 @@ func (dm *DMap) getOnCluster(hkey uint64, name, key string) (storage.Entry, erro
 		// We checked everywhere, it's not here.
 		return nil, ErrKeyNotFound
 	}
-	if len(sorted) < dm.service.config.ReadQuorum {
+	if len(sorted) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
 
@@ -285,7 +285,7 @@ func (dm *DMap) getOnCluster(hkey uint64, name, key string) (storage.Entry, erro
 	// continue maintaining a reliable access log.
 	dm.updateAccessLog(hkey)
 
-	if dm.service.config.ReadRepair {
+	if dm.s.config.ReadRepair {
 		// Parallel read operations may propagate different versions of
 		// the same key/value pair. The rule is simple: last write wins.
 		dm.readRepair(name, winner, versions)
@@ -295,9 +295,9 @@ func (dm *DMap) getOnCluster(hkey uint64, name, key string) (storage.Entry, erro
 
 func (dm *DMap) get(name, key string) (storage.Entry, error) {
 	hkey := partitions.HKey(name, key)
-	member := dm.service.primary.PartitionByHKey(hkey).Owner()
+	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
-	if member.CompareByName(dm.service.rt.This()) {
+	if member.CompareByName(dm.s.rt.This()) {
 		return dm.getOnCluster(hkey, name, key)
 	}
 
@@ -305,7 +305,7 @@ func (dm *DMap) get(name, key string) (storage.Entry, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(name)
 	req.SetKey(key)
-	resp, err := dm.service.client.RequestTo2(member.String(), req)
+	resp, err := dm.s.client.RequestTo2(member.String(), req)
 	if err != nil {
 		return nil, err
 	}

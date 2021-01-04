@@ -36,7 +36,7 @@ func newQueryPipeline(dm *DMap, partID uint64) *queryPipeline {
 }
 
 func (p *queryPipeline) doOnKey(q query.M) error {
-	part := p.dm.service.primary.PartitionById(p.partID)
+	part := p.dm.s.primary.PartitionById(p.partID)
 	tmp, ok := part.Map().Load(p.dm.name)
 	if !ok {
 		return errFragmentNotFound
@@ -49,7 +49,7 @@ func (p *queryPipeline) doOnKey(q query.M) error {
 	if !ok {
 		return fmt.Errorf("missing $regexMatch on $onKey")
 	}
-	nilValue, _ := p.dm.service.serializer.Marshal(nil)
+	nilValue, _ := p.dm.s.serializer.Marshal(nil)
 
 	return f.storage.RegexMatchOnKeys(expr, func(hkey uint64, entry storage.Entry) bool {
 		// Eliminate already expired k/v pairs

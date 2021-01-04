@@ -23,16 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
-	atomicKey := e.dmap + e.key
-	dm.service.locker.Lock(atomicKey)
-	defer func() {
-		err := dm.service.locker.Unlock(atomicKey)
-		if err != nil {
-			dm.service.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
-		}
-	}()
-
+func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	entry, err := dm.get(e.dmap, e.key)
 	if err == ErrKeyNotFound {
 		err = nil
@@ -41,39 +32,57 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 		return 0, err
 	}
 
-	var newval, curval int
+	var current int
 	if entry != nil {
 		var value interface{}
-		if err := dm.service.serializer.Unmarshal(entry.Value(), &value); err != nil {
+		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
 			return 0, err
 		}
 
 		// only accept integer and increase/decrease it. if the value is not integer, return an error.
 		var ok bool
-		curval, ok = value.(int)
+		current, ok = value.(int)
 		if !ok {
 			return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(value).Name())
 		}
 	}
+	return current, nil
+}
 
+func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
+	atomicKey := e.dmap + e.key
+	dm.s.locker.Lock(atomicKey)
+	defer func() {
+		err := dm.s.locker.Unlock(atomicKey)
+		if err != nil {
+			dm.s.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
+		}
+	}()
+
+	current, err := dm.loadCurrentAtomicInt(e)
+	if err != nil {
+		return 0, err
+	}
+
+	var updated int
 	if opcode == protocol.OpIncr {
-		newval = curval + delta
+		updated = current + delta
 	} else if opcode == protocol.OpDecr {
-		newval = curval - delta
+		updated = current - delta
 	} else {
 		return 0, fmt.Errorf("invalid operation")
 	}
 
-	nval, err := dm.service.serializer.Marshal(newval)
+	val, err := dm.s.serializer.Marshal(updated)
 	if err != nil {
 		return 0, err
 	}
-	e.value = nval
+	e.value = val
 	err = dm.put(e)
 	if err != nil {
 		return 0, err
 	}
-	return newval, nil
+	return updated, nil
 }
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
@@ -104,11 +113,11 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 
 func (dm *DMap) getPut(e *env) ([]byte, error) {
 	atomicKey := e.dmap + e.key
-	dm.service.locker.Lock(atomicKey)
+	dm.s.locker.Lock(atomicKey)
 	defer func() {
-		err := dm.service.locker.Unlock(atomicKey)
+		err := dm.s.locker.Unlock(atomicKey)
 		if err != nil {
-			dm.service.log.V(3).Printf("[ERROR] Failed to release the lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
+			dm.s.log.V(3).Printf("[ERROR] Failed to release the lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
 		}
 	}()
 
@@ -135,7 +144,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 	if value == nil {
 		value = struct{}{}
 	}
-	val, err := dm.service.serializer.Marshal(value)
+	val, err := dm.s.serializer.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
@@ -147,16 +156,16 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 		value:         val,
 		timestamp:     time.Now().UnixNano(),
 	}
-	rawval, err := dm.getPut(e)
+	raw, err := dm.getPut(e)
 	if err != nil {
 		return nil, err
 	}
 
-	var oldval interface{}
-	if rawval != nil {
-		if err := dm.service.serializer.Unmarshal(rawval, &oldval); err != nil {
+	var old interface{}
+	if raw != nil {
+		if err := dm.s.serializer.Unmarshal(raw, &old); err != nil {
 			return nil, err
 		}
 	}
-	return oldval, nil
+	return old, nil
 }

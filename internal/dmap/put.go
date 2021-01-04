@@ -55,8 +55,8 @@ func (dm *DMap) putOnFragment(e *env) error {
 	entry.SetTimestamp(e.timestamp)
 	err := e.fragment.storage.Put(e.hkey, entry)
 	if err == storage.ErrFragmented {
-		dm.service.wg.Add(1)
-		go dm.service.callCompactionOnStorage(e.fragment)
+		dm.s.wg.Add(1)
+		go dm.s.callCompactionOnStorage(e.fragment)
 		err = nil
 	}
 	if err == nil {
@@ -78,17 +78,17 @@ func (dm *DMap) putOnReplicaFragment(e *env) error {
 
 func (dm *DMap) asyncPutOnCluster(e *env) error {
 	// Fire and forget mode.
-	owners := dm.service.backup.PartitionOwnersByHKey(e.hkey)
+	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
 		// TODO: Check aliveness here
-		dm.service.wg.Add(1)
+		dm.s.wg.Add(1)
 		go func(host discovery.Member) {
-			defer dm.service.wg.Done()
+			defer dm.s.wg.Done()
 			req := e.toReq(e.replicaOpcode)
-			_, err := dm.service.client.RequestTo2(host.String(), req)
+			_, err := dm.s.client.RequestTo2(host.String(), req)
 			if err != nil {
-				if dm.service.log.V(3).Ok() {
-					dm.service.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
+				if dm.s.log.V(3).Ok() {
+					dm.s.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
 				}
 			}
 		}(owner)
@@ -99,13 +99,13 @@ func (dm *DMap) asyncPutOnCluster(e *env) error {
 func (dm *DMap) syncPutOnCluster(e *env) error {
 	// Quorum based replication.
 	var successful int
-	owners := dm.service.backup.PartitionOwnersByHKey(e.hkey)
+	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
 		req := e.toReq(e.replicaOpcode)
-		_, err := dm.service.client.RequestTo2(owner.String(), req)
+		_, err := dm.s.client.RequestTo2(owner.String(), req)
 		if err != nil {
-			if dm.service.log.V(3).Ok() {
-				dm.service.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, e.dmap, err)
+			if dm.s.log.V(3).Ok() {
+				dm.s.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, e.dmap, err)
 			}
 			continue
 		}
@@ -113,13 +113,13 @@ func (dm *DMap) syncPutOnCluster(e *env) error {
 	}
 	err := dm.putOnFragment(e)
 	if err != nil {
-		if dm.service.log.V(3).Ok() {
-			dm.service.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", dm.service.rt.This(), e.dmap, err)
+		if dm.s.log.V(3).Ok() {
+			dm.s.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", dm.s.rt.This(), e.dmap, err)
 		}
 	} else {
 		successful++
 	}
-	if successful >= dm.service.config.WriteQuorum {
+	if successful >= dm.s.config.WriteQuorum {
 		return nil
 	}
 	return ErrWriteQuorum
@@ -134,7 +134,7 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 	// This works for every request if you enabled LRU.
 	// But loading a number from memory should be very cheap.
 	// ownedPartitionCount changes in the case of node join or leave.
-	ownedPartitionCount := dm.service.rt.OwnedPartitionCount()
+	ownedPartitionCount := dm.s.rt.OwnedPartitionCount()
 	if dm.config.maxKeys > 0 {
 		// MaxKeys controls maximum key count owned by this node.
 		// We need ownedPartitionCount property because every partition
@@ -223,8 +223,8 @@ func (dm *DMap) putOnCluster(e *env) error {
 		}
 	}
 
-	if dm.service.config.ReplicaCount > config.MinimumReplicaCount {
-		switch dm.service.config.ReplicationMode {
+	if dm.s.config.ReplicaCount > config.MinimumReplicaCount {
+		switch dm.s.config.ReplicationMode {
 		case config.AsyncReplicationMode:
 			// Fire and forget mode. Calls PutBackup command in different goroutines
 			// and stores the key/value pair on local storage instance.
@@ -233,7 +233,7 @@ func (dm *DMap) putOnCluster(e *env) error {
 			// Quorum based replication.
 			return dm.syncPutOnCluster(e)
 		default:
-			return fmt.Errorf("invalid replication mode: %v", dm.service.config.ReplicationMode)
+			return fmt.Errorf("invalid replication mode: %v", dm.s.config.ReplicationMode)
 		}
 	}
 	// single replica
@@ -244,14 +244,14 @@ func (dm *DMap) putOnCluster(e *env) error {
 // if the key belongs to another host.
 func (dm *DMap) put(e *env) error {
 	e.hkey = partitions.HKey(e.dmap, e.key)
-	member := dm.service.primary.PartitionByHKey(e.hkey).Owner()
-	if member.CompareByName(dm.service.rt.This()) {
+	member := dm.s.primary.PartitionByHKey(e.hkey).Owner()
+	if member.CompareByName(dm.s.rt.This()) {
 		// We are on the partition owner.
 		return dm.putOnCluster(e)
 	}
 	// Redirect to the partition owner.
 	req := e.toReq(e.opcode)
-	_, err := dm.service.client.RequestTo2(member.String(), req)
+	_, err := dm.s.client.RequestTo2(member.String(), req)
 	return err
 }
 
@@ -262,7 +262,7 @@ func (dm *DMap) prepareAndSerialize(
 	value interface{},
 	timeout time.Duration,
 	flags int16) (*env, error) {
-	val, err := dm.service.serializer.Marshal(value)
+	val, err := dm.s.serializer.Marshal(value)
 	if err != nil {
 		return nil, err
 	}

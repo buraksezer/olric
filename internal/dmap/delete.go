@@ -29,7 +29,7 @@ func (dm *DMap) deleteKeyValFromPreviousOwners(name, key string, owners []discov
 		req := protocol.NewDMapMessage(protocol.OpDeletePrev)
 		req.SetDMap(name)
 		req.SetKey(key)
-		_, err := dm.service.client.RequestTo2(owner.String(), req)
+		_, err := dm.s.client.RequestTo2(owner.String(), req)
 		if err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ func (dm *DMap) deleteKeyValFromPreviousOwners(name, key string, owners []discov
 }
 
 func (dm *DMap) deleteKeyValBackup(hkey uint64, name, key string) error {
-	owners := dm.service.backup.PartitionOwnersByHKey(hkey)
+	owners := dm.s.backup.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
 	for _, owner := range owners {
 		mem := owner
@@ -47,9 +47,9 @@ func (dm *DMap) deleteKeyValBackup(hkey uint64, name, key string) error {
 			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)
 			req.SetDMap(name)
 			req.SetKey(key)
-			_, err := dm.service.client.RequestTo2(mem.String(), req)
+			_, err := dm.s.client.RequestTo2(mem.String(), req)
 			if err != nil {
-				dm.service.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
 			}
 			return err
 		})
@@ -58,7 +58,7 @@ func (dm *DMap) deleteKeyValBackup(hkey uint64, name, key string) error {
 }
 
 func (dm *DMap) delKeyVal(hkey uint64, name, key string) error {
-	owners := dm.service.primary.PartitionOwnersByHKey(hkey)
+	owners := dm.s.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
@@ -68,7 +68,7 @@ func (dm *DMap) delKeyVal(hkey uint64, name, key string) error {
 		return err
 	}
 
-	if dm.service.config.ReplicaCount != 0 {
+	if dm.s.config.ReplicaCount != 0 {
 		err := dm.deleteKeyValBackup(hkey, name, key)
 		if err != nil {
 			return err
@@ -84,8 +84,8 @@ func (dm *DMap) delKeyVal(hkey uint64, name, key string) error {
 
 	err = f.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
-		dm.service.wg.Add(1)
-		go dm.service.callCompactionOnStorage(f)
+		dm.s.wg.Add(1)
+		go dm.s.callCompactionOnStorage(f)
 		err = nil
 	}
 
@@ -99,12 +99,12 @@ func (dm *DMap) delKeyVal(hkey uint64, name, key string) error {
 
 func (dm *DMap) deleteKey(name, key string) error {
 	hkey := partitions.HKey(name, key)
-	member := dm.service.primary.PartitionByHKey(hkey).Owner()
-	if !member.CompareByName(dm.service.rt.This()) {
+	member := dm.s.primary.PartitionByHKey(hkey).Owner()
+	if !member.CompareByName(dm.s.rt.This()) {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(name)
 		req.SetKey(key)
-		_, err := dm.service.client.RequestTo2(member.String(), req)
+		_, err := dm.s.client.RequestTo2(member.String(), req)
 		return err
 	}
 	return dm.delKeyVal(hkey, name, key)

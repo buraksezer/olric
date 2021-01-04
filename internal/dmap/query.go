@@ -147,10 +147,10 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 		return nil, err
 	}
 
-	owners := c.dm.service.primary.PartitionOwnersById(partID)
+	owners := c.dm.s.primary.PartitionOwnersById(partID)
 	var responses []queryResponse
 	for _, owner := range owners {
-		if owner.CompareByID(c.dm.service.rt.This()) {
+		if owner.CompareByID(c.dm.s.rt.This()) {
 			response, err := c.dm.runLocalQuery(partID, c.query)
 			if err != nil {
 				return nil, err
@@ -165,7 +165,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 		req.SetExtra(protocol.LocalQueryExtra{
 			PartID: partID,
 		})
-		response, err := c.dm.service.client.RequestTo2(owner.String(), req)
+		response, err := c.dm.s.client.RequestTo2(owner.String(), req)
 		if err != nil {
 			return nil, fmt.Errorf("query call is failed: %w", err)
 		}
@@ -186,7 +186,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 }
 
 func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan error) {
-	defer c.dm.service.wg.Done()
+	defer c.dm.s.wg.Done()
 	defer close(results)
 
 	var mu sync.Mutex
@@ -200,7 +200,7 @@ func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan erro
 	}
 
 	sem := semaphore.NewWeighted(NumParallelQuery)
-	for partID := uint64(0); partID < c.dm.service.config.PartitionCount; partID++ {
+	for partID := uint64(0); partID < c.dm.s.config.PartitionCount; partID++ {
 		err := sem.Acquire(c.ctx, 1)
 		if err == context.Canceled {
 			break
@@ -225,7 +225,7 @@ func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan erro
 			case <-c.ctx.Done():
 				// cursor is gone:
 				return
-			case <-c.dm.service.ctx.Done():
+			case <-c.dm.s.ctx.Done():
 				// Server is gone.
 				return
 			default:
@@ -246,7 +246,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	results := make(chan []storage.Entry, NumParallelQuery)
 	errCh := make(chan error, 1)
 
-	c.dm.service.wg.Add(1)
+	c.dm.s.wg.Add(1)
 	go c.runQueryOnCluster(results, errCh)
 
 	for res := range results {

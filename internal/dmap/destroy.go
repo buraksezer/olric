@@ -26,11 +26,11 @@ func (dm *DMap) destroy(name string) error {
 	sem := semaphore.NewWeighted(num)
 
 	var g errgroup.Group
-	for _, item := range dm.service.rt.Discovery().GetMembers() {
+	for _, item := range dm.s.rt.Discovery().GetMembers() {
 		addr := item.String()
 		g.Go(func() error {
-			if err := sem.Acquire(dm.service.ctx, 1); err != nil {
-				dm.service.log.V(3).
+			if err := sem.Acquire(dm.s.ctx, 1); err != nil {
+				dm.s.log.V(3).
 					Printf("[ERROR] Failed to acquire semaphore to call Destroy command on %s for %s: %v",
 						addr, name, err)
 				return err
@@ -39,10 +39,10 @@ func (dm *DMap) destroy(name string) error {
 
 			req := protocol.NewDMapMessage(protocol.OpDestroyDMap)
 			req.SetDMap(name)
-			dm.service.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
-			_, err := dm.service.client.RequestTo2(addr, req)
+			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
+			_, err := dm.s.client.RequestTo2(addr, req)
 			if err != nil {
-				dm.service.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", name, addr)
+				dm.s.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", name, addr)
 			}
 			return err
 		})

@@ -211,8 +211,8 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 		return err
 	}
 	e.fragment.RUnlock()
-	if dm.service.log.V(6).Ok() {
-		dm.service.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
+	if dm.s.log.V(6).Ok() {
+		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
 	return dm.delKeyVal(item.HKey, e.dmap, key)
 }

@@ -83,7 +83,7 @@ func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition, name strin
 }
 
 func (dm *DMap) createFragmentOnPartition(part *partitions.Partition, name string) (*fragment, error) {
-	engine, ok := dm.service.storage.engines[dm.config.storageEngine]
+	engine, ok := dm.s.storage.engines[dm.config.storageEngine]
 	if !ok {
 		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
 	}
@@ -100,9 +100,9 @@ func (dm *DMap) createFragmentOnPartition(part *partitions.Partition, name strin
 func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
 	var part *partitions.Partition
 	if kind == partitions.PRIMARY {
-		part = dm.service.primary.PartitionByHKey(hkey)
+		part = dm.s.primary.PartitionByHKey(hkey)
 	} else if kind == partitions.BACKUP {
-		part = dm.service.backup.PartitionByHKey(hkey)
+		part = dm.s.backup.PartitionByHKey(hkey)
 	} else {
 		// impossible
 		panic("unknown partition kind")
