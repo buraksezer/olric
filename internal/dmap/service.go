@@ -64,6 +64,7 @@ type Service struct {
 	backup     *partitions.Partitions
 	locker     *locker.Locker
 	dmaps      map[string]*DMap
+	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
 	storage    *storageMap
 	wg         sync.WaitGroup
 	ctx        context.Context
@@ -85,9 +86,10 @@ func NewService(e *environment.Environment) (service.Service, error) {
 			engines: make(map[string]storage.Engine),
 			configs: make(map[string]map[string]interface{}),
 		},
-		dmaps:  make(map[string]*DMap),
-		ctx:    ctx,
-		cancel: cancel,
+		dmaps:      make(map[string]*DMap),
+		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 	err := s.initializeAndLoadStorageEngines()
 	if err != nil {
@@ -169,9 +171,10 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 	}
 }
 
+// Starts starts the distributed map service.
 func (s *Service) Start() error {
 	s.wg.Add(1)
-	go s.Janitor()
+	go s.janitor()
 
 	s.wg.Add(1)
 	go s.evictKeysAtBackground()

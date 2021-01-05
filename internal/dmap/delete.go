@@ -22,7 +22,23 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (dm *DMap) deleteKeyValFromPreviousOwners(name, key string, owners []discovery.Member) error {
+func (dm *DMap) deleteOnPreviousOwner(key string) error {
+	hkey := partitions.HKey(dm.name, key)
+	f, err := dm.getFragment(dm.name, hkey, partitions.PRIMARY)
+	if err != nil {
+		return err
+	}
+
+	err = f.storage.Delete(hkey)
+	if err == storage.ErrFragmented {
+		dm.s.wg.Add(1)
+		go dm.s.callCompactionOnStorage(f)
+		err = nil
+	}
+	return err
+}
+
+func (dm *DMap) deleteFromPreviousOwners(name, key string, owners []discovery.Member) error {
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
@@ -37,7 +53,7 @@ func (dm *DMap) deleteKeyValFromPreviousOwners(name, key string, owners []discov
 	return nil
 }
 
-func (dm *DMap) deleteKeyValBackup(hkey uint64, name, key string) error {
+func (dm *DMap) deleteFromBackup(hkey uint64, name, key string) error {
 	owners := dm.s.backup.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
 	for _, owner := range owners {
@@ -57,19 +73,19 @@ func (dm *DMap) deleteKeyValBackup(hkey uint64, name, key string) error {
 	return g.Wait()
 }
 
-func (dm *DMap) delKeyVal(hkey uint64, name, key string) error {
+func (dm *DMap) deleteOnFragment(hkey uint64, name, key string) error {
 	owners := dm.s.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
 
-	err := dm.deleteKeyValFromPreviousOwners(name, key, owners)
+	err := dm.deleteFromPreviousOwners(name, key, owners)
 	if err != nil {
 		return err
 	}
 
 	if dm.s.config.ReplicaCount != 0 {
-		err := dm.deleteKeyValBackup(hkey, name, key)
+		err := dm.deleteFromBackup(hkey, name, key)
 		if err != nil {
 			return err
 		}
@@ -107,7 +123,7 @@ func (dm *DMap) deleteKey(name, key string) error {
 		_, err := dm.s.client.RequestTo2(member.String(), req)
 		return err
 	}
-	return dm.delKeyVal(hkey, name, key)
+	return dm.deleteOnFragment(hkey, name, key)
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

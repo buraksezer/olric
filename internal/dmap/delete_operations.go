@@ -24,11 +24,9 @@ func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.LoadDMap(req.DMap())
 	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
+		// TODO: Consider returning ErrKeyNotFound.
+		w.SetStatus(protocol.StatusOK)
+		return
 	}
 	if err != nil {
 		errorResponse(w, err)
@@ -45,32 +43,18 @@ func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	hkey := partitions.HKey(req.DMap(), req.Key())
 	dm, err := s.LoadDMap(req.DMap())
 	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
+		// TODO: Consider returning ErrKeyNotFound.
+		w.SetStatus(protocol.StatusOK)
+		return
 	}
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
 
-	f, err := dm.getFragment(req.DMap(), hkey, partitions.PRIMARY)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	err = f.storage.Delete(hkey)
-	if err == storage.ErrFragmented {
-		dm.s.wg.Add(1)
-		go dm.s.callCompactionOnStorage(f)
-		err = nil
-	}
+	err = dm.deleteOnPreviousOwner(req.Key())
 	if err != nil {
 		errorResponse(w, err)
 		return

@@ -46,7 +46,7 @@ func (s *Service) deleteEmptyFragments() {
 	}
 }
 
-func (s *Service) Janitor() {
+func (s *Service) janitor() {
 	defer s.wg.Done()
 	// TODO: interval should be parametric.
 	timer := time.NewTimer(50 * time.Millisecond)

@@ -20,52 +20,59 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	// Operations on DMap data structure
 	//
 	// DMap.Put
-	operations[protocol.OpPut] = s.exPutOperation
-	operations[protocol.OpPutEx] = s.exPutOperation
-	operations[protocol.OpPutReplica] = s.putReplicaOperation
-	operations[protocol.OpPutExReplica] = s.putReplicaOperation
-	operations[protocol.OpPutIf] = s.exPutOperation
-	operations[protocol.OpPutIfEx] = s.exPutOperation
-	operations[protocol.OpPutIfReplica] = s.putReplicaOperation
-	operations[protocol.OpPutIfExReplica] = s.putReplicaOperation
+	s.operations[protocol.OpPut] = s.exPutOperation
+	s.operations[protocol.OpPutEx] = s.exPutOperation
+	s.operations[protocol.OpPutReplica] = s.putReplicaOperation
+	s.operations[protocol.OpPutExReplica] = s.putReplicaOperation
+	s.operations[protocol.OpPutIf] = s.exPutOperation
+	s.operations[protocol.OpPutIfEx] = s.exPutOperation
+	s.operations[protocol.OpPutIfReplica] = s.putReplicaOperation
+	s.operations[protocol.OpPutIfExReplica] = s.putReplicaOperation
 
 	// DMap.Get
-	operations[protocol.OpGet] = s.exGetOperation
-	operations[protocol.OpGetPrev] = s.getPrevOperation
-	operations[protocol.OpGetBackup] = s.getBackupOperation
+	s.operations[protocol.OpGet] = s.exGetOperation
+	s.operations[protocol.OpGetPrev] = s.getPrevOperation
+	s.operations[protocol.OpGetBackup] = s.getBackupOperation
 
 	// DMap.Delete
-	operations[protocol.OpDelete] = s.exDeleteOperation
-	operations[protocol.OpDeleteBackup] = s.deleteBackupOperation
-	operations[protocol.OpDeletePrev] = s.deletePrevOperation
+	s.operations[protocol.OpDelete] = s.exDeleteOperation
+	s.operations[protocol.OpDeleteBackup] = s.deleteBackupOperation
+	s.operations[protocol.OpDeletePrev] = s.deletePrevOperation
 
 	// DMap.Atomic
-	operations[protocol.OpIncr] = s.exIncrDecrOperation
-	operations[protocol.OpDecr] = s.exIncrDecrOperation
-	operations[protocol.OpGetPut] = s.exGetPutOperation
+	s.operations[protocol.OpIncr] = s.exIncrDecrOperation
+	s.operations[protocol.OpDecr] = s.exIncrDecrOperation
+	s.operations[protocol.OpGetPut] = s.exGetPutOperation
 
 	// DMap.Destroy
-	operations[protocol.OpDestroy] = s.exDestroyOperation
-	operations[protocol.OpDestroyDMap] = s.destroyDMapOperation
+	s.operations[protocol.OpDestroy] = s.exDestroyOperation
+	s.operations[protocol.OpDestroyDMap] = s.destroyDMapOperation
 
+	// DMap.Pipeline
+	s.operations[protocol.OpPipeline] = s.pipelineOperation
 
 	// DMap.Lock
-	operations[protocol.OpLockWithTimeout] = s.exLockWithTimeoutOperation
-	operations[protocol.OpLock] = s.exLockOperation
+	s.operations[protocol.OpLockWithTimeout] = s.exLockWithTimeoutOperation
+	s.operations[protocol.OpLock] = s.exLockOperation
 
 	// DMap.Unlock
-	operations[protocol.OpUnlock] = s.exUnlockOperation
+	s.operations[protocol.OpUnlock] = s.exUnlockOperation
 
 	// DMap.Atomic
-	operations[protocol.OpIncr] = s.exIncrDecrOperation
-	operations[protocol.OpDecr] = s.exIncrDecrOperation
-	operations[protocol.OpGetPut] = s.exGetPutOperation
+	s.operations[protocol.OpIncr] = s.exIncrDecrOperation
+	s.operations[protocol.OpDecr] = s.exIncrDecrOperation
+	s.operations[protocol.OpGetPut] = s.exGetPutOperation
 
 	// DMap.Expire
-	operations[protocol.OpExpire] = s.exExpireOperation
-	operations[protocol.OpExpireReplica] = s.expireReplicaOperation
+	s.operations[protocol.OpExpire] = s.exExpireOperation
+	s.operations[protocol.OpExpireReplica] = s.expireReplicaOperation
 
 	// DMap.Query (distributed query)
-	operations[protocol.OpLocalQuery] = s.localQueryOperation
-	operations[protocol.OpQuery] = s.exQueryOperation
+	s.operations[protocol.OpLocalQuery] = s.localQueryOperation
+	s.operations[protocol.OpQuery] = s.exQueryOperation
+
+	// Merge
+	for code, f := range s.operations {
+		operations[code] = f
+	}
 }

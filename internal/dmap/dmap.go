@@ -17,7 +17,12 @@ package dmap
 import (
 	"errors"
 	"time"
+
+	"github.com/buraksezer/olric/internal/bufpool"
 )
+
+// pool is good for recycling memory while reading messages from the socket.
+var bufferPool = bufpool.New()
 
 const nilTimeout = 0 * time.Second
 
@@ -25,7 +30,7 @@ const nilTimeout = 0 * time.Second
 var ErrKeyNotFound = errors.New("key not found")
 var ErrDMapNotFound = errors.New("dmap not found")
 
-// DMap defines the internal representation of a dmap.
+// DMap defines a distributed map implementation.
 type DMap struct {
 	name   string
 	s      *Service

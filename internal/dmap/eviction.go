@@ -107,7 +107,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 			3- If more than 25% of keys were expired, start again from step 1.
 	*/
 
-	// We need limits to prevent CPU starvation. delKeyVal does some network operation
+	// We need limits to prevent CPU starvation. deleteOnFragment does some network operation
 	// to delete keys from the backup nodes and the previous owners.
 	var maxKeyCount = 20
 	var maxTotalCount = 100
@@ -136,7 +136,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 				return false
 			}
 			if isKeyExpired(entry.TTL()) || dm.isKeyIdle(hkey) {
-				err := dm.delKeyVal(hkey, name, entry.Key())
+				err := dm.deleteOnFragment(hkey, name, entry.Key())
 				if err != nil {
 					// It will be tried again.
 					s.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
@@ -200,7 +200,7 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	sort.Slice(items, func(i, j int) bool { return items[i].AccessedAt < items[j].AccessedAt })
 	// Pick the first item to delete. It's the least recently used item in the sample.
 	item := items[0]
-	// TODO: dm.delKeyVal also locks the fragment. Prevent this.
+	// TODO: dm.deleteOnFragment also locks the fragment. Prevent this.
 	e.fragment.RLock()
 	key, err := e.fragment.storage.GetKey(item.HKey)
 	if err != nil {
@@ -214,5 +214,5 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	if dm.s.log.V(6).Ok() {
 		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
-	return dm.delKeyVal(item.HKey, e.dmap, key)
+	return dm.deleteOnFragment(item.HKey, e.dmap, key)
 }
