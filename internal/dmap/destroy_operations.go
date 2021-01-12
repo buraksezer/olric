@@ -31,11 +31,30 @@ func (s *Service) exDestroyOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
+	// 1- Destroy fragments on primary
+	// 2- Destroy fragments on backup
+	// 3- Remove DMap from the service cache
+	// 4- Be sure all background threads are stopped.
 	req := r.(*protocol.DMapMessage)
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-		// Delete primary copies
+		dm, err := s.LoadDMap(req.DMap())
+		if err == ErrDMapNotFound {
+			continue
+		}
+		if err != nil {
+			// TODO: Log this
+			return
+		}
+
 		part := s.primary.PartitionById(partID)
+		f, err := dm.loadFragmentFromPartition(part, req.DMap())
+		if err != nil {
+			// TODO: Log this
+			return
+		}
+		f.Destroy()
+		// Delete primary copies
 		part.Map().Delete(req.DMap())
 		// Delete from Backups
 		if s.config.ReplicaCount != 0 {
