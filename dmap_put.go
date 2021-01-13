@@ -16,13 +16,14 @@ package olric
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
-	"time"
 )
 
 const (
@@ -461,7 +462,7 @@ func (db *Olric) callCompactionOnStorage(dm *dmap) {
 		select {
 		case <-timer.C:
 			dm.Lock()
-			if done := dm.storage.Compaction(); done {
+			if done, _ := dm.storage.Compaction(); done {
 				// Fragmented tables are merged. Quit.
 				dm.Unlock()
 				return

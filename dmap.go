@@ -33,6 +33,10 @@ type dmap struct {
 	storage storage.Engine
 }
 
+func (dm *dmap) Compaction() (bool, error) {
+	panic("implement me")
+}
+
 func (dm *dmap) Destroy() error {
 	panic("implement me")
 }
