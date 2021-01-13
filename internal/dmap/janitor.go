@@ -20,6 +20,22 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
+func wipeOutFragment(part *partitions.Partition, name string, f *fragment) error {
+	// Stop background services if there is any.
+	err := f.Close()
+	if err != nil {
+		return err
+	}
+	// Destroy data on-disk or in-memory.
+	err = f.Destroy()
+	if err != nil {
+		return err
+	}
+	// Delete the fragment from partition.
+	part.Map().Delete(name)
+	return nil
+}
+
 func (s *Service) deleteEmptyFragments() {
 	janitor := func(part *partitions.Partition) {
 		part.Map().Range(func(name, tmp interface{}) bool {
@@ -30,7 +46,13 @@ func (s *Service) deleteEmptyFragments() {
 				// Continue scanning.
 				return true
 			}
-			part.Map().Delete(name)
+			err := wipeOutFragment(part, name.(string), f)
+			if err != nil {
+				s.log.V(3).Printf("[ERROR] Failed to delete empty DMap fragment (kind: %s): %s on PartID: %d",
+					part.Kind(), name, part.Id())
+				// continue scanning
+				return true
+			}
 			s.log.V(4).Printf("[INFO] Empty DMap fragment (kind: %s) has been deleted: %s on PartID: %d",
 				part.Kind(), name, part.Id())
 			return true

@@ -43,20 +43,7 @@ func (dm *DMap) destroyFragmentOnPartition(part *partitions.Partition) error {
 	if err != nil {
 		return err
 	}
-	// Stop background services if there is any.
-	err = f.Close()
-	if err != nil {
-		return err
-	}
-	// Destroy data on disk or in-memory.
-	err = f.Destroy()
-	if err != nil {
-		return err
-	}
-
-	// Delete the fragment from partition.
-	part.Map().Delete(dm.name)
-	return nil
+	return wipeOutFragment(part, dm.name, f)
 }
 
 func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
