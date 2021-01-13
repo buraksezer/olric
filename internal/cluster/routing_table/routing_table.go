@@ -61,7 +61,7 @@ type RoutingTable struct {
 	ownedPartitionCount uint64
 	signature           uint64
 	this                discovery.Member
-	members             *members
+	members             *Members
 	config              *config.Config
 	log                 *flog.Logger
 	primary             *partitions.Partitions
@@ -128,7 +128,7 @@ func (r *RoutingTable) NumMembers() int32 {
 	return atomic.LoadInt32(&r.numMembers)
 }
 
-func (r *RoutingTable) Members() *members {
+func (r *RoutingTable) Members() *Members {
 	return r.members
 }
 

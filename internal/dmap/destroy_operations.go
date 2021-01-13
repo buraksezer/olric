@@ -14,7 +14,11 @@
 
 package dmap
 
-import "github.com/buraksezer/olric/internal/protocol"
+import (
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
 func (s *Service) exDestroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
@@ -30,11 +34,32 @@ func (s *Service) exDestroyOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
+func (dm *DMap) destroyFragmentOnPartition(part *partitions.Partition) error {
+	f, err := dm.loadFragmentFromPartition(part)
+	if err == errFragmentNotFound {
+		// not exists
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	// Stop background services if there is any.
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+	// Destroy data on disk or in-memory.
+	err = f.Destroy()
+	if err != nil {
+		return err
+	}
+
+	// Delete the fragment from partition.
+	part.Map().Delete(dm.name)
+	return nil
+}
+
 func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
-	// 1- Destroy fragments on primary
-	// 2- Destroy fragments on backup
-	// 3- Remove DMap from the service cache
-	// 4- Be sure all background threads are stopped.
 	req := r.(*protocol.DMapMessage)
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
@@ -43,24 +68,30 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 			continue
 		}
 		if err != nil {
-			// TODO: Log this
+			errorResponse(w, err)
 			return
 		}
 
-		part := s.primary.PartitionById(partID)
-		f, err := dm.loadFragmentFromPartition(part, req.DMap())
+		part := dm.s.primary.PartitionById(partID)
+		err = dm.destroyFragmentOnPartition(part)
 		if err != nil {
-			// TODO: Log this
+			errorResponse(w, err)
 			return
 		}
-		f.Destroy()
-		// Delete primary copies
-		part.Map().Delete(req.DMap())
-		// Delete from Backups
-		if s.config.ReplicaCount != 0 {
-			bpart := s.backup.PartitionById(partID)
-			bpart.Map().Delete(req.DMap())
+
+		// Destroy on replicas
+		if s.config.ReplicaCount > config.MinimumReplicaCount {
+			backup := dm.s.backup.PartitionById(partID)
+			err = dm.destroyFragmentOnPartition(backup)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
 		}
 	}
+
+	s.Lock()
+	delete(s.dmaps, req.DMap())
+	s.Unlock()
 	w.SetStatus(protocol.StatusOK)
 }

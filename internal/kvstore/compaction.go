@@ -14,11 +14,11 @@
 
 package kvstore
 
-import "log"
+import "fmt"
 
-func (kv *KVStore) Compaction() bool {
+func (kv *KVStore) Compaction() (bool, error) {
 	if len(kv.tables) == 1 {
-		return true
+		return true, nil
 	}
 
 	var total int
@@ -32,10 +32,11 @@ func (kv *KVStore) Compaction() bool {
 				// Create a new table and put the new k/v pair in it.
 				nt := newTable(kv.Stats().Inuse * 2)
 				kv.tables = append(kv.tables, nt)
-				return false
+				return false, nil
 			}
 			if err != nil {
-				log.Printf("[ERROR] Failed to compact tables. HKey: %d: %v", hkey, err)
+				// log this error and continue
+				return false, fmt.Errorf("put command failed: HKey: %d: %w", hkey, err)
 			}
 
 			// Dont check the returned val, it'kv useless because
@@ -44,7 +45,7 @@ func (kv *KVStore) Compaction() bool {
 			total++
 			if total > 1000 {
 				// It'kv enough. Don't block the instance.
-				return false
+				return false, nil
 			}
 		}
 	}
@@ -58,5 +59,5 @@ func (kv *KVStore) Compaction() bool {
 		tmp = append(tmp, t)
 	}
 	kv.tables = tmp
-	return true
+	return true, nil
 }

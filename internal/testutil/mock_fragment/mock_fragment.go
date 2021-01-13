@@ -82,4 +82,19 @@ func (f *MockFragment) Move(_ uint64, _ partitions.Kind, _ string, _ discovery.M
 	return nil
 }
 
+func (f *MockFragment) Compaction() (bool, error) {
+	return false, nil
+}
+
+func (f *MockFragment) Destroy() error {
+	f.Lock()
+	defer f.Unlock()
+	f.m = make(map[string]interface{})
+	return nil
+}
+
+func (f *MockFragment) Close() error {
+	return nil
+}
+
 var _ partitions.Fragment = (*MockFragment)(nil)

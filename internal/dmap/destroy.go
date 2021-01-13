@@ -15,10 +15,12 @@
 package dmap
 
 import (
+	"runtime"
+
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
-	"runtime"
 )
 
 func (dm *DMap) destroy(name string) error {
@@ -26,7 +28,19 @@ func (dm *DMap) destroy(name string) error {
 	sem := semaphore.NewWeighted(num)
 
 	var g errgroup.Group
-	for _, item := range dm.s.rt.Discovery().GetMembers() {
+
+	// Don't block routing table to destroy a DMap on the cluster.
+	// Just get a copy of members and run Destroy.
+	var members []discovery.Member
+	m := dm.s.rt.Members()
+	m.RLock()
+	m.Range(func(_ uint64, member discovery.Member) bool {
+		members = append(members, member)
+		return true
+	})
+	m.RUnlock()
+
+	for _, item := range members {
 		addr := item.String()
 		g.Go(func() error {
 			if err := sem.Acquire(dm.s.ctx, 1); err != nil {

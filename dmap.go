@@ -33,6 +33,14 @@ type dmap struct {
 	storage storage.Engine
 }
 
+func (dm *dmap) Destroy() error {
+	panic("implement me")
+}
+
+func (dm *dmap) Close() error {
+	panic("implement me")
+}
+
 func (dm *dmap) Name() string {
 	return "DMap"
 }

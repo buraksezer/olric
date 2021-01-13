@@ -159,7 +159,11 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 		select {
 		case <-timer.C:
 			f.Lock()
-			if done := f.storage.Compaction(); done {
+			done, err := f.Compaction()
+			if err != nil {
+				s.log.V(3).Printf("[ERROR] Failed to run compaction on fragment: %v", err)
+			}
+			if done {
 				// Fragmented tables are merged. Quit.
 				f.Unlock()
 				return

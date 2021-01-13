@@ -21,22 +21,22 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 )
 
-type members struct {
+type Members struct {
 	sync.RWMutex
 	m map[uint64]discovery.Member
 }
 
-func newMembers() *members {
-	return &members{
+func newMembers() *Members {
+	return &Members{
 		m: map[uint64]discovery.Member{},
 	}
 }
 
-func (m *members) Add(member discovery.Member) {
+func (m *Members) Add(member discovery.Member) {
 	m.m[member.ID] = member
 }
 
-func (m *members) Get(id uint64) (discovery.Member, error) {
+func (m *Members) Get(id uint64) (discovery.Member, error) {
 	member, ok := m.m[id]
 	if !ok {
 		return discovery.Member{}, fmt.Errorf("member not found with id: %d", id)
@@ -44,11 +44,11 @@ func (m *members) Get(id uint64) (discovery.Member, error) {
 	return member, nil
 }
 
-func (m *members) Delete(id uint64) {
+func (m *Members) Delete(id uint64) {
 	delete(m.m, id)
 }
 
-func (m *members) DeleteByName(other discovery.Member) {
+func (m *Members) DeleteByName(other discovery.Member) {
 	for id, member := range m.m {
 		if member.CompareByName(other) {
 			delete(m.m, id)
@@ -56,11 +56,11 @@ func (m *members) DeleteByName(other discovery.Member) {
 	}
 }
 
-func (m *members) Length() int {
+func (m *Members) Length() int {
 	return len(m.m)
 }
 
-func (m *members) Range(f func(id uint64, member discovery.Member) bool) {
+func (m *Members) Range(f func(id uint64, member discovery.Member) bool) {
 	for id, member := range m.m {
 		if !f(id, member) {
 			break

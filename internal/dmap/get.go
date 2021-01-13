@@ -55,7 +55,7 @@ func (dm *DMap) unmarshalValue(rawval []byte) (interface{}, error) {
 }
 
 func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
-	f, err := dm.getFragment(e.dmap, e.hkey, e.kind)
+	f, err := dm.getFragment(e.hkey, e.kind)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (dm *DMap) valueToVersion(value storage.Entry) *version {
 
 func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 	// Check on localhost, the partition owner.
-	f, err := dm.getFragment(name, hkey, partitions.PRIMARY)
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
 	if err != nil {
 		if err != errFragmentNotFound {
 			dm.s.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)

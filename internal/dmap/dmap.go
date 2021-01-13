@@ -15,10 +15,13 @@
 package dmap
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 // pool is good for recycling memory while reading messages from the socket.
@@ -82,6 +85,67 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	}
 	s.dmaps[name] = dm
 	return dm, nil
+}
+
+func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition) (*fragment, error) {
+	f, ok := part.Map().Load(dm.name)
+	if !ok {
+		return nil, errFragmentNotFound
+	}
+	return f.(*fragment), nil
+}
+
+func (dm *DMap) createFragmentOnPartition(part *partitions.Partition) (*fragment, error) {
+	engine, ok := dm.s.storage.engines[dm.config.storageEngine]
+	if !ok {
+		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	f := &fragment{
+		ctx:    ctx,
+		cancel: cancel,
+	}
+	var err error
+	f.storage, err = engine.Fork(nil)
+	if err != nil {
+		return nil, err
+	}
+	part.Map().Store(dm.name, f)
+	return f, nil
+}
+
+func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
+	var part *partitions.Partition
+	if kind == partitions.PRIMARY {
+		part = dm.s.primary.PartitionByHKey(hkey)
+	} else if kind == partitions.BACKUP {
+		part = dm.s.backup.PartitionByHKey(hkey)
+	} else {
+		// impossible
+		panic("unknown partition kind")
+	}
+	return part
+}
+
+func (dm *DMap) getFragment(hkey uint64, kind partitions.Kind) (*fragment, error) {
+	part := dm.getPartitionByHKey(hkey, kind)
+	part.Lock()
+	defer part.Unlock()
+	return dm.loadFragmentFromPartition(part)
+}
+
+func (dm *DMap) getOrCreateFragment(hkey uint64, kind partitions.Kind) (*fragment, error) {
+	part := dm.getPartitionByHKey(hkey, kind)
+	part.Lock()
+	defer part.Unlock()
+
+	// try to get
+	f, err := dm.loadFragmentFromPartition(part)
+	if err == errFragmentNotFound {
+		// create the fragment and return
+		return dm.createFragmentOnPartition(part)
+	}
+	return f, err
 }
 
 func timeoutToTTL(timeout time.Duration) int64 {

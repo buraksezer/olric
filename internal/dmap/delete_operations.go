@@ -79,7 +79,7 @@ func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	f, err := dm.getFragment(req.DMap(), hkey, partitions.BACKUP)
+	f, err := dm.getFragment(hkey, partitions.BACKUP)
 	if err != nil {
 		errorResponse(w, err)
 		return

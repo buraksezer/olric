@@ -66,7 +66,7 @@ func (dm *DMap) putOnFragment(e *env) error {
 }
 
 func (dm *DMap) putOnReplicaFragment(e *env) error {
-	f, err := dm.getOrCreateFragment(e.dmap, e.hkey, partitions.BACKUP)
+	f, err := dm.getOrCreateFragment(e.hkey, partitions.BACKUP)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (dm *DMap) checkPutConditions(e *env) error {
 }
 
 func (dm *DMap) putOnCluster(e *env) error {
-	f, err := dm.getOrCreateFragment(e.dmap, e.hkey, partitions.PRIMARY)
+	f, err := dm.getOrCreateFragment(e.hkey, partitions.PRIMARY)
 	if err != nil {
 		return err
 	}

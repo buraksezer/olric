@@ -418,3 +418,7 @@ func (kv *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, entry stora
 func (kv *KVStore) Close() error {
 	return nil
 }
+
+func (kv *KVStore) Destroy() error {
+	return nil
+}

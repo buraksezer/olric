@@ -34,7 +34,7 @@ func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 	e := newEnvFromReq(r, partitions.BACKUP)
-	f, err := dm.getFragment(req.DMap(), e.hkey, partitions.BACKUP)
+	f, err := dm.getFragment(e.hkey, partitions.BACKUP)
 	if err == errFragmentNotFound {
 		errorResponse(w, ErrKeyNotFound)
 		return

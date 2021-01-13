@@ -16,12 +16,13 @@ package dmap
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
-	"time"
 )
 
 func (dm *DMap) localExpire(e *env) error {
@@ -92,7 +93,7 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 }
 
 func (dm *DMap) callExpireOnCluster(e *env) error {
-	f, err := dm.getFragment(e.dmap, e.hkey, partitions.PRIMARY)
+	f, err := dm.getFragment(e.hkey, partitions.PRIMARY)
 	if err == errFragmentNotFound {
 		return ErrKeyNotFound
 	}

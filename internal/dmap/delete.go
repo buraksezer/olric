@@ -24,7 +24,7 @@ import (
 
 func (dm *DMap) deleteOnPreviousOwner(key string) error {
 	hkey := partitions.HKey(dm.name, key)
-	f, err := dm.getFragment(dm.name, hkey, partitions.PRIMARY)
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (dm *DMap) deleteOnFragment(hkey uint64, name, key string) error {
 		}
 	}
 
-	f, err := dm.getFragment(name, hkey, partitions.PRIMARY)
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
 	if err != nil {
 		return err
 	}

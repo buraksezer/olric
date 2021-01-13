@@ -15,14 +15,15 @@
 package dmap
 
 import (
-	"fmt"
-	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/vmihailenco/msgpack"
+	"context"
+	"errors"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/vmihailenco/msgpack"
 )
 
 type fragment struct {
@@ -30,6 +31,32 @@ type fragment struct {
 
 	service *Service
 	storage storage.Engine
+	ctx     context.Context
+	cancel  context.CancelFunc
+}
+
+func (f *fragment) Compaction() (bool, error) {
+	select {
+	case <-f.ctx.Done():
+		// fragment is closed or destroyed
+		return false, nil
+	default:
+	}
+	return f.storage.Compaction()
+}
+
+func (f *fragment) Destroy() error {
+	select {
+	case <-f.ctx.Done():
+		return f.storage.Destroy()
+	default:
+	}
+	return errors.New("fragment is not closed")
+}
+
+func (f *fragment) Close() error {
+	defer f.cancel()
+	return f.storage.Close()
 }
 
 func (f *fragment) Name() string {
@@ -72,63 +99,6 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 	// TODO: Check errors etc
 	_, err = f.service.client.RequestTo2(owner.String(), req)
 	return err
-}
-
-func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition, name string) (*fragment, error) {
-	f, ok := part.Map().Load(name)
-	if !ok {
-		return nil, errFragmentNotFound
-	}
-	return f.(*fragment), nil
-}
-
-func (dm *DMap) createFragmentOnPartition(part *partitions.Partition, name string) (*fragment, error) {
-	engine, ok := dm.s.storage.engines[dm.config.storageEngine]
-	if !ok {
-		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
-	}
-	f := &fragment{}
-	var err error
-	f.storage, err = engine.Fork(nil)
-	if err != nil {
-		return nil, err
-	}
-	part.Map().Store(name, f)
-	return f, nil
-}
-
-func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
-	var part *partitions.Partition
-	if kind == partitions.PRIMARY {
-		part = dm.s.primary.PartitionByHKey(hkey)
-	} else if kind == partitions.BACKUP {
-		part = dm.s.backup.PartitionByHKey(hkey)
-	} else {
-		// impossible
-		panic("unknown partition kind")
-	}
-	return part
-}
-
-func (dm *DMap) getFragment(name string, hkey uint64, kind partitions.Kind) (*fragment, error) {
-	part := dm.getPartitionByHKey(hkey, kind)
-	part.Lock()
-	defer part.Unlock()
-	return dm.loadFragmentFromPartition(part, name)
-}
-
-func (dm *DMap) getOrCreateFragment(name string, hkey uint64, kind partitions.Kind) (*fragment, error) {
-	part := dm.getPartitionByHKey(hkey, kind)
-	part.Lock()
-	defer part.Unlock()
-
-	// try to get
-	f, err := dm.loadFragmentFromPartition(part, name)
-	if err == errFragmentNotFound {
-		// create the fragment and return
-		return dm.createFragmentOnPartition(part, name)
-	}
-	return f, err
 }
 
 var _ partitions.Fragment = (*fragment)(nil)

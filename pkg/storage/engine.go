@@ -37,6 +37,7 @@ type Engine interface {
 	Check(uint64) bool
 	Range(func(uint64, Entry) bool)
 	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
-	Compaction() bool
+	Compaction() (bool, error)
 	Close() error
+	Destroy() error
 }
