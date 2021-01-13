@@ -37,7 +37,7 @@ func (dm *DMap) localExpire(e *env) error {
 		}
 		return err
 	}
-	dm.updateAccessLog(e.hkey)
+	dm.updateAccessLog(e.hkey, e.fragment)
 	return nil
 }
 

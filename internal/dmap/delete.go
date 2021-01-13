@@ -108,7 +108,7 @@ func (dm *DMap) deleteOnFragment(hkey uint64, name, key string) error {
 	// Delete it from access log if everything is ok.
 	// If we delete the hkey when err is not nil, LRU/MaxIdleDuration may not work properly.
 	if err == nil {
-		dm.deleteAccessLog(hkey)
+		dm.deleteAccessLog(hkey, f)
 	}
 	return err
 }

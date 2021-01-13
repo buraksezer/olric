@@ -2,24 +2,17 @@ package dmap
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/config"
 )
 
-// TODO: accessLog should be moved to its own struct
-// TODO: dmapConfig will be renamed dmap.Config after refactoring. See #70 for details.
-
 // configuration keeps DMap config control parameters and access-log for keys in a dmap.
 type configuration struct {
-	sync.RWMutex // protects accessLog
-
 	maxIdleDuration time.Duration
 	ttlDuration     time.Duration
 	maxKeys         int
 	maxInuse        int
-	accessLog       map[uint64]int64
 	lruSamples      int
 	evictionPolicy  config.EvictionPolicy
 	storageEngine   string
@@ -68,10 +61,6 @@ func (c *configuration) load(cfg *config.Config, name string) error {
 		}
 	}
 
-	if c.evictionPolicy == config.LRUEviction || c.maxIdleDuration != 0 {
-		c.accessLog = make(map[uint64]int64)
-	}
-
 	// TODO: Create a new function to verify config config.
 	if c.evictionPolicy == config.LRUEviction {
 		if c.maxInuse <= 0 && c.maxKeys <= 0 {
@@ -83,4 +72,8 @@ func (c *configuration) load(cfg *config.Config, name string) error {
 		}
 	}
 	return nil
+}
+
+func (c *configuration) isAccessLogRequired() bool {
+	return c.evictionPolicy == config.LRUEviction || c.maxIdleDuration != 0
 }

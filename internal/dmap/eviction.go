@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"math/rand"
 	"runtime"
 	"sort"
@@ -29,16 +30,22 @@ func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	if dm.config == nil {
 		return false
 	}
-	if dm.config.accessLog == nil || dm.config.maxIdleDuration.Nanoseconds() == 0 {
+	if !dm.config.isAccessLogRequired() || dm.config.maxIdleDuration.Nanoseconds() == 0 {
 		return false
 	}
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	if err != nil {
+		// This could be a programming error and should never be happened on production systems.
+		panic(fmt.Sprintf("failed to get primary partition for: %d: %v", hkey, err))
+	}
+
+	f.RLock()
+	defer f.RUnlock()
 	// Maximum time in seconds for each entry to stay idle in the map.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period
 	// exceeds this limit are expired and evicted automatically.
-	dm.config.RLock()
-	defer dm.config.RUnlock()
-	t, ok := dm.config.accessLog[hkey]
+	t, ok := f.accessLog.get(hkey)
 	if !ok {
 		return false
 	}
@@ -46,13 +53,12 @@ func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	return isKeyExpired(ttl)
 }
 
-func (dm *DMap) deleteAccessLog(hkey uint64) {
-	if dm.config == nil || dm.config.accessLog == nil {
+func (dm *DMap) deleteAccessLog(hkey uint64, f *fragment) {
+	if dm.config == nil || !dm.config.isAccessLogRequired() {
+		// Fail early. This's useful to avoid checking the configuration everywhere.
 		return
 	}
-	dm.config.Lock()
-	defer dm.config.Unlock()
-	delete(dm.config.accessLog, hkey)
+	f.accessLog.delete(hkey)
 }
 
 func (s *Service) evictKeysAtBackground() {
@@ -177,26 +183,28 @@ type lruItem struct {
 }
 
 func (dm *DMap) evictKeyWithLRU(e *env) error {
-	idx := 1
-	items := []lruItem{}
-	dm.config.RLock()
+	var idx = 1
+	var items []lruItem
+	e.fragment.RLock()
 	// Pick random items from the distributed map and sort them by accessedAt.
-	for hkey, accessedAt := range dm.config.accessLog {
+	e.fragment.accessLog.iterator(func(hkey uint64, timestamp int64) bool {
 		if idx >= dm.config.lruSamples {
-			break
+			return false
 		}
 		idx++
 		i := lruItem{
 			HKey:       hkey,
-			AccessedAt: accessedAt,
+			AccessedAt: timestamp,
 		}
 		items = append(items, i)
-	}
-	dm.config.RUnlock()
+		return true
+	})
+	e.fragment.RUnlock()
 
 	if len(items) == 0 {
 		return fmt.Errorf("nothing found to expire with LRU")
 	}
+
 	sort.Slice(items, func(i, j int) bool { return items[i].AccessedAt < items[j].AccessedAt })
 	// Pick the first item to delete. It's the least recently used item in the sample.
 	item := items[0]

@@ -50,7 +50,7 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) e
 		return err
 	}
 
-	// Acquire dmap's lock. No one should work on it.
+	// Acquire fragment's lock. No one should work on it.
 	f.Lock()
 	defer f.Unlock()
 	defer part.Map().Store(data.Name, f)
@@ -61,14 +61,10 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) e
 	}
 
 	// Merge accessLog.
-	if dm.config != nil && dm.config.accessLog != nil {
-		dm.config.Lock()
-		for hkey, t := range data.AccessLog {
-			if _, ok := dm.config.accessLog[hkey]; !ok {
-				dm.config.accessLog[hkey] = t
-			}
+	if dm.config != nil && dm.config.isAccessLogRequired() {
+		f.accessLog = &accessLog{
+			m: data.AccessLog,
 		}
-		dm.config.Unlock()
 	}
 
 	if f.storage.Stats().Length == 0 {

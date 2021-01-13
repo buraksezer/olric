@@ -119,6 +119,14 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, name, key string) *version {
 		}
 		return dm.valueToVersion(nil)
 	}
+	// We found the key
+	//
+	// LRU and MaxIdleDuration eviction policies are only valid on
+	// the partition owner. Normally, we shouldn't need to retrieve the keys
+	// from the backup or the previous owners. When the fsck merge
+	// a fragmented partition or recover keys from a backup, Olric
+	// continue maintaining a reliable access log.
+	dm.updateAccessLog(hkey, f)
 	return dm.valueToVersion(value)
 }
 
@@ -278,12 +286,6 @@ func (dm *DMap) getOnCluster(hkey uint64, name, key string) (storage.Entry, erro
 	if isKeyExpired(winner.entry.TTL()) || dm.isKeyIdle(hkey) {
 		return nil, ErrKeyNotFound
 	}
-	// LRU and MaxIdleDuration eviction policies are only valid on
-	// the partition owner. Normally, we shouldn't need to retrieve the keys
-	// from the backup or the previous owners. When the fsck merge
-	// a fragmented partition or recover keys from a backup, Olric
-	// continue maintaining a reliable access log.
-	dm.updateAccessLog(hkey)
 
 	if dm.s.config.ReadRepair {
 		// Parallel read operations may propagate different versions of

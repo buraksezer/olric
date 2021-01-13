@@ -36,14 +36,13 @@ var (
 	ErrWriteQuorum = errors.New("write quorum cannot be reached")
 )
 
-func (dm *DMap) updateAccessLog(hkey uint64) {
-	if dm.config == nil || dm.config.accessLog == nil {
+func (dm *DMap) updateAccessLog(hkey uint64, f *fragment) {
+	if dm.config == nil || !dm.config.isAccessLogRequired() {
 		// Fail early. This's useful to avoid checking the configuration everywhere.
 		return
 	}
-	dm.config.Lock()
-	defer dm.config.Unlock()
-	dm.config.accessLog[hkey] = time.Now().UnixNano()
+	// Be careful. DMap fragment is not a thread-safe data structure.
+	f.accessLog.touch(hkey)
 }
 
 // putOnFragment calls underlying storage engine's Put method to store the key/value pair. It's not thread-safe.
@@ -60,7 +59,7 @@ func (dm *DMap) putOnFragment(e *env) error {
 		err = nil
 	}
 	if err == nil {
-		dm.updateAccessLog(e.hkey)
+		dm.updateAccessLog(e.hkey, e.fragment)
 	}
 	return err
 }
