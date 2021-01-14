@@ -45,6 +45,7 @@ func (s *Service) exQueryOperation(w, r protocol.EncodeDecoder) {
 	dm, err := s.LoadDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
+		return
 	}
 	q, err := query.FromByte(req.Value())
 	if err != nil {

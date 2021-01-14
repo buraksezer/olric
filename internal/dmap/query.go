@@ -115,11 +115,7 @@ func (dm *DMap) Query(q query.M) (*Cursor, error) {
 
 func (dm *DMap) runLocalQuery(partID uint64, q query.M) (queryResponse, error) {
 	p := newQueryPipeline(dm, partID)
-	result, err := p.execute(q)
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return p.execute(q)
 }
 
 func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storage.Entry {
@@ -156,7 +152,6 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 				return nil, err
 			}
 			responses = append(responses, response)
-
 			continue
 		}
 		req := protocol.NewDMapMessage(protocol.OpLocalQuery)
