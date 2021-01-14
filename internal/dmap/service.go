@@ -43,9 +43,8 @@ var (
 	ErrNotImplemented   = errors.New("not implemented")
 	// ErrOperationTimeout is returned when an operation times out.
 	ErrOperationTimeout = errors.New("operation timeout")
+	errFragmentNotFound = errors.New("fragment not found")
 )
-
-var errFragmentNotFound = errors.New("fragment not found")
 
 type storageMap struct {
 	engines map[string]storage.Engine
