@@ -73,13 +73,20 @@ func (dm *DMap) deleteFromBackup(hkey uint64, name, key string) error {
 	return g.Wait()
 }
 
-func (dm *DMap) deleteOnFragment(hkey uint64, name, key string) error {
+func (dm *DMap) deleteOnCluster(hkey uint64, name, key string) error {
 	owners := dm.s.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
 
-	err := dm.deleteFromPreviousOwners(name, key, owners)
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	if err != nil {
+		return err
+	}
+	f.Lock()
+	defer f.Unlock()
+
+	err = dm.deleteFromPreviousOwners(name, key, owners)
 	if err != nil {
 		return err
 	}
@@ -90,13 +97,6 @@ func (dm *DMap) deleteOnFragment(hkey uint64, name, key string) error {
 			return err
 		}
 	}
-
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
-	if err != nil {
-		return err
-	}
-	f.Lock()
-	defer f.Unlock()
 
 	err = f.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
@@ -123,7 +123,7 @@ func (dm *DMap) deleteKey(name, key string) error {
 		_, err := dm.s.client.RequestTo2(member.String(), req)
 		return err
 	}
-	return dm.deleteOnFragment(hkey, name, key)
+	return dm.deleteOnCluster(hkey, name, key)
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

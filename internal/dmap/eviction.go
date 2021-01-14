@@ -16,16 +16,17 @@ package dmap
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"math/rand"
 	"runtime"
 	"sort"
 	"time"
 
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/pkg/storage"
 	"golang.org/x/sync/semaphore"
 )
 
+// isKeyIdle is not a thread-safe function. It accesses underlying fragment for the given hkey.
 func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	if dm.config == nil {
 		return false
@@ -39,8 +40,6 @@ func (dm *DMap) isKeyIdle(hkey uint64) bool {
 		panic(fmt.Sprintf("failed to get primary partition for: %d: %v", hkey, err))
 	}
 
-	f.RLock()
-	defer f.RUnlock()
 	// Maximum time in seconds for each entry to stay idle in the map.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period
@@ -113,7 +112,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 			3- If more than 25% of keys were expired, start again from step 1.
 	*/
 
-	// We need limits to prevent CPU starvation. deleteOnFragment does some network operation
+	// We need limits to prevent CPU starvation. deleteOnCluster does some network operation
 	// to delete keys from the backup nodes and the previous owners.
 	var maxKeyCount = 20
 	var maxTotalCount = 100
@@ -142,7 +141,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 				return false
 			}
 			if isKeyExpired(entry.TTL()) || dm.isKeyIdle(hkey) {
-				err := dm.deleteOnFragment(hkey, name, entry.Key())
+				err := dm.deleteOnCluster(hkey, name, entry.Key())
 				if err != nil {
 					// It will be tried again.
 					s.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
@@ -185,6 +184,7 @@ type lruItem struct {
 func (dm *DMap) evictKeyWithLRU(e *env) error {
 	var idx = 1
 	var items []lruItem
+
 	e.fragment.RLock()
 	// Pick random items from the distributed map and sort them by accessedAt.
 	e.fragment.accessLog.iterator(func(hkey uint64, timestamp int64) bool {
@@ -199,17 +199,15 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 		items = append(items, i)
 		return true
 	})
-	e.fragment.RUnlock()
 
 	if len(items) == 0 {
+		e.fragment.RUnlock()
 		return fmt.Errorf("nothing found to expire with LRU")
 	}
 
 	sort.Slice(items, func(i, j int) bool { return items[i].AccessedAt < items[j].AccessedAt })
 	// Pick the first item to delete. It's the least recently used item in the sample.
 	item := items[0]
-	// TODO: dm.deleteOnFragment also locks the fragment. Prevent this.
-	e.fragment.RLock()
 	key, err := e.fragment.storage.GetKey(item.HKey)
 	if err != nil {
 		if err == storage.ErrKeyNotFound {
@@ -218,9 +216,8 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 		e.fragment.RUnlock()
 		return err
 	}
-	e.fragment.RUnlock()
 	if dm.s.log.V(6).Ok() {
 		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
-	return dm.deleteOnFragment(item.HKey, e.dmap, key)
+	return dm.deleteOnCluster(item.HKey, e.dmap, key)
 }
