@@ -110,13 +110,14 @@ func (dm *DMap) callExpireOnCluster(e *env) error {
 		return dm.localExpire(e)
 	}
 
-	if dm.s.config.ReplicationMode == config.AsyncReplicationMode {
+	switch dm.s.config.ReplicationMode {
+	case config.AsyncReplicationMode:
 		return dm.asyncExpireOnCluster(e)
-	} else if dm.s.config.ReplicationMode == config.SyncReplicationMode {
+	case config.SyncReplicationMode:
 		return dm.syncExpireOnCluster(e)
+	default:
+		return fmt.Errorf("invalid replication mode: %v", dm.s.config.ReplicationMode)
 	}
-
-	return fmt.Errorf("invalid replication mode: %v", dm.s.config.ReplicationMode)
 }
 
 func (dm *DMap) expire(e *env) error {
@@ -135,11 +136,11 @@ func (dm *DMap) expire(e *env) error {
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
 // DB does not contains the key. It's thread-safe.
 func (dm *DMap) Expire(key string, timeout time.Duration) error {
-	w := &env{
+	e := &env{
 		dmap:      dm.name,
 		key:       key,
 		timestamp: time.Now().UnixNano(),
 		timeout:   timeout,
 	}
-	return dm.expire(w)
+	return dm.expire(e)
 }
