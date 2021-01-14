@@ -53,6 +53,7 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) e
 	// Acquire fragment's lock. No one should work on it.
 	f.Lock()
 	defer f.Unlock()
+	// TODO: This may be useless. Check it.
 	defer part.Map().Store(data.Name, f)
 
 	engine, err := f.storage.Import(data.Payload)
@@ -122,7 +123,7 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	box := &fragmentPack{}
 	err := msgpack.Unmarshal(req.Value(), box)
 	if err != nil {
-		s.log.V(2).Printf("[ERROR] Failed to unmarshal dmap: %v", err)
+		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
 		errorResponse(w, err)
 		return
 	}

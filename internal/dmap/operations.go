@@ -71,6 +71,9 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	s.operations[protocol.OpLocalQuery] = s.localQueryOperation
 	s.operations[protocol.OpQuery] = s.exQueryOperation
 
+	// Internals
+	s.operations[protocol.OpMoveDMap] = s.moveDMapOperation
+
 	// Merge
 	for code, f := range s.operations {
 		operations[code] = f
