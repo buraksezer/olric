@@ -141,7 +141,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 				return false
 			}
 			if isKeyExpired(entry.TTL()) || dm.isKeyIdle(hkey) {
-				err := dm.deleteOnCluster(hkey, name, entry.Key())
+				err := dm.deleteOnCluster(hkey, entry.Key())
 				if err != nil {
 					// It will be tried again.
 					s.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
@@ -219,5 +219,5 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	if dm.s.log.V(6).Ok() {
 		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
-	return dm.deleteOnCluster(item.HKey, e.dmap, key)
+	return dm.deleteOnCluster(item.HKey, key)
 }

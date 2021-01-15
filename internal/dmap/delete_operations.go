@@ -33,7 +33,7 @@ func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	err = dm.deleteKey(req.DMap(), req.Key())
+	err = dm.deleteKey(req.Key())
 	if err != nil {
 		errorResponse(w, err)
 		return

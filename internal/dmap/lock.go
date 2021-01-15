@@ -44,19 +44,19 @@ type LockContext struct {
 }
 
 // unlockKey tries to unlock the lock by verifying the lock with token.
-func (dm *DMap) unlockKey(name, key string, token []byte) error {
-	lkey := name + key
+func (dm *DMap) unlockKey(key string, token []byte) error {
+	lkey := dm.name + key
 	// Only one unlockKey should work for a given key.
 	dm.s.locker.Lock(lkey)
 	defer func() {
 		err := dm.s.locker.Unlock(lkey)
 		if err != nil {
-			dm.s.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, name, err)
+			dm.s.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, dm.name, err)
 		}
 	}()
 
 	// get the key to check its value
-	entry, err := dm.get(name, key)
+	entry, err := dm.get(key)
 	if err == ErrKeyNotFound {
 		return ErrNoSuchLock
 	}
@@ -74,7 +74,7 @@ func (dm *DMap) unlockKey(name, key string, token []byte) error {
 	}
 
 	// release it.
-	err = dm.deleteKey(name, key)
+	err = dm.deleteKey(key)
 	if err != nil {
 		return fmt.Errorf("unlock failed because of delete: %w", err)
 	}
@@ -83,14 +83,14 @@ func (dm *DMap) unlockKey(name, key string, token []byte) error {
 
 // unlock takes key and token and tries to unlock the key.
 // It redirects the request to the partition owner, if required.
-func (dm *DMap) unlock(name, key string, token []byte) error {
-	hkey := partitions.HKey(name, key)
+func (dm *DMap) unlock(key string, token []byte) error {
+	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
-		return dm.unlockKey(name, key, token)
+		return dm.unlockKey(key, token)
 	}
 	req := protocol.NewDMapMessage(protocol.OpUnlock)
-	req.SetDMap(name)
+	req.SetDMap(dm.name)
 	req.SetKey(key)
 	req.SetValue(token)
 	_, err := dm.s.client.RequestTo2(member.String(), req)
@@ -99,7 +99,7 @@ func (dm *DMap) unlock(name, key string, token []byte) error {
 
 // Unlock releases the lock.
 func (l *LockContext) Unlock() error {
-	return l.dm.unlock(l.name, l.key, l.token)
+	return l.dm.unlock(l.key, l.token)
 }
 
 // tryLock takes a deadline and writeop and sets a key-value pair by using
@@ -150,14 +150,13 @@ LOOP:
 }
 
 // lockKey prepares a token and writeop calls tryLock
-func (dm *DMap) lockKey(opcode protocol.OpCode, name, key string,
-	timeout, deadline time.Duration) (*LockContext, error) {
+func (dm *DMap) lockKey(opcode protocol.OpCode, key string, timeout, deadline time.Duration) (*LockContext, error) {
 	token := make([]byte, 16)
 	_, err := rand.Read(token)
 	if err != nil {
 		return nil, err
 	}
-	e, err := dm.prepareAndSerialize(opcode, name, key, token, timeout, IfNotFound)
+	e, err := dm.prepareAndSerialize(opcode, key, token, timeout, IfNotFound)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +165,7 @@ func (dm *DMap) lockKey(opcode protocol.OpCode, name, key string,
 		return nil, err
 	}
 	return &LockContext{
-		name:  name,
+		name:  dm.name, // TODO: Useless
 		key:   key,
 		token: token,
 		dm:    dm,
@@ -180,7 +179,7 @@ func (dm *DMap) lockKey(opcode protocol.OpCode, name, key string,
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
-	return dm.lockKey(protocol.OpPutIfEx, dm.name, key, timeout, deadline)
+	return dm.lockKey(protocol.OpPutIfEx, key, timeout, deadline)
 }
 
 // Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
@@ -189,5 +188,5 @@ func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*L
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
-	return dm.lockKey(protocol.OpPutIf, dm.name, key, nilTimeout, deadline)
+	return dm.lockKey(protocol.OpPutIf, key, nilTimeout, deadline)
 }

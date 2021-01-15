@@ -256,7 +256,6 @@ func (dm *DMap) put(e *env) error {
 
 func (dm *DMap) prepareAndSerialize(
 	opcode protocol.OpCode,
-	name,
 	key string,
 	value interface{},
 	timeout time.Duration,
@@ -265,7 +264,7 @@ func (dm *DMap) prepareAndSerialize(
 	if err != nil {
 		return nil, err
 	}
-	return newEnv(opcode, name, key, val, timeout, flags, partitions.PRIMARY), nil
+	return newEnv(opcode, dm.name, key, val, timeout, flags, partitions.PRIMARY), nil
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous
@@ -273,7 +272,7 @@ func (dm *DMap) prepareAndSerialize(
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	e, err := dm.prepareAndSerialize(protocol.OpPutEx, dm.name, key, value, timeout, 0)
+	e, err := dm.prepareAndSerialize(protocol.OpPutEx, key, value, timeout, 0)
 	if err != nil {
 		return err
 	}
@@ -285,7 +284,7 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
-	e, err := dm.prepareAndSerialize(protocol.OpPut, dm.name, key, value, nilTimeout, 0)
+	e, err := dm.prepareAndSerialize(protocol.OpPut, key, value, nilTimeout, 0)
 	if err != nil {
 		return err
 	}
@@ -304,7 +303,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
-	e, err := dm.prepareAndSerialize(protocol.OpPutIf, dm.name, key, value, nilTimeout, flags)
+	e, err := dm.prepareAndSerialize(protocol.OpPutIf, key, value, nilTimeout, flags)
 	if err != nil {
 		return err
 	}
@@ -323,7 +322,7 @@ func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
-	e, err := dm.prepareAndSerialize(protocol.OpPutIfEx, dm.name, key, value, timeout, flags)
+	e, err := dm.prepareAndSerialize(protocol.OpPutIfEx, key, value, timeout, flags)
 	if err != nil {
 		return err
 	}

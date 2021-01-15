@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (dm *DMap) destroy(name string) error {
+func (dm *DMap) destroy() error {
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
 
@@ -46,17 +46,17 @@ func (dm *DMap) destroy(name string) error {
 			if err := sem.Acquire(dm.s.ctx, 1); err != nil {
 				dm.s.log.V(3).
 					Printf("[ERROR] Failed to acquire semaphore to call Destroy command on %s for %s: %v",
-						addr, name, err)
+						addr, dm.name, err)
 				return err
 			}
 			defer sem.Release(1)
 
 			req := protocol.NewDMapMessage(protocol.OpDestroyDMap)
-			req.SetDMap(name)
-			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
+			req.SetDMap(dm.name)
+			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
 			_, err := dm.s.client.RequestTo2(addr, req)
 			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", name, addr)
+				dm.s.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", dm.name, addr)
 			}
 			return err
 		})
@@ -68,5 +68,5 @@ func (dm *DMap) destroy(name string) error {
 // is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
 // concurrently on the cluster, Put/PutEx calls may set new values to the dmap.
 func (dm *DMap) Destroy() error {
-	return dm.destroy(dm.name)
+	return dm.destroy()
 }

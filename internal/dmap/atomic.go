@@ -24,7 +24,7 @@ import (
 )
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
-	entry, err := dm.get(e.dmap, e.key)
+	entry, err := dm.get(e.key)
 	if err == ErrKeyNotFound {
 		err = nil
 	}
@@ -121,7 +121,7 @@ func (dm *DMap) getPut(e *env) ([]byte, error) {
 		}
 	}()
 
-	entry, err := dm.get(e.dmap, e.key)
+	entry, err := dm.get(e.key)
 	if err == ErrKeyNotFound {
 		err = nil
 	}

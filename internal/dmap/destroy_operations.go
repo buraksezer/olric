@@ -26,7 +26,7 @@ func (s *Service) exDestroyOperation(w, r protocol.EncodeDecoder) {
 	if err != nil {
 		errorResponse(w, err)
 	}
-	err = dm.destroy(req.DMap())
+	err = dm.destroy()
 	if err != nil {
 		errorResponse(w, err)
 		return

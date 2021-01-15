@@ -38,12 +38,12 @@ func (dm *DMap) deleteOnPreviousOwner(key string) error {
 	return err
 }
 
-func (dm *DMap) deleteFromPreviousOwners(name, key string, owners []discovery.Member) error {
+func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) error {
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
 		req := protocol.NewDMapMessage(protocol.OpDeletePrev)
-		req.SetDMap(name)
+		req.SetDMap(dm.name)
 		req.SetKey(key)
 		_, err := dm.s.client.RequestTo2(owner.String(), req)
 		if err != nil {
@@ -53,7 +53,7 @@ func (dm *DMap) deleteFromPreviousOwners(name, key string, owners []discovery.Me
 	return nil
 }
 
-func (dm *DMap) deleteFromBackup(hkey uint64, name, key string) error {
+func (dm *DMap) deleteFromBackup(hkey uint64, key string) error {
 	owners := dm.s.backup.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
 	for _, owner := range owners {
@@ -61,11 +61,11 @@ func (dm *DMap) deleteFromBackup(hkey uint64, name, key string) error {
 		g.Go(func() error {
 			// TODO: Add retry with backoff
 			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)
-			req.SetDMap(name)
+			req.SetDMap(dm.name)
 			req.SetKey(key)
 			_, err := dm.s.client.RequestTo2(mem.String(), req)
 			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", name, err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", dm.name, err)
 			}
 			return err
 		})
@@ -73,7 +73,7 @@ func (dm *DMap) deleteFromBackup(hkey uint64, name, key string) error {
 	return g.Wait()
 }
 
-func (dm *DMap) deleteOnCluster(hkey uint64, name, key string) error {
+func (dm *DMap) deleteOnCluster(hkey uint64, key string) error {
 	owners := dm.s.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
@@ -86,13 +86,13 @@ func (dm *DMap) deleteOnCluster(hkey uint64, name, key string) error {
 	f.Lock()
 	defer f.Unlock()
 
-	err = dm.deleteFromPreviousOwners(name, key, owners)
+	err = dm.deleteFromPreviousOwners(key, owners)
 	if err != nil {
 		return err
 	}
 
 	if dm.s.config.ReplicaCount != 0 {
-		err := dm.deleteFromBackup(hkey, name, key)
+		err := dm.deleteFromBackup(hkey, key)
 		if err != nil {
 			return err
 		}
@@ -113,21 +113,21 @@ func (dm *DMap) deleteOnCluster(hkey uint64, name, key string) error {
 	return err
 }
 
-func (dm *DMap) deleteKey(name, key string) error {
-	hkey := partitions.HKey(name, key)
+func (dm *DMap) deleteKey(key string) error {
+	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	if !member.CompareByName(dm.s.rt.This()) {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
-		req.SetDMap(name)
+		req.SetDMap(dm.name)
 		req.SetKey(key)
 		_, err := dm.s.client.RequestTo2(member.String(), req)
 		return err
 	}
-	return dm.deleteOnCluster(hkey, name, key)
+	return dm.deleteOnCluster(hkey, key)
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
 func (dm *DMap) Delete(key string) error {
-	return dm.deleteKey(dm.name, key)
+	return dm.deleteKey(key)
 }

@@ -26,7 +26,7 @@ func (s *Service) exGetOperation(w, r protocol.EncodeDecoder) {
 		errorResponse(w, err)
 	}
 
-	entry, err := dm.get(req.DMap(), req.Key())
+	entry, err := dm.get(req.Key())
 	if err != nil {
 		errorResponse(w, err)
 		return
