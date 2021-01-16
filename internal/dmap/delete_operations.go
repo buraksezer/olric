@@ -84,6 +84,8 @@ func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 		errorResponse(w, err)
 		return
 	}
+	f.Lock()
+	defer f.Unlock()
 
 	err = f.storage.Delete(hkey)
 	if err == storage.ErrFragmented {

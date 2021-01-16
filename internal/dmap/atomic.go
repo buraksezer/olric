@@ -163,7 +163,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 
 	var old interface{}
 	if raw != nil {
-		if err := dm.s.serializer.Unmarshal(raw, &old); err != nil {
+		if err = dm.s.serializer.Unmarshal(raw, &old); err != nil {
 			return nil, err
 		}
 	}

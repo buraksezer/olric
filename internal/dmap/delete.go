@@ -28,6 +28,8 @@ func (dm *DMap) deleteOnPreviousOwner(key string) error {
 	if err != nil {
 		return err
 	}
+	f.Lock()
+	defer f.Unlock()
 
 	err = f.storage.Delete(hkey)
 	if err == storage.ErrFragmented {
@@ -73,20 +75,14 @@ func (dm *DMap) deleteFromBackup(hkey uint64, key string) error {
 	return g.Wait()
 }
 
-func (dm *DMap) deleteOnCluster(hkey uint64, key string) error {
+// deleteOnCluster is not a thread-safe function
+func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 	owners := dm.s.primary.PartitionOwnersByHKey(hkey)
 	if len(owners) == 0 {
 		panic("partition owners list cannot be empty")
 	}
 
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
-	if err != nil {
-		return err
-	}
-	f.Lock()
-	defer f.Unlock()
-
-	err = dm.deleteFromPreviousOwners(key, owners)
+	err := dm.deleteFromPreviousOwners(key, owners)
 	if err != nil {
 		return err
 	}
@@ -123,7 +119,14 @@ func (dm *DMap) deleteKey(key string) error {
 		_, err := dm.s.client.RequestTo2(member.String(), req)
 		return err
 	}
-	return dm.deleteOnCluster(hkey, key)
+
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	if err != nil {
+		return err
+	}
+	f.Lock()
+	defer f.Unlock()
+	return dm.deleteOnCluster(hkey, key, f)
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

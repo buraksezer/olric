@@ -24,6 +24,7 @@ func (s *Service) exGetOperation(w, r protocol.EncodeDecoder) {
 	dm, err := s.LoadDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
+		return
 	}
 
 	entry, err := dm.get(req.Key())
@@ -40,12 +41,14 @@ func (s *Service) getPrevOrBackupCommon(w, r protocol.EncodeDecoder, kind partit
 	dm, err := s.LoadDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
+		return
 	}
 
 	e := newEnvFromReq(r, kind)
 	entry, err := dm.getOnFragment(e)
 	if err != nil {
 		errorResponse(w, err)
+		return
 	}
 
 	w.SetStatus(protocol.StatusOK)

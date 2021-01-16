@@ -26,20 +26,14 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-// isKeyIdle is not a thread-safe function. It accesses underlying fragment for the given hkey.
-func (dm *DMap) isKeyIdle(hkey uint64) bool {
+// isKeyIdleOnFragment is not a thread-safe function. It accesses underlying fragment for the given hkey.
+func (dm *DMap) isKeyIdleOnFragment(hkey uint64, f *fragment) bool {
 	if dm.config == nil {
 		return false
 	}
 	if !dm.config.isAccessLogRequired() || dm.config.maxIdleDuration.Nanoseconds() == 0 {
 		return false
 	}
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
-	if err != nil {
-		// This could be a programming error and should never be happened on production systems.
-		panic(fmt.Sprintf("failed to get primary partition for: %d: %v", hkey, err))
-	}
-
 	// Maximum time in seconds for each entry to stay idle in the map.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period
@@ -50,6 +44,17 @@ func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	}
 	ttl := (dm.config.maxIdleDuration.Nanoseconds() + t) / 1000000
 	return isKeyExpired(ttl)
+}
+
+func (dm *DMap) isKeyIdle(hkey uint64) bool {
+	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	if err != nil {
+		// This could be a programming error and should never be happened on production systems.
+		panic(fmt.Sprintf("failed to get primary partition for: %d: %v", hkey, err))
+	}
+	f.Lock()
+	defer f.Unlock()
+	return dm.isKeyIdleOnFragment(hkey, f)
 }
 
 func (dm *DMap) deleteAccessLog(hkey uint64, f *fragment) {
@@ -124,15 +129,13 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 		return
 	}
 
-	f.Lock()
-	defer f.Unlock()
-
 	janitor := func() bool {
 		if totalCount > maxTotalCount {
 			// Release the lock. Eviction will be triggered again.
 			return false
 		}
-
+		f.Lock()
+		defer f.Unlock()
 		count, keyCount := 0, 0
 		f.storage.Range(func(hkey uint64, entry storage.Entry) bool {
 			keyCount++
@@ -140,21 +143,21 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 				// this means 'break'.
 				return false
 			}
-			if isKeyExpired(entry.TTL()) || dm.isKeyIdle(hkey) {
-				err := dm.deleteOnCluster(hkey, entry.Key())
+			if isKeyExpired(entry.TTL()) || dm.isKeyIdleOnFragment(hkey, f) {
+				err = dm.deleteOnCluster(hkey, entry.Key(), f)
 				if err != nil {
 					// It will be tried again.
-					s.log.V(3).Printf("[ERROR] Failed to delete expired hkey: %d on DMap: %s: %v",
-						hkey, name, err)
-					return true // this means 'continue'
+					dm.s.log.V(3).Printf("[ERROR] Failed to delete expired key: %s on DMap: %s: %v",
+						entry.Key(), dm.name, err)
 				}
-				count++
 			}
 			return true
 		})
+
 		totalCount += count
 		return count >= maxKeyCount/4
 	}
+
 	defer func() {
 		if totalCount > 0 {
 			if s.log.V(6).Ok() {
@@ -216,8 +219,14 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 		e.fragment.RUnlock()
 		return err
 	}
+	// We use read-lock for sampling because it's not necessary to block all operations on the
+	// fragment during sampling stage.
+	//
+	// Here we have a key/value pair to evict for making room for a new pair.
+	e.fragment.Lock()
+	defer e.fragment.Unlock()
 	if dm.s.log.V(6).Ok() {
 		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
-	return dm.deleteOnCluster(item.HKey, key)
+	return dm.deleteOnCluster(item.HKey, key, e.fragment)
 }

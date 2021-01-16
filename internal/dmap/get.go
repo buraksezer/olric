@@ -42,9 +42,9 @@ type version struct {
 	entry storage.Entry
 }
 
-func (dm *DMap) unmarshalValue(rawval []byte) (interface{}, error) {
+func (dm *DMap) unmarshalValue(raw []byte) (interface{}, error) {
 	var value interface{}
-	err := dm.s.serializer.Unmarshal(rawval, &value)
+	err := dm.s.serializer.Unmarshal(raw, &value)
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +97,6 @@ func (dm *DMap) valueToVersion(value storage.Entry) *version {
 		entry: value,
 	}
 }
-
-// TODO: remove useless key
 
 func (dm *DMap) lookupOnThisNode(hkey uint64, key string) *version {
 	// Check on localhost, the partition owner.
@@ -154,7 +152,7 @@ func (dm *DMap) lookupOnOwners(hkey uint64, key string) []*version {
 			continue
 		}
 		// Ignore failed owners. The data on those hosts will be wiped out
-		// by the rebalancer.
+		// by the balancer.
 		versions = append(versions, v)
 	}
 	return versions
@@ -263,7 +261,6 @@ func (dm *DMap) getOnCluster(hkey uint64, key string) (storage.Entry, error) {
 	// RUnlock should not be called with defer statement here because
 	// readRepair function may call putOnFragment function which needs a write
 	// lock. Please don't forget calling RUnlock before returning here.
-
 	versions := dm.lookupOnOwners(hkey, key)
 	if dm.s.config.ReadQuorum >= config.MinimumReplicaCount {
 		v := dm.lookupOnReplicas(hkey, key)
