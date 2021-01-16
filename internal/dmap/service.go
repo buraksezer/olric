@@ -158,6 +158,7 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 		select {
 		case <-timer.C:
 			f.Lock()
+			// Compaction returns false if the fragment is closed.
 			done, err := f.Compaction()
 			if err != nil {
 				s.log.V(3).Printf("[ERROR] Failed to run compaction on fragment: %v", err)

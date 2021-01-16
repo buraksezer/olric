@@ -167,6 +167,9 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 	}()
 	for {
 		select {
+		case <-f.ctx.Done():
+			// the fragment is closed.
+			return
 		case <-s.ctx.Done():
 			// The server has gone.
 			return
