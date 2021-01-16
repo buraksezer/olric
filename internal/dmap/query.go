@@ -46,7 +46,6 @@ type queryResponse map[uint64][]byte
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
 	dm     *DMap
-	name   string
 	query  query.M
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -106,7 +105,6 @@ func (dm *DMap) Query(q query.M) (*Cursor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Cursor{
 		dm:     dm,
-		name:   dm.name,
 		query:  q,
 		ctx:    ctx,
 		cancel: cancel,
@@ -155,7 +153,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 			continue
 		}
 		req := protocol.NewDMapMessage(protocol.OpLocalQuery)
-		req.SetDMap(c.name)
+		req.SetDMap(c.dm.name)
 		req.SetValue(value)
 		req.SetExtra(protocol.LocalQueryExtra{
 			PartID: partID,

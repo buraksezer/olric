@@ -120,8 +120,8 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	}
 
 	req := r.(*protocol.SystemMessage)
-	box := &fragmentPack{}
-	err := msgpack.Unmarshal(req.Value(), box)
+	fp := &fragmentPack{}
+	err := msgpack.Unmarshal(req.Value(), fp)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
 		errorResponse(w, err)
@@ -129,30 +129,30 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	}
 
 	var part *partitions.Partition
-	if box.Kind == partitions.PRIMARY {
-		part = s.primary.PartitionById(box.PartID)
+	if fp.Kind == partitions.PRIMARY {
+		part = s.primary.PartitionById(fp.PartID)
 	} else {
-		part = s.backup.PartitionById(box.PartID)
+		part = s.backup.PartitionById(fp.PartID)
 	}
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !s.checkOwnership(part) {
 		s.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (kind: %s) doesn't belong to this node (%s)",
-			box.Name, box.PartID, box.Kind, s.rt.This())
-		err := fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", box.PartID, box.Kind, s.rt.This(), ErrInvalidArgument)
+			fp.Name, fp.PartID, fp.Kind, s.rt.This())
+		err := fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", fp.PartID, fp.Kind, s.rt.This(), ErrInvalidArgument)
 		errorResponse(w, err)
 		return
 	}
 
-	s.log.V(2).Printf("[INFO] Received DMap (kind: %s): %s on PartID: %d", box.Kind, box.Name, box.PartID)
+	s.log.V(2).Printf("[INFO] Received DMap (kind: %s): %s on PartID: %d", fp.Kind, fp.Name, fp.PartID)
 
-	dm, err := s.NewDMap(box.Name)
+	dm, err := s.NewDMap(fp.Name)
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
 
-	err = dm.mergeFragments(part, box)
+	err = dm.mergeFragments(part, fp)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to merge DMap: %v", err)
 		errorResponse(w, err)

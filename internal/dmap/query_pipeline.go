@@ -37,11 +37,10 @@ func newQueryPipeline(dm *DMap, partID uint64) *queryPipeline {
 
 func (p *queryPipeline) doOnKey(q query.M) error {
 	part := p.dm.s.primary.PartitionById(p.partID)
-	tmp, ok := part.Map().Load(p.dm.name)
-	if !ok {
-		return errFragmentNotFound
+	f, err := p.dm.loadFragmentFromPartition(part)
+	if err != nil {
+		return err
 	}
-	f := tmp.(*fragment)
 	f.RLock()
 	defer f.RUnlock()
 
