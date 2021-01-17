@@ -44,6 +44,7 @@ var (
 	// ErrOperationTimeout is returned when an operation times out.
 	ErrOperationTimeout = errors.New("operation timeout")
 	errFragmentNotFound = errors.New("fragment not found")
+	ErrInternalFailure = errors.New("internal failure")
 )
 
 type storageMap struct {
@@ -235,6 +236,19 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusErrKeyNotFound)
 	default:
 		w.SetStatus(protocol.StatusInternalServerError)
+	}
+}
+
+func opError(err error) error {
+	opErr, ok := err.(transport.OpError)
+	if !ok {
+		return err
+	}
+	switch {
+	case opErr.StatusCode() == protocol.StatusErrKeyNotFound:
+		return ErrKeyNotFound
+	default:
+		return ErrInternalFailure
 	}
 }
 

@@ -306,7 +306,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	req.SetKey(key)
 	resp, err := dm.s.client.RequestTo2(member.String(), req)
 	if err != nil {
-		return nil, err
+		return nil, opError(err)
 	}
 	entry := kvstore.NewEntry()
 	entry.Decode(resp.Value())

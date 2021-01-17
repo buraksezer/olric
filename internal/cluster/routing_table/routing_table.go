@@ -397,6 +397,13 @@ func (r *RoutingTable) Start() error {
 }
 
 func (r *RoutingTable) Shutdown(ctx context.Context) error {
+	select {
+	case <-r.ctx.Done():
+		// already closed
+		return nil
+	default:
+	}
+
 	if err := r.discovery.Shutdown(); err != nil {
 		return err
 	}
