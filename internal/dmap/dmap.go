@@ -102,6 +102,7 @@ func (dm *DMap) createFragmentOnPartition(part *partitions.Partition) (*fragment
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &fragment{
+		service:   dm.s,
 		accessLog: newAccessLog(),
 		ctx:       ctx,
 		cancel:    cancel,

@@ -64,9 +64,9 @@ func (dm *DMap) destroy() error {
 	return g.Wait()
 }
 
-// Destroy flushes the given dmap on the cluster. You should know that there
-// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
-// concurrently on the cluster, Put/PutEx calls may set new values to the dmap.
+// Destroy flushes the given DMap on the cluster. You should know that there
+// is no global lock on DMaps. So if you call Put, PutEx and Destroy methods
+// concurrently on the cluster, Put and PutEx calls may set new values to the DMap.
 func (dm *DMap) Destroy() error {
 	return dm.destroy()
 }

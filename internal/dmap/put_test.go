@@ -16,7 +16,6 @@ package dmap
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 	"time"
 
@@ -260,7 +259,12 @@ func Test_Put_IfFound(t *testing.T) {
 
 func Test_Put_compactTables(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
+	c := testutil.NewConfig()
+	c.StorageEngines.Config[config.DefaultStorageEngine] = map[string]interface{}{
+		"tableSize": 100, // overwrite tableSize to trigger compaction.
+	}
+	e := testcluster.NewEnvironment(c)
+	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
 	dm, err := s.NewDMap("mymap")
@@ -283,7 +287,6 @@ func Test_Put_compactTables(t *testing.T) {
 			tmp, _ := part.Map().Load("mymap")
 			f := tmp.(*fragment)
 			numTables := f.storage.Stats().NumTables
-			fmt.Println(partID, numTables)
 			if numTables != 1 && i < maxCheck-1 {
 				return false
 			}
