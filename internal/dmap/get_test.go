@@ -17,9 +17,10 @@ package dmap
 import (
 	"bytes"
 	"context"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
 	"testing"
+	"time"
 
+	"github.com/buraksezer/olric/internal/cluster/routing_table"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 )
@@ -187,7 +188,6 @@ func Test_Put_ReadQuorum(t *testing.T) {
 	}
 }
 
-
 func Test_Get_ReadRepair(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c1 := testutil.NewConfig()
@@ -225,7 +225,6 @@ func Test_Get_ReadRepair(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-
 	c3 := testutil.NewConfig()
 	c3.ReadRepair = true
 	c3.ReplicaCount = 2
@@ -245,6 +244,43 @@ func Test_Get_ReadRepair(t *testing.T) {
 		}
 		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
 			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
+		}
+	}
+}
+
+func Test_GetEntry_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	cluster.AddMember(nil)
+	defer cluster.Shutdown()
+
+	// Call DMap.Put on S1
+	dm, err := s1.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		err = dm.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Hour)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	// Call DMap.GetEntry
+	for i := 0; i < 10; i++ {
+		key := testutil.ToKey(i)
+		entry, err := dm.GetEntry(key)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v for %s", err, key)
+		}
+		if !bytes.Equal(entry.Value.([]byte), testutil.ToVal(i)) {
+			t.Fatalf("Different value retrieved for %s", testutil.ToKey(i))
+		}
+		if entry.TTL == 0 {
+			t.Fatalf("TTL is empty")
+		}
+		if entry.Timestamp == 0 {
+			t.Fatalf("Timestamp is zero")
 		}
 	}
 }

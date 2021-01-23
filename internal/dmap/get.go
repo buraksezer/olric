@@ -235,6 +235,12 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 		tmp := *ver.host
 		if tmp.CompareByID(dm.s.rt.This()) {
 			hkey := partitions.HKey(dm.name, winner.entry.Key())
+			f, err := dm.getOrCreateFragment(hkey, partitions.PRIMARY)
+			if err != nil {
+				dm.s.log.V(3).Printf("[ERROR] Failed to get or create the fragment for: %s on %s: %v",
+					winner.entry.Key(), dm.name, err)
+				return
+			}
 			e := &env{
 				dmap:      dm.name,
 				key:       winner.entry.Key(),
@@ -242,9 +248,9 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 				timestamp: winner.entry.Timestamp(),
 				timeout:   time.Duration(winner.entry.TTL()),
 				hkey:      hkey,
+				fragment:  f,
 			}
-			// TODO: We need to set fragment and lock it before calling putOnFragment. It's not thread-safe.
-			err := dm.putOnFragment(e)
+			err = dm.putOnFragment(e)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
