@@ -232,7 +232,7 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusErrInvalidArgument)
 	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
 		w.SetStatus(protocol.StatusErrNotImplemented)
-	case err == ErrKeyNotFound || err == storage.ErrKeyNotFound || err == errFragmentNotFound:
+	case err == ErrKeyNotFound || err == storage.ErrKeyNotFound || err == errFragmentNotFound || err == ErrDMapNotFound:
 		w.SetStatus(protocol.StatusErrKeyNotFound)
 	default:
 		w.SetStatus(protocol.StatusInternalServerError)
@@ -248,6 +248,7 @@ func opError(err error) error {
 	case opErr.StatusCode() == protocol.StatusErrKeyNotFound:
 		return ErrKeyNotFound
 	default:
+		// TODO: wrap the original error
 		return ErrInternalFailure
 	}
 }
