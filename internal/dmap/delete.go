@@ -25,6 +25,10 @@ import (
 func (dm *DMap) deleteOnPreviousOwner(key string) error {
 	hkey := partitions.HKey(dm.name, key)
 	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	if err == errFragmentNotFound {
+		// key doesn't exist
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -120,7 +124,8 @@ func (dm *DMap) deleteKey(key string) error {
 		return err
 	}
 
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	// notice that "delete" operation is run on the cluster.
+	f, err := dm.getOrCreateFragment(hkey, partitions.PRIMARY)
 	if err != nil {
 		return err
 	}
