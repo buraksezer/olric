@@ -16,12 +16,12 @@ package dmap
 
 import (
 	"bytes"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 )
@@ -187,7 +187,6 @@ func Test_Delete_PreviousOwner(t *testing.T) {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
 }
-
 
 func Test_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	cluster := testcluster.New(NewService)
