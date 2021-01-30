@@ -197,7 +197,7 @@ func Test_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 	var lockContext []*LockContext
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.LockWithTimeout(key, 5*time.Second, time.Second)
+		ctx, err := dm.LockWithTimeout(key, time.Second, time.Second)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -211,6 +211,34 @@ func Test_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 		_, err = dm.LockWithTimeout(key, time.Second, time.Millisecond)
 		if err != ErrLockNotAcquired {
 			t.Fatalf("Expected ErrLockNotAcquired. Got: %v", err)
+		}
+	}
+}
+
+func Test_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s1.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		_, err = dm.LockWithTimeout(key, time.Millisecond, time.Second)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	cluster.AddMember(nil)
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		_, err = dm.Lock(key, time.Second)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 }

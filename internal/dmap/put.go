@@ -251,7 +251,7 @@ func (dm *DMap) put(e *env) error {
 	// Redirect to the partition owner.
 	req := e.toReq(e.opcode)
 	_, err := dm.s.client.RequestTo2(member.String(), req)
-	return err
+	return opError(err)
 }
 
 func (dm *DMap) prepareAndSerialize(
