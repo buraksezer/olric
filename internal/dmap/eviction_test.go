@@ -189,7 +189,7 @@ func Test_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
-		MaxInuse:        2048,
+		MaxInuse:       2048,
 		EvictionPolicy: config.LRUEviction,
 		StorageEngine:  config.DefaultStorageEngine,
 	}

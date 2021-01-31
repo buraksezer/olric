@@ -44,7 +44,7 @@ var (
 	// ErrOperationTimeout is returned when an operation times out.
 	ErrOperationTimeout = errors.New("operation timeout")
 	errFragmentNotFound = errors.New("fragment not found")
-	ErrInternalFailure = errors.New("internal failure")
+	ErrInternalFailure  = errors.New("internal failure")
 )
 
 type storageMap struct {

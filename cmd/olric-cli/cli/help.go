@@ -137,7 +137,7 @@ func (c *CLI) help(cmd string) error {
 	sort.Strings(keys)
 	c.print("Available commands:\n\n")
 	for _, key := range keys {
-		c.print("* " + key+"\n")
+		c.print("* " + key + "\n")
 	}
 	c.print("\nType \"help <command-name>\" to learn how to use.\n")
 	return nil

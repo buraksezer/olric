@@ -22,20 +22,33 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 )
 
-type testStorageUnit struct {
+type testFragment struct {
 	length int
 }
 
-func (su *testStorageUnit) Name() string {
+func (tf *testFragment) Name() string {
 	return "test-data-structure"
 }
 
-func (su *testStorageUnit) Length() int {
-	return su.length
+func (tf *testFragment) Length() int {
+	return tf.length
 }
 
-func (su *testStorageUnit) Move(_ uint64, _ Kind, _ string, _ discovery.Member) error {
+func (tf *testFragment) Move(_ uint64, _ Kind, _ string, _ discovery.Member) error {
 	return nil
+}
+
+func(tf *testFragment) Close() error {
+	return nil
+}
+
+func(tf *testFragment) Destroy() error {
+	return nil
+}
+
+
+func(tf *testFragment) Compaction() (bool, error) {
+	return false, nil
 }
 
 func TestPartition(t *testing.T) {
@@ -72,8 +85,8 @@ func TestPartition(t *testing.T) {
 	})
 
 	t.Run("Length", func(t *testing.T) {
-		s1 := &testStorageUnit{length: 10}
-		s2 := &testStorageUnit{length: 20}
+		s1 := &testFragment{length: 10}
+		s2 := &testFragment{length: 20}
 		p.Map().Store("s1", s1)
 		p.Map().Store("s2", s2)
 		length := p.Length()
