@@ -162,7 +162,11 @@ func Test_CompactTables(t *testing.T) {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
-			if done := s.Compaction(); done {
+			done, err := s.Compaction()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if done {
 				return
 			}
 		}
@@ -240,7 +244,11 @@ func Test_PurgeTables(t *testing.T) {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
-			if done := s.Compaction(); done {
+			done, err := s.Compaction()
+			if err != nil {
+				t.Fatalf("Expected nil. Got: %v", err)
+			}
+			if done {
 				return
 			}
 		}

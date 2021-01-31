@@ -195,7 +195,8 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	var idx = 1
 	var items []lruItem
 
-	e.fragment.RLock()
+	// Warning: fragment is already locked by DMap.Put. Be sure about that before editing this function.
+
 	// Pick random items from the distributed map and sort them by accessedAt.
 	e.fragment.accessLog.iterator(func(hkey uint64, timestamp int64) bool {
 		if idx >= dm.config.lruSamples {
@@ -211,7 +212,6 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	})
 
 	if len(items) == 0 {
-		e.fragment.RUnlock()
 		return fmt.Errorf("nothing found to expire with LRU")
 	}
 
@@ -223,15 +223,9 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 		if err == storage.ErrKeyNotFound {
 			err = ErrKeyNotFound
 		}
-		e.fragment.RUnlock()
 		return err
 	}
-	// We use read-lock for sampling because it's not necessary to block all operations on the
-	// fragment during sampling stage.
-	//
 	// Here we have a key/value pair to evict for making room for a new pair.
-	e.fragment.Lock()
-	defer e.fragment.Unlock()
 	if dm.s.log.V(6).Ok() {
 		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
