@@ -44,7 +44,7 @@ func (dm *DMap) selectVersionForMerge(f *fragment, hkey uint64, entry storage.En
 	return versions[0].entry, nil
 }
 
-func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) error {
+func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) error {
 	f, err := dm.loadFragmentFromPartition(part)
 	if err == errFragmentNotFound {
 		f, err = dm.createFragmentOnPartition(part)
@@ -57,9 +57,9 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) e
 	f.Lock()
 	defer f.Unlock()
 	// TODO: This may be useless. Check it.
-	defer part.Map().Store(data.Name, f)
+	defer part.Map().Store(fp.Name, f)
 
-	engine, err := f.storage.Import(data.Payload)
+	s, err := f.storage.Import(fp.Payload)
 	if err != nil {
 		return err
 	}
@@ -67,20 +67,20 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, data *fragmentPack) e
 	// Merge accessLog.
 	if dm.config != nil && dm.config.isAccessLogRequired() {
 		f.accessLog = &accessLog{
-			m: data.AccessLog,
+			m: fp.AccessLog,
 		}
 	}
 
 	if f.storage.Stats().Length == 0 {
 		// DMap has no keys. Set the imported storage instance.
 		// The old one will be garbage collected.
-		f.storage = engine
+		f.storage = s
 		return nil
 	}
 
 	// DMap has some keys. Merge with the new one.
 	var mergeErr error
-	engine.Range(func(hkey uint64, entry storage.Entry) bool {
+	s.Range(func(hkey uint64, entry storage.Entry) bool {
 		winner, err := dm.selectVersionForMerge(f, hkey, entry)
 		if err != nil {
 			mergeErr = err
@@ -111,24 +111,9 @@ func (s *Service) checkOwnership(part *partitions.Partition) bool {
 	return false
 }
 
-func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
-	if err := s.rt.CheckMemberCountQuorum(); err != nil {
-		errorResponse(w, err)
-		return
-	}
-	// An Olric node has to be bootstrapped to function properly.
-	if err := s.rt.CheckBootstrap(); err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	req := r.(*protocol.SystemMessage)
-	fp := &fragmentPack{}
-	err := msgpack.Unmarshal(req.Value(), fp)
-	if err != nil {
-		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
-		errorResponse(w, err)
-		return
+func (s *Service) validateFragmentPack(fp *fragmentPack) error {
+	if fp.PartID >= s.config.PartitionCount {
+		return fmt.Errorf("invalid partition id: %d", fp.PartID)
 	}
 
 	var part *partitions.Partition
@@ -140,13 +125,37 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !s.checkOwnership(part) {
-		s.log.V(2).Printf("[ERROR] Received DMap: %s on PartID: %d (kind: %s) doesn't belong to this node (%s)",
-			fp.Name, fp.PartID, fp.Kind, s.rt.This())
-		err := fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", fp.PartID, fp.Kind, s.rt.This(), ErrInvalidArgument)
+		return fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", fp.PartID, fp.Kind, s.rt.This(), ErrInvalidArgument)
+	}
+	return nil
+}
+
+func (s *Service) extractFragmentPack(r protocol.EncodeDecoder) (*fragmentPack, error) {
+	req := r.(*protocol.SystemMessage)
+	fp := &fragmentPack{}
+	err := msgpack.Unmarshal(req.Value(), fp)
+	return fp, err
+}
+
+func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
+	fp, err := s.extractFragmentPack(r)
+	if err != nil {
+		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
 		errorResponse(w, err)
 		return
 	}
 
+	if err = s.validateFragmentPack(fp); err != nil {
+		errorResponse(w, err)
+		return
+	}
+
+	var part *partitions.Partition
+	if fp.Kind == partitions.PRIMARY {
+		part = s.primary.PartitionById(fp.PartID)
+	} else {
+		part = s.backup.PartitionById(fp.PartID)
+	}
 	s.log.V(2).Printf("[INFO] Received DMap (kind: %s): %s on PartID: %d", fp.Kind, fp.Name, fp.PartID)
 
 	dm, err := s.NewDMap(fp.Name)
@@ -154,10 +163,10 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 		errorResponse(w, err)
 		return
 	}
-
 	err = dm.mergeFragments(part, fp)
 	if err != nil {
-		s.log.V(2).Printf("[ERROR] Failed to merge DMap: %v", err)
+		s.log.V(2).Printf("[ERROR] Failed to merge Received DMap (kind: %s): %s on PartID: %d: %v",
+			fp.Kind, fp.Name, fp.PartID, err)
 		errorResponse(w, err)
 		return
 	}
