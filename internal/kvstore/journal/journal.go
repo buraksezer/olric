@@ -67,16 +67,10 @@ type stats struct {
 	delete    uint64
 }
 
-type chans struct {
-	put       chan *Entry
-	updateTTL chan *Entry
-	delete    chan *Entry
-}
-
 type Journal struct {
 	config  *Config
 	file    *os.File
-	chans   *chans
+	queue   chan *Entry
 	stats   *stats
 	bufpool *bufpool.BufPool
 	wg      sync.WaitGroup
@@ -85,19 +79,15 @@ type Journal struct {
 }
 
 func New(c *Config) (*Journal, error) {
-	f, err := os.OpenFile(c.Path, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	f, err := os.OpenFile(c.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Journal{
-		config: c,
-		file:   f,
-		chans: &chans{
-			put:       make(chan *Entry, chanSize),
-			updateTTL: make(chan *Entry, chanSize),
-			delete:    make(chan *Entry, chanSize),
-		},
+		config:  c,
+		file:    f,
+		queue:   make(chan *Entry, chanSize),
 		stats:   &stats{},
 		bufpool: bufpool.New(),
 		ctx:     ctx,
@@ -113,13 +103,7 @@ func (j *Journal) Start() error {
 	}
 	// Start background workers
 	j.wg.Add(1)
-	go j.worker(j.chans.put)
-
-	j.wg.Add(1)
-	go j.worker(j.chans.delete)
-
-	j.wg.Add(1)
-	go j.worker(j.chans.updateTTL)
+	go j.worker(j.queue)
 	return nil
 }
 
@@ -129,14 +113,7 @@ func (j *Journal) Append(opcode OpCode, hkey uint64, value storage.Entry) {
 		HKey:   hkey,
 		Value:  value,
 	}
-	switch opcode {
-	case OpPUT:
-		j.chans.put <- e
-	case OpDELETE:
-		j.chans.delete <- e
-	case OpUPDATETTL:
-		j.chans.updateTTL <- e
-	}
+	j.queue <- e
 }
 
 func (j *Journal) updateStats(opcode OpCode) {
