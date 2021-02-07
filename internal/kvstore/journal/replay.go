@@ -56,5 +56,9 @@ func (j *Journal) Replay(jfile string, f func(opcode OpCode, hkey uint64, value 
 		f(h.OpCode, h.HKey, vbuf)
 		offset += int64(h.ValueLen)
 	}
+
+	if j.config.ReplayDone != nil {
+		j.config.ReplayDone()
+	}
 	return nil
 }

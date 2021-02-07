@@ -29,8 +29,12 @@ func TestJournal_Replay(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
+	var replayed bool
 	c := &Config{
 		Path: f.Name(),
+		ReplayDone: func() {
+			replayed = true
+		},
 	}
 	j, err := New(c)
 	if err != nil {
@@ -108,5 +112,9 @@ func TestJournal_Replay(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	if !replayed {
+		t.Fatalf("ReplayDone hook doesnt work.")
 	}
 }

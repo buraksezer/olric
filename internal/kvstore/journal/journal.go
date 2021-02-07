@@ -57,6 +57,7 @@ type Header struct {
 type Config struct {
 	Path        string
 	FSyncPolicy int
+	ReplayDone  func()
 }
 
 type Stats struct {
