@@ -55,7 +55,8 @@ type Header struct {
 }
 
 type Config struct {
-	Path string
+	Path        string
+	FSyncPolicy int
 }
 
 type Stats struct {
@@ -88,6 +89,9 @@ func New(c *Config) (*Journal, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.FSyncPolicy == 0 {
+		c.FSyncPolicy = DefaultFsyncPolicy
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Journal{
 		config:  c,
@@ -113,9 +117,16 @@ func (j *Journal) Start() error {
 	if !j.isAlive() {
 		return ErrClosed
 	}
-	// Start background workers
+
+	if j.config.FSyncPolicy == FsyncEverySecond {
+		j.wg.Add(1)
+		go j.fsyncPeriodically(time.Second)
+	}
+
+	// Start the consumer
 	j.wg.Add(1)
 	go j.consumer(j.queue)
+
 	return nil
 }
 
@@ -164,7 +175,14 @@ func (j *Journal) append(opcode OpCode, hkey uint64, value storage.Entry) error 
 		return err
 	}
 	_, err = j.file.Write(buf.Bytes())
-	return err
+	if err != nil {
+		return err
+	}
+
+	if j.config.FSyncPolicy == FsyncAlways {
+		j.fsync()
+	}
+	return nil
 }
 
 func (j *Journal) processEntry(e *Entry) {
