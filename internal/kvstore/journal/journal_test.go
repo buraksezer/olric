@@ -50,15 +50,15 @@ func TestJournal_Append(t *testing.T) {
 		e.SetTTL(18071988)
 		hkey := xxhash.Sum64String(testutil.ToKey(i))
 
-		err = j.Append(OpPUT, hkey, e)
+		err = j.Append(OpPut, hkey, e)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = j.Append(OpUPDATETTL, hkey, e)
+		err = j.Append(OpUpdateTTL, hkey, e)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = j.Append(OpDELETE, hkey, e)
+		err = j.Append(OpDelete, hkey, e)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

@@ -55,15 +55,15 @@ func TestJournal_Replay(t *testing.T) {
 		e.SetTTL(18071988)
 		hkey := xxhash.Sum64String(testutil.ToKey(i))
 
-		err = j.Append(OpPUT, hkey, e)
+		err = j.Append(OpPut, hkey, e)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = j.Append(OpUPDATETTL, hkey, e)
+		err = j.Append(OpUpdateTTL, hkey, e)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		err = j.Append(OpDELETE, hkey, e)
+		err = j.Append(OpDelete, hkey, e)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -88,16 +88,16 @@ func TestJournal_Replay(t *testing.T) {
 		i++
 		switch i {
 		case 1:
-			if opcode != OpPUT {
-				t.Fatalf("Expected opcode: %d. Got: %d", opcode, OpPUT)
+			if opcode != OpPut {
+				t.Fatalf("Expected opcode: %d. Got: %d", opcode, OpPut)
 			}
 		case 2:
-			if opcode != OpUPDATETTL {
-				t.Fatalf("Expected opcode: %d. Got: %d", opcode, OpUPDATETTL)
+			if opcode != OpUpdateTTL {
+				t.Fatalf("Expected opcode: %d. Got: %d", opcode, OpUpdateTTL)
 			}
 		case 3:
-			if opcode != OpDELETE {
-				t.Fatalf("Expected opcode: %d. Got: %d", opcode, OpDELETE)
+			if opcode != OpDelete {
+				t.Fatalf("Expected opcode: %d. Got: %d", opcode, OpDelete)
 			}
 		}
 

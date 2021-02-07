@@ -35,9 +35,9 @@ const chanSize = 2 << 13
 type OpCode uint8
 
 const (
-	OpPUT = OpCode(iota) + 1
-	OpUPDATETTL
-	OpDELETE
+	OpPut = OpCode(iota) + 1
+	OpUpdateTTL
+	OpDelete
 )
 
 type Entry struct {
@@ -133,15 +133,16 @@ func (j *Journal) Append(opcode OpCode, hkey uint64, value storage.Entry) error 
 	return nil
 }
 
-func (j *Journal) updateStats(opcode OpCode) {
+func (j *Journal) statsAfterProcessed(opcode OpCode) {
 	switch opcode {
-	case OpPUT:
+	case OpPut:
 		atomic.AddUint64(&j.stats.put, 1)
-	case OpDELETE:
+	case OpDelete:
 		atomic.AddUint64(&j.stats.delete, 1)
-	case OpUPDATETTL:
+	case OpUpdateTTL:
 		atomic.AddUint64(&j.stats.updateTTL, 1)
 	}
+	atomic.AddInt64(&j.stats.queueLen, -1)
 }
 
 func (j *Journal) append(opcode OpCode, hkey uint64, value storage.Entry) error {
@@ -167,13 +168,12 @@ func (j *Journal) append(opcode OpCode, hkey uint64, value storage.Entry) error 
 }
 
 func (j *Journal) processEntry(e *Entry) {
-	defer atomic.AddInt64(&j.stats.queueLen, -1)
+	defer j.statsAfterProcessed(e.OpCode)
 	err := j.append(e.OpCode, e.HKey, e.Value)
 	if err != nil {
 		// TODO: Log this event properly
 		fmt.Println("append returned an error:", err)
 	}
-	j.updateStats(e.OpCode)
 }
 
 func (j *Journal) drainQueue(ch chan *Entry) {
