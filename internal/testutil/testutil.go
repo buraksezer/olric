@@ -124,7 +124,7 @@ func ToVal(i int) []byte {
 }
 
 func CreateTmpfile(t *testing.T, data []byte) (*os.File, error) {
-	tmpfile, err := ioutil.TempFile("", "olric-test.*.yaml")
+	tmpfile, err := ioutil.TempFile("", "olric-test.*.data")
 	if err != nil {
 		return nil, err
 	}

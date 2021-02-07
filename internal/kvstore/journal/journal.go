@@ -40,18 +40,18 @@ const (
 	OpDELETE
 )
 
-const HeaderLen = 4
-
 type Entry struct {
 	OpCode OpCode
 	HKey   uint64
 	Value  storage.Entry
 }
 
+const HeaderLen = 13
+
 type Header struct {
-	OpCode   OpCode
-	HKey     uint64
-	ValueLen uint32
+	OpCode   OpCode // 1 byte
+	HKey     uint64 // 8 bytes
+	ValueLen uint32 // 4 bytes
 }
 
 type Config struct {
@@ -115,7 +115,7 @@ func (j *Journal) Start() error {
 	}
 	// Start background workers
 	j.wg.Add(1)
-	go j.worker(j.queue)
+	go j.consumer(j.queue)
 	return nil
 }
 
@@ -149,7 +149,7 @@ func (j *Journal) append(opcode OpCode, hkey uint64, value storage.Entry) error 
 	h := Header{
 		OpCode:   opcode,
 		HKey:     hkey,
-		ValueLen: uint32(HeaderLen + len(val)),
+		ValueLen: uint32(len(val)),
 	}
 	buf := j.bufpool.Get()
 	defer j.bufpool.Put(buf)
@@ -207,7 +207,7 @@ func (j *Journal) drainQueue(ch chan *Entry) {
 	}
 }
 
-func (j *Journal) worker(ch chan *Entry) {
+func (j *Journal) consumer(ch chan *Entry) {
 	defer j.wg.Done()
 	for {
 		select {

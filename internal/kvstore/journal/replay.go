@@ -13,3 +13,48 @@
 // limitations under the License.
 
 package journal
+
+import (
+	"bytes"
+	"encoding/binary"
+	"io"
+	"os"
+)
+
+func (j *Journal) Replay(jfile string, f func(opcode OpCode, hkey uint64, value []byte)) error {
+	file, err := os.Open(jfile)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	hbuf := make([]byte, HeaderLen)
+	var offset int64
+	for {
+		_, err = file.Read(hbuf)
+		if err == io.EOF {
+			// Done
+			break
+		}
+		if err != nil {
+			return err
+		}
+		h := &Header{}
+		err = binary.Read(bytes.NewReader(hbuf), binary.BigEndian, h)
+		offset += HeaderLen
+
+		vbuf := make([]byte, h.ValueLen)
+		_, err = file.Seek(offset, 0)
+		if err != nil {
+			return err
+		}
+
+		_, err = file.Read(vbuf)
+		if err != nil {
+			return err
+		}
+		f(h.OpCode, h.HKey, vbuf)
+		offset += int64(h.ValueLen)
+	}
+	return nil
+}
