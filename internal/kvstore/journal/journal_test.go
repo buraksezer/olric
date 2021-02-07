@@ -15,7 +15,6 @@
 package journal
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -24,8 +23,13 @@ import (
 )
 
 func TestJournal_Append(t *testing.T) {
+	f, err := testutil.CreateTmpfile(t, nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
 	c := &Config{
-		Path: "/Users/exp/deneme",
+		Path: f.Name(),
 	}
 	j, err := New(c)
 	if err != nil {
@@ -42,7 +46,7 @@ func TestJournal_Append(t *testing.T) {
 		}
 	}()
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100; i++ {
 		e := NewMockEntry()
 		e.SetKey(testutil.ToKey(i))
 		e.SetValue(testutil.ToVal(i))
@@ -51,9 +55,21 @@ func TestJournal_Append(t *testing.T) {
 		hkey := xxhash.Sum64String(testutil.ToKey(i))
 
 		j.Append(OpPUT, hkey, e)
+		j.Append(OpUPDATETTL, hkey, e)
+		j.Append(OpDELETE, hkey, e)
 	}
 
-	<-time.After(time.Second)
+	// Relatively long for 100 entries
+	<-time.After(250 * time.Millisecond)
 
-	fmt.Println(j.Stats())
+	s := j.Stats()
+	if s.Put != 100 {
+		t.Fatalf("Expected s.Put: 100. Got: %d", s.Put)
+	}
+	if s.UpdateTTL != 100 {
+		t.Fatalf("Expected s.Put: 100. Got: %d", s.UpdateTTL)
+	}
+	if s.Delete != 100 {
+		t.Fatalf("Expected s.Put: 100. Got: %d", s.Delete)
+	}
 }
