@@ -35,10 +35,6 @@ func TestJournal_Append(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	err = j.Start()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
 	defer func() {
 		err = j.Close()
 		if err != nil {
@@ -54,15 +50,35 @@ func TestJournal_Append(t *testing.T) {
 		e.SetTTL(18071988)
 		hkey := xxhash.Sum64String(testutil.ToKey(i))
 
-		j.Append(OpPUT, hkey, e)
-		j.Append(OpUPDATETTL, hkey, e)
-		j.Append(OpDELETE, hkey, e)
+		err = j.Append(OpPUT, hkey, e)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		err = j.Append(OpUPDATETTL, hkey, e)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		err = j.Append(OpDELETE, hkey, e)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	s := j.Stats()
+	if s.QueueLen == 300 {
+		t.Fatalf("Expected s.QueueLen: 300. Got: %d", s.QueueLen)
+	}
+
+	// Start consuming
+	err = j.Start()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	// Relatively long for 100 entries
 	<-time.After(250 * time.Millisecond)
 
-	s := j.Stats()
+	s = j.Stats()
 	if s.Put != 100 {
 		t.Fatalf("Expected s.Put: 100. Got: %d", s.Put)
 	}
@@ -71,5 +87,8 @@ func TestJournal_Append(t *testing.T) {
 	}
 	if s.Delete != 100 {
 		t.Fatalf("Expected s.Put: 100. Got: %d", s.Delete)
+	}
+	if s.QueueLen != 0 {
+		t.Fatalf("Expected s.QueueLen: 0. Got: %d", s.QueueLen)
 	}
 }

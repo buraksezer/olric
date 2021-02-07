@@ -22,10 +22,13 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/pkg/storage"
 )
+
+var ErrClosed = errors.New("journal is closed")
 
 const chanSize = 2 << 13
 
@@ -59,12 +62,14 @@ type Stats struct {
 	Put       uint64
 	UpdateTTL uint64
 	Delete    uint64
+	QueueLen  int64
 }
 
 type stats struct {
 	put       uint64
 	updateTTL uint64
 	delete    uint64
+	queueLen  int64
 }
 
 type Journal struct {
@@ -95,11 +100,18 @@ func New(c *Config) (*Journal, error) {
 	}, nil
 }
 
-func (j *Journal) Start() error {
+func (j *Journal) isAlive() bool {
 	select {
 	case <-j.ctx.Done():
-		return errors.New("journal is closed")
+		return false
 	default:
+		return true
+	}
+}
+
+func (j *Journal) Start() error {
+	if !j.isAlive() {
+		return ErrClosed
 	}
 	// Start background workers
 	j.wg.Add(1)
@@ -107,13 +119,18 @@ func (j *Journal) Start() error {
 	return nil
 }
 
-func (j *Journal) Append(opcode OpCode, hkey uint64, value storage.Entry) {
+func (j *Journal) Append(opcode OpCode, hkey uint64, value storage.Entry) error {
 	e := &Entry{
 		OpCode: opcode,
 		HKey:   hkey,
 		Value:  value,
 	}
+	if !j.isAlive() {
+		return ErrClosed
+	}
 	j.queue <- e
+	atomic.AddInt64(&j.stats.queueLen, 1)
+	return nil
 }
 
 func (j *Journal) updateStats(opcode OpCode) {
@@ -149,19 +166,56 @@ func (j *Journal) append(opcode OpCode, hkey uint64, value storage.Entry) error 
 	return err
 }
 
+func (j *Journal) processEntry(e *Entry) {
+	defer atomic.AddInt64(&j.stats.queueLen, -1)
+	err := j.append(e.OpCode, e.HKey, e.Value)
+	if err != nil {
+		// TODO: Log this event properly
+		fmt.Println("append returned an error:", err)
+	}
+	j.updateStats(e.OpCode)
+}
+
+func (j *Journal) drainQueue(ch chan *Entry) {
+	ctx, cancel := context.WithCancel(context.Background())
+	j.wg.Add(1)
+	go func() {
+		defer j.wg.Done()
+		defer cancel()
+
+		timer := time.NewTimer(10 * time.Millisecond)
+		defer timer.Stop()
+
+		for {
+			timer.Reset(10 * time.Millisecond)
+			select {
+			case <-timer.C:
+				if atomic.LoadInt64(&j.stats.queueLen) == 0 {
+					return
+				}
+			}
+		}
+	}()
+
+	for {
+		select {
+		case e := <-ch:
+			j.processEntry(e)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func (j *Journal) worker(ch chan *Entry) {
 	defer j.wg.Done()
 	for {
 		select {
 		case e := <-ch:
-			err := j.append(e.OpCode, e.HKey, e.Value)
-			if err != nil {
-				// TODO: Log this event properly
-				fmt.Println("append returned an error:", err)
-			}
-			j.updateStats(e.OpCode)
+			j.processEntry(e)
 		case <-j.ctx.Done():
 			// journal is closed
+			j.drainQueue(ch)
 			return
 		}
 	}
