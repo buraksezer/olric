@@ -79,7 +79,7 @@ func (kv *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 }
 
 func (kv *KVStore) Name() string {
-	return "olric.kvstore"
+	return "kvstore"
 }
 
 func (kv *KVStore) NewEntry() storage.Entry {

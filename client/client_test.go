@@ -57,7 +57,7 @@ func newDB() (*olric.Olric, chan struct{}, error) {
 		return nil, nil, err
 	}
 	sc := config.NewStorageEngine()
-	// default storage engine: olric.kvstore
+	// default storage engine: kvstore
 	engine := &kvstore.KVStore{}
 	sc.Config[engine.Name()] = map[string]interface{}{
 		"tableSize": 102134,

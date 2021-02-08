@@ -14,7 +14,7 @@ olricd:
 
 storageEngines:
   config:
-    olric.kvstore:
+    kvstore:
       tableSize: 102134
 
 client:

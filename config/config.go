@@ -100,7 +100,7 @@ const (
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
 	LRUEviction EvictionPolicy = "LRU"
 
-	DefaultStorageEngine = "olric.kvstore"
+	DefaultStorageEngine = "kvstore"
 )
 
 // Config is the configuration to create a Olric instance.

@@ -57,7 +57,7 @@ func testConfig(peers []*Olric) *config.Config {
 		speers = append(speers, peer.rt.Discovery().LocalNode().Address())
 	}
 	sc := config.NewStorageEngine()
-	// default storage engine: olric.kvstore
+	// default storage engine: kvstore
 	engine := &kvstore.KVStore{}
 	sc.Config[engine.Name()] = map[string]interface{}{
 		"tableSize": 102134,
