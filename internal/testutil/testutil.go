@@ -135,6 +135,9 @@ func CreateTmpfile(t *testing.T, data []byte) (*os.File, error) {
 	}
 	t.Cleanup(func() {
 		err = os.Remove(tmpfile.Name())
+		if os.IsNotExist(err) {
+			return
+		}
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %s", err)
 		}

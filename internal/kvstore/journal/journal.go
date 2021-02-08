@@ -259,3 +259,11 @@ func (j *Journal) Close() error {
 	err := j.file.Close()
 	return err
 }
+
+func (j *Journal) Destroy() error {
+	err := j.Close()
+	if err != nil {
+		return err
+	}
+	return os.Remove(j.file.Name())
+}

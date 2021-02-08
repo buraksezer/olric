@@ -15,6 +15,7 @@
 package journal
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -90,5 +91,45 @@ func TestJournal_Append(t *testing.T) {
 	}
 	if s.QueueLen != 0 {
 		t.Fatalf("Expected s.QueueLen: 0. Got: %d", s.QueueLen)
+	}
+}
+
+func TestJournal_Destroy(t *testing.T) {
+	f, err := testutil.CreateTmpfile(t, nil)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	c := &Config{
+		Path: f.Name(),
+	}
+	j, err := New(c)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	defer func() {
+		err = j.Close()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}()
+
+	e := NewMockEntry()
+	e.SetKey("mykey")
+	e.SetValue([]byte("myvalue"))
+	e.SetTimestamp(time.Now().UnixNano())
+	e.SetTTL(18071988)
+	hkey := xxhash.Sum64String("mykey")
+	err = j.Append(OpPut, hkey, e)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = j.Destroy()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	_, err = os.Stat(j.file.Name())
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("Journal file still exists: %s", err)
 	}
 }
