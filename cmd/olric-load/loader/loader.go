@@ -17,7 +17,7 @@ package loader
 import (
 	"fmt"
 	"log"
-	"sort"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,15 +29,15 @@ import (
 )
 
 type Loader struct {
-	mu         sync.RWMutex
-	responses  []int
-	commands   []string
-	keyCount   int
-	numClients int
-	serializer string
-	client     *client.Client
-	log        *log.Logger
-	wg         sync.WaitGroup
+	mu          sync.RWMutex
+	responses   []time.Duration
+	commands    []string
+	numRequests int
+	numClients  int
+	serializer  string
+	client      *client.Client
+	log         *log.Logger
+	wg          sync.WaitGroup
 }
 
 func New(addrs, timeout, serializer string,
@@ -71,12 +71,12 @@ func New(addrs, timeout, serializer string,
 		return nil, err
 	}
 	l := &Loader{
-		responses:  []int{},
-		keyCount:   keyCount,
-		numClients: numClients,
-		client:     c,
-		serializer: serializer,
-		log:        logger,
+		responses:   []time.Duration{},
+		numRequests: keyCount,
+		numClients:  numClients,
+		client:      c,
+		serializer:  serializer,
+		log:         logger,
 	}
 	return l, nil
 }
@@ -87,30 +87,36 @@ func (l *Loader) stats(cmd string, elapsed time.Duration) {
 
 	l.log.Printf("### STATS FOR COMMAND: %s ###", strings.ToUpper(cmd))
 	l.log.Printf("Serializer is %s", l.serializer)
-	l.log.Printf("%d requests completed in %v", l.keyCount, elapsed)
+	l.log.Printf("%d requests completed in %v", l.numRequests, elapsed)
 	l.log.Printf("%d parallel clients", l.numClients)
 	l.log.Printf("\n")
 
-	var ms int = 1000000
-	result := make(map[int]int)
-	for _, t := range l.responses {
-		result[(t/ms)+1]++
-	}
-	var keys []int
-	for key, _ := range result {
-		keys = append(keys, key)
-	}
-	sort.Ints(keys)
-	for _, key := range keys {
-		count := result[key]
-		percentage := count * 100 / len(l.responses)
-		if percentage > 0 {
-			fmt.Printf("%4d%%%2s<=%3d milliseconds\n", percentage, "", key)
+	var limit time.Duration
+	var lastper float64
+	for {
+		limit += time.Millisecond
+		var hits, count int
+		for _, rtime := range l.responses {
+			if rtime < limit {
+				hits++
+			}
+			count++
+		}
+		per := float64(hits) / float64(count)
+		if math.Floor(per*10000) == math.Floor(lastper*10000) {
+			continue
+		}
+		lastper = per
+		fmt.Printf("%.2f%% <= %d milliseconds\n", per*100, (limit-time.Millisecond)/time.Millisecond)
+		if per == 1.0 {
+			break
 		}
 	}
+	rps := float64(l.numRequests) / (float64(elapsed) / float64(time.Second))
+	l.log.Printf("\n%f requests per second\n", rps)
 }
 
-func (l *Loader) call(cmd string, ch chan int) {
+func (l *Loader) worker(cmd string, ch chan int) {
 	defer l.wg.Done()
 
 	dm := l.client.NewDMap("olric-load-test")
@@ -145,7 +151,7 @@ func (l *Loader) call(cmd string, ch chan int) {
 
 		response := time.Since(now)
 		l.mu.Lock()
-		l.responses = append(l.responses, int(response))
+		l.responses = append(l.responses, response)
 		l.mu.Unlock()
 	}
 }
@@ -168,11 +174,11 @@ func (l *Loader) Run(cmd string) error {
 	ch := make(chan int)
 	for i := 0; i < l.numClients; i++ {
 		l.wg.Add(1)
-		go l.call(cmd, ch)
+		go l.worker(cmd, ch)
 	}
 
 	now := time.Now()
-	for i := 0; i < l.keyCount; i++ {
+	for i := 0; i < l.numRequests; i++ {
 		ch <- i
 	}
 	close(ch)
