@@ -406,17 +406,28 @@ In order to install `olric-load`:
 go get -u github.com/buraksezer/olric/cmd/olric-load
 ```
 
-The following command calls `Put` command for 100000 keys on `127.0.0.1:3320` (it's default) and uses `msgpack` for serialization.
+The following command calls `Put` command for 1M keys on `127.0.0.1:3320` (it's default) and uses `msgpack` for serialization.
 
 ```
-olric-load -c put -s msgpack -k 100000
+olric-load -a 192.168.1.3:3320 -s msgpack -k 1000000 -c put
 ### STATS FOR COMMAND: PUT ###
 Serializer is msgpack
-100000 requests completed in 1.209334678s
+1000000 requests completed in 6.943316278s
 50 parallel clients
 
-  93%  <=  1 milliseconds
-   5%  <=  2 milliseconds
+98.36% <= 0 milliseconds
+99.50% <= 1 milliseconds
+99.79% <= 2 milliseconds
+99.91% <= 3 milliseconds
+99.95% <= 4 milliseconds
+99.96% <= 5 milliseconds
+99.96% <= 6 milliseconds
+99.97% <= 7 milliseconds
+99.98% <= 10 milliseconds
+99.99% <= 15 milliseconds
+100.00% <= 96 milliseconds
+
+144023.397460 requests per second
 ```
 
 In order to get more details about the command, call `olric-load -h`.

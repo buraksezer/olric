@@ -72,4 +72,5 @@ type Stats struct {
 	ClusterCoordinator discovery.Member
 	Partitions         map[uint64]Partition
 	Backups            map[uint64]Partition
+	ClusterMembers     map[uint64]discovery.Member
 }

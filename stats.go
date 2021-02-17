@@ -18,6 +18,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
@@ -38,9 +39,17 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
-		Partitions: make(map[uint64]stats.Partition),
-		Backups:    make(map[uint64]stats.Partition),
+		Partitions:     make(map[uint64]stats.Partition),
+		Backups:        make(map[uint64]stats.Partition),
+		ClusterMembers: make(map[uint64]discovery.Member),
 	}
+
+	db.members.mtx.RLock()
+	for id, member := range db.members.m {
+		// List of bootstrapped cluster members
+		s.ClusterMembers[id] = member
+	}
+	db.members.mtx.RUnlock()
 
 	collect := func(partID uint64, part *partition) stats.Partition {
 		owners := part.loadOwners()

@@ -16,7 +16,10 @@ package olric
 
 import (
 	"context"
+	"reflect"
 	"testing"
+
+	"github.com/buraksezer/olric/internal/discovery"
 )
 
 func TestStatsStandalone(t *testing.T) {
@@ -49,6 +52,17 @@ func TestStatsStandalone(t *testing.T) {
 
 	if !cmpMembersByID(s.ClusterCoordinator, db.this) {
 		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.this, s.ClusterCoordinator)
+	}
+
+	if len(s.ClusterMembers) != 1 {
+		t.Fatalf("Expected length of ClusterMembers map: 1. Got: %d", len(s.ClusterMembers))
+	}
+	m, ok := s.ClusterMembers[s.ClusterCoordinator.ID]
+	if !ok {
+		t.Fatalf("Member could not be found in ClusterMembers")
+	}
+	if !reflect.DeepEqual(m, s.ClusterCoordinator) {
+		t.Fatalf("Different member for the same ID")
 	}
 
 	var total int
@@ -138,6 +152,26 @@ func TestStatsCluster(t *testing.T) {
 
 		if !cmpMembersByID(s.ClusterCoordinator, db1.this) {
 			t.Fatalf("Expected cluster coordinator: %v. Got: %v", db1.this, s.ClusterCoordinator)
+		}
+	})
+
+	t.Run("check ClusterMembers", func(t *testing.T) {
+		s, err := db2.Stats()
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if len(s.ClusterMembers) != 2 {
+			t.Fatalf("Expected length of ClusterMembers map: 2. Got: %d", len(s.ClusterMembers))
+		}
+
+		for _, member := range []discovery.Member{db1.this, db2.this} {
+			m, ok := s.ClusterMembers[member.ID]
+			if !ok {
+				t.Fatalf("Member: %s could not be found in ClusterMembers", member)
+			}
+			if !reflect.DeepEqual(member, m) {
+				t.Fatalf("Different member for the same ID: %s", member)
+			}
 		}
 	})
 }
