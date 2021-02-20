@@ -15,14 +15,14 @@
 package dmap
 
 import (
-	"context"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/testutil"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testcluster"
 )
+
+// TODO: Add an integration test for write quorum control
 
 func Test_Expire_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
@@ -112,75 +112,5 @@ func Test_Expire_Cluster(t *testing.T) {
 		if err != ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
-	}
-}
-
-func Test_Expire_ErrWriteQuorum(t *testing.T) {
-	cluster := testcluster.New(NewService)
-
-	c1 := testutil.NewConfig()
-	c1.ReplicaCount = 2
-	c1.WriteQuorum = 2
-	e1 := testcluster.NewEnvironment(c1)
-	s1 := cluster.AddMember(e1).(*Service)
-
-	c2 := testutil.NewConfig()
-	c2.ReplicaCount = 2
-	c2.WriteQuorum = 2
-	e2 := testcluster.NewEnvironment(c2)
-	s2 := cluster.AddMember(e2).(*Service)
-	defer cluster.Shutdown()
-
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 10; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	err = s2.rt.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	err = s2.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	s1.rt.UpdateEagerly()
-
-	var maxIteration int
-	for {
-		<-time.After(10 * time.Millisecond)
-		members := s1.rt.Discovery().GetMembers()
-		if len(members) == 1 {
-			break
-		}
-		maxIteration++
-		if maxIteration >= 1000 {
-			t.Fatalf("Routing table has not been updated yet: %v", members)
-		}
-	}
-
-	var hit bool
-	for i := 0; i < 10; i++ {
-		key := testutil.ToKey(i)
-		hkey := partitions.HKey(dm.name, key)
-		host := s1.primary.PartitionByHKey(hkey).Owner()
-		if s1.rt.This().CompareByID(host) {
-			err = dm.Expire(key, time.Millisecond)
-			if err != ErrWriteQuorum {
-				t.Fatalf("Expected ErrWriteQuorum. Got: %v", err)
-			}
-			hit = true
-		}
-	}
-
-	if !hit {
-		t.Fatalf("WriteQuorum check failed %v", s1)
 	}
 }
