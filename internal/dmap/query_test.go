@@ -27,7 +27,7 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-func TestDMap_QueryOnKeyStandalone(t *testing.T) {
+func Test_QueryOnKeyStandalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -78,7 +78,7 @@ func TestDMap_QueryOnKeyStandalone(t *testing.T) {
 	}
 }
 
-func TestDMap_QueryOnKeyCluster(t *testing.T) {
+func Test_QueryOnKeyCluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -135,7 +135,7 @@ func TestDMap_QueryOnKeyCluster(t *testing.T) {
 	}
 }
 
-func TestDMap_QueryOnKeyIgnoreValues(t *testing.T) {
+func Test_QueryOnKeyIgnoreValues(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -191,7 +191,7 @@ func TestDMap_QueryOnKeyIgnoreValues(t *testing.T) {
 	}
 }
 
-func TestDMap_IteratorCluster(t *testing.T) {
+func Test_IteratorCluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -245,7 +245,7 @@ func TestDMap_IteratorCluster(t *testing.T) {
 	}
 }
 
-func TestDMap_Query(t *testing.T) {
+func Test_Query(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -316,7 +316,7 @@ func TestDMap_Query(t *testing.T) {
 	}
 }
 
-func TestDMap_QueryEndOfKeySpace(t *testing.T) {
+func Test_QueryEndOfKeySpace(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
