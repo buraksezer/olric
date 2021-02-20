@@ -91,17 +91,18 @@ type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name string
 
+	// Currently owned partition count. Approximate LRU implementation
+	// uses that.
+	ownedPartitionCount uint64
+
 	// These values is useful to control operation status.
 	bootstrapped int32
+
 	// numMembers is used to check cluster quorum.
 	numMembers int32
 
 	// Number of successfully passed checkpoints
 	passedCheckpoints int32
-
-	// Currently owned partition count. Approximate LRU implementation
-	// uses that.
-	ownedPartitionCount uint64
 
 	// this defines this Olric node in the cluster.
 	this   discovery.Member

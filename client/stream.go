@@ -57,10 +57,10 @@ func newListener() *listener {
 type stream struct {
 	mu sync.RWMutex
 
+	pongReceivedAt int64
 	listeners      map[uint64]*listener
 	read           chan protocol.EncodeDecoder
 	write          chan protocol.EncodeDecoder
-	pongReceivedAt int64
 	errCh          chan error
 	ctx            context.Context
 	cancel         context.CancelFunc
