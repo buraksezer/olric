@@ -23,7 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/testcluster"
 )
 
-func TestPipeline(t *testing.T) {
+func Test_Pipeline(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
