@@ -236,6 +236,8 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 		w.SetStatus(protocol.StatusErrKeyNotFound)
 	case err == ErrKeyFound:
 		w.SetStatus(protocol.StatusErrKeyFound)
+	case err == ErrEndOfQuery:
+		w.SetStatus(protocol.StatusErrEndOfQuery)
 	default:
 		w.SetStatus(protocol.StatusInternalServerError)
 	}

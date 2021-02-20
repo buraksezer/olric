@@ -42,7 +42,8 @@ func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) exQueryOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
+	// Load or create
+	dm, err := s.NewDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
