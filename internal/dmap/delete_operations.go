@@ -22,7 +22,7 @@ import (
 
 func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
+	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
 		// TODO: Consider returning ErrKeyNotFound.
 		w.SetStatus(protocol.StatusOK)
@@ -43,7 +43,7 @@ func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
+	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
 		// TODO: Consider returning ErrKeyNotFound.
 		w.SetStatus(protocol.StatusOK)
@@ -66,13 +66,11 @@ func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	hkey := partitions.HKey(req.DMap(), req.Key())
 
-	dm, err := s.LoadDMap(req.DMap())
+	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
+		// TODO: Consider returning ErrKeyNotFound.
+		w.SetStatus(protocol.StatusOK)
+		return
 	}
 	if err != nil {
 		errorResponse(w, err)

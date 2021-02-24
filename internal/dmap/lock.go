@@ -102,7 +102,7 @@ func (l *LockContext) Unlock() error {
 	return l.dm.unlock(l.key, l.token)
 }
 
-// tryLock takes a deadline and writeop and sets a key-value pair by using
+// tryLock takes a deadline and env and sets a key-value pair by using
 // PutIf or PutIfEx commands. It tries to acquire the lock 100 times per second
 // if the lock is already acquired. It returns ErrLockNotAcquired if the deadline exceeds.
 func (dm *DMap) tryLock(e *env, deadline time.Duration) error {
@@ -149,7 +149,7 @@ LOOP:
 	return nil
 }
 
-// lockKey prepares a token and writeop calls tryLock
+// lockKey prepares a token and env calls tryLock
 func (dm *DMap) lockKey(opcode protocol.OpCode, key string, timeout, deadline time.Duration) (*LockContext, error) {
 	token := make([]byte, 16)
 	_, err := rand.Read(token)

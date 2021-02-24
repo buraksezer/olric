@@ -21,7 +21,7 @@ import (
 
 func (s *Service) exGetOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
+	dm, err := s.getDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -38,7 +38,7 @@ func (s *Service) exGetOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) getPrevOrBackupCommon(w, r protocol.EncodeDecoder, kind partitions.Kind) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
+	dm, err := s.getDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -61,5 +61,4 @@ func (s *Service) getBackupOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) getPrevOperation(w, r protocol.EncodeDecoder) {
 	s.getPrevOrBackupCommon(w, r, partitions.PRIMARY)
-
 }

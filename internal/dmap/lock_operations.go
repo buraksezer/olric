@@ -24,7 +24,7 @@ func (s *Service) exLockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
 	deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
-	dm, err := s.NewDMap(req.DMap())
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -40,7 +40,7 @@ func (s *Service) exLockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) exLockOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.NewDMap(req.DMap())
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -57,7 +57,7 @@ func (s *Service) exLockOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) exUnlockOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.NewDMap(req.DMap())
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return

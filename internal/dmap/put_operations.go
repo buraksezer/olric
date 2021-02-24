@@ -21,15 +21,7 @@ import (
 
 func (s *Service) exPutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
-	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
-	}
-
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -46,14 +38,7 @@ func (s *Service) exPutOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.LoadDMap(req.DMap())
-	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
-	}
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return

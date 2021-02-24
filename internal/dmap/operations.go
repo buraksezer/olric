@@ -79,3 +79,7 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 		operations[code] = f
 	}
 }
+
+func (s *Service) operationsCommon(w, r protocol.EncodeDecoder) {
+
+}

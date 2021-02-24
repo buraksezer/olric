@@ -30,14 +30,7 @@ func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	dm, err := s.LoadDMap(req.DMap())
-	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
-	}
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -68,14 +61,7 @@ func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 
-	dm, err := s.LoadDMap(req.DMap())
-	if err == ErrDMapNotFound {
-		dm, err = s.NewDMap(req.DMap())
-		if err != nil {
-			errorResponse(w, err)
-			return
-		}
-	}
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -90,13 +76,13 @@ func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
 		timestamp:     time.Now().UnixNano(),
 		kind:          partitions.PRIMARY,
 	}
-	oldval, err := dm.getPut(e)
+	old, err := dm.getPut(e)
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
-	if oldval != nil {
-		w.SetValue(oldval)
+	if old != nil {
+		w.SetValue(old)
 	}
 	w.SetStatus(protocol.StatusOK)
 }

@@ -40,7 +40,8 @@ type DMap struct {
 	config *configuration
 }
 
-func (s *Service) LoadDMap(name string) (*DMap, error) {
+// getDMap returns an already initialized DMap instance, otherwise it returns ErrDMapNotFound.
+func (s *Service) getDMap(name string) (*DMap, error) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -51,7 +52,7 @@ func (s *Service) LoadDMap(name string) (*DMap, error) {
 	return dm, nil
 }
 
-// NewDMap creates an returns a new DMap instance.
+// NewDMap creates and returns a new DMap instance. It checks member count quorum and bootstrapping status before creating a new DMap.
 func (s *Service) NewDMap(name string) (*DMap, error) {
 	// Check operation status first:
 	//
@@ -85,6 +86,15 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	}
 	s.dmaps[name] = dm
 	return dm, nil
+}
+
+// GetOrCreate is a shortcut function to create a new DMap or get an already initialized DMap instance.
+func (s *Service) getOrCreateDMap(name string) (*DMap, error){
+	dm, err := s.getDMap(name)
+	if err == ErrDMapNotFound {
+		return s.NewDMap(name)
+	}
+	return dm, err
 }
 
 func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition) (*fragment, error) {

@@ -14,7 +14,7 @@ func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	dm, err := s.LoadDMap(req.DMap())
+	dm, err := s.getDMap(req.DMap())
 	if err == errFragmentNotFound {
 		// TODO: This may be wrong
 		w.SetStatus(protocol.StatusOK)
@@ -42,8 +42,7 @@ func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
 
 func (s *Service) exQueryOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	// Load or create
-	dm, err := s.NewDMap(req.DMap())
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
