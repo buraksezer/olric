@@ -20,14 +20,14 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) exDestroyOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
-	err = dm.destroy()
+	err = dm.destroyOnCluster()
 	if err != nil {
 		errorResponse(w, err)
 		return

@@ -19,7 +19,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) exPutOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {

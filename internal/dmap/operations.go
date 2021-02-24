@@ -20,56 +20,56 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	// Operations on DMap data structure
 	//
 	// DMap.Put
-	s.operations[protocol.OpPut] = s.exPutOperation
-	s.operations[protocol.OpPutEx] = s.exPutOperation
+	s.operations[protocol.OpPut] = s.putOperation
+	s.operations[protocol.OpPutEx] = s.putOperation
 	s.operations[protocol.OpPutReplica] = s.putReplicaOperation
 	s.operations[protocol.OpPutExReplica] = s.putReplicaOperation
-	s.operations[protocol.OpPutIf] = s.exPutOperation
-	s.operations[protocol.OpPutIfEx] = s.exPutOperation
+	s.operations[protocol.OpPutIf] = s.putOperation
+	s.operations[protocol.OpPutIfEx] = s.putOperation
 	s.operations[protocol.OpPutIfReplica] = s.putReplicaOperation
 	s.operations[protocol.OpPutIfExReplica] = s.putReplicaOperation
 
 	// DMap.Get
-	s.operations[protocol.OpGet] = s.exGetOperation
+	s.operations[protocol.OpGet] = s.getOperation
 	s.operations[protocol.OpGetPrev] = s.getPrevOperation
 	s.operations[protocol.OpGetBackup] = s.getBackupOperation
 
 	// DMap.Delete
-	s.operations[protocol.OpDelete] = s.exDeleteOperation
+	s.operations[protocol.OpDelete] = s.deleteOperation
 	s.operations[protocol.OpDeleteBackup] = s.deleteBackupOperation
 	s.operations[protocol.OpDeletePrev] = s.deletePrevOperation
 
 	// DMap.Atomic
-	s.operations[protocol.OpIncr] = s.exIncrDecrOperation
-	s.operations[protocol.OpDecr] = s.exIncrDecrOperation
-	s.operations[protocol.OpGetPut] = s.exGetPutOperation
+	s.operations[protocol.OpIncr] = s.incrDecrOperation
+	s.operations[protocol.OpDecr] = s.incrDecrOperation
+	s.operations[protocol.OpGetPut] = s.getPutOperation
 
 	// DMap.Destroy
-	s.operations[protocol.OpDestroy] = s.exDestroyOperation
+	s.operations[protocol.OpDestroy] = s.destroyOperation
 	s.operations[protocol.OpDestroyDMap] = s.destroyDMapOperation
 
 	// DMap.Pipeline
 	s.operations[protocol.OpPipeline] = s.pipelineOperation
 
 	// DMap.Lock
-	s.operations[protocol.OpLockWithTimeout] = s.exLockWithTimeoutOperation
-	s.operations[protocol.OpLock] = s.exLockOperation
+	s.operations[protocol.OpLockWithTimeout] = s.lockWithTimeoutOperation
+	s.operations[protocol.OpLock] = s.lockOperation
 
 	// DMap.Unlock
-	s.operations[protocol.OpUnlock] = s.exUnlockOperation
+	s.operations[protocol.OpUnlock] = s.unlockOperation
 
 	// DMap.Atomic
-	s.operations[protocol.OpIncr] = s.exIncrDecrOperation
-	s.operations[protocol.OpDecr] = s.exIncrDecrOperation
-	s.operations[protocol.OpGetPut] = s.exGetPutOperation
+	s.operations[protocol.OpIncr] = s.incrDecrOperation
+	s.operations[protocol.OpDecr] = s.incrDecrOperation
+	s.operations[protocol.OpGetPut] = s.getPutOperation
 
 	// DMap.Expire
-	s.operations[protocol.OpExpire] = s.exExpireOperation
+	s.operations[protocol.OpExpire] = s.expireOperation
 	s.operations[protocol.OpExpireReplica] = s.expireReplicaOperation
 
 	// DMap.Query (distributed query)
 	s.operations[protocol.OpLocalQuery] = s.localQueryOperation
-	s.operations[protocol.OpQuery] = s.exQueryOperation
+	s.operations[protocol.OpQuery] = s.queryOperation
 
 	// Internals
 	s.operations[protocol.OpMoveDMap] = s.moveDMapOperation
@@ -78,8 +78,4 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	for code, f := range s.operations {
 		operations[code] = f
 	}
-}
-
-func (s *Service) operationsCommon(w, r protocol.EncodeDecoder) {
-
 }

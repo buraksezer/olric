@@ -40,7 +40,7 @@ func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
-func (s *Service) exQueryOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) queryOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {

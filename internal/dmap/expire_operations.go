@@ -47,7 +47,7 @@ func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (s *Service) exExpireOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) expireOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {

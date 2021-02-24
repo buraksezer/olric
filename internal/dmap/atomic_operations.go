@@ -21,15 +21,8 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
-	var delta interface{}
+func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	err := s.serializer.Unmarshal(req.Value(), &delta)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
@@ -42,6 +35,12 @@ func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 		key:           req.Key(),
 		timestamp:     time.Now().UnixNano(),
 		kind:          partitions.PRIMARY,
+	}
+	var delta interface{}
+	err = s.serializer.Unmarshal(req.Value(), &delta)
+	if err != nil {
+		errorResponse(w, err)
+		return
 	}
 	newval, err := dm.atomicIncrDecr(req.Op, e, delta.(int))
 	if err != nil {
@@ -58,9 +57,8 @@ func (s *Service) exIncrDecrOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
-func (s *Service) exGetPutOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) getPutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)

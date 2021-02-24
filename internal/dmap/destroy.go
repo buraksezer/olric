@@ -23,7 +23,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (dm *DMap) destroy() error {
+func (dm *DMap) destroyOnCluster() error {
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
 
@@ -68,5 +68,5 @@ func (dm *DMap) destroy() error {
 // is no global lock on DMaps. So if you call Put, PutEx and Destroy methods
 // concurrently on the cluster, Put and PutEx calls may set new values to the DMap.
 func (dm *DMap) Destroy() error {
-	return dm.destroy()
+	return dm.destroyOnCluster()
 }

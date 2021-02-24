@@ -22,9 +22,9 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (dm *DMap) deleteOnPreviousOwner(key string) error {
+func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error {
 	hkey := partitions.HKey(dm.name, key)
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	f, err := dm.getFragment(hkey, kind)
 	if err == errFragmentNotFound {
 		// key doesn't exist
 		return nil
@@ -59,7 +59,7 @@ func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) 
 	return nil
 }
 
-func (dm *DMap) deleteFromBackup(hkey uint64, key string) error {
+func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 	owners := dm.s.backup.PartitionOwnersByHKey(hkey)
 	var g errgroup.Group
 	for _, owner := range owners {
@@ -92,7 +92,7 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 	}
 
 	if dm.s.config.ReplicaCount != 0 {
-		err := dm.deleteFromBackup(hkey, key)
+		err := dm.deleteBackupOnCluster(hkey, key)
 		if err != nil {
 			return err
 		}

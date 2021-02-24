@@ -20,7 +20,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) exLockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
 	deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
@@ -38,7 +38,7 @@ func (s *Service) exLockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(ctx.token)
 }
 
-func (s *Service) exLockOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) lockOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
@@ -55,7 +55,7 @@ func (s *Service) exLockOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(ctx.token)
 }
 
-func (s *Service) exUnlockOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) unlockOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {

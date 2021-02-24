@@ -17,10 +17,9 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/storage"
 )
 
-func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
@@ -41,7 +40,7 @@ func (s *Service) exDeleteOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, kind partitions.Kind) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
@@ -54,46 +53,19 @@ func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	err = dm.deleteOnPreviousOwner(req.Key())
+	err = dm.deleteBackupFromFragment(req.Key(), kind)
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
+}
+
+func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
+	s.deleteOperationCommon(w, r, partitions.PRIMARY)
 }
 
 func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	hkey := partitions.HKey(req.DMap(), req.Key())
-
-	dm, err := s.getDMap(req.DMap())
-	if err == ErrDMapNotFound {
-		// TODO: Consider returning ErrKeyNotFound.
-		w.SetStatus(protocol.StatusOK)
-		return
-	}
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	f, err := dm.getFragment(hkey, partitions.BACKUP)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	f.Lock()
-	defer f.Unlock()
-
-	err = f.storage.Delete(hkey)
-	if err == storage.ErrFragmented {
-		dm.s.wg.Add(1)
-		go dm.s.callCompactionOnStorage(f)
-		err = nil
-	}
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
+	s.deleteOperationCommon(w, r, partitions.BACKUP)
 }
+
