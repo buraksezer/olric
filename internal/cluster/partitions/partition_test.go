@@ -38,16 +38,15 @@ func (tf *testFragment) Move(_ uint64, _ Kind, _ string, _ discovery.Member) err
 	return nil
 }
 
-func(tf *testFragment) Close() error {
+func (tf *testFragment) Close() error {
 	return nil
 }
 
-func(tf *testFragment) Destroy() error {
+func (tf *testFragment) Destroy() error {
 	return nil
 }
 
-
-func(tf *testFragment) Compaction() (bool, error) {
+func (tf *testFragment) Compaction() (bool, error) {
 	return false, nil
 }
 

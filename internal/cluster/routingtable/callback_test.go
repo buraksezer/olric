@@ -12,27 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package routing_table
+package routingtable
 
-func (r *RoutingTable) AddCallback(f func()) {
-	r.callbackMtx.Lock()
-	defer r.callbackMtx.Unlock()
+import (
+	"sync/atomic"
+	"testing"
+	"time"
 
-	r.callbacks = append(r.callbacks, f)
-}
+	"github.com/buraksezer/olric/internal/testutil"
+)
 
-func (r *RoutingTable) runCallbacks() {
-	defer r.wg.Done()
-
-	r.callbackMtx.Lock()
-	defer r.callbackMtx.Unlock()
-
-	for _, f := range r.callbacks {
-		select {
-		case <-r.ctx.Done():
-			return
-		default:
-		}
-		f()
+func TestRoutingTable_Callback(t *testing.T) {
+	rt := newRoutingTableForTest(testutil.NewConfig(), nil)
+	var num int32
+	increase := func() {
+		atomic.AddInt32(&num, 1)
+	}
+	rt.AddCallback(increase)
+	rt.wg.Add(1)
+	go rt.runCallbacks()
+	<-time.After(100 * time.Millisecond)
+	modified := atomic.LoadInt32(&num)
+	if modified != 1 {
+		t.Fatalf("Expected number: 1. Got: %v", modified)
 	}
 }

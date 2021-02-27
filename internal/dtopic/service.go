@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/streams"
@@ -37,7 +37,7 @@ type Service struct {
 	log        *flog.Logger
 	serializer serializer.Serializer
 	client     *transport.Client
-	rt         *routing_table.RoutingTable
+	rt         *routingtable.RoutingTable
 	streams    *streams.Streams
 	dispatcher *Dispatcher
 	m          map[string]*DTopic
@@ -53,7 +53,7 @@ func NewService(e *environment.Environment, s *streams.Streams) *Service {
 		serializer: e.Get("config").(*config.Config).Serializer,
 		client:     e.Get("client").(*transport.Client),
 		log:        e.Get("logger").(*flog.Logger),
-		rt:         e.Get("routingTable").(*routing_table.RoutingTable),
+		rt:         e.Get("routingtable").(*routingtable.RoutingTable),
 		dispatcher: NewDispatcher(context.Background()),
 		m:          make(map[string]*DTopic),
 		ctx:        ctx,
@@ -137,7 +137,7 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 	switch {
 	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
 		w.SetStatus(protocol.StatusErrOperationTimeout)
-	case err == routing_table.ErrClusterQuorum, errors.Is(err, routing_table.ErrClusterQuorum):
+	case err == routingtable.ErrClusterQuorum, errors.Is(err, routingtable.ErrClusterQuorum):
 		w.SetStatus(protocol.StatusErrClusterQuorum)
 	case err == ErrUnknownOperation, errors.Is(err, ErrUnknownOperation):
 		w.SetStatus(protocol.StatusErrUnknownOperation)

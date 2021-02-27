@@ -12,22 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package routing_table
+package routingtable
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/internal/testutil/mock_fragment"
 )
 
-func TestRoutingTable_LeftOverData(t *testing.T) {
+func TestRoutingTable_distributedBackups(t *testing.T) {
 	cluster := newTestCluster()
 	defer cluster.cancel()
 
 	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
 	rt1, err := cluster.addNode(c1)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -37,14 +38,8 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 		t.Fatalf("The coordinator node cannot be bootstrapped")
 	}
 
-	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
-		part := rt1.primary.PartitionById(partID)
-		ts := mock_fragment.New()
-		ts.Fill()
-		part.Map().Store("test-data", ts)
-	}
-
 	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
 	rt2, err := cluster.addNode(c2)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -60,20 +55,35 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	for partID := uint64(0); partID < c2.PartitionCount; partID++ {
-		part := rt2.primary.PartitionById(partID)
-		ts := mock_fragment.New()
-		ts.Fill()
-		part.Map().Store("test-data", ts)
+	err = rt1.Shutdown(context.Background())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	rt1.UpdateEagerly()
+	c3 := testutil.NewConfig()
+	c3.ReplicaCount = 2
+	rt3, err := cluster.addNode(c3)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 
-	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
-		part := rt1.primary.PartitionById(partID)
-		if len(part.Owners()) != 2 {
-			t.Fatalf("Expected partition owners count: 2. Got: %d", part.OwnerCount())
+	rt2.UpdateEagerly()
+
+	for partID := uint64(0); partID < c3.PartitionCount; partID++ {
+		part := rt3.backup.PartitionById(partID)
+		if part.OwnerCount() != 1 {
+			t.Fatalf("Expected backup owners count: 1. Got: %d", part.OwnerCount())
+		}
+
+		for _, owner := range part.Owners() {
+			if owner.CompareByID(rt1.This()) {
+				t.Fatalf("Dead node still a backup owner: %v", rt1.This())
+			}
 		}
 	}
 
+	err = cluster.shutdown()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 }

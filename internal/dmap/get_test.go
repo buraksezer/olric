@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 )
@@ -219,7 +219,7 @@ func Test_Get_ReadRepair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	rt := e2.Get("routingTable").(*routing_table.RoutingTable)
+	rt := e2.Get("routingtable").(*routingtable.RoutingTable)
 	err = rt.Shutdown(context.Background())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)

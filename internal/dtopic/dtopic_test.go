@@ -26,7 +26,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/streams"
@@ -50,7 +50,7 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 }
 
 func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *Service {
-	rt := routing_table.New(e)
+	rt := routingtable.New(e)
 	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
 	rt.RegisterOperations(ops)
 	requestDispatcher := func(w, r protocol.EncodeDecoder) {
@@ -66,7 +66,7 @@ func newDTopicsForTest(e *environment.Environment, srv *transport.Server) *Servi
 	}()
 	<-srv.StartedCtx.Done()
 
-	e.Set("routingTable", rt)
+	e.Set("routingtable", rt)
 
 	ss := streams.New(e)
 	ds := NewService(e, ss)

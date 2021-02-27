@@ -20,7 +20,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -33,7 +33,7 @@ type Balancer struct {
 	config  *config.Config
 	primary *partitions.Partitions
 	backup  *partitions.Partitions
-	rt      *routing_table.RoutingTable
+	rt      *routingtable.RoutingTable
 	ctx     context.Context
 	cancel  context.CancelFunc
 }
@@ -46,7 +46,7 @@ func New(e *environment.Environment) *Balancer {
 		config:  c,
 		primary: e.Get("primary").(*partitions.Partitions),
 		backup:  e.Get("backup").(*partitions.Partitions),
-		rt:      e.Get("routingTable").(*routing_table.RoutingTable),
+		rt:      e.Get("routingtable").(*routingtable.RoutingTable),
 		log:     log,
 		ctx:     ctx,
 		cancel:  cancel,

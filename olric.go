@@ -36,7 +36,7 @@ import (
 	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
@@ -122,7 +122,7 @@ type Olric struct {
 	client *transport.Client
 	server *transport.Server
 
-	rt       *routing_table.RoutingTable
+	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
 
 	services *services
@@ -226,8 +226,8 @@ func New(c *config.Config) (*Olric, error) {
 		started: c.Started,
 	}
 
-	db.rt = routing_table.New(e)
-	e.Set("routingTable", db.rt)
+	db.rt = routingtable.New(e)
+	e.Set("routingtable", db.rt)
 
 	db.balancer = balancer.New(e)
 
@@ -546,11 +546,11 @@ func isKeyExpired(ttl int64) bool {
 
 func errInternalToPublic(err error) error {
 	switch err {
-	case routing_table.ErrClusterQuorum:
+	case routingtable.ErrClusterQuorum:
 		return ErrClusterQuorum
-	case routing_table.ErrServerGone:
+	case routingtable.ErrServerGone:
 		return ErrServerGone
-	case routing_table.ErrOperationTimeout:
+	case routingtable.ErrOperationTimeout:
 		return ErrOperationTimeout
 	default:
 		return err

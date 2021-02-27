@@ -26,7 +26,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
@@ -50,7 +50,7 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 }
 
 func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Balancer {
-	rt := routing_table.New(e)
+	rt := routingtable.New(e)
 	if srv != nil {
 		ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
 		rt.RegisterOperations(ops)
@@ -68,7 +68,7 @@ func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Bala
 		}()
 		<-srv.StartedCtx.Done()
 	}
-	e.Set("routingTable", rt)
+	e.Set("routingtable", rt)
 	b := New(e)
 	rt.AddCallback(b.Balance)
 	return b

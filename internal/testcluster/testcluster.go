@@ -24,7 +24,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/cluster/routing_table"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -64,8 +64,8 @@ func (t *TestCluster) newService(e *environment.Environment) service.Service {
 	c := e.Get("config").(*config.Config)
 	srv := testutil.NewTransportServer(c)
 
-	rt := routing_table.New(e)
-	e.Set("routingTable", rt)
+	rt := routingtable.New(e)
+	e.Set("routingtable", rt)
 
 	b := balancer.New(e)
 	e.Set("balancer", b)
@@ -115,7 +115,7 @@ func New(constructor func(e *environment.Environment) (service.Service, error)) 
 func (t *TestCluster) syncCluster() {
 	// Update routing table on the cluster before running balancer
 	for _, e := range t.environments {
-		rt := e.Get("routingTable").(*routing_table.RoutingTable)
+		rt := e.Get("routingtable").(*routingtable.RoutingTable)
 		if rt.Discovery().IsCoordinator() {
 			// The coordinator pushes the routing table immediately.
 			// Normally, this is triggered by every cluster event but we don't want to
@@ -153,7 +153,7 @@ func (t *TestCluster) AddMember(e *environment.Environment) service.Service {
 	c.Peers = peers
 
 	s := t.newService(e)
-	rt := e.Get("routingTable").(*routing_table.RoutingTable)
+	rt := e.Get("routingtable").(*routingtable.RoutingTable)
 	err = rt.Start()
 	if err != nil {
 		panic(fmt.Sprintf("failed to start the routing table: %v", err))
