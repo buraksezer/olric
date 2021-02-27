@@ -88,7 +88,7 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	return dm, nil
 }
 
-// GetOrCreate is a shortcut function to create a new DMap or get an already initialized DMap instance.
+// getOrCreate is a shortcut function to create a new DMap or get an already initialized DMap instance.
 func (s *Service) getOrCreateDMap(name string) (*DMap, error){
 	dm, err := s.getDMap(name)
 	if err == ErrDMapNotFound {

@@ -19,11 +19,12 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
+
+func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, w, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
-		// TODO: Consider returning ErrKeyNotFound.
+		// we don't even have the DMap. It's just OK.
 		w.SetStatus(protocol.StatusOK)
 		return
 	}
@@ -31,8 +32,7 @@ func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
 		errorResponse(w, err)
 		return
 	}
-
-	err = dm.deleteKey(req.Key())
+	err = f(dm, w, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -40,32 +40,23 @@ func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, kind partitions.Kind) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getDMap(req.DMap())
-	if err == ErrDMapNotFound {
-		// TODO: Consider returning ErrKeyNotFound.
-		w.SetStatus(protocol.StatusOK)
-		return
-	}
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	err = dm.deleteBackupFromFragment(req.Key(), kind)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
+func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
+	s.deleteOperationCommon(w, r, func(dm *DMap, w, r protocol.EncodeDecoder) error {
+		req := r.(*protocol.DMapMessage)
+		return dm.deleteKey(req.Key())
+	})
 }
 
 func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, partitions.PRIMARY)
+	s.deleteOperationCommon(w, r, func(dm *DMap, w, r protocol.EncodeDecoder) error {
+		req := r.(*protocol.DMapMessage)
+		return dm.deleteBackupFromFragment(req.Key(), partitions.PRIMARY)
+	})
 }
 
 func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, partitions.BACKUP)
+	s.deleteOperationCommon(w, r, func(dm *DMap, w, r protocol.EncodeDecoder) error {
+		req := r.(*protocol.DMapMessage)
+		return dm.deleteBackupFromFragment(req.Key(), partitions.BACKUP)
+	})
 }
-
