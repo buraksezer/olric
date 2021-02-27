@@ -25,6 +25,20 @@ import (
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
+func (dm *DMap) localExpireOnReplica(e *env) error {
+	f, err := dm.getFragment(e.hkey, partitions.BACKUP)
+	if err == errFragmentNotFound {
+		return ErrKeyNotFound
+	}
+	if err != nil {
+		return err
+	}
+	e.fragment = f
+	f.Lock()
+	defer f.Unlock()
+	return dm.localExpire(e)
+}
+
 func (dm *DMap) localExpire(e *env) error {
 	ttl := timeoutToTTL(e.timeout)
 	entry := e.fragment.storage.NewEntry()

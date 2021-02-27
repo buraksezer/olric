@@ -19,8 +19,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-
-func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, w, r protocol.EncodeDecoder) error) {
+func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
@@ -32,7 +31,7 @@ func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *
 		errorResponse(w, err)
 		return
 	}
-	err = f(dm, w, r)
+	err = f(dm, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -41,21 +40,21 @@ func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *
 }
 
 func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, w, r protocol.EncodeDecoder) error {
+	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		req := r.(*protocol.DMapMessage)
 		return dm.deleteKey(req.Key())
 	})
 }
 
 func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, w, r protocol.EncodeDecoder) error {
+	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		req := r.(*protocol.DMapMessage)
 		return dm.deleteBackupFromFragment(req.Key(), partitions.PRIMARY)
 	})
 }
 
 func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, w, r protocol.EncodeDecoder) error {
+	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		req := r.(*protocol.DMapMessage)
 		return dm.deleteBackupFromFragment(req.Key(), partitions.BACKUP)
 	})

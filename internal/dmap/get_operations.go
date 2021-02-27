@@ -17,17 +17,22 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
-func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) getOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error)) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
+	if err == ErrDMapNotFound {
+		errorResponse(w, ErrKeyNotFound)
+		return
+	}
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
 
-	entry, err := dm.get(req.Key())
+	entry, err := f(dm, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -36,29 +41,23 @@ func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(entry.Encode())
 }
 
-func (s *Service) getPrevOrBackupCommon(w, r protocol.EncodeDecoder, kind partitions.Kind) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	e := newEnvFromReq(r, kind)
-	entry, err := dm.getOnFragment(e)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
+func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
+	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
+		req := r.(*protocol.DMapMessage)
+		return dm.get(req.Key())
+	})
 }
 
 func (s *Service) getBackupOperation(w, r protocol.EncodeDecoder) {
-	s.getPrevOrBackupCommon(w, r, partitions.BACKUP)
+	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
+		e := newEnvFromReq(r, partitions.BACKUP)
+		return dm.getOnFragment(e)
+	})
 }
 
 func (s *Service) getPrevOperation(w, r protocol.EncodeDecoder) {
-	s.getPrevOrBackupCommon(w, r, partitions.PRIMARY)
+	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
+		e := newEnvFromReq(r, partitions.PRIMARY)
+		return dm.getOnFragment(e)
+	})
 }

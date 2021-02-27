@@ -19,7 +19,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) putOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
@@ -27,8 +27,7 @@ func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	e := newEnvFromReq(r, partitions.PRIMARY)
-	err = dm.put(e)
+	err = f(dm, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -36,19 +35,16 @@ func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
+func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
+	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
+		e := newEnvFromReq(r, partitions.PRIMARY)
+		return dm.put(e)
+	})
+}
 
-	e := newEnvFromReq(r, partitions.BACKUP)
-	err = dm.putOnReplicaFragment(e)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
+func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
+	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
+		e := newEnvFromReq(r, partitions.BACKUP)
+		return dm.putOnReplicaFragment(e)
+	})
 }

@@ -212,25 +212,6 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			continue
 		}
 
-		// If readRepair is enabled, this function is called by every GET request.
-		var req *protocol.DMapMessage
-		if winner.entry.TTL() == 0 {
-			req = protocol.NewDMapMessage(protocol.OpPutReplica)
-			req.SetDMap(dm.name)
-			req.SetKey(winner.entry.Key())
-			req.SetValue(winner.entry.Value())
-			req.SetExtra(protocol.PutExtra{Timestamp: winner.entry.Timestamp()})
-		} else {
-			req = protocol.NewDMapMessage(protocol.OpPutExReplica)
-			req.SetDMap(dm.name)
-			req.SetKey(winner.entry.Key())
-			req.SetValue(winner.entry.Value())
-			req.SetExtra(protocol.PutExExtra{
-				Timestamp: winner.entry.Timestamp(),
-				TTL:       winner.entry.TTL(),
-			})
-		}
-
 		// Sync
 		tmp := *ver.host
 		if tmp.CompareByID(dm.s.rt.This()) {
@@ -255,6 +236,24 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
 		} else {
+			// If readRepair is enabled, this function is called by every GET request.
+			var req *protocol.DMapMessage
+			if winner.entry.TTL() == 0 {
+				req = protocol.NewDMapMessage(protocol.OpPutReplica)
+				req.SetDMap(dm.name)
+				req.SetKey(winner.entry.Key())
+				req.SetValue(winner.entry.Value())
+				req.SetExtra(protocol.PutExtra{Timestamp: winner.entry.Timestamp()})
+			} else {
+				req = protocol.NewDMapMessage(protocol.OpPutExReplica)
+				req.SetDMap(dm.name)
+				req.SetKey(winner.entry.Key())
+				req.SetValue(winner.entry.Value())
+				req.SetExtra(protocol.PutExExtra{
+					Timestamp: winner.entry.Timestamp(),
+					TTL:       winner.entry.TTL(),
+				})
+			}
 			_, err := dm.s.client.RequestTo2(ver.host.String(), req)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)

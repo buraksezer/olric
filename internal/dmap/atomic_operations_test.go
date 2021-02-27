@@ -53,7 +53,6 @@ func Test_exGetPutOperation(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-
 	cc := &config.Client{
 		MaxConn: 100,
 	}

@@ -19,16 +19,10 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) expireOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	e := newEnvFromReq(r, partitions.BACKUP)
-	f, err := dm.getFragment(e.hkey, partitions.BACKUP)
-	if err == errFragmentNotFound {
+	dm, err := s.getDMap(req.DMap())
+	if err == ErrDMapNotFound {
 		errorResponse(w, ErrKeyNotFound)
 		return
 	}
@@ -36,10 +30,7 @@ func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
 		errorResponse(w, err)
 		return
 	}
-	f.Lock()
-	defer f.Unlock()
-
-	err = dm.localExpire(e)
+	err = f(dm, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -47,18 +38,16 @@ func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
+func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
+	s.expireOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
+		e := newEnvFromReq(r, partitions.BACKUP)
+		return dm.localExpireOnReplica(e)
+	})
+}
+
 func (s *Service) expireOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	e := newEnvFromReq(r, partitions.PRIMARY)
-	err = dm.expire(e)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
+	s.expireOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
+		e := newEnvFromReq(r, partitions.PRIMARY)
+		return dm.expire(e)
+	})
 }
