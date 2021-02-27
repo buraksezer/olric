@@ -15,19 +15,21 @@
 package dmap
 
 import (
+	"bytes"
+	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Destroy_DMapOnCluster(t *testing.T) {
+func Test_Destroy_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
+	s := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("mymap")
+	dm, err := s.NewDMap("mymap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -42,6 +44,75 @@ func Test_Destroy_DMapOnCluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	for i := 0; i < 100; i++ {
+		_, err = dm.Get(testutil.ToKey(i))
+		if err != ErrKeyNotFound {
+			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+		}
+	}
+}
+
+func Test_Destroy_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	e1 := testcluster.NewEnvironment(c1)
+	s := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	e2 := testcluster.NewEnvironment(c2)
+	cluster.AddMember(e2)
+
+	defer cluster.Shutdown()
+
+	dm, err := s.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	err = dm.Destroy()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for i := 0; i < 100; i++ {
+		_, err = dm.Get(testutil.ToKey(i))
+		if err != ErrKeyNotFound {
+			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+		}
+	}
+}
+
+func Test_Destroy_destroyOperation(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	cluster.AddMember(nil)
+	defer cluster.Shutdown()
+
+	dm, err := s.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	r := protocol.NewDMapMessage(protocol.OpDestroy)
+	r.SetBuffer(bytes.NewBuffer(nil))
+	r.SetDMap("mymap")
+	w := r.Response(nil)
+	s.destroyOperation(w, r)
 
 	for i := 0; i < 100; i++ {
 		_, err = dm.Get(testutil.ToKey(i))
