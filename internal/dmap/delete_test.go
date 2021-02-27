@@ -21,13 +21,50 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
-
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 )
+
+func checkCompactionForTest(t *testing.T, s *Service) {
+	maximum := 50
+	check := func(current int) (bool, error) {
+		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
+			part := s.primary.PartitionById(partID)
+			tmp, ok := part.Map().Load("mymap")
+			if !ok {
+				continue
+			}
+			
+			f := tmp.(*fragment)
+			f.RLock()
+			numTables := f.storage.Stats().NumTables
+			f.RUnlock()
+
+			if numTables != 1 && current < maximum-1 {
+				return false, nil
+			}
+			if numTables != 1 && current >= maximum-1 {
+				return false, fmt.Errorf("numTables=%d PartID: %d", numTables, partID)
+			}
+		}
+		return true, nil
+	}
+
+	for i := 0; i < maximum; i++ {
+		done, err := check(i)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if done {
+			return
+		}
+		<-time.After(100 * time.Millisecond)
+	}
+	t.Fatalf("Failed to control compaction status")
+}
 
 func Test_Delete_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
@@ -270,40 +307,6 @@ func Test_Delete_Backup(t *testing.T) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
-}
-
-func checkCompactionForTest(t *testing.T, s *Service) {
-	maximum := 50
-	check := func(current int) (bool, error) {
-		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-			part := s.primary.PartitionById(partID)
-			tmp, ok := part.Map().Load("mymap")
-			if !ok {
-				continue
-			}
-			f := tmp.(*fragment)
-			numTables := f.storage.Stats().NumTables
-			if numTables != 1 && current < maximum-1 {
-				return false, nil
-			}
-			if numTables != 1 && current >= maximum-1 {
-				return false, fmt.Errorf("numTables=%d PartID: %d", numTables, partID)
-			}
-		}
-		return true, nil
-	}
-
-	for i := 0; i < maximum; i++ {
-		done, err := check(i)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if done {
-			return
-		}
-		<-time.After(100 * time.Millisecond)
-	}
-	t.Fatalf("Failed to control compaction status")
 }
 
 func Test_Delete_Compaction(t *testing.T) {
