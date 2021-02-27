@@ -16,8 +16,11 @@ package dmap
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/config"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
@@ -221,4 +224,124 @@ func Test_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+}
+
+func Test_Delete_Backup(t *testing.T) {
+	cluster := testcluster.New(NewService)
+
+	c1 := testutil.NewConfig()
+	c1.ReadRepair = true
+	c1.ReplicaCount = 2
+	e1 := testcluster.NewEnvironment(c1)
+	s1 := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.ReadRepair = true
+	c2.ReplicaCount = 2
+	e2 := testcluster.NewEnvironment(c2)
+	s2 := cluster.AddMember(e2).(*Service)
+
+	defer cluster.Shutdown()
+
+	dm1, err := s1.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	dm2, err := s2.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	for i := 0; i < 10; i++ {
+		err = dm2.Delete(testutil.ToKey(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+
+		_, err = dm2.Get(testutil.ToKey(i))
+		if err != ErrKeyNotFound {
+			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+		}
+	}
+}
+
+func checkCompactionForTest(t *testing.T, s *Service) {
+	maximum := 50
+	check := func(current int) (bool, error) {
+		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
+			part := s.primary.PartitionById(partID)
+			tmp, ok := part.Map().Load("mymap")
+			if !ok {
+				continue
+			}
+			f := tmp.(*fragment)
+			numTables := f.storage.Stats().NumTables
+			if numTables != 1 && current < maximum-1 {
+				return false, nil
+			}
+			if numTables != 1 && current >= maximum-1 {
+				return false, fmt.Errorf("numTables=%d PartID: %d", numTables, partID)
+			}
+		}
+		return true, nil
+	}
+
+	for i := 0; i < maximum; i++ {
+		done, err := check(i)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if done {
+			return
+		}
+		<-time.After(100 * time.Millisecond)
+	}
+	t.Fatalf("Failed to control compaction status")
+}
+
+func Test_Delete_Compaction(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	c := testutil.NewConfig()
+	c.ReadRepair = true
+	c.ReplicaCount = 2
+	e := testcluster.NewEnvironment(c)
+	c.StorageEngines.Config[config.DefaultStorageEngine] = map[string]interface{}{
+		"tableSize": 100, // overwrite tableSize to trigger compaction.
+	}
+	s := cluster.AddMember(e).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+
+	// Compacting tables is an async task. Here we check the number of tables periodically.
+	checkCompactionForTest(t, s)
+
+	for i := 0; i < 100; i++ {
+		err = dm.Delete(testutil.ToKey(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+
+		_, err = dm.Get(testutil.ToKey(i))
+		if err != ErrKeyNotFound {
+			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+		}
+	}
+	checkCompactionForTest(t, s)
 }

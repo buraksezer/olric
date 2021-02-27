@@ -26,8 +26,6 @@ import (
 
 const (
 	maxGarbageRatio = 0.40
-	// 65kb
-	minimumTableSize = 1 << 16
 	// 1MB
 	defaultTableSize = 1 << 20
 )

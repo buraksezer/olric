@@ -280,27 +280,5 @@ func Test_Put_compactTables(t *testing.T) {
 	}
 
 	// Compacting tables is an async task. Here we check the number of tables periodically.
-	maxCheck := 50
-	check := func(i int) bool {
-		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-			part := s.primary.PartitionById(partID)
-			tmp, _ := part.Map().Load("mymap")
-			f := tmp.(*fragment)
-			numTables := f.storage.Stats().NumTables
-			if numTables != 1 && i < maxCheck-1 {
-				return false
-			}
-			if numTables != 1 && i >= maxCheck-1 {
-				t.Fatalf("NumTables=%d PartID: %d", numTables, partID)
-			}
-		}
-		return true
-	}
-
-	for i := 0; i < maxCheck; i++ {
-		if check(i) {
-			break
-		}
-		<-time.After(100 * time.Millisecond)
-	}
+	checkCompactionForTest(t, s)
 }
