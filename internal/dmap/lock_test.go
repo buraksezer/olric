@@ -358,3 +358,40 @@ func TestDMap_Lock_Operation(t *testing.T) {
 		}
 	}
 }
+
+func TestDMap_tryLock(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	key := "lock.test.foo"
+	dm, err := s.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	_, err = dm.LockWithTimeout(key, time.Second, time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	var i int
+	var acquired bool
+	for i <= 10 {
+		i++
+		_, err := dm.Lock(key, 100 * time.Millisecond)
+		if err == ErrLockNotAcquired {
+			// already acquired
+			continue
+		}
+		if err != nil {
+			// Something went wrong
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		// Acquired
+		acquired = true
+		break
+	}
+	if !acquired {
+		t.Fatal("Failed to acquire lock")
+	}
+}
