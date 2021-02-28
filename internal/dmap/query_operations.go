@@ -20,17 +20,12 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) queryOperationCommon(w, r protocol.EncodeDecoder,
+	f func(dm *DMap, q query.M, r protocol.EncodeDecoder) (interface{}, error)) {
 	req := r.(*protocol.DMapMessage)
-	q, err := query.FromByte(req.Value())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-
-	dm, err := s.getDMap(req.DMap())
-	if err == errFragmentNotFound {
-		// TODO: This may be wrong
+	dm, err := s.getOrCreateDMap(req.DMap())
+	if err == ErrDMapNotFound {
+		// No need to create a new DMap here.
 		w.SetStatus(protocol.StatusOK)
 		return
 	}
@@ -39,8 +34,13 @@ func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	partID := req.Extra().(protocol.LocalQueryExtra).PartID
-	result, err := dm.runLocalQuery(partID, q)
+	q, err := query.FromByte(req.Value())
+	if err != nil {
+		errorResponse(w, err)
+		return
+	}
+
+	result, err := f(dm, q, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -54,46 +54,38 @@ func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
+func (s *Service) localQueryOperation(w, r protocol.EncodeDecoder) {
+	s.queryOperationCommon(w, r,
+		func(dm *DMap, q query.M, r protocol.EncodeDecoder) (interface{}, error) {
+			req := r.(*protocol.DMapMessage)
+			partID := req.Extra().(protocol.LocalQueryExtra).PartID
+			return dm.runLocalQuery(partID, q)
+		})
+}
+
 func (s *Service) queryOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	q, err := query.FromByte(req.Value())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	c, err := dm.Query(q)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	defer c.Close()
+	s.queryOperationCommon(w, r,
+		func(dm *DMap, q query.M, r protocol.EncodeDecoder) (interface{}, error) {
+			req := r.(*protocol.DMapMessage)
+			c, err := dm.Query(q)
+			if err != nil {
+				return nil, err
+			}
+			defer c.Close()
 
-	partID := req.Extra().(protocol.QueryExtra).PartID
-	if partID >= s.config.PartitionCount {
-		errorResponse(w, ErrEndOfQuery)
-		return
-	}
-	responses, err := c.runQueryOnOwners(partID)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
+			partID := req.Extra().(protocol.QueryExtra).PartID
+			if partID >= s.config.PartitionCount {
+				return nil, ErrEndOfQuery
+			}
+			responses, err := c.runQueryOnOwners(partID)
+			if err != nil {
+				return nil, ErrEndOfQuery
+			}
 
-	data := make(QueryResponse)
-	for _, response := range responses {
-		data[response.Key()] = response.Value()
-	}
-
-	value, err := msgpack.Marshal(data)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
+			data := make(QueryResponse)
+			for _, response := range responses {
+				data[response.Key()] = response.Value()
+			}
+			return data, nil
+		})
 }
