@@ -15,11 +15,11 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/testutil"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testcluster"
+	"github.com/buraksezer/olric/internal/testutil"
 )
 
 // TODO: Add an integration test for write quorum control
