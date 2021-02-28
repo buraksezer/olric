@@ -26,7 +26,7 @@ import (
 	"github.com/buraksezer/olric/internal/transport"
 )
 
-func Test_Atomic_Incr(t *testing.T) {
+func TestDMap_Atomic_Incr(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -67,7 +67,7 @@ func Test_Atomic_Incr(t *testing.T) {
 	}
 }
 
-func Test_Atomic_Decr(t *testing.T) {
+func TestDMap_Atomic_Decr(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -108,7 +108,7 @@ func Test_Atomic_Decr(t *testing.T) {
 	}
 }
 
-func Test_Atomic_GetPut(t *testing.T) {
+func TestDMap_Atomic_GetPut(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -155,7 +155,7 @@ func Test_Atomic_GetPut(t *testing.T) {
 	}
 }
 
-func Test_exIncrDecrOperation(t *testing.T) {
+func TestDMap_exIncrDecrOperation(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -191,7 +191,7 @@ func Test_exIncrDecrOperation(t *testing.T) {
 	}
 }
 
-func Test_exGetPutOperation(t *testing.T) {
+func TestDMap_exGetPutOperation(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()

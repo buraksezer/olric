@@ -25,7 +25,7 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Put_Standalone(t *testing.T) {
+func TestDMap_Put_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -52,7 +52,7 @@ func Test_Put_Standalone(t *testing.T) {
 	}
 }
 
-func Test_Put_Cluster(t *testing.T) {
+func TestDMap_Put_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -85,7 +85,7 @@ func Test_Put_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Put_AsyncReplicationMode(t *testing.T) {
+func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	// Create DMap services with custom configuration
 	c1 := testutil.NewConfig()
@@ -128,7 +128,7 @@ func Test_Put_AsyncReplicationMode(t *testing.T) {
 	}
 }
 
-func Test_PutEx(t *testing.T) {
+func TestDMap_PutEx(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -159,7 +159,7 @@ func Test_PutEx(t *testing.T) {
 	}
 }
 
-func Test_Put_WriteQuorum(t *testing.T) {
+func TestDMap_Put_WriteQuorum(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	// Create DMap services with custom configuration
 	c1 := testutil.NewConfig()
@@ -192,7 +192,7 @@ func Test_Put_WriteQuorum(t *testing.T) {
 	}
 }
 
-func Test_Put_IfNotExist(t *testing.T) {
+func TestDMap_Put_IfNotExist(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -229,7 +229,7 @@ func Test_Put_IfNotExist(t *testing.T) {
 	}
 }
 
-func Test_Put_IfFound(t *testing.T) {
+func TestDMap_Put_IfFound(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -257,7 +257,7 @@ func Test_Put_IfFound(t *testing.T) {
 	}
 }
 
-func Test_Put_compactTables(t *testing.T) {
+func TestDMap_Put_compactTables(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.StorageEngines.Config[config.DefaultStorageEngine] = map[string]interface{}{

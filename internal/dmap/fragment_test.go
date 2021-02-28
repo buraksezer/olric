@@ -21,7 +21,7 @@ import (
 	"github.com/buraksezer/olric/internal/testcluster"
 )
 
-func TestDMap_Fragment(t *testing.T) {
+func TestDMapDMap_Fragment(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	dm, err := s.NewDMap("mydmap")

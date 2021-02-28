@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"github.com/buraksezer/olric/config"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 
 // TODO: Add an integration test for write quorum control
 
-func Test_Expire_Standalone(t *testing.T) {
+func TestDMap_Expire_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -58,7 +59,7 @@ func Test_Expire_Standalone(t *testing.T) {
 	}
 }
 
-func Test_Expire_ErrKeyNotFound(t *testing.T) {
+func TestDMap_Expire_ErrKeyNotFound(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -73,12 +74,7 @@ func Test_Expire_ErrKeyNotFound(t *testing.T) {
 	}
 }
 
-func Test_Expire_Cluster(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
+func testExpireWithConfig(t *testing.T, s1, s2 *Service) {
 	dm, err := s1.NewDMap("mymap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -113,4 +109,50 @@ func Test_Expire_Cluster(t *testing.T) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
+}
+
+func TestDMap_Expire_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+	testExpireWithConfig(t, s1, s2)
+}
+
+func TestDMap_Expire_Cluster_Sync_Backup(t *testing.T) {
+	cluster := testcluster.New(NewService)
+
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	e1 := testcluster.NewEnvironment(c1)
+	s1 := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	e2 := testcluster.NewEnvironment(c2)
+	s2 := cluster.AddMember(e2).(*Service)
+
+	defer cluster.Shutdown()
+	testExpireWithConfig(t, s1, s2)
+}
+
+
+func TestDMap_Expire_Cluster_Async_Backup(t *testing.T) {
+	cluster := testcluster.New(NewService)
+
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	c1.ReplicationMode = config.AsyncReplicationMode
+	e1 := testcluster.NewEnvironment(c1)
+	s1 := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	c2.ReplicationMode = config.AsyncReplicationMode
+	e2 := testcluster.NewEnvironment(c2)
+	s2 := cluster.AddMember(e2).(*Service)
+
+	defer cluster.Shutdown()
+
+	testExpireWithConfig(t, s1, s2)
 }

@@ -22,7 +22,7 @@ import (
 	"github.com/buraksezer/olric/internal/testcluster"
 )
 
-func Test_LockWithTimeout_Standalone(t *testing.T) {
+func TestDMap_LockWithTimeout_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -42,7 +42,7 @@ func Test_LockWithTimeout_Standalone(t *testing.T) {
 	}
 }
 
-func Test_Unlock_After_Timeout_Standalone(t *testing.T) {
+func TestDMap_Unlock_After_Timeout_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -64,7 +64,7 @@ func Test_Unlock_After_Timeout_Standalone(t *testing.T) {
 	}
 }
 
-func Test_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
+func TestDMap_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -85,7 +85,7 @@ func Test_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
 	}
 }
 
-func Test_Lock_Standalone(t *testing.T) {
+func TestDMap_Lock_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -105,7 +105,7 @@ func Test_Lock_Standalone(t *testing.T) {
 	}
 }
 
-func Test_Lock_ErrLockNotAcquired_Standalone(t *testing.T) {
+func TestDMap_Lock_ErrLockNotAcquired_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -126,7 +126,7 @@ func Test_Lock_ErrLockNotAcquired_Standalone(t *testing.T) {
 	}
 }
 
-func Test_LockWithTimeout_Cluster(t *testing.T) {
+func TestDMap_LockWithTimeout_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -155,7 +155,7 @@ func Test_LockWithTimeout_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Lock_Cluster(t *testing.T) {
+func TestDMap_Lock_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -184,7 +184,7 @@ func Test_Lock_Cluster(t *testing.T) {
 	}
 }
 
-func Test_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
+func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -215,7 +215,7 @@ func Test_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
+func TestDMap_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()

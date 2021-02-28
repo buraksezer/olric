@@ -25,7 +25,7 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Get_Cluster(t *testing.T) {
+func TestDMap_Get_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -59,7 +59,7 @@ func Test_Get_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Get_Lookup(t *testing.T) {
+func TestDMap_Get_Lookup(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	_ = cluster.AddMember(nil).(*Service)
@@ -94,7 +94,7 @@ func Test_Get_Lookup(t *testing.T) {
 	}
 }
 
-func Test_Get_NilValue(t *testing.T) {
+func TestDMap_Get_NilValue(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -128,7 +128,7 @@ func Test_Get_NilValue(t *testing.T) {
 	}
 }
 
-func Test_Get_NilValue_Cluster(t *testing.T) {
+func TestDMap_Get_NilValue_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -168,7 +168,7 @@ func Test_Get_NilValue_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Put_ReadQuorum(t *testing.T) {
+func TestDMap_Put_ReadQuorum(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	// Create DMap services with custom configuration
 	c := testutil.NewConfig()
@@ -188,7 +188,7 @@ func Test_Put_ReadQuorum(t *testing.T) {
 	}
 }
 
-func Test_Get_ReadRepair(t *testing.T) {
+func TestDMap_Get_ReadRepair(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c1 := testutil.NewConfig()
 	c1.ReadRepair = true
@@ -248,7 +248,7 @@ func Test_Get_ReadRepair(t *testing.T) {
 	}
 }
 
-func Test_GetEntry_Cluster(t *testing.T) {
+func TestDMap_GetEntry_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)

@@ -23,7 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Eviction_TTL(t *testing.T) {
+func TestDMap_Eviction_TTL(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -62,7 +62,7 @@ func Test_Eviction_TTL(t *testing.T) {
 	}
 }
 
-func Test_Eviction_Config_TTLDuration(t *testing.T) {
+func TestDMap_Eviction_Config_TTLDuration(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
@@ -104,7 +104,7 @@ func Test_Eviction_Config_TTLDuration(t *testing.T) {
 	}
 }
 
-func Test_Eviction_Config_MaxIdleDuration(t *testing.T) {
+func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
@@ -147,7 +147,7 @@ func Test_Eviction_Config_MaxIdleDuration(t *testing.T) {
 	}
 }
 
-func Test_Eviction_LRU_Config_MaxKeys(t *testing.T) {
+func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
@@ -185,7 +185,7 @@ func Test_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 	}
 }
 
-func Test_Eviction_LRU_Config_MaxInuse(t *testing.T) {
+func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{

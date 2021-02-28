@@ -16,19 +16,18 @@ package dmap
 
 import (
 	"bytes"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol"
-
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Merge_Fragments(t *testing.T) {
+func TestDMap_Merge_Fragments(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()

@@ -37,7 +37,7 @@ func checkCompactionForTest(t *testing.T, s *Service) {
 			if !ok {
 				continue
 			}
-			
+
 			f := tmp.(*fragment)
 			f.RLock()
 			numTables := f.storage.Stats().NumTables
@@ -66,7 +66,7 @@ func checkCompactionForTest(t *testing.T, s *Service) {
 	t.Fatalf("Failed to control compaction status")
 }
 
-func Test_Delete_Cluster(t *testing.T) {
+func TestDMap_Delete_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -101,7 +101,7 @@ func Test_Delete_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Delete_Lookup(t *testing.T) {
+func TestDMap_Delete_Lookup(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
@@ -138,7 +138,7 @@ func Test_Delete_Lookup(t *testing.T) {
 	}
 }
 
-func Test_Delete_StaleFragments(t *testing.T) {
+func TestDMap_Delete_StaleFragments(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
@@ -199,7 +199,7 @@ func Test_Delete_StaleFragments(t *testing.T) {
 	}
 }
 
-func Test_Delete_PreviousOwner(t *testing.T) {
+func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -228,7 +228,7 @@ func Test_Delete_PreviousOwner(t *testing.T) {
 	}
 }
 
-func Test_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
+func TestDMap_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
@@ -263,7 +263,7 @@ func Test_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	}
 }
 
-func Test_Delete_Backup(t *testing.T) {
+func TestDMap_Delete_Backup(t *testing.T) {
 	cluster := testcluster.New(NewService)
 
 	c1 := testutil.NewConfig()
@@ -309,7 +309,7 @@ func Test_Delete_Backup(t *testing.T) {
 	}
 }
 
-func Test_Delete_Compaction(t *testing.T) {
+func TestDMap_Delete_Compaction(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.ReadRepair = true

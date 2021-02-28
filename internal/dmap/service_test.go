@@ -21,7 +21,7 @@ import (
 	"github.com/buraksezer/olric/internal/testcluster"
 )
 
-func TestService(t *testing.T) {
+func TestDMapService(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	defer cluster.Shutdown()
 	s, ok := cluster.AddMember(nil).(*Service)

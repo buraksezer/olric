@@ -22,7 +22,7 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_AccessLog(t *testing.T) {
+func TestDMap_AccessLog(t *testing.T) {
 	a := newAccessLog()
 	partitions.SetHashFunc(hasher.NewDefaultHasher())
 

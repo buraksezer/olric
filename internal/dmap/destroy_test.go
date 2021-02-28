@@ -23,7 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func Test_Destroy_Standalone(t *testing.T) {
+func TestDMap_Destroy_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
@@ -53,7 +53,7 @@ func Test_Destroy_Standalone(t *testing.T) {
 	}
 }
 
-func Test_Destroy_Cluster(t *testing.T) {
+func TestDMap_Destroy_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c1 := testutil.NewConfig()
 	c1.ReplicaCount = 2
@@ -91,7 +91,7 @@ func Test_Destroy_Cluster(t *testing.T) {
 	}
 }
 
-func Test_Destroy_destroyOperation(t *testing.T) {
+func TestDMap_Destroy_destroyOperation(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
