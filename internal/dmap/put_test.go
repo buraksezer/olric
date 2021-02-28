@@ -272,7 +272,7 @@ func TestDMap_Put_compactTables(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < 1000; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

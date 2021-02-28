@@ -20,16 +20,15 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
+	f func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error)) {
 	req := r.(*protocol.DMapMessage)
-	timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
-	deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		errorResponse(w, err)
 		return
 	}
-	ctx, err := dm.lockKey(protocol.OpPutIfEx, req.Key(), time.Duration(timeout), time.Duration(deadline))
+	ctx, err := f(dm, r)
 	if err != nil {
 		errorResponse(w, err)
 		return
@@ -38,21 +37,21 @@ func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
 	w.SetValue(ctx.token)
 }
 
+func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
+	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
+		req := r.(*protocol.DMapMessage)
+		timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
+		deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
+		return dm.lockKey(protocol.OpPutIfEx, req.Key(), time.Duration(timeout), time.Duration(deadline))
+	})
+}
+
 func (s *Service) lockOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	deadline := req.Extra().(protocol.LockExtra).Deadline
-	ctx, err := dm.lockKey(protocol.OpPutIf, req.Key(), nilTimeout, time.Duration(deadline))
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(ctx.token)
+	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
+		req := r.(*protocol.DMapMessage)
+		deadline := req.Extra().(protocol.LockExtra).Deadline
+		return dm.lockKey(protocol.OpPutIf, req.Key(), nilTimeout, time.Duration(deadline))
+	})
 }
 
 func (s *Service) unlockOperation(w, r protocol.EncodeDecoder) {

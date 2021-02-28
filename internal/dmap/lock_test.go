@@ -15,10 +15,13 @@
 package dmap
 
 import (
+	"bytes"
+	"io"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 )
 
@@ -157,10 +160,10 @@ func TestDMap_LockWithTimeout_Cluster(t *testing.T) {
 
 func TestDMap_Lock_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
+	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("lock.test")
+	dm, err := s.NewDMap("lock.test")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -186,10 +189,10 @@ func TestDMap_Lock_Cluster(t *testing.T) {
 
 func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
+	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("lock.test")
+	dm, err := s.NewDMap("lock.test")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -217,10 +220,10 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 
 func TestDMap_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
+	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("lock.test")
+	dm, err := s.NewDMap("lock.test")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -239,6 +242,119 @@ func TestDMap_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
 		_, err = dm.Lock(key, time.Second)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+}
+
+func TestDMap_LockWithTimeout_Operation(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	var tokens [][]byte
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+
+		// Form a LockWithTimeout message manually. Like a client
+		r := protocol.NewDMapMessage(protocol.OpLockWithTimeout)
+		r.SetDMap("lock.test")
+		r.SetBuffer(bytes.NewBuffer(nil))
+		r.SetKey(key)
+		r.SetExtra(protocol.LockWithTimeoutExtra{
+			Timeout:  int64(time.Hour),
+			Deadline: int64(time.Second),
+		})
+
+		w := r.Response(nil)
+		s.lockWithTimeoutOperation(w, r)
+		err := w.Decode()
+		if err == io.EOF {
+			err = nil
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if w.Status() != protocol.StatusOK {
+			t.Fatalf("Expected protoco.StatusOK(%d). Got: %v", protocol.StatusOK, w.Status())
+		}
+		tokens = append(tokens, w.Value())
+	}
+
+	for i, token := range tokens {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		r := protocol.NewDMapMessage(protocol.OpUnlock)
+		r.SetDMap("lock.test")
+		r.SetBuffer(bytes.NewBuffer(nil))
+		r.SetKey(key)
+		r.SetValue(token)
+
+		w := r.Response(nil)
+		s.unlockOperation(w, r)
+		err := w.Decode()
+		if err == io.EOF {
+			err = nil
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if w.Status() != protocol.StatusOK {
+			t.Fatalf("Expected protoco.StatusOK(%d). Got: %v", protocol.StatusOK, w.Status())
+		}
+	}
+}
+
+func TestDMap_Lock_Operation(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	var tokens [][]byte
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+
+		// Form a Lock message manually. Like a client
+		r := protocol.NewDMapMessage(protocol.OpLock)
+		r.SetDMap("lock.test")
+		r.SetBuffer(bytes.NewBuffer(nil))
+		r.SetKey(key)
+		r.SetExtra(protocol.LockExtra{
+			Deadline: int64(time.Second),
+		})
+
+		w := r.Response(nil)
+		s.lockOperation(w, r)
+		err := w.Decode()
+		if err == io.EOF {
+			err = nil
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if w.Status() != protocol.StatusOK {
+			t.Fatalf("Expected protoco.StatusOK(%d). Got: %v", protocol.StatusOK, w.Status())
+		}
+		tokens = append(tokens, w.Value())
+	}
+
+	for i, token := range tokens {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		r := protocol.NewDMapMessage(protocol.OpUnlock)
+		r.SetDMap("lock.test")
+		r.SetBuffer(bytes.NewBuffer(nil))
+		r.SetKey(key)
+		r.SetValue(token)
+
+		w := r.Response(nil)
+		s.unlockOperation(w, r)
+		err := w.Decode()
+		if err == io.EOF {
+			err = nil
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if w.Status() != protocol.StatusOK {
+			t.Fatalf("Expected protoco.StatusOK(%d). Got: %v", protocol.StatusOK, w.Status())
 		}
 	}
 }

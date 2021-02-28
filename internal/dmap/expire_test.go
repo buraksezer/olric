@@ -136,7 +136,6 @@ func TestDMap_Expire_Cluster_Sync_Backup(t *testing.T) {
 	testExpireWithConfig(t, s1, s2)
 }
 
-
 func TestDMap_Expire_Cluster_Async_Backup(t *testing.T) {
 	cluster := testcluster.New(NewService)
 
