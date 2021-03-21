@@ -15,7 +15,6 @@
 package client
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -55,7 +54,6 @@ func TestClient_Get(t *testing.T) {
 	if val.(string) != value {
 		t.Fatalf("Expected value %s. Got: %s", val.(string), value)
 	}
-	fmt.Println(val)
 }
 
 func TestClient_GetEntry(t *testing.T) {
