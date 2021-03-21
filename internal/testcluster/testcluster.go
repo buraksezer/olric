@@ -29,6 +29,7 @@ import (
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
+	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/transport"
 	"golang.org/x/sync/errgroup"
@@ -66,6 +67,9 @@ func (t *TestCluster) newService(e *environment.Environment) service.Service {
 
 	rt := routingtable.New(e)
 	e.Set("routingtable", rt)
+
+	ss := streams.New(e)
+	e.Set("streams", ss)
 
 	b := balancer.New(e)
 	e.Set("balancer", b)
@@ -171,6 +175,12 @@ func (t *TestCluster) AddMember(e *environment.Environment) service.Service {
 	t.errGr.Go(func() error {
 		<-t.ctx.Done()
 		return s.Shutdown(context.Background())
+	})
+
+	t.errGr.Go(func() error {
+		<-t.ctx.Done()
+		ss, _ := e.Get("streams").(*streams.Streams)
+		return ss.Shutdown(context.Background())
 	})
 
 	t.environments = append(t.environments, e)

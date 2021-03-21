@@ -197,10 +197,8 @@ func New(c *config.Config) (*Olric, error) {
 
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-
 	e.Set("locker", locker.New())
-
-	ss := streams.New(e)
+	e.Set("streams", streams.New(e))
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
@@ -216,9 +214,9 @@ func New(c *config.Config) (*Olric, error) {
 		client:     e.Get("client").(*transport.Client),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
+		streams:    e.Get("streams").(*streams.Streams),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
-		streams:    ss,
 		storageEngines: &storageEngines{
 			engines: make(map[string]storage.Engine),
 			configs: make(map[string]map[string]interface{}),
@@ -232,8 +230,12 @@ func New(c *config.Config) (*Olric, error) {
 	db.balancer = balancer.New(e)
 
 	// Add Services
+	dt, err := dtopic.NewService(e)
+	if err != nil {
+		return nil, err
+	}
 	db.services = &services{
-		dtopic: dtopic.NewService(e, ss),
+		dtopic: dt.(*dtopic.Service),
 	}
 
 	// Add callback functions to routing table.

@@ -46,7 +46,7 @@ type DTopic struct {
 //   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
 func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
-	dt, err := dtopic.New(name, concurrency, flag, db.services.dtopic)
+	dt, err := db.services.dtopic.NewDTopic(name, concurrency, flag)
 	if err != nil {
 		return nil, err
 	}

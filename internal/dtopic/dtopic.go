@@ -66,7 +66,7 @@ type DTopic struct {
 // Flags for delivery options:
 //   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
-func New(name string, concurrency int, flag int16, s *Service) (*DTopic, error) {
+func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
 	s.Lock()
 	defer s.Unlock()
 

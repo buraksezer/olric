@@ -23,6 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -46,10 +47,10 @@ type Service struct {
 	cancel     context.CancelFunc
 }
 
-func NewService(e *environment.Environment, s *streams.Streams) *Service {
+func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Service{
-		streams:    s,
+		streams:    e.Get("streams").(*streams.Streams),
 		serializer: e.Get("config").(*config.Config).Serializer,
 		client:     e.Get("client").(*transport.Client),
 		log:        e.Get("logger").(*flog.Logger),
@@ -58,7 +59,12 @@ func NewService(e *environment.Environment, s *streams.Streams) *Service {
 		m:          make(map[string]*DTopic),
 		ctx:        ctx,
 		cancel:     cancel,
-	}
+	}, nil
+}
+
+func (s *Service) Start() error {
+	// dummy implementation
+	return nil
 }
 
 func (s *Service) isAlive() bool {
