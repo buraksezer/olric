@@ -94,8 +94,8 @@ func TestStreamMessage_Response(t *testing.T) {
 		t.Fatalf("response.Value() returned a different value")
 	}
 
-	resp.SetStatus(StatusInternalServerError)
-	if resp.Status() != StatusInternalServerError {
-		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalServerError, resp.Status())
+	resp.SetStatus(StatusInternalFailure)
+	if resp.Status() != StatusInternalFailure {
+		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalFailure, resp.Status())
 	}
 }

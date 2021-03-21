@@ -93,7 +93,7 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 
 	req := protocol.NewSystemMessage(protocol.OpMoveDMap)
 	req.SetValue(value)
-	// TODO: Check errors etc
+	// TODO: Check neterrors etc
 	_, err = f.service.client.RequestTo2(owner.String(), req)
 	return err
 }

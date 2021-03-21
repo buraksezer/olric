@@ -154,6 +154,6 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
 		w.SetStatus(protocol.StatusErrNotImplemented)
 	default:
-		w.SetStatus(protocol.StatusInternalServerError)
+		w.SetStatus(protocol.StatusInternalFailure)
 	}
 }

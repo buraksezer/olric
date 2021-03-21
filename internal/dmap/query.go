@@ -16,8 +16,8 @@ package dmap
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/kvstore"
@@ -35,7 +35,7 @@ const NumParallelQuery = 2
 
 // ErrEndOfQuery is the error returned by Range when no more data is available.
 // Functions should return ErrEndOfQuery only to signal a graceful end of input.
-var ErrEndOfQuery = errors.New("end of query")
+var ErrEndOfQuery = neterrors.New("end of query", protocol.StatusErrEndOfQuery)
 
 // QueryResponse denotes returned data by a node for query.
 type QueryResponse map[string]interface{}

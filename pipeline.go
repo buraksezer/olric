@@ -33,13 +33,13 @@ func (db *Olric) extractPipelineMessage(conn io.ReadWriteCloser, response *bytes
 	err = preq.Decode()
 	// Return an error message in pipelined response.
 	if err != nil {
-		preq.SetStatus(protocol.StatusInternalServerError)
+		preq.SetStatus(protocol.StatusInternalFailure)
 		preq.SetValue([]byte(err.Error()))
 		return nil
 	}
 	f, ok := db.operations[preq.Op]
 	if !ok {
-		preq.SetStatus(protocol.StatusInternalServerError)
+		preq.SetStatus(protocol.StatusInternalFailure)
 		preq.SetValue([]byte(ErrUnknownOperation.Error()))
 		return nil
 	}

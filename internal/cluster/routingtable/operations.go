@@ -42,7 +42,7 @@ func (r *RoutingTable) keyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 
 	value, err := msgpack.Marshal(part.Length())
 	if err != nil {
-		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
+		response(w, protocol.StatusInternalFailure, []byte(err.Error()))
 		return
 	}
 	response(w, protocol.StatusOK, value)
@@ -75,7 +75,7 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	table := make(map[uint64]*route)
 	err := msgpack.Unmarshal(req.Value(), &table)
 	if err != nil {
-		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
+		response(w, protocol.StatusInternalFailure, []byte(err.Error()))
 		return
 	}
 
@@ -84,13 +84,13 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	// Log this event
 	coordinator, err := r.discovery.FindMemberByID(coordinatorID)
 	if err != nil {
-		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
+		response(w, protocol.StatusInternalFailure, []byte(err.Error()))
 		return
 	}
 	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
 
 	if err = r.verifyRoutingTable(coordinatorID, table); err != nil {
-		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
+		response(w, protocol.StatusInternalFailure, []byte(err.Error()))
 		return
 	}
 
@@ -116,7 +116,7 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	// Collect report
 	value, err := r.prepareLeftOverDataReport()
 	if err != nil {
-		response(w, protocol.StatusInternalServerError, []byte(err.Error()))
+		response(w, protocol.StatusInternalFailure, []byte(err.Error()))
 		return
 	}
 

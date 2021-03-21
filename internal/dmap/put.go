@@ -21,9 +21,9 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -32,8 +32,8 @@ const (
 )
 
 var (
-	ErrKeyFound    = errors.New("key found")
-	ErrWriteQuorum = errors.New("write quorum cannot be reached")
+	ErrKeyFound    = neterrors.New("key found", protocol.StatusErrKeyFound)
+	ErrWriteQuorum = neterrors.New("write quorum cannot be reached", protocol.StatusErrWriteQuorum)
 )
 
 func (dm *DMap) updateAccessLog(hkey uint64, f *fragment) {

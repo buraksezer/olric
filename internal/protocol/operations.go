@@ -68,7 +68,7 @@ type StatusCode uint8
 // status codes
 const (
 	StatusOK = StatusCode(iota) + 1
-	StatusInternalServerError
+	StatusInternalFailure
 	StatusErrKeyNotFound
 	StatusErrNoSuchLock
 	StatusErrLockNotAcquired

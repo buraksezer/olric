@@ -31,7 +31,7 @@ func (s *Service) publishMessageOperation(w, r protocol.EncodeDecoder) {
 	var msg Message
 	err := msgpack.Unmarshal(req.Value(), &msg)
 	if err != nil {
-		w.SetStatus(protocol.StatusInternalServerError)
+		w.SetStatus(protocol.StatusInternalFailure)
 		w.SetValue([]byte(err.Error()))
 		return
 	}

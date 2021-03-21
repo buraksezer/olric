@@ -16,12 +16,13 @@ package dmap
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/neterrors"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 // pool is good for recycling memory while reading messages from the socket.
@@ -29,9 +30,11 @@ var bufferPool = bufpool.New()
 
 const nilTimeout = 0 * time.Second
 
-// ErrKeyNotFound is returned when a key could not be found.
-var ErrKeyNotFound = errors.New("key not found")
-var ErrDMapNotFound = errors.New("dmap not found")
+var (
+	// ErrKeyNotFound is returned when a key could not be found.
+	ErrKeyNotFound  = neterrors.New("key not found", protocol.StatusErrKeyNotFound)
+	ErrDMapNotFound = neterrors.New("dmap not found", protocol.StatusErrKeyNotFound)
+)
 
 // DMap defines a distributed map implementation.
 type DMap struct {

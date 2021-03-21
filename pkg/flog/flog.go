@@ -26,7 +26,7 @@ import (
 /*
 Derived from kubernetes/klog:
   * flog.V(1) - Generally useful for this to ALWAYS be visible to an operator
-    * Programmer errors
+    * Programmer neterrors
     * Logging extra info about a panic
     * CLI argument handling
   * flog.V(2) - A reasonable default log level if you don't want verbosity.
@@ -43,7 +43,7 @@ Derived from kubernetes/klog:
   * flog.V(5) - Debug level verbosity
     * Logging in particularly thorny parts of code where you may want to come back later and check it
   * flog.V(6) - Trace level verbosity
-    * Context to understand the steps leading up to errors and warnings
+    * Context to understand the steps leading up to neterrors and warnings
     * More information for troubleshooting reported issues
 
 	The practical default level is V(2). Developers and QE environments may wish to run at V(3) or V(4).

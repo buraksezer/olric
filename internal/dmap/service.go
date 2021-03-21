@@ -27,6 +27,7 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/transport"
@@ -36,16 +37,17 @@ import (
 )
 
 var (
-	ErrServerGone      = errors.New("server is gone")
-	ErrInvalidArgument = errors.New("invalid argument")
+	ErrServerGone      = neterrors.New("server is gone", protocol.StatusErrServerGone)
+	ErrInvalidArgument = neterrors.New("invalid argument", protocol.StatusErrInvalidArgument)
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = errors.New("unknown operation")
-	ErrNotImplemented   = errors.New("not implemented")
+	ErrUnknownOperation = neterrors.New("unknown operation", protocol.StatusErrUnknownOperation)
+	ErrNotImplemented   = neterrors.New("not implemented", protocol.StatusErrNotImplemented)
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = errors.New("operation timeout")
-	errFragmentNotFound = errors.New("fragment not found")
-	ErrInternalFailure  = errors.New("internal failure")
+	ErrOperationTimeout = neterrors.New("operation timeout", protocol.StatusErrOperationTimeout)
+	ErrInternalFailure  = neterrors.New("internal failure", protocol.StatusInternalFailure)
 )
+
+var errFragmentNotFound = errors.New("fragment not found")
 
 type storageMap struct {
 	engines map[string]storage.Engine
@@ -206,41 +208,27 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func errorResponse(w protocol.EncodeDecoder, err error) {
-	getError := func(err interface{}) []byte {
-		switch val := err.(type) {
-		case string:
-			return []byte(val)
-		case error:
-			return []byte(val.Error())
-		default:
-			return nil
-		}
-	}
-	w.SetValue(getError(err))
-
-	switch {
-	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
-		w.SetStatus(protocol.StatusErrOperationTimeout)
-	case err == routingtable.ErrClusterQuorum, errors.Is(err, routingtable.ErrClusterQuorum):
-		w.SetStatus(protocol.StatusErrClusterQuorum)
-	case err == ErrUnknownOperation, errors.Is(err, ErrUnknownOperation):
-		w.SetStatus(protocol.StatusErrUnknownOperation)
-	case err == ErrServerGone, errors.Is(err, ErrServerGone):
-		w.SetStatus(protocol.StatusErrServerGone)
-	case err == ErrInvalidArgument, errors.Is(err, ErrInvalidArgument):
-		w.SetStatus(protocol.StatusErrInvalidArgument)
-	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
-		w.SetStatus(protocol.StatusErrNotImplemented)
-	case err == ErrKeyNotFound || err == storage.ErrKeyNotFound || err == errFragmentNotFound || err == ErrDMapNotFound:
-		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case err == ErrKeyFound:
-		w.SetStatus(protocol.StatusErrKeyFound)
-	case err == ErrEndOfQuery:
-		w.SetStatus(protocol.StatusErrEndOfQuery)
+func errorToByte(err interface{}) []byte {
+	switch val := err.(type) {
+	case string:
+		return []byte(val)
+	case error:
+		return []byte(val.Error())
 	default:
-		w.SetStatus(protocol.StatusInternalServerError)
+		return nil
 	}
+}
+
+func errorResponse(w protocol.EncodeDecoder, err error) {
+	netErr, ok := err.(*neterrors.NetError)
+	if !ok {
+		w.SetValue(errorToByte(err))
+		w.SetStatus(protocol.StatusInternalFailure)
+		return
+	}
+
+	w.SetValue(netErr.Bytes())
+	w.SetStatus(w.Status())
 }
 
 func opError(err error) error {

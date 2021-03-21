@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/pkg/errors"
 )
 
 const (

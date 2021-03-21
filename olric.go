@@ -41,6 +41,7 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/transport"
@@ -55,27 +56,27 @@ import (
 
 var (
 	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound = errors.New("key not found")
+	ErrKeyNotFound = neterrors.New("key not found", protocol.StatusErrKeyNotFound)
 
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = errors.New("operation timeout")
+	ErrOperationTimeout = neterrors.New("operation timeout", protocol.StatusErrOperationTimeout)
 
 	// ErrInternalServerError means that something unintentionally went wrong while processing the request.
-	ErrInternalServerError = errors.New("internal server error")
+	ErrInternalServerError = neterrors.New("internal server error", protocol.StatusInternalFailure)
 
 	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
-	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
+	ErrClusterQuorum = neterrors.New("cannot be reached cluster quorum to operate", protocol.StatusErrClusterQuorum)
 
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = errors.New("unknown operation")
+	ErrUnknownOperation = neterrors.New("unknown operation", protocol.StatusErrUnknownOperation)
 
-	ErrServerGone = errors.New("server is gone")
+	ErrServerGone = neterrors.New("server is gone", protocol.StatusErrServerGone)
 
-	ErrInvalidArgument = errors.New("invalid argument")
+	ErrInvalidArgument = neterrors.New("invalid argument", protocol.StatusErrInvalidArgument)
 
-	ErrKeyTooLarge = errors.New("key too large")
+	ErrKeyTooLarge = neterrors.New("key too large", protocol.StatusErrKeyTooLarge)
 
-	ErrNotImplemented = errors.New("not implemented")
+	ErrNotImplemented = neterrors.New("not implemented", protocol.StatusErrNotImplemented)
 )
 
 const (
@@ -383,7 +384,7 @@ func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
 	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
 		w.SetStatus(protocol.StatusErrNotImplemented)
 	default:
-		w.SetStatus(protocol.StatusInternalServerError)
+		w.SetStatus(protocol.StatusInternalFailure)
 	}
 }
 
@@ -398,7 +399,7 @@ func (db *Olric) requestTo(addr string, req protocol.EncodeDecoder) (protocol.En
 	switch {
 	case status == protocol.StatusOK:
 		return resp, nil
-	case status == protocol.StatusInternalServerError:
+	case status == protocol.StatusInternalFailure:
 		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value()))
 	case status == protocol.StatusErrNoSuchLock:
 		return nil, ErrNoSuchLock
@@ -445,7 +446,7 @@ func (db *Olric) isAlive() bool {
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
 	if err := db.rt.CheckMemberCountQuorum(); err != nil {
-		return errInternalToPublic(err)
+		return publicClusterError(err)
 	}
 	// An Olric node has to be bootstrapped to function properly.
 	return db.rt.CheckBootstrap()
@@ -546,7 +547,7 @@ func isKeyExpired(ttl int64) bool {
 	return (time.Now().UnixNano() / 1000000) >= ttl
 }
 
-func errInternalToPublic(err error) error {
+func publicClusterError(err error) error {
 	switch err {
 	case routingtable.ErrClusterQuorum:
 		return ErrClusterQuorum

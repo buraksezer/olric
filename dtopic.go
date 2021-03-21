@@ -18,6 +18,25 @@ import (
 	"github.com/buraksezer/olric/internal/dtopic"
 )
 
+func publicDTopicError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	switch err {
+	case dtopic.ErrInvalidArgument:
+		return ErrInvalidArgument
+	case dtopic.ErrNotImplemented:
+		return ErrNotImplemented
+	case dtopic.ErrOperationTimeout:
+		return ErrOperationTimeout
+	case dtopic.ErrUnknownOperation:
+		return ErrUnknownOperation
+	default:
+		return err
+	}
+}
+
 const (
 	// Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 	UnorderedDelivery = int16(1) << iota
@@ -48,7 +67,7 @@ type DTopic struct {
 func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
 	dt, err := db.services.dtopic.NewDTopic(name, concurrency, flag)
 	if err != nil {
-		return nil, err
+		return nil, publicDTopicError(err)
 	}
 	return &DTopic{
 		dt: dt,
@@ -56,19 +75,26 @@ func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, e
 }
 
 func (dt *DTopic) Publish(msg interface{}) error {
-	return dt.dt.Publish(msg)
+	err := dt.dt.Publish(msg)
+	return publicDTopicError(err)
 }
 
 func (dt *DTopic) AddListener(f func(DTopicMessage)) (uint64, error) {
-	return dt.dt.AddListener(func(msg dtopic.Message) {
+	listenerID, err := dt.dt.AddListener(func(msg dtopic.Message) {
 		f(DTopicMessage(msg))
 	})
+	if err != nil {
+		return 0, publicDTopicError(err)
+	}
+	return listenerID, nil
 }
 
 func (dt *DTopic) RemoveListener(listenerID uint64) error {
-	return dt.dt.RemoveListener(listenerID)
+	err := dt.dt.RemoveListener(listenerID)
+	return publicDTopicError(err)
 }
 
 func (dt *DTopic) Destroy() error {
-	return dt.dt.Destroy()
+	err := dt.dt.Destroy()
+	return publicDTopicError(err)
 }

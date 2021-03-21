@@ -16,7 +16,7 @@ package routingtable
 
 import (
 	"context"
-	"errors"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,7 +34,7 @@ import (
 )
 
 // ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
-var ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
+var ErrClusterQuorum = neterrors.New("cannot be reached cluster quorum to operate", protocol.StatusErrClusterQuorum)
 
 type route struct {
 	Owners  []discovery.Member
