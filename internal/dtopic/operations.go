@@ -19,7 +19,7 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-func (s *Service) exAddListenerOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	name := req.DTopic()
 	streamID := req.Extra().(protocol.DTopicAddListenerExtra).StreamID
