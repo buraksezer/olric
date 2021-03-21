@@ -281,7 +281,11 @@ func TestDTopic_DeliveryOrder(t *testing.T) {
 		<-done
 	}()
 
-	_, err = db.NewDTopic("my-topic", 0, 0)
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	_, err = c.NewDTopic("my-topic", 0, 0)
 	if !errors.Is(err, olric.ErrInvalidArgument) {
 		t.Errorf("Expected ErrInvalidArgument. Got: %v", err)
 	}
@@ -299,7 +303,12 @@ func TestDTopic_OrderedDelivery(t *testing.T) {
 		}
 		<-done
 	}()
-	_, err = db.NewDTopic("my-topic", 0, olric.OrderedDelivery)
+
+	c, err := New(testConfig)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	_, err = c.NewDTopic("my-topic", 0, olric.OrderedDelivery)
 	if err != olric.ErrNotImplemented {
 		t.Errorf("Expected ErrNotImplemented. Got: %v", err)
 	}

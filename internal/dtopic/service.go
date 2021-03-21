@@ -101,10 +101,10 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	operations[protocol.OpDTopicDestroy] = s.exDestroyOperation
 
 	// DTopic.AddListener
-	operations[protocol.OpDTopicAddListener] = s.exAddListenerOperation
+	operations[protocol.OpDTopicAddListener] = s.addListenerOperation
 
 	// DTopic.RemoveListener
-	operations[protocol.OpDTopicRemoveListener] = s.exRemoveListenerOperation
+	operations[protocol.OpDTopicRemoveListener] = s.removeListenerOperation
 }
 
 func (s *Service) Shutdown(ctx context.Context) error {

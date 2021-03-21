@@ -378,7 +378,7 @@ func TestDMap_tryLock(t *testing.T) {
 	var acquired bool
 	for i <= 10 {
 		i++
-		_, err := dm.Lock(key, 100 * time.Millisecond)
+		_, err := dm.Lock(key, 100*time.Millisecond)
 		if err == ErrLockNotAcquired {
 			// already acquired
 			continue
