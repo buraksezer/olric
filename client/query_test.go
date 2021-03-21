@@ -15,28 +15,22 @@
 package client
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/buraksezer/olric/client/internal/testutils"
 	"github.com/buraksezer/olric/query"
 )
 
 func TestClient_Query(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

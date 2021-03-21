@@ -15,7 +15,6 @@
 package client
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -24,28 +23,23 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/client/internal/testutils"
 )
 
 func TestClient_Get(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	name := "mymap"
-	dm, err := db.NewDMap(name)
+	dm, err := srv.Olric().NewDMap(name)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -65,25 +59,19 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_GetEntry(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	name := "mymap"
-	dm, err := db.NewDMap(name)
+	dm, err := srv.Olric().NewDMap(name)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -108,19 +96,13 @@ func TestClient_GetEntry(t *testing.T) {
 }
 
 func TestClient_Put(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -132,7 +114,7 @@ func TestClient_Put(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	dm, err := db.NewDMap(name)
+	dm, err := srv.Olric().NewDMap(name)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -162,19 +144,13 @@ func TestClient_Put(t *testing.T) {
 }
 
 func TestClient_PutEx(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -187,7 +163,7 @@ func TestClient_PutEx(t *testing.T) {
 	}
 
 	time.Sleep(time.Millisecond)
-	dm, err := db.NewDMap(name)
+	dm, err := srv.Olric().NewDMap(name)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -201,19 +177,13 @@ func TestClient_PutEx(t *testing.T) {
 }
 
 func TestClient_Delete(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			t.Errorf("Expected nil. Got %v", err)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -237,19 +207,13 @@ func TestClient_Delete(t *testing.T) {
 }
 
 func TestClient_LockWithTimeout(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -269,19 +233,13 @@ func TestClient_LockWithTimeout(t *testing.T) {
 }
 
 func TestClient_LockWithTimeoutAwaitOtherLock(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -301,19 +259,13 @@ func TestClient_LockWithTimeoutAwaitOtherLock(t *testing.T) {
 }
 
 func TestClient_Lock(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -333,19 +285,13 @@ func TestClient_Lock(t *testing.T) {
 }
 
 func TestClient_LockAwaitOtherLock(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -365,19 +311,13 @@ func TestClient_LockAwaitOtherLock(t *testing.T) {
 }
 
 func TestClient_Destroy(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -401,21 +341,13 @@ func TestClient_Destroy(t *testing.T) {
 }
 
 func TestClient_Incr(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		serr := db.Shutdown(ctx)
-		if serr != nil {
-			log.Printf("[WARN] Olric Shutdown returned an error: %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -455,21 +387,13 @@ func TestClient_Incr(t *testing.T) {
 }
 
 func TestClient_Decr(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		serr := db.Shutdown(ctx)
-		if serr != nil {
-			log.Printf("[WARN] Olric Shutdown returned an error: %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -509,21 +433,13 @@ func TestClient_Decr(t *testing.T) {
 }
 
 func TestClient_GetPut(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		serr := db.Shutdown(ctx)
-		if serr != nil {
-			log.Printf("[WARN] Olric Shutdown returned an error: %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -570,25 +486,19 @@ func TestClient_GetPut(t *testing.T) {
 }
 
 func TestClient_Expire(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	name := "mymap"
-	dm, err := db.NewDMap(name)
+	dm, err := srv.Olric().NewDMap(name)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -616,19 +526,13 @@ func TestClient_Expire(t *testing.T) {
 }
 
 func TestClient_PutIf(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -658,19 +562,13 @@ func TestClient_PutIf(t *testing.T) {
 }
 
 func TestClient_PutIfEx(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testutils.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
