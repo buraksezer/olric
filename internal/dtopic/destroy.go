@@ -40,7 +40,7 @@ func (s *Service) destroyDTopicOnCluster(topic string) error {
 			}
 			req := protocol.NewDTopicMessage(protocol.OpDestroyDTopic)
 			req.SetDTopic(topic)
-			_, err := s.client.RequestTo2(member.String(), req)
+			_, err := s.request(member.String(), req)
 			if err != nil {
 				s.log.V(2).Printf("[ERROR] Failed to call Destroy on %s, topic: %s : %v", member, topic, err)
 				return err

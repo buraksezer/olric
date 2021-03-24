@@ -22,6 +22,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/streams"
@@ -29,6 +30,8 @@ import (
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/serializer"
 )
+
+const codespace = "dtopic"
 
 var ErrServerGone = errors.New("server is gone")
 
@@ -87,6 +90,18 @@ func (s *Service) unmarshalValue(raw []byte) (interface{}, error) {
 		return nil, nil
 	}
 	return value, nil
+}
+
+func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	resp, err := s.client.RequestTo(addr, req)
+	if err != nil {
+		return nil, err
+	}
+	status := resp.Status()
+	if status == protocol.StatusOK {
+		return resp, nil
+	}
+	return nil, neterrors.GetByCode(codespace, status)
 }
 
 func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {

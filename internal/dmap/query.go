@@ -17,8 +17,9 @@ package dmap
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/neterrors"
 	"sync"
+
+	"github.com/buraksezer/olric/internal/neterrors"
 
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -35,7 +36,7 @@ const NumParallelQuery = 2
 
 // ErrEndOfQuery is the error returned by Range when no more data is available.
 // Functions should return ErrEndOfQuery only to signal a graceful end of input.
-var ErrEndOfQuery = neterrors.New("end of query", protocol.StatusErrEndOfQuery)
+var ErrEndOfQuery = neterrors.New(codespace, protocol.StatusErrEndOfQuery, "end of query")
 
 // QueryResponse denotes returned data by a node for query.
 type QueryResponse map[string]interface{}
@@ -158,7 +159,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 		req.SetExtra(protocol.LocalQueryExtra{
 			PartID: partID,
 		})
-		response, err := c.dm.s.client.RequestTo2(owner.String(), req)
+		response, err := c.dm.s.request(owner.String(), req)
 		if err != nil {
 			return nil, fmt.Errorf("query call is failed: %w", err)
 		}

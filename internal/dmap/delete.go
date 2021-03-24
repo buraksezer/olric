@@ -51,7 +51,7 @@ func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) 
 		req := protocol.NewDMapMessage(protocol.OpDeletePrev)
 		req.SetDMap(dm.name)
 		req.SetKey(key)
-		_, err := dm.s.client.RequestTo2(owner.String(), req)
+		_, err := dm.s.request(owner.String(), req)
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)
 			req.SetDMap(dm.name)
 			req.SetKey(key)
-			_, err := dm.s.client.RequestTo2(mem.String(), req)
+			_, err := dm.s.request(mem.String(), req)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", dm.name, err)
 			}
@@ -120,7 +120,7 @@ func (dm *DMap) deleteKey(key string) error {
 		req := protocol.NewDMapMessage(protocol.OpDelete)
 		req.SetDMap(dm.name)
 		req.SetKey(key)
-		_, err := dm.s.client.RequestTo2(member.String(), req)
+		_, err := dm.s.request(member.String(), req)
 		return err
 	}
 

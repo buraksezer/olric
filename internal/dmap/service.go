@@ -37,14 +37,14 @@ import (
 )
 
 var (
-	ErrServerGone      = neterrors.New("server is gone", protocol.StatusErrServerGone)
-	ErrInvalidArgument = neterrors.New("invalid argument", protocol.StatusErrInvalidArgument)
+	ErrServerGone      = neterrors.New(codespace, protocol.StatusErrServerGone, "server is gone")
+	ErrInvalidArgument = neterrors.New(codespace, protocol.StatusErrInvalidArgument, "invalid argument")
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = neterrors.New("unknown operation", protocol.StatusErrUnknownOperation)
-	ErrNotImplemented   = neterrors.New("not implemented", protocol.StatusErrNotImplemented)
+	ErrUnknownOperation = neterrors.New(codespace, protocol.StatusErrUnknownOperation, "unknown operation")
+	ErrNotImplemented   = neterrors.New(codespace, protocol.StatusErrNotImplemented, "not implemented")
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = neterrors.New("operation timeout", protocol.StatusErrOperationTimeout)
-	ErrInternalFailure  = neterrors.New("internal failure", protocol.StatusInternalFailure)
+	ErrOperationTimeout = neterrors.New(codespace, protocol.StatusErrOperationTimeout, "operation timeout")
+	ErrInternalFailure  = neterrors.New(codespace, protocol.StatusInternalFailure, "internal failure")
 )
 
 var errFragmentNotFound = errors.New("fragment not found")
@@ -178,6 +178,18 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 	}
 }
 
+func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+	resp, err := s.client.RequestTo(addr, req)
+	if err != nil {
+		return nil, err
+	}
+	status := resp.Status()
+	if status == protocol.StatusOK {
+		return resp, nil
+	}
+	return nil, neterrors.GetByCode(codespace, status)
+}
+
 // Starts starts the distributed map service.
 func (s *Service) Start() error {
 	s.wg.Add(1)
@@ -229,22 +241,6 @@ func errorResponse(w protocol.EncodeDecoder, err error) {
 
 	w.SetValue(netErr.Bytes())
 	w.SetStatus(w.Status())
-}
-
-func opError(err error) error {
-	opErr, ok := err.(transport.OpError)
-	if !ok {
-		return err
-	}
-	switch {
-	case opErr.StatusCode() == protocol.StatusErrKeyNotFound:
-		return ErrKeyNotFound
-	case opErr.StatusCode() == protocol.StatusErrKeyFound:
-		return ErrKeyFound
-	default:
-		// TODO: wrap the original error
-		return ErrInternalFailure
-	}
 }
 
 var _ service.Service = (*Service)(nil)

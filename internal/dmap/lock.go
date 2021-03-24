@@ -93,7 +93,7 @@ func (dm *DMap) unlock(key string, token []byte) error {
 	req.SetDMap(dm.name)
 	req.SetKey(key)
 	req.SetValue(token)
-	_, err := dm.s.client.RequestTo2(member.String(), req)
+	_, err := dm.s.request(member.String(), req)
 	return err
 }
 

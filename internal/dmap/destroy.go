@@ -54,7 +54,7 @@ func (dm *DMap) destroyOnCluster() error {
 			req := protocol.NewDMapMessage(protocol.OpDestroyDMap)
 			req.SetDMap(dm.name)
 			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
-			_, err := dm.s.client.RequestTo2(addr, req)
+			_, err := dm.s.request(addr, req)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", dm.name, addr)
 			}

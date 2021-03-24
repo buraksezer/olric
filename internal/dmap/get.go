@@ -80,7 +80,7 @@ func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*ver
 	req.SetKey(key)
 
 	v := &version{host: owner}
-	resp, err := dm.s.client.RequestTo2(owner.String(), req)
+	resp, err := dm.s.request(owner.String(), req)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		req.SetDMap(dm.name)
 		req.SetKey(key)
 		ver := &version{host: &replica}
-		resp, err := dm.s.client.RequestTo2(replica.String(), req)
+		resp, err := dm.s.request(replica.String(), req)
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
 				dm.s.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
@@ -254,7 +254,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 					TTL:       winner.entry.TTL(),
 				})
 			}
-			_, err := dm.s.client.RequestTo2(ver.host.String(), req)
+			_, err := dm.s.request(ver.host.String(), req)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
 			}
@@ -309,9 +309,9 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(dm.name)
 	req.SetKey(key)
-	resp, err := dm.s.client.RequestTo2(member.String(), req)
+	resp, err := dm.s.request(member.String(), req)
 	if err != nil {
-		return nil, opError(err)
+		return nil, err
 	}
 	entry := kvstore.NewEntry()
 	entry.Decode(resp.Value())

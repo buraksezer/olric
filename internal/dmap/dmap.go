@@ -25,6 +25,8 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
+const codespace = "dmap"
+
 // pool is good for recycling memory while reading messages from the socket.
 var bufferPool = bufpool.New()
 
@@ -32,8 +34,8 @@ const nilTimeout = 0 * time.Second
 
 var (
 	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound  = neterrors.New("key not found", protocol.StatusErrKeyNotFound)
-	ErrDMapNotFound = neterrors.New("dmap not found", protocol.StatusErrKeyNotFound)
+	ErrKeyNotFound  = neterrors.New(codespace, protocol.StatusErrKeyNotFound,"key not found")
+	ErrDMapNotFound = neterrors.Wrap(ErrKeyNotFound, "dmap not found")
 )
 
 // DMap defines a distributed map implementation.

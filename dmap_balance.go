@@ -58,7 +58,7 @@ func (dm *dmap) Move(partID uint64, kind partitions.Kind, name string, owner dis
 	req := protocol.NewSystemMessage(protocol.OpMoveDMap)
 	req.SetValue(value)
 	// TODO: Check neterrors etc
-	_, err = dm.client.RequestTo2(owner.String(), req)
+	_, err = dm.client.RequestTo(owner.String(), req)
 	return err
 }
 

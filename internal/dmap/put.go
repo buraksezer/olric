@@ -32,8 +32,8 @@ const (
 )
 
 var (
-	ErrKeyFound    = neterrors.New("key found", protocol.StatusErrKeyFound)
-	ErrWriteQuorum = neterrors.New("write quorum cannot be reached", protocol.StatusErrWriteQuorum)
+	ErrKeyFound    = neterrors.New(codespace, protocol.StatusErrKeyFound, "key found")
+	ErrWriteQuorum = neterrors.New(codespace, protocol.StatusErrWriteQuorum, "write quorum cannot be reached")
 )
 
 func (dm *DMap) updateAccessLog(hkey uint64, f *fragment) {
@@ -84,7 +84,7 @@ func (dm *DMap) asyncPutOnCluster(e *env) error {
 		go func(host discovery.Member) {
 			defer dm.s.wg.Done()
 			req := e.toReq(e.replicaOpcode)
-			_, err := dm.s.client.RequestTo2(host.String(), req)
+			_, err := dm.s.request(host.String(), req)
 			if err != nil {
 				if dm.s.log.V(3).Ok() {
 					dm.s.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
@@ -101,7 +101,7 @@ func (dm *DMap) syncPutOnCluster(e *env) error {
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
 		req := e.toReq(e.replicaOpcode)
-		_, err := dm.s.client.RequestTo2(owner.String(), req)
+		_, err := dm.s.request(owner.String(), req)
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
 				dm.s.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, e.dmap, err)
@@ -250,8 +250,8 @@ func (dm *DMap) put(e *env) error {
 	}
 	// Redirect to the partition owner.
 	req := e.toReq(e.opcode)
-	_, err := dm.s.client.RequestTo2(member.String(), req)
-	return opError(err)
+	_, err := dm.s.request(member.String(), req)
+	return err
 }
 
 func (dm *DMap) prepareAndSerialize(

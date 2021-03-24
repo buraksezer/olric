@@ -2,16 +2,21 @@ package neterrors
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"sync"
 	"unsafe"
 
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
+// https://github.com/cosmos/cosmos-sdk/blob/master/types/errors/errors.go
+
+const RootCodespace = "root"
+
 var (
 	mtx          sync.Mutex
 	registryOnce sync.Once
-	registry     map[protocol.StatusCode]error
+	registry     map[string]map[protocol.StatusCode]error
 )
 
 // NetError defines a custom error type.
@@ -20,21 +25,25 @@ type NetError struct {
 	statusCode protocol.StatusCode
 }
 
-func New(message string, statusCode protocol.StatusCode) *NetError {
+func New(codespace string, code protocol.StatusCode, message string) *NetError {
 	e := &NetError{
-		statusCode: statusCode,
+		statusCode: code,
 		message:    message,
 	}
 	registryOnce.Do(func() {
-		registry = make(map[protocol.StatusCode]error)
+		registry = make(map[string]map[protocol.StatusCode]error)
 	})
 	mtx.Lock()
 	defer mtx.Unlock()
-	_, ok := registry[statusCode]
-	if ok {
-		panic(fmt.Sprintf("an error has already been registered with StatusCode: %d", statusCode))
+	_, ok := registry[codespace]
+	if !ok {
+		registry[codespace] = make(map[protocol.StatusCode]error)
 	}
-	registry[statusCode] = e
+	_, ok = registry[codespace][code]
+	if ok {
+		panic(fmt.Sprintf("an error has already been registered with StatusCode: %d", code))
+	}
+	registry[codespace][code] = e
 	return e
 }
 
@@ -50,11 +59,20 @@ func (e *NetError) StatusCode() protocol.StatusCode {
 	return e.statusCode
 }
 
-func GetByCode(code protocol.StatusCode) error {
+// Wrap extends this error with an additional information.
+func Wrap(err error, message string) error {
+	return errors.Wrap(err, message)
+}
+
+func GetByCode(codespace string, code protocol.StatusCode) error {
 	if code == protocol.StatusOK {
 		return nil
 	}
-	err, ok := registry[code]
+	tmp, ok := registry[codespace]
+	if !ok {
+		return fmt.Errorf("no codespace found: %s", codespace)
+	}
+	err, ok := tmp[code]
 	if !ok {
 		return fmt.Errorf("no error found with StatusCode: %d", code)
 	}

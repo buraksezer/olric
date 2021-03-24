@@ -33,8 +33,10 @@ import (
 	"github.com/hashicorp/memberlist"
 )
 
+const codespace = "routingtable"
+
 // ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
-var ErrClusterQuorum = neterrors.New("cannot be reached cluster quorum to operate", protocol.StatusErrClusterQuorum)
+var ErrClusterQuorum = neterrors.New(codespace, protocol.StatusErrClusterQuorum, "cannot be reached cluster quorum to operate")
 
 type route struct {
 	Owners  []discovery.Member
@@ -320,7 +322,7 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 	if status == protocol.StatusOK {
 		return resp, nil
 	}
-	return nil, transport.NewOpError(status, string(resp.Value()))
+	return nil, neterrors.GetByCode(codespace, status)
 }
 
 func (r *RoutingTable) Start() error {

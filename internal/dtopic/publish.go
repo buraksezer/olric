@@ -68,7 +68,7 @@ func (s *Service) publishDTopicMessageToAddr(member discovery.Member, topic stri
 	req := protocol.NewDTopicMessage(protocol.OpPublishDTopicMessage)
 	req.SetDTopic(topic)
 	req.SetValue(data)
-	_, err = s.client.RequestTo2(member.String(), req)
+	_, err = s.request(member.String(), req)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to publish message to %s: %v", member, err)
 		return err

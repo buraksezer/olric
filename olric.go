@@ -56,27 +56,27 @@ import (
 
 var (
 	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound = neterrors.New("key not found", protocol.StatusErrKeyNotFound)
+	ErrKeyNotFound = neterrors.New(neterrors.RootCodespace, protocol.StatusErrKeyNotFound, "key not found")
 
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = neterrors.New("operation timeout", protocol.StatusErrOperationTimeout)
+	ErrOperationTimeout = neterrors.New(neterrors.RootCodespace, protocol.StatusErrOperationTimeout, "operation timeout")
 
 	// ErrInternalServerError means that something unintentionally went wrong while processing the request.
-	ErrInternalServerError = neterrors.New("internal server error", protocol.StatusInternalFailure)
+	ErrInternalServerError = neterrors.New(neterrors.RootCodespace, protocol.StatusInternalFailure, "internal server error")
 
 	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
-	ErrClusterQuorum = neterrors.New("cannot be reached cluster quorum to operate", protocol.StatusErrClusterQuorum)
+	ErrClusterQuorum = neterrors.New(neterrors.RootCodespace, protocol.StatusErrClusterQuorum, "cannot be reached cluster quorum to operate")
 
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = neterrors.New("unknown operation", protocol.StatusErrUnknownOperation)
+	ErrUnknownOperation = neterrors.New(neterrors.RootCodespace, protocol.StatusErrUnknownOperation, "unknown operation")
 
-	ErrServerGone = neterrors.New("server is gone", protocol.StatusErrServerGone)
+	ErrServerGone = neterrors.New(neterrors.RootCodespace, protocol.StatusErrServerGone, "server is gone")
 
-	ErrInvalidArgument = neterrors.New("invalid argument", protocol.StatusErrInvalidArgument)
+	ErrInvalidArgument = neterrors.New(neterrors.RootCodespace, protocol.StatusErrInvalidArgument, "invalid argument")
 
-	ErrKeyTooLarge = neterrors.New("key too large", protocol.StatusErrKeyTooLarge)
+	ErrKeyTooLarge = neterrors.New(neterrors.RootCodespace, protocol.StatusErrKeyTooLarge, "key too large")
 
-	ErrNotImplemented = neterrors.New("not implemented", protocol.StatusErrNotImplemented)
+	ErrNotImplemented = neterrors.New(neterrors.RootCodespace, protocol.StatusErrNotImplemented, "not implemented")
 )
 
 const (
