@@ -37,13 +37,9 @@ import (
 )
 
 var (
-	ErrServerGone      = neterrors.New(codespace, protocol.StatusErrServerGone, "server is gone")
 	ErrInvalidArgument = neterrors.New(codespace, protocol.StatusErrInvalidArgument, "invalid argument")
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
 	ErrUnknownOperation = neterrors.New(codespace, protocol.StatusErrUnknownOperation, "unknown operation")
-	ErrNotImplemented   = neterrors.New(codespace, protocol.StatusErrNotImplemented, "not implemented")
-	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = neterrors.New(codespace, protocol.StatusErrOperationTimeout, "operation timeout")
 	ErrInternalFailure  = neterrors.New(codespace, protocol.StatusInternalFailure, "internal failure")
 )
 
@@ -178,6 +174,28 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 	}
 }
 
+func errorToByte(err interface{}) []byte {
+	switch val := err.(type) {
+	case string:
+		return []byte(val)
+	case error:
+		return []byte(val.Error())
+	default:
+		return nil
+	}
+}
+
+func errorResponse(w protocol.EncodeDecoder, err interface{}) {
+	netErr, ok := err.(*neterrors.NetError)
+	if !ok {
+		w.SetValue(errorToByte(err))
+		w.SetStatus(protocol.StatusInternalFailure)
+		return
+	}
+	w.SetValue(netErr.Bytes())
+	w.SetStatus(netErr.StatusCode())
+}
+
 func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	resp, err := s.client.RequestTo(addr, req)
 	if err != nil {
@@ -186,6 +204,9 @@ func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.Enc
 	status := resp.Status()
 	if status == protocol.StatusOK {
 		return resp, nil
+	}
+	if status == protocol.StatusInternalFailure {
+		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
 	}
 	return nil, neterrors.GetByCode(codespace, status)
 }
@@ -218,29 +239,6 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	case <-done:
 	}
 	return nil
-}
-
-func errorToByte(err interface{}) []byte {
-	switch val := err.(type) {
-	case string:
-		return []byte(val)
-	case error:
-		return []byte(val.Error())
-	default:
-		return nil
-	}
-}
-
-func errorResponse(w protocol.EncodeDecoder, err error) {
-	netErr, ok := err.(*neterrors.NetError)
-	if !ok {
-		w.SetValue(errorToByte(err))
-		w.SetStatus(protocol.StatusInternalFailure)
-		return
-	}
-
-	w.SetValue(netErr.Bytes())
-	w.SetStatus(w.Status())
 }
 
 var _ service.Service = (*Service)(nil)

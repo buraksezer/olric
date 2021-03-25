@@ -16,7 +16,7 @@ package protocol
 
 type OpCode uint8
 
-// ops
+// Operations
 const (
 	OpPut = OpCode(iota) + 1
 	OpPutEx
@@ -65,7 +65,7 @@ const (
 
 type StatusCode uint8
 
-// status codes
+// Status Codes
 const (
 	StatusOK = StatusCode(iota) + 1
 	StatusInternalFailure
