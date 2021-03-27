@@ -16,7 +16,7 @@ package routingtable
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/neterrors"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,6 +27,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
+	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -36,7 +37,8 @@ import (
 const codespace = "routingtable"
 
 // ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
-var ErrClusterQuorum = neterrors.New(codespace, protocol.StatusErrClusterQuorum, "cannot be reached cluster quorum to operate")
+var ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
+var ErrInternalFailure = neterrors.New(codespace, protocol.StatusErrInternalFailure, "internal failure")
 
 type route struct {
 	Owners  []discovery.Member
@@ -321,6 +323,9 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 	status := resp.Status()
 	if status == protocol.StatusOK {
 		return resp, nil
+	}
+	if status == protocol.StatusErrInternalFailure {
+		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
 	}
 	return nil, neterrors.GetByCode(codespace, status)
 }

@@ -2,11 +2,11 @@ package neterrors
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"sync"
 	"unsafe"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/pkg/errors"
 )
 
 // https://github.com/cosmos/cosmos-sdk/blob/master/types/errors/errors.go
