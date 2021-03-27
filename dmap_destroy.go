@@ -38,7 +38,7 @@ func (db *Olric) destroyDMap(name string) error {
 			}
 			defer sem.Release(1)
 
-			req := protocol.NewDMapMessage(protocol.OpDestroyDMap)
+			req := protocol.NewDMapMessage(protocol.OpDestroyDMapInternal)
 			req.SetDMap(name)
 			db.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, name)
 			_, err := db.requestTo(addr, req)

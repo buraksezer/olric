@@ -46,7 +46,7 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 
 	// DMap.Destroy
 	s.operations[protocol.OpDestroy] = s.destroyOperation
-	s.operations[protocol.OpDestroyDMap] = s.destroyDMapOperation
+	s.operations[protocol.OpDestroyDMapInternal] = s.destroyDMapOperation
 
 	// DMap.Pipeline
 	s.operations[protocol.OpPipeline] = s.pipelineOperation

@@ -20,9 +20,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) destroyDTopicInternalOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
-	// req.DMap() is topic name in this context. This confusion will be fixed.
 	s.dispatcher.destroy(req.DTopic())
 	w.SetStatus(protocol.StatusOK)
 }
@@ -38,7 +37,7 @@ func (s *Service) destroyDTopicOnCluster(topic string) error {
 			if !s.isAlive() {
 				return ErrServerGone
 			}
-			req := protocol.NewDTopicMessage(protocol.OpDestroyDTopic)
+			req := protocol.NewDTopicMessage(protocol.OpDestroyDTopicInternal)
 			req.SetDTopic(topic)
 			_, err := s.request(member.String(), req)
 			if err != nil {
@@ -53,7 +52,7 @@ func (s *Service) destroyDTopicOnCluster(topic string) error {
 	return g.Wait()
 }
 
-func (s *Service) exDestroyOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) dtopicDestroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	err := s.destroyDTopicOnCluster(req.DTopic())
 	if err != nil {

@@ -40,7 +40,7 @@ var (
 	ErrInvalidArgument = neterrors.New(codespace, protocol.StatusErrInvalidArgument, "invalid argument")
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
 	ErrUnknownOperation = neterrors.New(codespace, protocol.StatusErrUnknownOperation, "unknown operation")
-	ErrInternalFailure  = neterrors.New(codespace, protocol.StatusInternalFailure, "internal failure")
+	ErrInternalFailure  = neterrors.New(codespace, protocol.StatusErrInternalFailure, "internal failure")
 )
 
 var errFragmentNotFound = errors.New("fragment not found")
@@ -189,7 +189,7 @@ func errorResponse(w protocol.EncodeDecoder, err interface{}) {
 	netErr, ok := err.(*neterrors.NetError)
 	if !ok {
 		w.SetValue(errorToByte(err))
-		w.SetStatus(protocol.StatusInternalFailure)
+		w.SetStatus(protocol.StatusErrInternalFailure)
 		return
 	}
 	w.SetValue(netErr.Bytes())
@@ -205,7 +205,7 @@ func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.Enc
 	if status == protocol.StatusOK {
 		return resp, nil
 	}
-	if status == protocol.StatusInternalFailure {
+	if status == protocol.StatusErrInternalFailure {
 		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
 	}
 	return nil, neterrors.GetByCode(codespace, status)

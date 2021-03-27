@@ -18,15 +18,18 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/buraksezer/olric/internal/neterrors"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 var (
-	ErrInvalidArgument = errors.New("invalid argument")
+	ErrInvalidArgument = neterrors.New(codespace, protocol.StatusErrInvalidArgument, "invalid argument")
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = errors.New("unknown operation")
-	ErrNotImplemented   = errors.New("not implemented")
+	ErrUnknownOperation = neterrors.New(codespace, protocol.StatusErrUnknownOperation, "unknown operation")
+	ErrNotImplemented   = neterrors.New(codespace, protocol.StatusErrNotImplemented, "not implemented")
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = errors.New("operation timeout")
+	ErrOperationTimeout = neterrors.New(codespace, protocol.StatusErrOperationTimeout, "operation timeout")
 )
 
 const (

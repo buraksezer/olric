@@ -33,13 +33,13 @@ func (s *Service) extractPipelineMessage(conn io.ReadWriteCloser, response *byte
 	err = preq.Decode()
 	// Return an error message in pipelined response.
 	if err != nil {
-		preq.SetStatus(protocol.StatusInternalFailure)
+		preq.SetStatus(protocol.StatusErrInternalFailure)
 		preq.SetValue([]byte(err.Error()))
 		return nil
 	}
 	f, ok := s.operations[preq.Op]
 	if !ok {
-		preq.SetStatus(protocol.StatusInternalFailure)
+		preq.SetStatus(protocol.StatusErrInternalFailure)
 		preq.SetValue([]byte(ErrUnknownOperation.Error()))
 		return nil
 	}

@@ -125,7 +125,7 @@ func (s *Service) validateFragmentPack(fp *fragmentPack) error {
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !s.checkOwnership(part) {
-		return fmt.Errorf("partID: %d (kind: %s) doesn't belong to %s: %w", fp.PartID, fp.Kind, s.rt.This(), ErrInvalidArgument)
+		return fmt.Errorf("%w: partID: %d (kind: %s) doesn't belong to %s", ErrInvalidArgument, fp.PartID, fp.Kind, s.rt.This())
 	}
 	return nil
 }

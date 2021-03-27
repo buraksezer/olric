@@ -48,7 +48,7 @@ func (db *Olric) registerOperations() {
 
 	// DMap.Destroy
 	db.operations[protocol.OpDestroy] = db.exDestroyOperation
-	db.operations[protocol.OpDestroyDMap] = db.destroyDMapOperation
+	db.operations[protocol.OpDestroyDMapInternal] = db.destroyDMapOperation
 
 	// DMap.Atomic
 	db.operations[protocol.OpIncr] = db.exIncrDecrOperation

@@ -154,7 +154,7 @@ func checkStatusCode(resp protocol.EncodeDecoder) error {
 	switch {
 	case status == protocol.StatusOK:
 		return nil
-	case status == protocol.StatusInternalFailure:
+	case status == protocol.StatusErrInternalFailure:
 		return errors.Wrap(olric.ErrInternalServerError, string(resp.Value()))
 	case status == protocol.StatusErrNoSuchLock:
 		return olric.ErrNoSuchLock

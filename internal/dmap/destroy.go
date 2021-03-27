@@ -51,7 +51,7 @@ func (dm *DMap) destroyOnCluster() error {
 			}
 			defer sem.Release(1)
 
-			req := protocol.NewDMapMessage(protocol.OpDestroyDMap)
+			req := protocol.NewDMapMessage(protocol.OpDestroyDMapInternal)
 			req.SetDMap(dm.name)
 			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
 			_, err := dm.s.request(addr, req)

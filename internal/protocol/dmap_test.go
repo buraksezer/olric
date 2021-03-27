@@ -123,8 +123,8 @@ func TestDMapMessage_Response(t *testing.T) {
 		t.Fatalf("response.Value() returned a different value")
 	}
 
-	resp.SetStatus(StatusInternalFailure)
-	if resp.Status() != StatusInternalFailure {
-		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalFailure, resp.Status())
+	resp.SetStatus(StatusErrInternalFailure)
+	if resp.Status() != StatusErrInternalFailure {
+		t.Fatalf("Expected status code: %d. Got: %d", StatusErrInternalFailure, resp.Status())
 	}
 }

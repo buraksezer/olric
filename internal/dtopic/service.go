@@ -92,6 +92,28 @@ func (s *Service) unmarshalValue(raw []byte) (interface{}, error) {
 	return value, nil
 }
 
+func errorToByte(err interface{}) []byte {
+	switch val := err.(type) {
+	case string:
+		return []byte(val)
+	case error:
+		return []byte(val.Error())
+	default:
+		return nil
+	}
+}
+
+func errorResponse(w protocol.EncodeDecoder, err interface{}) {
+	netErr, ok := err.(*neterrors.NetError)
+	if !ok {
+		w.SetValue(errorToByte(err))
+		w.SetStatus(protocol.StatusErrInternalFailure)
+		return
+	}
+	w.SetValue(netErr.Bytes())
+	w.SetStatus(netErr.StatusCode())
+}
+
 func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	resp, err := s.client.RequestTo(addr, req)
 	if err != nil {
@@ -112,8 +134,8 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	operations[protocol.OpDTopicPublish] = s.exPublishOperation
 
 	// DTopic.Destroy
-	operations[protocol.OpDestroyDTopic] = s.destroyOperation
-	operations[protocol.OpDTopicDestroy] = s.exDestroyOperation
+	operations[protocol.OpDestroyDTopicInternal] = s.destroyDTopicInternalOperation
+	operations[protocol.OpDTopicDestroy] = s.dtopicDestroyOperation
 
 	// DTopic.AddListener
 	operations[protocol.OpDTopicAddListener] = s.addListenerOperation
@@ -140,35 +162,4 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	case <-done:
 	}
 	return nil
-}
-
-func errorResponse(w protocol.EncodeDecoder, err error) {
-	getError := func(err interface{}) []byte {
-		switch val := err.(type) {
-		case string:
-			return []byte(val)
-		case error:
-			return []byte(val.Error())
-		default:
-			return nil
-		}
-	}
-	w.SetValue(getError(err))
-
-	switch {
-	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
-		w.SetStatus(protocol.StatusErrOperationTimeout)
-	case err == routingtable.ErrClusterQuorum, errors.Is(err, routingtable.ErrClusterQuorum):
-		w.SetStatus(protocol.StatusErrClusterQuorum)
-	case err == ErrUnknownOperation, errors.Is(err, ErrUnknownOperation):
-		w.SetStatus(protocol.StatusErrUnknownOperation)
-	case err == ErrServerGone, errors.Is(err, ErrServerGone):
-		w.SetStatus(protocol.StatusErrServerGone)
-	case err == ErrInvalidArgument, errors.Is(err, ErrInvalidArgument):
-		w.SetStatus(protocol.StatusErrInvalidArgument)
-	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
-		w.SetStatus(protocol.StatusErrNotImplemented)
-	default:
-		w.SetStatus(protocol.StatusInternalFailure)
-	}
 }

@@ -62,7 +62,7 @@ var (
 	ErrOperationTimeout = neterrors.New(neterrors.RootCodespace, protocol.StatusErrOperationTimeout, "operation timeout")
 
 	// ErrInternalServerError means that something unintentionally went wrong while processing the request.
-	ErrInternalServerError = neterrors.New(neterrors.RootCodespace, protocol.StatusInternalFailure, "internal server error")
+	ErrInternalServerError = neterrors.New(neterrors.RootCodespace, protocol.StatusErrInternalFailure, "internal server error")
 
 	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
 	ErrClusterQuorum = neterrors.New(neterrors.RootCodespace, protocol.StatusErrClusterQuorum, "cannot be reached cluster quorum to operate")
@@ -384,7 +384,7 @@ func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
 	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
 		w.SetStatus(protocol.StatusErrNotImplemented)
 	default:
-		w.SetStatus(protocol.StatusInternalFailure)
+		w.SetStatus(protocol.StatusErrInternalFailure)
 	}
 }
 
@@ -399,7 +399,7 @@ func (db *Olric) requestTo(addr string, req protocol.EncodeDecoder) (protocol.En
 	switch {
 	case status == protocol.StatusOK:
 		return resp, nil
-	case status == protocol.StatusInternalFailure:
+	case status == protocol.StatusErrInternalFailure:
 		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value()))
 	case status == protocol.StatusErrNoSuchLock:
 		return nil, ErrNoSuchLock

@@ -40,7 +40,7 @@ const (
 	OpGetPrev
 	OpGetBackup
 	OpDeleteBackup
-	OpDestroyDMap
+	OpDestroyDMapInternal
 	OpMoveDMap // TODO: Rename to OpMoveFragment
 	OpLengthOfPart
 	OpPipeline
@@ -51,7 +51,7 @@ const (
 	OpQuery
 	OpLocalQuery
 	OpPublishDTopicMessage
-	OpDestroyDTopic
+	OpDestroyDTopicInternal
 	OpDTopicPublish
 	OpDTopicAddListener
 	OpDTopicRemoveListener
@@ -68,7 +68,7 @@ type StatusCode uint8
 // Status Codes
 const (
 	StatusOK = StatusCode(iota) + 1
-	StatusInternalFailure
+	StatusErrInternalFailure
 	StatusErrKeyNotFound
 	StatusErrNoSuchLock
 	StatusErrLockNotAcquired

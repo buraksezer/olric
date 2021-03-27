@@ -186,7 +186,7 @@ loop:
 	}
 
 	if err := s.errGr.Wait(); err != nil {
-		w.SetStatus(protocol.StatusInternalFailure)
+		w.SetStatus(protocol.StatusErrInternalFailure)
 		w.SetValue([]byte(err.Error()))
 		return
 	}
