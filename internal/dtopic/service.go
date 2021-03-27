@@ -22,17 +22,18 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/serializer"
 )
 
 const codespace = "dtopic"
 
+var ErrInternalFailure  = neterrors.New(codespace, protocol.StatusErrInternalFailure, "internal failure")
 var ErrServerGone = errors.New("server is gone")
 
 type Service struct {
@@ -114,7 +115,7 @@ func errorResponse(w protocol.EncodeDecoder, err interface{}) {
 	w.SetStatus(netErr.StatusCode())
 }
 
-func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	resp, err := s.client.RequestTo(addr, req)
 	if err != nil {
 		return nil, err
@@ -122,6 +123,9 @@ func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.Enc
 	status := resp.Status()
 	if status == protocol.StatusOK {
 		return resp, nil
+	}
+	if status == protocol.StatusErrInternalFailure {
+		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
 	}
 	return nil, neterrors.GetByCode(codespace, status)
 }

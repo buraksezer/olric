@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/buraksezer/olric/internal/neterrors"
+	"github.com/buraksezer/olric/pkg/neterrors"
 
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"

@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buraksezer/olric/internal/neterrors"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 var (
@@ -58,7 +58,7 @@ type DTopic struct {
 	name        string
 	flag        int16
 	concurrency int
-	ds          *Service
+	s           *Service
 }
 
 // NewDTopic returns a new distributed topic instance.
@@ -78,7 +78,7 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 	}
 
 	if flag&UnorderedDelivery == 0 && flag&OrderedDelivery == 0 {
-		return nil, fmt.Errorf("invalid delivery mode: %w", ErrInvalidArgument)
+		return nil, fmt.Errorf("%w: invalid delivery mode", ErrInvalidArgument)
 	}
 	if flag&OrderedDelivery != 0 {
 		return nil, ErrNotImplemented
@@ -88,7 +88,7 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 	// * Checks member count in the cluster, returns ErrClusterQuorum if
 	//   the quorum value cannot be satisfied,
 	// * Checks bootstrapping status and awaits for a short period before
-	//   returning ErrRequest timeout.
+	//   returning ErrRequestTimeout.
 	if err := s.rt.CheckMemberCountQuorum(); err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 		name:        name,
 		flag:        flag,
 		concurrency: concurrency,
-		ds:          s,
+		s:           s,
 	}
 
 	s.m[name] = dt
@@ -112,25 +112,25 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 func (d *DTopic) Publish(msg interface{}) error {
 	tm := &Message{
 		Message:       msg,
-		PublisherAddr: d.ds.rt.This().String(),
+		PublisherAddr: d.s.rt.This().String(),
 		PublishedAt:   time.Now().UnixNano(),
 	}
-	return d.ds.publishDTopicMessage(d.name, tm)
+	return d.s.publishDTopicMessage(d.name, tm)
 }
 
 // AddListener adds a new listener for the topic. Returns a registration ID or a non-nil error.
 // Registered functions are run by parallel.
 func (d *DTopic) AddListener(f func(Message)) (uint64, error) {
-	return d.ds.dispatcher.addListener(d.name, d.concurrency, f)
+	return d.s.dispatcher.addListener(d.name, d.concurrency, f)
 }
 
 // RemoveListener removes a listener with the given listenerID.
 func (d *DTopic) RemoveListener(listenerID uint64) error {
-	return d.ds.dispatcher.removeListener(d.name, listenerID)
+	return d.s.dispatcher.removeListener(d.name, listenerID)
 }
 
 // Destroy removes all listeners for this topic on the cluster. If Publish function is called again after Destroy, the topic will be
 // recreated.
 func (d *DTopic) Destroy() error {
-	return d.ds.destroyDTopicOnCluster(d.name)
+	return d.s.destroyDTopicOnCluster(d.name)
 }
