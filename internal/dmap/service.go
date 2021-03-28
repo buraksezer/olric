@@ -167,28 +167,6 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 	}
 }
 
-func errorToByte(err interface{}) []byte {
-	switch val := err.(type) {
-	case string:
-		return []byte(val)
-	case error:
-		return []byte(val.Error())
-	default:
-		return nil
-	}
-}
-
-func errorResponse(w protocol.EncodeDecoder, err interface{}) {
-	netErr, ok := err.(*neterrors.NetError)
-	if !ok {
-		w.SetValue(errorToByte(err))
-		w.SetStatus(protocol.StatusErrInternalFailure)
-		return
-	}
-	w.SetValue(netErr.Bytes())
-	w.SetStatus(netErr.StatusCode())
-}
-
 func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	resp, err := s.client.RequestTo(addr, req)
 	if err != nil {
@@ -198,8 +176,12 @@ func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.E
 	if status == protocol.StatusOK {
 		return resp, nil
 	}
-	if status == protocol.StatusErrInternalFailure {
+
+	switch resp.Status() {
+	case protocol.StatusErrInternalFailure:
 		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
+	case protocol.StatusErrInvalidArgument:
+		return nil, neterrors.Wrap(neterrors.ErrInvalidArgument, string(resp.Value()))
 	}
 	return nil, neterrors.GetByCode(status)
 }

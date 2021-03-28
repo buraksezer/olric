@@ -143,12 +143,12 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 	fp, err := s.extractFragmentPack(r)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	if err = s.validateFragmentPack(fp); err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
@@ -162,14 +162,14 @@ func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
 
 	dm, err := s.NewDMap(fp.Name)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	err = dm.mergeFragments(part, fp)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to merge Received DMap (kind: %s): %s on PartID: %d: %v",
 			fp.Kind, fp.Name, fp.PartID, err)
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

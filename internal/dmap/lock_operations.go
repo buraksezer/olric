@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
@@ -25,12 +26,12 @@ func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	ctx, err := f(dm, r)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
@@ -58,12 +59,12 @@ func (s *Service) unlockOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	err = dm.unlock(req.Key(), req.Value())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

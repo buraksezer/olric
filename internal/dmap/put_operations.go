@@ -17,19 +17,20 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func (s *Service) putOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	err = f(dm, r)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

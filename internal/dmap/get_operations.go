@@ -17,6 +17,7 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -24,17 +25,17 @@ func (s *Service) getOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMa
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err == ErrDMapNotFound {
-		errorResponse(w, ErrKeyNotFound)
+		neterrors.ErrorResponse(w, ErrKeyNotFound)
 		return
 	}
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	entry, err := f(dm, r)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

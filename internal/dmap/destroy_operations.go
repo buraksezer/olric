@@ -18,18 +18,19 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	err = dm.destroyOnCluster()
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
@@ -56,14 +57,14 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 			continue
 		}
 		if err != nil {
-			errorResponse(w, err)
+			neterrors.ErrorResponse(w, err)
 			return
 		}
 
 		part := dm.s.primary.PartitionById(partID)
 		err = dm.destroyFragmentOnPartition(part)
 		if err != nil {
-			errorResponse(w, err)
+			neterrors.ErrorResponse(w, err)
 			return
 		}
 
@@ -72,7 +73,7 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 			backup := dm.s.backup.PartitionById(partID)
 			err = dm.destroyFragmentOnPartition(backup)
 			if err != nil {
-				errorResponse(w, err)
+				neterrors.ErrorResponse(w, err)
 				return
 			}
 		}

@@ -17,6 +17,7 @@ package dtopic
 import (
 	"context"
 	"errors"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -152,7 +153,7 @@ func TestDTopic_RemoveListenerNotFound(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	err = dt.RemoveListener(1231)
-	if !errors.Is(err, ErrInvalidArgument) {
+	if !errors.Is(err, neterrors.ErrInvalidArgument) {
 		t.Fatalf("Expected ErrInvalidArgument. Got: %v", err)
 	}
 }
@@ -186,7 +187,7 @@ func TestDTopic_Destroy(t *testing.T) {
 	}
 
 	err = dt1.RemoveListener(listenerID)
-	if !errors.Is(err, ErrInvalidArgument) {
+	if !errors.Is(err, neterrors.ErrInvalidArgument) {
 		t.Fatalf("Expected ErrInvalidArgument. Got: %v", err)
 	}
 }
@@ -315,7 +316,7 @@ func TestDTopic_DeliveryOrder(t *testing.T) {
 	defer cluster.Shutdown()
 
 	_, err := s.NewDTopic("my-topic", 0, 0)
-	if !errors.Is(err, ErrInvalidArgument) {
+	if !errors.Is(err, neterrors.ErrInvalidArgument) {
 		t.Errorf("Expected ErrInvalidArgument. Got: %v", err)
 	}
 }
@@ -326,7 +327,7 @@ func TestDTopic_OrderedDelivery(t *testing.T) {
 	defer cluster.Shutdown()
 
 	_, err := s.NewDTopic("my-topic", 0, OrderedDelivery)
-	if err != ErrNotImplemented {
+	if err != neterrors.ErrNotImplemented {
 		t.Errorf("Expected ErrNotImplemented. Got: %v", err)
 	}
 }

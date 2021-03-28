@@ -19,13 +19,14 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	e := &env{
@@ -39,18 +40,18 @@ func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
 	var delta interface{}
 	err = s.serializer.Unmarshal(req.Value(), &delta)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	newval, err := dm.atomicIncrDecr(req.Op, e, delta.(int))
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	value, err := s.serializer.Marshal(newval)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
@@ -61,7 +62,7 @@ func (s *Service) getPutOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
@@ -76,7 +77,7 @@ func (s *Service) getPutOperation(w, r protocol.EncodeDecoder) {
 	}
 	old, err := dm.getPut(e)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	if old != nil {

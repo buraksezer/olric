@@ -189,4 +189,3 @@ func (c *Client) RequestTo(addr string, req protocol.EncodeDecoder) (protocol.En
 	}
 	return resp, nil
 }
-

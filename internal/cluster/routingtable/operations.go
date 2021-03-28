@@ -19,14 +19,11 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/cespare/xxhash"
 	"github.com/vmihailenco/msgpack"
 )
 
-func errorResponse(w protocol.EncodeDecoder, statusCode protocol.StatusCode, value []byte) {
-	w.SetStatus(statusCode)
-	w.SetValue(value)
-}
 
 func (r *RoutingTable) keyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 	req := rq.(*protocol.SystemMessage)
@@ -42,7 +39,7 @@ func (r *RoutingTable) keyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 
 	value, err := msgpack.Marshal(part.Length())
 	if err != nil {
-		errorResponse(w, protocol.StatusErrInternalFailure, []byte(err.Error()))
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetValue(value)
@@ -76,7 +73,7 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	table := make(map[uint64]*route)
 	err := msgpack.Unmarshal(req.Value(), &table)
 	if err != nil {
-		errorResponse(w, protocol.StatusErrInternalFailure, []byte(err.Error()))
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
@@ -85,13 +82,13 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	// Log this event
 	coordinator, err := r.discovery.FindMemberByID(coordinatorID)
 	if err != nil {
-		errorResponse(w, protocol.StatusErrInternalFailure, []byte(err.Error()))
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
 
 	if err = r.verifyRoutingTable(coordinatorID, table); err != nil {
-		errorResponse(w, protocol.StatusErrInternalFailure, []byte(err.Error()))
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
@@ -117,11 +114,11 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	// Collect report
 	value, err := r.prepareLeftOverDataReport()
 	if err != nil {
-		errorResponse(w, protocol.StatusErrInternalFailure, []byte(err.Error()))
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
-	// Call rebalancer to rebalance partitions
+	// Call balancer to distribute load evenly
 	r.wg.Add(1)
 	go r.runCallbacks()
 	w.SetValue(value)

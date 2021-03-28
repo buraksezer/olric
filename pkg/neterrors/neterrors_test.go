@@ -8,7 +8,6 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
-
 func TestNetErrors_Wrap(t *testing.T) {
 	errOne := Wrap(ErrUnknownOperation, "buggy client")
 
@@ -58,7 +57,7 @@ func TestNetError_ErrorResponse_Two_Wrap(t *testing.T) {
 	w := protocol.NewDMapMessage(protocol.OpPut)
 	w.SetBuffer(bytes.NewBuffer(nil))
 	ErrorResponse(w, errTwo)
-	if string(w.Value()) != errTwo.Error()  {
+	if string(w.Value()) != errTwo.Error() {
 		t.Fatalf("Expected %v. Got: %v", errTwo.Error(), string(w.Value()))
 	}
 
@@ -71,7 +70,7 @@ func TestNetError_ErrorResponse_NetError(t *testing.T) {
 	w := protocol.NewDMapMessage(protocol.OpPut)
 	w.SetBuffer(bytes.NewBuffer(nil))
 	ErrorResponse(w, ErrInvalidArgument)
-	if string(w.Value()) != ErrInvalidArgument.Error()  {
+	if string(w.Value()) != ErrInvalidArgument.Error() {
 		t.Fatalf("Expected %v. Got: %v", ErrInvalidArgument.Error(), string(w.Value()))
 	}
 
@@ -85,7 +84,7 @@ func TestNetError_ErrorResponse_String(t *testing.T) {
 	w.SetBuffer(bytes.NewBuffer(nil))
 	message := "something went wrong"
 	ErrorResponse(w, message)
-	if string(w.Value()) != message  {
+	if string(w.Value()) != message {
 		t.Fatalf("Expected %v. Got: %v", message, string(w.Value()))
 	}
 
@@ -99,7 +98,7 @@ func TestNetError_ErrorResponse_error(t *testing.T) {
 	w := protocol.NewDMapMessage(protocol.OpPut)
 	w.SetBuffer(bytes.NewBuffer(nil))
 	ErrorResponse(w, err)
-	if string(w.Value()) != err.Error()  {
+	if string(w.Value()) != err.Error() {
 		t.Fatalf("Expected %v. Got: %v", err.Error(), string(w.Value()))
 	}
 

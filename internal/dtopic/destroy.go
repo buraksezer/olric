@@ -17,6 +17,7 @@ package dtopic
 import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -56,7 +57,7 @@ func (s *Service) dtopicDestroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	err := s.destroyDTopicOnCluster(req.DTopic())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

@@ -15,8 +15,6 @@
 package dtopic
 
 import (
-	"fmt"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/vmihailenco/msgpack"
@@ -28,7 +26,7 @@ func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	streamID := req.Extra().(protocol.DTopicAddListenerExtra).StreamID
 	ss, err := s.streams.GetStreamById(streamID)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
@@ -75,7 +73,7 @@ func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	// set concurrency parameter as 0. the registered listener will only make network i/o. NumCPU is good for this.
 	err = s.dispatcher.addRemoteListener(listenerID, name, 0, f)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
@@ -85,12 +83,12 @@ func (s *Service) removeListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	extra, ok := req.Extra().(protocol.DTopicRemoveListenerExtra)
 	if !ok {
-		errorResponse(w, fmt.Errorf("%w: wrong extra type", neterrors.ErrInvalidArgument))
+		neterrors.ErrorResponse(w, neterrors.Wrap(neterrors.ErrInvalidArgument, "wrong extra type"))
 		return
 	}
 	err := s.dispatcher.removeListener(req.DTopic(), extra.ListenerID)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

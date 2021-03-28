@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/query"
 	"github.com/vmihailenco/msgpack"
 )
@@ -30,24 +31,24 @@ func (s *Service) queryOperationCommon(w, r protocol.EncodeDecoder,
 		return
 	}
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	q, err := query.FromByte(req.Value())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	result, err := f(dm, q, r)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	value, err := msgpack.Marshal(&result)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

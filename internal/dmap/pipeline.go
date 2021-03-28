@@ -65,7 +65,7 @@ func (s *Service) pipelineOperation(w, r protocol.EncodeDecoder) {
 			break
 		}
 		if err != nil {
-			errorResponse(w, err)
+			neterrors.ErrorResponse(w, err)
 			return
 		}
 	}

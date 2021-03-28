@@ -16,6 +16,7 @@ package dtopic
 
 import (
 	"errors"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"runtime"
 	"time"
 
@@ -31,14 +32,13 @@ func (s *Service) publishMessageOperation(w, r protocol.EncodeDecoder) {
 	var msg Message
 	err := msgpack.Unmarshal(req.Value(), &msg)
 	if err != nil {
-		w.SetStatus(protocol.StatusErrInternalFailure)
-		w.SetValue([]byte(err.Error()))
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 
 	err = s.dispatcher.dispatch(req.DTopic(), &msg)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
@@ -54,7 +54,7 @@ func (s *Service) publishDTopicMessageToAddr(member discovery.Member, topic stri
 			if s.log.V(6).Ok() {
 				s.log.V(6).Printf("[ERROR] Failed to dispatch message on this node: %v", err)
 			}
-			if !errors.Is(err, ErrInvalidArgument) {
+			if !errors.Is(err, neterrors.ErrInvalidArgument) {
 				return err
 			}
 			return nil
@@ -113,7 +113,7 @@ func (s *Service) exPublishOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	msg, err := s.unmarshalValue(req.Value())
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	tm := &Message{
@@ -123,7 +123,7 @@ func (s *Service) exPublishOperation(w, r protocol.EncodeDecoder) {
 	}
 	err = s.publishDTopicMessage(req.DTopic(), tm)
 	if err != nil {
-		errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
