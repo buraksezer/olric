@@ -17,6 +17,7 @@ package dtopic
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"math/rand"
 	"runtime"
 	"sync"
@@ -88,12 +89,12 @@ func (d *Dispatcher) removeListener(topic string, listenerID uint64) error {
 
 	l, ok := d.m[topic]
 	if !ok {
-		return fmt.Errorf("topic not found: %s: %w", topic, ErrInvalidArgument)
+		return neterrors.Wrap(neterrors.ErrInvalidArgument, fmt.Sprintf("topic not found: %s", topic))
 	}
 
 	_, ok = l.m[listenerID]
 	if !ok {
-		return fmt.Errorf("listener not found: %s: %w", topic, ErrInvalidArgument)
+		return neterrors.Wrap(neterrors.ErrInvalidArgument, fmt.Sprintf("listener not found: %d", listenerID))
 	}
 
 	delete(l.m, listenerID)
@@ -112,7 +113,7 @@ func (d *Dispatcher) dispatch(topic string, msg *Message) error {
 	l, ok := d.m[topic]
 	if !ok {
 		// there is no listener for this topic on this node.
-		return fmt.Errorf("topic not found: %s: %w", topic, ErrInvalidArgument)
+		return fmt.Errorf("%w: topic not found: %s", neterrors.ErrInvalidArgument, topic)
 	}
 
 	var wg sync.WaitGroup

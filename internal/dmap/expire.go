@@ -63,7 +63,7 @@ func (dm *DMap) asyncExpireOnCluster(e *env) error {
 		dm.s.wg.Add(1)
 		go func(host discovery.Member) {
 			defer dm.s.wg.Done()
-			_, err := dm.s.request(host.String(), req)
+			_, err := dm.s.requestTo(host.String(), req)
 			if err != nil {
 				if dm.s.log.V(3).Ok() {
 					dm.s.log.V(3).Printf("[ERROR] Failed to set expire in async mode: %v", err)
@@ -81,7 +81,7 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 	var successful int
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
-		_, err := dm.s.request(owner.String(), req)
+		_, err := dm.s.requestTo(owner.String(), req)
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
 				dm.s.log.V(3).Printf("[ERROR] Failed to call expire command on %s for DMap: %s: %v",
@@ -143,7 +143,7 @@ func (dm *DMap) expire(e *env) error {
 	}
 	// Redirect to the partition owner
 	req := e.toReq(protocol.OpExpire)
-	_, err := dm.s.request(member.String(), req)
+	_, err := dm.s.requestTo(member.String(), req)
 	return err
 }
 

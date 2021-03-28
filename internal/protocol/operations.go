@@ -67,20 +67,20 @@ type StatusCode uint8
 
 // Status Codes
 const (
-	StatusOK = StatusCode(iota) + 1
-	StatusErrInternalFailure
-	StatusErrKeyNotFound
-	StatusErrNoSuchLock
-	StatusErrLockNotAcquired
-	StatusErrWriteQuorum
-	StatusErrReadQuorum
-	StatusErrOperationTimeout
-	StatusErrKeyFound
-	StatusErrClusterQuorum
-	StatusErrUnknownOperation
-	StatusErrEndOfQuery
-	StatusErrServerGone
-	StatusErrInvalidArgument
-	StatusErrKeyTooLarge
-	StatusErrNotImplemented
+	StatusOK                  = StatusCode(iota) + 1
+	StatusErrInternalFailure  // 2
+	StatusErrKeyNotFound      // 3
+	StatusErrNoSuchLock       // 4
+	StatusErrLockNotAcquired  // 5
+	StatusErrWriteQuorum      // 6
+	StatusErrReadQuorum       // 7
+	StatusErrOperationTimeout // 8
+	StatusErrKeyFound         // 9
+	StatusErrClusterQuorum    // 10
+	StatusErrUnknownOperation // 11
+	StatusErrEndOfQuery       // 12
+	StatusErrServerGone       // 13
+	StatusErrInvalidArgument  // 14
+	StatusErrKeyTooLarge      // 15
+	StatusErrNotImplemented   // 16
 )

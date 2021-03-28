@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"bytes"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"io"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -40,7 +41,7 @@ func (s *Service) extractPipelineMessage(conn io.ReadWriteCloser, response *byte
 	f, ok := s.operations[preq.Op]
 	if !ok {
 		preq.SetStatus(protocol.StatusErrInternalFailure)
-		preq.SetValue([]byte(ErrUnknownOperation.Error()))
+		preq.SetValue([]byte(neterrors.ErrUnknownOperation.Error()))
 		return nil
 	}
 

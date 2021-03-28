@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,8 +26,6 @@ import (
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
-const codespace = "dmap"
-
 // pool is good for recycling memory while reading messages from the socket.
 var bufferPool = bufpool.New()
 
@@ -34,18 +33,18 @@ const nilTimeout = 0 * time.Second
 
 var (
 	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound  = neterrors.New(codespace, protocol.StatusErrKeyNotFound,"key not found")
-	ErrDMapNotFound = neterrors.Wrap(ErrKeyNotFound, "dmap not found")
+	ErrKeyNotFound  = neterrors.New(protocol.StatusErrKeyNotFound, "key not found")
+	ErrDMapNotFound = errors.New("dmap not found")
 )
 
-// DMap defines a distributed map implementation.
+// DMap implements a single hop distributed hash table.
 type DMap struct {
 	name   string
 	s      *Service
 	config *configuration
 }
 
-// getDMap returns an already initialized DMap instance, otherwise it returns ErrDMapNotFound.
+// getDMap returns an initialized DMap instance, otherwise it returns ErrDMapNotFound.
 func (s *Service) getDMap(name string) (*DMap, error) {
 	s.RLock()
 	defer s.RUnlock()

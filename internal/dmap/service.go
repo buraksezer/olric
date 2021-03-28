@@ -36,13 +36,6 @@ import (
 	"github.com/buraksezer/olric/serializer"
 )
 
-var (
-	ErrInvalidArgument = neterrors.New(codespace, protocol.StatusErrInvalidArgument, "invalid argument")
-	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = neterrors.New(codespace, protocol.StatusErrUnknownOperation, "unknown operation")
-	ErrInternalFailure  = neterrors.New(codespace, protocol.StatusErrInternalFailure, "internal failure")
-)
-
 var errFragmentNotFound = errors.New("fragment not found")
 
 type storageMap struct {
@@ -196,7 +189,7 @@ func errorResponse(w protocol.EncodeDecoder, err interface{}) {
 	w.SetStatus(netErr.StatusCode())
 }
 
-func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
+func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
 	resp, err := s.client.RequestTo(addr, req)
 	if err != nil {
 		return nil, err
@@ -206,9 +199,9 @@ func (s *Service) request(addr string, req protocol.EncodeDecoder) (protocol.Enc
 		return resp, nil
 	}
 	if status == protocol.StatusErrInternalFailure {
-		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
+		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
 	}
-	return nil, neterrors.GetByCode(codespace, status)
+	return nil, neterrors.GetByCode(status)
 }
 
 // Starts starts the distributed map service.

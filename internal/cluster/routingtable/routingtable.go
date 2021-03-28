@@ -34,11 +34,8 @@ import (
 	"github.com/hashicorp/memberlist"
 )
 
-const codespace = "routingtable"
-
 // ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
 var ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
-var ErrInternalFailure = neterrors.New(codespace, protocol.StatusErrInternalFailure, "internal failure")
 
 type route struct {
 	Owners  []discovery.Member
@@ -325,9 +322,9 @@ func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (proto
 		return resp, nil
 	}
 	if status == protocol.StatusErrInternalFailure {
-		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
+		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
 	}
-	return nil, neterrors.GetByCode(codespace, status)
+	return nil, neterrors.GetByCode(status)
 }
 
 func (r *RoutingTable) Start() error {

@@ -18,6 +18,7 @@ import (
 	"fmt"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -84,7 +85,7 @@ func (s *Service) removeListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	extra, ok := req.Extra().(protocol.DTopicRemoveListenerExtra)
 	if !ok {
-		errorResponse(w, fmt.Errorf("%w: wrong extra type", ErrInvalidArgument))
+		errorResponse(w, fmt.Errorf("%w: wrong extra type", neterrors.ErrInvalidArgument))
 		return
 	}
 	err := s.dispatcher.removeListener(req.DTopic(), extra.ListenerID)

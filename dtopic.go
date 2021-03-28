@@ -16,6 +16,7 @@ package olric
 
 import (
 	"github.com/buraksezer/olric/internal/dtopic"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func publicDTopicError(err error) error {
@@ -24,13 +25,13 @@ func publicDTopicError(err error) error {
 	}
 
 	switch err {
-	case dtopic.ErrInvalidArgument:
+	case neterrors.ErrInvalidArgument:
 		return ErrInvalidArgument
-	case dtopic.ErrNotImplemented:
+	case neterrors.ErrNotImplemented:
 		return ErrNotImplemented
-	case dtopic.ErrOperationTimeout:
+	case neterrors.ErrOperationTimeout:
 		return ErrOperationTimeout
-	case dtopic.ErrUnknownOperation:
+	case neterrors.ErrUnknownOperation:
 		return ErrUnknownOperation
 	default:
 		return err

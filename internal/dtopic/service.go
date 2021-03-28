@@ -31,9 +31,6 @@ import (
 	"github.com/buraksezer/olric/serializer"
 )
 
-const codespace = "dtopic"
-
-var ErrInternalFailure  = neterrors.New(codespace, protocol.StatusErrInternalFailure, "internal failure")
 var ErrServerGone = errors.New("server is gone")
 
 type Service struct {
@@ -124,10 +121,14 @@ func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.E
 	if status == protocol.StatusOK {
 		return resp, nil
 	}
-	if status == protocol.StatusErrInternalFailure {
-		return nil, neterrors.Wrap(ErrInternalFailure, string(resp.Value()))
+
+	switch status {
+		case protocol.StatusErrInternalFailure:
+		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
+	case protocol.StatusErrInvalidArgument:
+		return nil, neterrors.Wrap(neterrors.ErrInvalidArgument, string(resp.Value()))
 	}
-	return nil, neterrors.GetByCode(codespace, status)
+	return nil, neterrors.GetByCode(status)
 }
 
 func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {

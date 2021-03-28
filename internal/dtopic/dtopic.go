@@ -19,17 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
-)
-
-var (
-	ErrInvalidArgument = neterrors.New(codespace, protocol.StatusErrInvalidArgument, "invalid argument")
-	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = neterrors.New(codespace, protocol.StatusErrUnknownOperation, "unknown operation")
-	ErrNotImplemented   = neterrors.New(codespace, protocol.StatusErrNotImplemented, "not implemented")
-	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = neterrors.New(codespace, protocol.StatusErrOperationTimeout, "operation timeout")
 )
 
 const (
@@ -78,10 +68,10 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 	}
 
 	if flag&UnorderedDelivery == 0 && flag&OrderedDelivery == 0 {
-		return nil, fmt.Errorf("%w: invalid delivery mode", ErrInvalidArgument)
+		return nil, fmt.Errorf("%w: invalid delivery mode", neterrors.ErrInvalidArgument)
 	}
 	if flag&OrderedDelivery != 0 {
-		return nil, ErrNotImplemented
+		return nil, neterrors.ErrNotImplemented
 	}
 	// Check operation status first:
 	//
