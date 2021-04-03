@@ -48,7 +48,7 @@ import (
 	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
@@ -69,7 +69,7 @@ var (
 
 	// ErrUnknownOperation means that an unidentified message has been
 	// received from a client.
-	ErrUnknownOperation = errors.New("unknown operation")
+	ErrUnknownOperation = neterrors.New(protocol.StatusErrUnknownOperation, "unknown operation")
 
 	ErrServerGone = errors.New("server is gone")
 
@@ -79,11 +79,6 @@ var (
 
 	ErrNotImplemented = errors.New("not implemented")
 )
-
-type storageEngines struct {
-	engines map[string]storage.Engine
-	configs map[string]map[string]interface{}
-}
 
 type services struct {
 	dtopic *dtopic.Service
@@ -238,7 +233,7 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// operation.
 	if r.OpCode() != protocol.OpUpdateRouting {
 		if err := db.isOperable(); err != nil {
-			db.errorResponse(w, err)
+			neterrors.ErrorResponse(w, err)
 			return
 		}
 	}
@@ -246,7 +241,7 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Run the incoming command.
 	f, ok := db.operations[r.OpCode()]
 	if !ok {
-		db.errorResponse(w, ErrUnknownOperation)
+		neterrors.ErrorResponse(w, ErrUnknownOperation)
 		return
 	}
 	f(w, r)
@@ -276,57 +271,6 @@ func (db *Olric) callStartedCallback() {
 	}
 }
 
-func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
-	getError := func(err interface{}) []byte {
-		switch val := err.(type) {
-		case string:
-			return []byte(val)
-		case error:
-			return []byte(val.Error())
-		default:
-			return nil
-		}
-	}
-	w.SetValue(getError(err))
-
-	switch {
-	case err == ErrWriteQuorum, errors.Is(err, ErrWriteQuorum):
-		w.SetStatus(protocol.StatusErrWriteQuorum)
-	case err == ErrReadQuorum, errors.Is(err, ErrReadQuorum):
-		w.SetStatus(protocol.StatusErrReadQuorum)
-	case err == ErrNoSuchLock, errors.Is(err, ErrNoSuchLock):
-		w.SetStatus(protocol.StatusErrNoSuchLock)
-	case err == ErrLockNotAcquired, errors.Is(err, ErrLockNotAcquired):
-		w.SetStatus(protocol.StatusErrLockNotAcquired)
-	case err == ErrKeyNotFound, err == storage.ErrKeyNotFound:
-		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case errors.Is(err, ErrKeyNotFound), errors.Is(err, storage.ErrKeyNotFound):
-		w.SetStatus(protocol.StatusErrKeyNotFound)
-	case err == ErrKeyTooLarge, err == storage.ErrKeyTooLarge:
-		w.SetStatus(protocol.StatusErrKeyTooLarge)
-	case errors.Is(err, ErrKeyTooLarge), errors.Is(err, storage.ErrKeyTooLarge):
-		w.SetStatus(protocol.StatusErrKeyTooLarge)
-	case err == ErrOperationTimeout, errors.Is(err, ErrOperationTimeout):
-		w.SetStatus(protocol.StatusErrOperationTimeout)
-	case err == ErrKeyFound, errors.Is(err, ErrKeyFound):
-		w.SetStatus(protocol.StatusErrKeyFound)
-	case err == ErrClusterQuorum, errors.Is(err, ErrClusterQuorum):
-		w.SetStatus(protocol.StatusErrClusterQuorum)
-	case err == ErrUnknownOperation, errors.Is(err, ErrUnknownOperation):
-		w.SetStatus(protocol.StatusErrUnknownOperation)
-	case err == ErrEndOfQuery, errors.Is(err, ErrEndOfQuery):
-		w.SetStatus(protocol.StatusErrEndOfQuery)
-	case err == ErrServerGone, errors.Is(err, ErrServerGone):
-		w.SetStatus(protocol.StatusErrServerGone)
-	case err == ErrInvalidArgument, errors.Is(err, ErrInvalidArgument):
-		w.SetStatus(protocol.StatusErrInvalidArgument)
-	case err == ErrNotImplemented, errors.Is(err, ErrNotImplemented):
-		w.SetStatus(protocol.StatusErrNotImplemented)
-	default:
-		w.SetStatus(protocol.StatusErrInternalFailure)
-	}
-}
-
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
 	if err := db.rt.CheckMemberCountQuorum(); err != nil {
@@ -339,10 +283,10 @@ func (db *Olric) isOperable() error {
 // Start starts background servers and joins the cluster. You still need to call
 // Shutdown method if Start function returns an early error.
 func (db *Olric) Start() error {
-	g, ctx := errgroup.WithContext(context.Background())
+	errGr, ctx := errgroup.WithContext(context.Background())
 
 	// Start the TCP server
-	g.Go(func() error {
+	errGr.Go(func() error {
 		return db.server.ListenAndServe()
 	})
 
@@ -354,7 +298,7 @@ func (db *Olric) Start() error {
 		if err := db.Shutdown(context.Background()); err != nil {
 			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
 		}
-		return g.Wait()
+		return errGr.Wait()
 	}
 
 	// Start routing table service and member discovery subsystem.
@@ -389,7 +333,7 @@ func (db *Olric) Start() error {
 		db.log.V(2).Printf("[INFO] Olric uses interface: %s", db.config.Interface)
 	}
 	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d", db.config.BindAddr, db.config.BindPort)
-	return g.Wait()
+	return errGr.Wait()
 }
 
 // Shutdown stops background servers and leaves the cluster.

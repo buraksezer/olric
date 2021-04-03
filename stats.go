@@ -20,6 +20,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
 )
@@ -57,21 +58,21 @@ func (db *Olric) stats() stats.Stats {
 			p.PreviousOwners = owners[:len(owners)-1]
 		}
 		/*
-		part.Map().Range(func(name, f interface{}) bool {
-			f.(*partitions.Fragment).Lock()
-			st := f.(*partitions.Fragment).storage.Stats()
+			part.Map().Range(func(name, f interface{}) bool {
+				f.(*partitions.Fragment).Lock()
+				st := f.(*partitions.Fragment).storage.Stats()
 
-			tmp := stats.DMap{
-				Length:    st.Length,
-				NumTables: st.NumTables,
-			}
-			tmp.SlabInfo.Allocated = st.Allocated
-			tmp.SlabInfo.Garbage = st.Garbage
-			tmp.SlabInfo.Inuse = st.Inuse
-			p.DMaps[name.(string)] = tmp
-			dm.(*dmap).Unlock()
-			return true
-		})*/
+				tmp := stats.DMap{
+					Length:    st.Length,
+					NumTables: st.NumTables,
+				}
+				tmp.SlabInfo.Allocated = st.Allocated
+				tmp.SlabInfo.Garbage = st.Garbage
+				tmp.SlabInfo.Inuse = st.Inuse
+				p.DMaps[name.(string)] = tmp
+				dm.(*dmap).Unlock()
+				return true
+			})*/
 		return p
 	}
 
@@ -90,7 +91,7 @@ func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
 	s := db.stats()
 	value, err := msgpack.Marshal(s)
 	if err != nil {
-		db.errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
