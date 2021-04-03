@@ -16,12 +16,68 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/hashicorp/memberlist"
 	"testing"
+	"time"
 )
 
+func newTestOlric(t *testing.T) (*Olric, error) {
+	c := testutil.NewConfig()
+	port, err := testutil.GetFreePort()
+	if err != nil {
+		return nil, err
+	}
+	if c.MemberlistConfig == nil {
+		c.MemberlistConfig = memberlist.DefaultLocalConfig()
+	}
+	c.MemberlistConfig.BindPort = 0
+
+	c.BindAddr = "127.0.0.1"
+	c.BindPort = port
+
+	err = c.Sanitize()
+	if err != nil {
+		return nil, err
+	}
+	err = c.Validate()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Started = func() {
+		cancel()
+	}
+
+	db, err := New(c)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		err = db.Start()
+		if err != nil {
+			t.Fatalf("Failed to run Olric: %v", err)
+		}
+	}()
+
+	select {
+	case <-time.After(time.Second):
+		t.Fatalf("Olric cannot be started in one second")
+	case <-ctx.Done():
+		// everything is fine
+	}
+	t.Cleanup(func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+	})
+	return db, nil
+}
+
 func TestOlric_StartAndShutdown(t *testing.T) {
-	c := testSingleReplicaConfig()
-	db, err := newDB(c)
+	db, err := newTestOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

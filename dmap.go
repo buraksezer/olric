@@ -44,8 +44,27 @@ var (
 	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
 )
 
-func publicDMapError(err error) error {
-	return err
+func convertDMapError(err error) error {
+	switch err {
+	case dmap.ErrKeyFound:
+		return ErrKeyFound
+	case dmap.ErrKeyNotFound:
+		return ErrKeyNotFound
+	case dmap.ErrDMapNotFound:
+		return ErrKeyNotFound
+	case dmap.ErrEndOfQuery:
+		return ErrEndOfQuery
+	case dmap.ErrLockNotAcquired:
+		return ErrLockNotAcquired
+	case dmap.ErrNoSuchLock:
+		return ErrNoSuchLock
+	case dmap.ErrReadQuorum:
+		return ErrReadQuorum
+	case dmap.ErrWriteQuorum:
+		return ErrWriteQuorum
+	default:
+		return err
+	}
 }
 
 // TODO: kvstore.NewEntry should not be used to create a new entry instance here. The DMap functions will be moved to
@@ -79,7 +98,7 @@ type DMap struct {
 func (db *Olric) NewDMap(name string) (*DMap, error) {
 	dm, err := db.services.dmap.NewDMap(name)
 	if err != nil {
-		return nil, publicDMapError(err)
+		return nil, convertDMapError(err)
 	}
 	return &DMap{
 		dm: dm,
@@ -90,7 +109,11 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 // does not contains the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) Get(key string) (interface{}, error) {
-	return dm.dm.Get(key)
+	value, err := dm.dm.Get(key)
+	if err != nil {
+		return nil, convertDMapError(err)
+	}
+	return value, nil
 }
 
 // GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
@@ -99,7 +122,7 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 func (dm *DMap) GetEntry(key string) (*Entry, error) {
 	e, err := dm.dm.GetEntry(key)
 	if err != nil {
-		return nil, err
+		return nil, convertDMapError(err)
 	}
 
 	return &Entry{
@@ -117,11 +140,11 @@ func (dm *DMap) GetEntry(key string) (*Entry, error) {
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
-	lctx, err := dm.dm.LockWithTimeout(key, timeout, deadline)
+	ctx, err := dm.dm.LockWithTimeout(key, timeout, deadline)
 	if err != nil {
-		return nil, err
+		return nil, convertDMapError(err)
 	}
-	return &LockContext{ctx: lctx}, nil
+	return &LockContext{ctx: ctx}, nil
 }
 
 // Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
@@ -130,16 +153,17 @@ func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*L
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
-	lctx, err := dm.dm.Lock(key, deadline)
+	ctx, err := dm.dm.Lock(key, deadline)
 	if err != nil {
-		return nil, err
+		return nil, convertDMapError(err)
 	}
-	return &LockContext{ctx: lctx}, nil
+	return &LockContext{ctx: ctx}, nil
 }
 
 // Unlock releases the lock.
 func (l *LockContext) Unlock() error {
-	return l.ctx.Unlock()
+	err := l.ctx.Unlock()
+	return convertDMapError(err)
 }
 
 // PutEx sets the value for the given key with TTL. It overwrites any previous
@@ -147,7 +171,8 @@ func (l *LockContext) Unlock() error {
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	return dm.dm.PutEx(key, value, timeout)
+	err := dm.dm.PutEx(key, value, timeout)
+	return convertDMapError(err)
 }
 
 // Put sets the value for the given key. It overwrites any previous value
@@ -155,7 +180,8 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
-	return dm.dm.Put(key, value)
+	err := dm.dm.Put(key, value)
+	return convertDMapError(err)
 }
 
 // Put sets the value for the given key. It overwrites any previous value
@@ -170,7 +196,8 @@ func (dm *DMap) Put(key string, value interface{}) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
-	return dm.dm.PutIf(key, value, flags)
+	err := dm.dm.PutIf(key, value, flags)
+	return convertDMapError(err)
 }
 
 // PutIfEx sets the value for the given key with TTL. It overwrites any previous
@@ -185,13 +212,15 @@ func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 // IfFound: Only set the key if it already exist.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
-	return dm.dm.PutIfEx(key, value, timeout, flags)
+	err := dm.dm.PutIfEx(key, value, timeout, flags)
+	return convertDMapError(err)
 }
 
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
 // DB does not contains the key. It's thread-safe.
 func (dm *DMap) Expire(key string, timeout time.Duration) error {
-	return dm.dm.Expire(key, timeout)
+	err := dm.dm.Expire(key, timeout)
+	return convertDMapError(err)
 }
 
 // Query runs a distributed query on a dmap instance.
@@ -243,7 +272,7 @@ func (dm *DMap) Expire(key string, timeout time.Duration) error {
 func (dm *DMap) Query(q query.M) (*Cursor, error) {
 	c, err := dm.dm.Query(q)
 	if err != nil {
-		return nil, err
+		return nil, convertDMapError(err)
 	}
 	return &Cursor{cursor: c}, nil
 }
@@ -251,7 +280,8 @@ func (dm *DMap) Query(q query.M) (*Cursor, error) {
 // Range calls f sequentially for each key and value yielded from the cursor. If f returns false,
 // range stops the iteration.
 func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
-	return c.cursor.Range(f)
+	err := c.cursor.Range(f)
+	return convertDMapError(err)
 }
 
 // Close cancels the underlying context and background goroutines stops running.
@@ -262,27 +292,41 @@ func (c *Cursor) Close() {
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
 func (dm *DMap) Delete(key string) error {
-	return dm.dm.Delete(key)
+	err := dm.dm.Delete(key)
+	return convertDMapError(err)
 }
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (dm *DMap) Incr(key string, delta int) (int, error) {
-	return dm.dm.Incr(key, delta)
+	value, err := dm.dm.Incr(key, delta)
+	if err != nil {
+		return 0, convertDMapError(err)
+	}
+	return value, nil
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (dm *DMap) Decr(key string, delta int) (int, error) {
-	return dm.dm.Decr(key, delta)
+	value, err := dm.dm.Decr(key, delta)
+	if err != nil {
+		return 0, convertDMapError(err)
+	}
+	return value, nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
 func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
-	return dm.dm.GetPut(key, value)
+	prev, err := dm.dm.GetPut(key, value)
+	if err != nil {
+		return nil, convertDMapError(err)
+	}
+	return prev, nil
 }
 
 // Destroy flushes the given dmap on the cluster. You should know that there
 // is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
 // concurrently on the cluster, Put/PutEx calls may set new values to the dmap.
 func (dm *DMap) Destroy() error {
-	return dm.dm.Destroy()
+	err := dm.dm.Destroy()
+	return convertDMapError(err)
 }

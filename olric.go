@@ -13,10 +13,11 @@
 // limitations under the License.
 
 /*Package olric provides distributed cache and in-memory key/value data store.
-It can be used both as an embedded Go library and as a language-independent service.
+It can be used both as an embedded Go library and as a language-independent
+service.
 
-With Olric, you can instantly create a fast, scalable, shared pool of RAM across a
-cluster of computers.
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across
+a cluster of computers.
 
 Olric is designed to be a distributed cache. But it also provides distributed
 topics, data replication, failure detection and simple anti-entropy services.
@@ -42,7 +43,6 @@ import (
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/streams"
@@ -63,10 +63,12 @@ var (
 	// ErrOperationTimeout is returned when an operation times out.
 	ErrOperationTimeout = errors.New("operation timeout")
 
-	// ErrInternalServerError means that something unintentionally went wrong while processing the request.
+	// ErrInternalServerError means that something unintentionally went
+	// wrong while processing the request.
 	ErrInternalServerError = errors.New("internal server error")
 
-	// ErrUnknownOperation means that an unidentified message has been received from a client.
+	// ErrUnknownOperation means that an unidentified message has been
+	// received from a client.
 	ErrUnknownOperation = errors.New("unknown operation")
 
 	ErrServerGone = errors.New("server is gone")
@@ -91,26 +93,19 @@ type services struct {
 // Olric implements a distributed, in-memory and embeddable key/value store.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
-	name string
-
-	env *environment.Environment
-
-	config *config.Config
-	log    *flog.Logger
-
-	// hasher may be defined by the user. The default one is xxhash
-	hasher hasher.Hasher
-
-	// Fine-grained lock implementation. Useful to implement atomic operations
-	// and distributed, optimistic lock implementation.
-	locker     *locker.Locker
+	name       string
+	env        *environment.Environment
+	config     *config.Config
+	log        *flog.Logger
+	hasher     hasher.Hasher
 	serializer serializer.Serializer
 
 	// Logical units for data storage
 	primary *partitions.Partitions
 	backup  *partitions.Partitions
 
-	// Matches opcodes to functions. It's somewhat like an HTTP request multiplexer
+	// Matches opcodes to functions. It's somewhat like an HTTP request
+	// multiplexer
 	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
 
 	// Internal TCP server and its client for peer-to-peer communication.
@@ -124,9 +119,6 @@ type Olric struct {
 
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams.Streams
-
-	// Map of storage engines
-	storageEngines *storageEngines
 
 	// Structures for flow control
 	ctx    context.Context
@@ -155,7 +147,8 @@ func New(c *config.Config) (*Olric, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
+	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr,
+		strconv.Itoa(c.BindPort))
 
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
@@ -202,18 +195,13 @@ func New(c *config.Config) (*Olric, error) {
 		config:     c,
 		hasher:     c.Hasher,
 		serializer: c.Serializer,
-		locker:     e.Get("locker").(*locker.Locker), // TODO: this can be removed from here after DMap refactor.
 		client:     e.Get("client").(*transport.Client),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
 		streams:    e.Get("streams").(*streams.Streams),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
-		storageEngines: &storageEngines{
-			engines: make(map[string]storage.Engine),
-			configs: make(map[string]map[string]interface{}),
-		},
-		started: c.Started,
+		started:    c.Started,
 	}
 
 	db.rt = routingtable.New(e)
@@ -226,19 +214,12 @@ func New(c *config.Config) (*Olric, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Start distributed topic service
-	if err = dt.Start(); err != nil {
-		return nil, err
-	}
 
 	dm, err := dmap.NewService(e)
 	if err != nil {
 		return nil, err
 	}
-	// Start distributed map service
-	if err = dm.Start(); err != nil {
-		return nil, err
-	}
+
 	db.services = &services{
 		dtopic: dt.(*dtopic.Service),
 		dmap:   dm.(*dmap.Service),
@@ -246,61 +227,15 @@ func New(c *config.Config) (*Olric, error) {
 
 	// Add callback functions to routing table.
 	db.rt.AddCallback(db.balancer.Balance)
-
-	if err = db.initializeAndLoadStorageEngines(); err != nil {
-		return nil, err
-	}
-
 	db.server.SetDispatcher(db.requestDispatcher)
-
 	db.registerOperations()
 	return db, nil
 }
 
-func (db *Olric) initializeAndLoadStorageEngines() error {
-	db.storageEngines.configs = db.config.StorageEngines.Config
-	db.storageEngines.engines = db.config.StorageEngines.Impls
-
-	// Load engines as plugin, if any.
-	for _, pluginPath := range db.config.StorageEngines.Plugins {
-		engine, err := storage.LoadAsPlugin(pluginPath)
-		if err != nil {
-			return err
-		}
-		db.storageEngines.engines[engine.Name()] = engine
-	}
-
-	// Set a default engine, if required.
-	if len(db.config.StorageEngines.Impls) == 0 {
-		if _, ok := db.config.StorageEngines.Config[config.DefaultStorageEngine]; !ok {
-			return errors.New("no storage engine defined")
-		}
-		db.storageEngines.engines[config.DefaultStorageEngine] = &kvstore.KVStore{}
-	}
-
-	// Set configuration for the loaded engines.
-	for name, ec := range db.config.StorageEngines.Config {
-		engine, ok := db.storageEngines.engines[name]
-		if !ok {
-			return fmt.Errorf("storage engine implementation is missing: %s", name)
-		}
-		engine.SetConfig(storage.NewConfig(ec))
-	}
-
-	// Start the engines.
-	for _, engine := range db.storageEngines.engines {
-		engine.SetLogger(db.config.Logger)
-		if err := engine.Start(); err != nil {
-			return err
-		}
-		db.log.V(2).Printf("[INFO] Storage engine has been loaded: %s", engine.Name())
-	}
-	return nil
-}
-
 func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Check bootstrapping status
-	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this operation.
+	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this
+	// operation.
 	if r.OpCode() != protocol.OpUpdateRouting {
 		if err := db.isOperable(); err != nil {
 			db.errorResponse(w, err)
@@ -317,7 +252,8 @@ func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	f(w, r)
 }
 
-// callStartedCallback checks passed checkpoint count and calls the callback function.
+// callStartedCallback checks passed checkpoint count and calls the callback
+// function.
 func (db *Olric) callStartedCallback() {
 	defer db.wg.Done()
 
@@ -400,8 +336,8 @@ func (db *Olric) isOperable() error {
 	return db.rt.CheckBootstrap()
 }
 
-// Start starts background servers and joins the cluster. You still need to call Shutdown method if
-// Start function returns an early error.
+// Start starts background servers and joins the cluster. You still need to call
+// Shutdown method if Start function returns an early error.
 func (db *Olric) Start() error {
 	g, ctx := errgroup.WithContext(context.Background())
 
@@ -423,6 +359,16 @@ func (db *Olric) Start() error {
 
 	// Start routing table service and member discovery subsystem.
 	if err := db.rt.Start(); err != nil {
+		return err
+	}
+
+	// Start distributed topic service
+	if err := db.services.dtopic.Start(); err != nil {
+		return err
+	}
+
+	// Start distributed map service
+	if err := db.services.dmap.Start(); err != nil {
 		return err
 	}
 
@@ -456,6 +402,10 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		result = multierror.Append(result, err)
 	}
 
+	if err := db.services.dmap.Shutdown(ctx); err != nil {
+		result = multierror.Append(result, err)
+	}
+
 	db.log.V(2).Printf("[INFO] Closing active streams")
 	if err := db.streams.Shutdown(ctx); err != nil {
 		result = multierror.Append(result, err)
@@ -473,7 +423,8 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	db.wg.Wait()
 
-	// If the user kills the server before bootstrapping, db.this is going to empty.
+	// db.name will be shown as empty string, if the program is killed before
+	// bootstrapping.
 	db.log.V(2).Printf("[INFO] %s is gone", db.name)
 	return result
 }
