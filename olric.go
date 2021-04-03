@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olric provides distributed cache and in-memory key/value data store. It can be used both as an embedded Go
-library and as a language-independent service.
+/*Package olric provides distributed cache and in-memory key/value data store.
+It can be used both as an embedded Go library and as a language-independent service.
 
-With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
+With Olric, you can instantly create a fast, scalable, shared pool of RAM across a
+cluster of computers.
 
-Olric is designed to be a distributed cache. But it also provides distributed topics, data replication, failure detection
-and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.*/
+Olric is designed to be a distributed cache. But it also provides distributed
+topics, data replication, failure detection and simple anti-entropy services.
+So it can be used as an ordinary key/value data store to scale your cloud
+application.*/
 package olric
 
 import (
@@ -32,11 +35,11 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
-	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/cluster/balancer"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
+	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/kvstore"
@@ -45,7 +48,6 @@ import (
 	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/go-multierror"
@@ -54,35 +56,26 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var (
-	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound = neterrors.New(protocol.StatusErrKeyNotFound, "key not found")
+// ReleaseVersion is the current stable version of Olric
+const ReleaseVersion string = "0.4.0-beta.3"
 
+var (
 	// ErrOperationTimeout is returned when an operation times out.
-	ErrOperationTimeout = neterrors.New(protocol.StatusErrOperationTimeout, "operation timeout")
+	ErrOperationTimeout = errors.New("operation timeout")
 
 	// ErrInternalServerError means that something unintentionally went wrong while processing the request.
-	ErrInternalServerError = neterrors.New(protocol.StatusErrInternalFailure, "internal server error")
-
-	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
-	ErrClusterQuorum = neterrors.New(protocol.StatusErrClusterQuorum, "cannot be reached cluster quorum to operate")
+	ErrInternalServerError = errors.New("internal server error")
 
 	// ErrUnknownOperation means that an unidentified message has been received from a client.
-	ErrUnknownOperation = neterrors.New(protocol.StatusErrUnknownOperation, "unknown operation")
+	ErrUnknownOperation = errors.New("unknown operation")
 
-	ErrServerGone = neterrors.New(protocol.StatusErrServerGone, "server is gone")
+	ErrServerGone = errors.New("server is gone")
 
-	ErrInvalidArgument = neterrors.New(protocol.StatusErrInvalidArgument, "invalid argument")
+	ErrInvalidArgument = errors.New("invalid argument")
 
-	ErrKeyTooLarge = neterrors.New(protocol.StatusErrKeyTooLarge, "key too large")
+	ErrKeyTooLarge = errors.New("key too large")
 
-	ErrNotImplemented = neterrors.New(protocol.StatusErrNotImplemented, "not implemented")
-)
-
-const (
-	// ReleaseVersion is the current stable version of Olric
-	ReleaseVersion string = "0.4.0-beta.2"
-	nilTimeout            = 0 * time.Second
+	ErrNotImplemented = errors.New("not implemented")
 )
 
 type storageEngines struct {
@@ -92,6 +85,7 @@ type storageEngines struct {
 
 type services struct {
 	dtopic *dtopic.Service
+	dmap   *dmap.Service
 }
 
 // Olric implements a distributed, in-memory and embeddable key/value store.
@@ -143,9 +137,6 @@ type Olric struct {
 	// the server is ready to accept new connections.
 	started func()
 }
-
-// pool is good for recycling memory while reading messages from the socket.
-var bufferPool = bufpool.New()
 
 // New creates a new Olric instance, otherwise returns an error.
 func New(c *config.Config) (*Olric, error) {
@@ -235,14 +226,26 @@ func New(c *config.Config) (*Olric, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Start distributed topic service
+	if err = dt.Start(); err != nil {
+		return nil, err
+	}
+
+	dm, err := dmap.NewService(e)
+	if err != nil {
+		return nil, err
+	}
+	// Start distributed map service
+	if err = dm.Start(); err != nil {
+		return nil, err
+	}
 	db.services = &services{
 		dtopic: dt.(*dtopic.Service),
+		dmap:   dm.(*dmap.Service),
 	}
 
 	// Add callback functions to routing table.
 	db.rt.AddCallback(db.balancer.Balance)
-	// TODO: deleteStaleDMaps can be moved to another part of the future internal/dmap package.
-	db.rt.AddCallback(db.deleteStaleDMaps)
 
 	if err = db.initializeAndLoadStorageEngines(); err != nil {
 		return nil, err
@@ -388,61 +391,6 @@ func (db *Olric) errorResponse(w protocol.EncodeDecoder, err error) {
 	}
 }
 
-func (db *Olric) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	resp, err := db.client.RequestTo(addr, req)
-	if err != nil {
-		return nil, err
-	}
-
-	status := resp.Status()
-
-	switch {
-	case status == protocol.StatusOK:
-		return resp, nil
-	case status == protocol.StatusErrInternalFailure:
-		return nil, errors.Wrap(ErrInternalServerError, string(resp.Value()))
-	case status == protocol.StatusErrNoSuchLock:
-		return nil, ErrNoSuchLock
-	case status == protocol.StatusErrLockNotAcquired:
-		return nil, ErrLockNotAcquired
-	case status == protocol.StatusErrKeyNotFound:
-		return nil, ErrKeyNotFound
-	case status == protocol.StatusErrWriteQuorum:
-		return nil, ErrWriteQuorum
-	case status == protocol.StatusErrReadQuorum:
-		return nil, ErrReadQuorum
-	case status == protocol.StatusErrOperationTimeout:
-		return nil, ErrOperationTimeout
-	case status == protocol.StatusErrKeyFound:
-		return nil, ErrKeyFound
-	case status == protocol.StatusErrClusterQuorum:
-		return nil, ErrClusterQuorum
-	case status == protocol.StatusErrEndOfQuery:
-		return nil, ErrEndOfQuery
-	case status == protocol.StatusErrUnknownOperation:
-		return nil, ErrUnknownOperation
-	case status == protocol.StatusErrServerGone:
-		return nil, ErrServerGone
-	case status == protocol.StatusErrInvalidArgument:
-		return nil, ErrInvalidArgument
-	case status == protocol.StatusErrKeyTooLarge:
-		return nil, ErrKeyTooLarge
-	case status == protocol.StatusErrNotImplemented:
-		return nil, ErrNotImplemented
-	}
-	return nil, fmt.Errorf("unknown status code: %d", status)
-}
-
-func (db *Olric) isAlive() bool {
-	select {
-	case <-db.ctx.Done():
-		// The node is gone.
-		return false
-	default:
-	}
-	return true
-}
-
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
 	if err := db.rt.CheckMemberCountQuorum(); err != nil {
@@ -484,10 +432,6 @@ func (db *Olric) Start() error {
 			Printf("[WARN] Olric is running in async replication mode. WriteQuorum (%d) is ineffective",
 				db.config.WriteQuorum)
 	}
-
-	// Start periodic tasks.
-	db.wg.Add(1)
-	go db.evictKeysAtBackground()
 
 	if db.started != nil {
 		db.wg.Add(1)
@@ -532,19 +476,6 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	// If the user kills the server before bootstrapping, db.this is going to empty.
 	db.log.V(2).Printf("[INFO] %s is gone", db.name)
 	return result
-}
-
-func getTTL(timeout time.Duration) int64 {
-	// convert nanoseconds to milliseconds
-	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
-}
-
-func isKeyExpired(ttl int64) bool {
-	if ttl == 0 {
-		return false
-	}
-	// convert nanoseconds to milliseconds
-	return (time.Now().UnixNano() / 1000000) >= ttl
 }
 
 func publicClusterError(err error) error {

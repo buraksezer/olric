@@ -14,11 +14,7 @@
 
 package olric
 
-import (
-	"context"
-	"testing"
-)
-
+/*
 func TestStatsStandalone(t *testing.T) {
 	db, err := newDB(testSingleReplicaConfig())
 	if err != nil {
@@ -141,3 +137,4 @@ func TestStatsCluster(t *testing.T) {
 		}
 	})
 }
+*/

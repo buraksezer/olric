@@ -16,6 +16,7 @@ package olric
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func (db *Olric) pingOperation(w, _ protocol.EncodeDecoder) {
@@ -26,6 +27,12 @@ func (db *Olric) pingOperation(w, _ protocol.EncodeDecoder) {
 // measure RTT between hosts. It also can be used as aliveness check.
 func (db *Olric) Ping(addr string) error {
 	req := protocol.NewSystemMessage(protocol.OpPing)
-	_, err := db.requestTo(addr, req)
-	return err
+	resp, err := db.client.RequestTo(addr, req)
+	if err != nil {
+		return err
+	}
+	if resp.Status() != protocol.StatusOK {
+		return neterrors.New(resp.Status(), string(resp.Value()))
+	}
+	return nil
 }

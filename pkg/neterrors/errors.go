@@ -21,4 +21,5 @@ var (
 	ErrUnknownOperation = New(protocol.StatusErrUnknownOperation, "unknown operation")
 	ErrInternalFailure  = New(protocol.StatusErrInternalFailure, "internal failure")
 	ErrNotImplemented   = New(protocol.StatusErrNotImplemented, "not implemented")
+	ErrOperationTimeout = New(protocol.StatusErrOperationTimeout, "operation timeout")
 )

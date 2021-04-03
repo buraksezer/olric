@@ -15,118 +15,274 @@
 package olric
 
 import (
-	"fmt"
-	"sync"
+	"errors"
+	"time"
 
-	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/transport"
-	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/query"
 )
 
-// dmap defines the internal representation of a dmap.
-type dmap struct {
-	sync.RWMutex
+const (
+	IfNotFound = int16(1) << iota
+	IfFound
+)
 
-	config  *dmapConfig
-	client  *transport.Client
-	storage storage.Engine
+var (
+	// ErrKeyNotFound is returned when a key could not be found.
+	ErrKeyNotFound = errors.New("key not found")
+	ErrKeyFound    = errors.New("key found")
+	ErrWriteQuorum = errors.New("write quorum cannot be reached")
+	ErrReadQuorum  = errors.New("read quorum cannot be reached")
+	// ErrLockNotAcquired is returned when the requested lock could not be acquired
+	ErrLockNotAcquired = errors.New("lock not acquired")
+	// ErrNoSuchLock is returned when the requested lock does not exist
+	ErrNoSuchLock = errors.New("no such lock")
+	// ErrEndOfQuery is the error returned by Range when no more data is available.
+	// Functions should return ErrEndOfQuery only to signal a graceful end of input.
+	ErrEndOfQuery = errors.New("end of query")
+	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
+	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
+)
+
+func publicDMapError(err error) error {
+	return err
 }
 
-func (dm *dmap) Compaction() (bool, error) {
-	panic("implement me")
+// TODO: kvstore.NewEntry should not be used to create a new entry instance here. The DMap functions will be moved to
+// their own DMap struct and all they can access their own dmap instance without hacking.
+
+// Entry is a DMap entry with its metadata.
+type Entry struct {
+	Key       string
+	Value     interface{}
+	TTL       int64
+	Timestamp int64
 }
 
-func (dm *dmap) Destroy() error {
-	panic("implement me")
+// LockContext is returned by Lock and LockWithTimeout methods.
+// It should be stored in a proper way to release the lock.
+type LockContext struct {
+	ctx *dmap.LockContext
 }
 
-func (dm *dmap) Close() error {
-	panic("implement me")
+// Cursor implements distributed query on DMaps.
+type Cursor struct {
+	cursor *dmap.Cursor
 }
 
-func (dm *dmap) Name() string {
-	return "DMap"
-}
-
-func (dm *dmap) Length() int {
-	dm.RLock()
-	defer dm.RUnlock()
-
-	return dm.storage.Stats().Length
-}
-
-var _ partitions.Fragment = (*dmap)(nil)
-
-// dmap represents a distributed map instance.
+// DMap represents a distributed map instance.
 type DMap struct {
-	name string
-	db   *Olric
+	dm *dmap.DMap
 }
 
-// NewDMap creates an returns a new dmap instance.
+// NewDMap creates an returns a new DMap instance.
 func (db *Olric) NewDMap(name string) (*DMap, error) {
-	// Check operation status first:
-	//
-	// * Checks member count in the cluster, returns ErrClusterQuorum if
-	//   the quorum value cannot be satisfied,
-	// * Checks bootstrapping status and awaits for a short period before
-	//   returning ErrRequest timeout.
-	if err := db.isOperable(); err != nil {
-		return nil, err
+	dm, err := db.services.dmap.NewDMap(name)
+	if err != nil {
+		return nil, publicDMapError(err)
 	}
 	return &DMap{
-		name: name,
-		db:   db,
+		dm: dm,
 	}, nil
 }
 
-// createDMap creates and returns a new dmap, internal representation of a dmap. This function is not thread-safe.
-func (db *Olric) createDMap(part *partitions.Partition, name string) (*dmap, error) {
-	// create a new map here.
-	nm := &dmap{
-		client: db.client,
-		config: &dmapConfig{
-			storageEngine: config.DefaultStorageEngine,
-		},
-	}
-	if db.config.DMaps != nil {
-		err := db.setDMapConfiguration(nm, name)
-		if err != nil {
-			return nil, err
-		}
-	}
-	var err error
-	// rebalancer code may send a storage instance for the new dmap. Just use it.
-	engine, ok := db.storageEngines.engines[nm.config.storageEngine]
-	if !ok {
-		return nil, fmt.Errorf("storage engine could not be found: %s", nm.config.storageEngine)
-	}
-	nm.storage, err = engine.Fork(nil)
+// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
+// does not contains the key. It's thread-safe. It is safe to modify the contents
+// of the returned value.
+func (dm *DMap) Get(key string) (interface{}, error) {
+	return dm.dm.Get(key)
+}
+
+// GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
+// does not contains the key. It's thread-safe. It is safe to modify the contents
+// of the returned value.
+func (dm *DMap) GetEntry(key string) (*Entry, error) {
+	e, err := dm.dm.GetEntry(key)
 	if err != nil {
 		return nil, err
 	}
-	part.Map().Store(name, nm)
-	return nm, nil
+
+	return &Entry{
+		Key:       e.Key,
+		Value:     e.Value,
+		TTL:       e.TTL,
+		Timestamp: e.Timestamp,
+	}, nil
 }
 
-func (db *Olric) getOrCreateDMap(part *partitions.Partition, name string) (*dmap, error) {
-	part.Lock()
-	defer part.Unlock()
-	dm, ok := part.Map().Load(name)
-	if ok {
-		return dm.(*dmap), nil
+// LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
+// it automatically releases the lock. Acquired lock is only for the key in this dmap.
+//
+// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+//
+// You should know that the locks are approximate, and only to be used for non-critical purposes.
+func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
+	lctx, err := dm.dm.LockWithTimeout(key, timeout, deadline)
+	if err != nil {
+		return nil, err
 	}
-	return db.createDMap(part, name)
+	return &LockContext{ctx: lctx}, nil
 }
 
-// getDMap loads or creates a dmap.
-func (db *Olric) getDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.primary.PartitionByHKey(hkey)
-	return db.getOrCreateDMap(part, name)
+// Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
+//
+// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+//
+// You should know that the locks are approximate, and only to be used for non-critical purposes.
+func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
+	lctx, err := dm.dm.Lock(key, deadline)
+	if err != nil {
+		return nil, err
+	}
+	return &LockContext{ctx: lctx}, nil
 }
 
-func (db *Olric) getBackupDMap(name string, hkey uint64) (*dmap, error) {
-	part := db.backup.PartitionByHKey(hkey)
-	return db.getOrCreateDMap(part, name)
+// Unlock releases the lock.
+func (l *LockContext) Unlock() error {
+	return l.ctx.Unlock()
+}
+
+// PutEx sets the value for the given key with TTL. It overwrites any previous
+// value for that key. It's thread-safe. The key has to be string. value type
+// is arbitrary. It is safe to modify the contents of the arguments after
+// Put returns but not before.
+func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
+	return dm.dm.PutEx(key, value, timeout)
+}
+
+// Put sets the value for the given key. It overwrites any previous value
+// for that key and it's thread-safe. The key has to be string. value type
+// is arbitrary. It is safe to modify the contents of the arguments after
+// Put returns but not before.
+func (dm *DMap) Put(key string, value interface{}) error {
+	return dm.dm.Put(key, value)
+}
+
+// Put sets the value for the given key. It overwrites any previous value
+// for that key and it's thread-safe. The key has to be string. value type
+// is arbitrary. It is safe to modify the contents of the arguments after
+// Put returns but not before.
+// Flag argument currently has two different options:
+//
+// IfNotFound: Only set the key if it does not already exist.
+// It returns ErrFound if the key already exist.
+//
+// IfFound: Only set the key if it already exist.
+// It returns ErrKeyNotFound if the key does not exist.
+func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
+	return dm.dm.PutIf(key, value, flags)
+}
+
+// PutIfEx sets the value for the given key with TTL. It overwrites any previous
+// value for that key. It's thread-safe. The key has to be string. value type
+// is arbitrary. It is safe to modify the contents of the arguments after
+// Put returns but not before.
+// Flag argument currently has two different options:
+//
+// IfNotFound: Only set the key if it does not already exist.
+// It returns ErrFound if the key already exist.
+//
+// IfFound: Only set the key if it already exist.
+// It returns ErrKeyNotFound if the key does not exist.
+func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
+	return dm.dm.PutIfEx(key, value, timeout, flags)
+}
+
+// Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
+// DB does not contains the key. It's thread-safe.
+func (dm *DMap) Expire(key string, timeout time.Duration) error {
+	return dm.dm.Expire(key, timeout)
+}
+
+// Query runs a distributed query on a dmap instance.
+// Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
+// few keywords:
+//
+// $onKey: Runs the given query on keys or manages options on keys for a given query.
+//
+// $onValue: Runs the given query on values or manages options on values for a given query.
+//
+// $options: Useful to modify data returned from a query
+//
+// Keywords for $options:
+//
+// $ignore: Ignores a value.
+//
+// A distributed query looks like the following:
+//
+//   query.M{
+// 	  "$onKey": query.M{
+// 		  "$regexMatch": "^even:",
+// 		  "$options": query.M{
+// 			  "$onValue": query.M{
+// 				  "$ignore": true,
+// 			  },
+// 		  },
+// 	  },
+//   }
+//
+// This query finds the keys starts with "even:", drops the values and returns only keys.
+// If you also want to retrieve the values, just remove the $options directive:
+//
+//   query.M{
+// 	  "$onKey": query.M{
+// 		  "$regexMatch": "^even:",
+// 	  },
+//   }
+//
+// In order to iterate over all the keys:
+//
+//   query.M{
+// 	  "$onKey": query.M{
+// 		  "$regexMatch": "",
+// 	  },
+//   }
+//
+// Query function returns a cursor which has Range and Close methods. Please take look at the Range
+// function for further info.
+func (dm *DMap) Query(q query.M) (*Cursor, error) {
+	c, err := dm.dm.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	return &Cursor{cursor: c}, nil
+}
+
+// Range calls f sequentially for each key and value yielded from the cursor. If f returns false,
+// range stops the iteration.
+func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
+	return c.cursor.Range(f)
+}
+
+// Close cancels the underlying context and background goroutines stops running.
+func (c *Cursor) Close() {
+	c.Close()
+}
+
+// Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
+// It is safe to modify the contents of the argument after Delete returns.
+func (dm *DMap) Delete(key string) error {
+	return dm.dm.Delete(key)
+}
+
+// Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
+func (dm *DMap) Incr(key string, delta int) (int, error) {
+	return dm.dm.Incr(key, delta)
+}
+
+// Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
+func (dm *DMap) Decr(key string, delta int) (int, error) {
+	return dm.dm.Decr(key, delta)
+}
+
+// GetPut atomically sets key to value and returns the old value stored at key.
+func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
+	return dm.dm.GetPut(key, value)
+}
+
+// Destroy flushes the given dmap on the cluster. You should know that there
+// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
+// concurrently on the cluster, Put/PutEx calls may set new values to the dmap.
+func (dm *DMap) Destroy() error {
+	return dm.dm.Destroy()
 }

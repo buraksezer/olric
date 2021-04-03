@@ -17,60 +17,8 @@ package olric
 import "github.com/buraksezer/olric/internal/protocol"
 
 func (db *Olric) registerOperations() {
-	// Operations on DMap data structure
-	//
-	// DMap.Put
-	db.operations[protocol.OpPut] = db.exPutOperation
-	db.operations[protocol.OpPutEx] = db.exPutOperation
-	db.operations[protocol.OpPutReplica] = db.putReplicaOperation
-	db.operations[protocol.OpPutExReplica] = db.putReplicaOperation
-	db.operations[protocol.OpPutIf] = db.exPutOperation
-	db.operations[protocol.OpPutIfEx] = db.exPutOperation
-	db.operations[protocol.OpPutIfReplica] = db.putReplicaOperation
-	db.operations[protocol.OpPutIfExReplica] = db.putReplicaOperation
-
-	// DMap.Get
-	db.operations[protocol.OpGet] = db.exGetOperation
-	db.operations[protocol.OpGetPrev] = db.getPrevOperation
-	db.operations[protocol.OpGetBackup] = db.getBackupOperation
-
-	// DMap.Delete
-	db.operations[protocol.OpDelete] = db.exDeleteOperation
-	db.operations[protocol.OpDeleteBackup] = db.deleteBackupOperation
-	db.operations[protocol.OpDeletePrev] = db.deletePrevOperation
-
-	// DMap.Lock
-	db.operations[protocol.OpLockWithTimeout] = db.exLockWithTimeoutOperation
-	db.operations[protocol.OpLock] = db.exLockOperation
-
-	// DMap.Unlock
-	db.operations[protocol.OpUnlock] = db.exUnlockOperation
-
-	// DMap.Destroy
-	db.operations[protocol.OpDestroy] = db.exDestroyOperation
-	db.operations[protocol.OpDestroyDMapInternal] = db.destroyDMapOperation
-
-	// DMap.Atomic
-	db.operations[protocol.OpIncr] = db.exIncrDecrOperation
-	db.operations[protocol.OpDecr] = db.exIncrDecrOperation
-	db.operations[protocol.OpGetPut] = db.exGetPutOperation
-
-	// DMap.Pipeline
-	db.operations[protocol.OpPipeline] = db.pipelineOperation
-
-	// DMap.Expire
-	db.operations[protocol.OpExpire] = db.exExpireOperation
-	db.operations[protocol.OpExpireReplica] = db.expireReplicaOperation
-
-	// DMap.Query (distributed query)
-	db.operations[protocol.OpLocalQuery] = db.localQueryOperation
-	db.operations[protocol.OpQuery] = db.exQueryOperation
-
 	// System Messages
 	//
-	// Internal
-	db.operations[protocol.OpMoveDMap] = db.moveDMapOperation
-
 	// Aliveness
 	db.operations[protocol.OpPing] = db.pingOperation
 
@@ -78,10 +26,16 @@ func (db *Olric) registerOperations() {
 	db.operations[protocol.OpStats] = db.statsOperation
 
 	// Routing table
+	//
 	db.rt.RegisterOperations(db.operations)
 
 	// Operations on DTopic data structure
+	//
 	db.services.dtopic.RegisterOperations(db.operations)
+
+	// Operations on DMap data structure
+	//
+	db.services.dmap.RegisterOperations(db.operations)
 
 	// Operations on message streams
 	//

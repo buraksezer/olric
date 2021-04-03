@@ -24,7 +24,6 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-
 func (r *RoutingTable) keyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 	req := rq.(*protocol.SystemMessage)
 	partID := req.Extra().(protocol.LengthOfPartExtra).PartID
