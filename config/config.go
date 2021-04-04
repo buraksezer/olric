@@ -100,6 +100,9 @@ const (
 	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
 	LRUEviction EvictionPolicy = "LRU"
 
+	// DefaultMaxAllowedConnections denotes max number of clients that can be accepted concurrently
+	DefaultMaxAllowedConnections = 1024
+
 	DefaultStorageEngine = "olric.kvstore"
 )
 
@@ -120,6 +123,9 @@ type Config struct {
 
 	// BindPort denotes the address that Olric will bind to for communication with other Olric nodes.
 	BindPort int
+
+	// MaxAllowedConnections denotes number of maximum tcp connections we can accept concurrently
+	MaxAllowedConnections int
 
 	Client *Client
 
@@ -323,6 +329,10 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
+	}
+
+	if c.MaxAllowedConnections == 0 {
+		c.MaxAllowedConnections = DefaultMaxAllowedConnections
 	}
 
 	// Check peers. If Peers slice contains node's itself, return an error.

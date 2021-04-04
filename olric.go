@@ -171,6 +171,7 @@ func New(c *config.Config) (*Olric, error) {
 		BindPort:        c.BindPort,
 		KeepAlivePeriod: c.KeepAlivePeriod,
 		GracefulPeriod:  10 * time.Second,
+		MaxAllowedConn:  c.MaxAllowedConnections,
 	}
 	client := transport.NewClient(c.Client)
 	e.Set("client", client)
