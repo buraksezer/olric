@@ -7,8 +7,8 @@ import (
 	"github.com/buraksezer/olric/config"
 )
 
-// configuration keeps DMap config control parameters and access-log for keys in a dmap.
-type configuration struct {
+// dmapConfig keeps DMap config control parameters and access-log for keys in a dmap.
+type dmapConfig struct {
 	maxIdleDuration time.Duration
 	ttlDuration     time.Duration
 	maxKeys         int
@@ -18,21 +18,21 @@ type configuration struct {
 	storageEngine   string
 }
 
-func (c *configuration) load(cfg *config.Config, name string) error {
+func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 	// Try to set config configuration for this dmap.
-	c.maxIdleDuration = cfg.DMaps.MaxIdleDuration
-	c.ttlDuration = cfg.DMaps.TTLDuration
-	c.maxKeys = cfg.DMaps.MaxKeys
-	c.maxInuse = cfg.DMaps.MaxInuse
-	c.lruSamples = cfg.DMaps.LRUSamples
-	c.evictionPolicy = cfg.DMaps.EvictionPolicy
-	if cfg.DMaps.StorageEngine != "" {
-		c.storageEngine = cfg.DMaps.StorageEngine
+	c.maxIdleDuration = dc.MaxIdleDuration
+	c.ttlDuration = dc.TTLDuration
+	c.maxKeys = dc.MaxKeys
+	c.maxInuse = dc.MaxInuse
+	c.lruSamples = dc.LRUSamples
+	c.evictionPolicy = dc.EvictionPolicy
+	if dc.StorageEngine != "" {
+		c.storageEngine = dc.StorageEngine
 	}
 
-	if cfg.DMaps.Custom != nil {
+	if dc.Custom != nil {
 		// config.DMap struct can be used for fine-grained control.
-		cs, ok := cfg.DMaps.Custom[name]
+		cs, ok := dc.Custom[name]
 		if ok {
 			if c.maxIdleDuration != cs.MaxIdleDuration {
 				c.maxIdleDuration = cs.MaxIdleDuration
@@ -71,9 +71,12 @@ func (c *configuration) load(cfg *config.Config, name string) error {
 			c.lruSamples = config.DefaultLRUSamples
 		}
 	}
+	if c.storageEngine == "" {
+		c.storageEngine = config.DefaultStorageEngine
+	}
 	return nil
 }
 
-func (c *configuration) isAccessLogRequired() bool {
+func (c *dmapConfig) isAccessLogRequired() bool {
 	return c.evictionPolicy == config.LRUEviction || c.maxIdleDuration != 0
 }

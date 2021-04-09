@@ -34,6 +34,7 @@ const (
 var (
 	ErrKeyFound    = neterrors.New(protocol.StatusErrKeyFound, "key found")
 	ErrWriteQuorum = neterrors.New(protocol.StatusErrWriteQuorum, "write quorum cannot be reached")
+	ErrKeyTooLarge = neterrors.New(protocol.StatusErrKeyTooLarge, "key too large")
 )
 
 func (dm *DMap) updateAccessLog(hkey uint64, f *fragment) {
@@ -57,6 +58,9 @@ func (dm *DMap) putOnFragment(e *env) error {
 		dm.s.wg.Add(1)
 		go dm.s.callCompactionOnStorage(e.fragment)
 		err = nil
+	}
+	if err == storage.ErrKeyTooLarge {
+		err = ErrKeyTooLarge
 	}
 	if err == nil {
 		dm.updateAccessLog(e.hkey, e.fragment)

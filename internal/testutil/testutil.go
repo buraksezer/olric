@@ -98,15 +98,12 @@ func TryWithInterval(max int, interval time.Duration, f func() error) error {
 	}
 
 	var count = 1
-loop:
 	for count < max {
-		select {
-		case <-ticker.C:
-			count++
-			err = f()
-			if err == nil {
-				break loop
-			}
+		<-ticker.C
+		count++
+		err = f()
+		if err == nil {
+			break
 		}
 	}
 	return err

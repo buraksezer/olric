@@ -97,10 +97,10 @@ const (
 
 	DefaultLRUSamples int = 5
 
-	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
+	// LRUEviction assigns this as EvictionPolicy in order to enable LRU eviction algorithm.
 	LRUEviction EvictionPolicy = "LRU"
 
-	DefaultStorageEngine = "olric.kvstore"
+	DefaultStorageEngine = "kvstore"
 )
 
 // Config is the configuration to create a Olric instance.
@@ -342,7 +342,7 @@ func (c *Config) Sanitize() error {
 	return nil
 }
 
-// DefaultConfig returns a Config with sane defaults.
+// New returns a Config with sane defaults.
 // It takes an env parameter used by memberlist: local, lan and wan.
 //
 // local:

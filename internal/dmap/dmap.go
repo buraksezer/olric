@@ -41,7 +41,7 @@ var (
 type DMap struct {
 	name   string
 	s      *Service
-	config *configuration
+	config *dmapConfig
 }
 
 // getDMap returns an initialized DMap instance, otherwise it returns ErrDMapNotFound.
@@ -81,11 +81,11 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	}
 
 	dm = &DMap{
-		config: &configuration{},
+		config: &dmapConfig{},
 		name:   name,
 		s:      s,
 	}
-	if err := dm.config.load(s.config, name); err != nil {
+	if err := dm.config.load(s.config.DMaps, name); err != nil {
 		return nil, err
 	}
 	s.dmaps[name] = dm

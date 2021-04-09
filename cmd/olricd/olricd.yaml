@@ -1,9 +1,9 @@
 olricd:
-  bindAddr: "0.0.0.0"
+  bindAddr: 0.0.0.0
   bindPort: 3320
-  serializer: "msgpack"
-  keepAlivePeriod: "300s"
-  bootstrapTimeout: "5s"
+  serializer: msgpack
+  keepAlivePeriod: 300s
+  bootstrapTimeout: 5s
   partitionCount:  13
   replicaCount: 1
   writeQuorum: 1
@@ -14,28 +14,28 @@ olricd:
 
 storageEngines:
   config:
-    olric.kvstore:
+    kvstore:
       tableSize: 102134
 
 client:
-  dialTimeout: "-1s"
-  readTimeout: "3s"
-  writeTimeout: "3s"
-  keepAlive: "15s"
+  dialTimeout: -1s
+  readTimeout: 3s
+  writeTimeout: 3s
+  keepAlive: 15s
   minConn: 1
   maxConn: 100
 
 logging:
   verbosity: 6
-  level: "DEBUG"
-  output: "stderr"
+  level: DEBUG
+  output: stderr
 
 memberlist:
-  environment: "local"
-  bindAddr: "0.0.0.0"
+  environment: local
+  bindAddr: 0.0.0.0
   bindPort: 3322
   enableCompression: false
-  joinRetryInterval: "1ms"
+  joinRetryInterval: 1ms
   maxJoinAttempts: 1
   #peers:
   #  - "localhost:3325"

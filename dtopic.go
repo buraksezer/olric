@@ -19,25 +19,6 @@ import (
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
-func publicDTopicError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	switch err {
-	case neterrors.ErrInvalidArgument:
-		return ErrInvalidArgument
-	case neterrors.ErrNotImplemented:
-		return ErrNotImplemented
-	case neterrors.ErrOperationTimeout:
-		return ErrOperationTimeout
-	case neterrors.ErrUnknownOperation:
-		return ErrUnknownOperation
-	default:
-		return err
-	}
-}
-
 const (
 	// Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 	UnorderedDelivery = int16(1) << iota
@@ -57,6 +38,21 @@ type DTopic struct {
 	dt *dtopic.DTopic
 }
 
+func convertDTopicError(err error) error {
+	switch err {
+	case neterrors.ErrInvalidArgument:
+		return ErrInvalidArgument
+	case neterrors.ErrNotImplemented:
+		return ErrNotImplemented
+	case neterrors.ErrOperationTimeout:
+		return ErrOperationTimeout
+	case neterrors.ErrUnknownOperation:
+		return ErrUnknownOperation
+	default:
+		return err
+	}
+}
+
 // NewDTopic returns a new distributed topic instance.
 // Parameters:
 //   * name: DTopic name.
@@ -68,7 +64,7 @@ type DTopic struct {
 func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
 	dt, err := db.services.dtopic.NewDTopic(name, concurrency, flag)
 	if err != nil {
-		return nil, publicDTopicError(err)
+		return nil, convertDTopicError(err)
 	}
 	return &DTopic{
 		dt: dt,
@@ -77,7 +73,7 @@ func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, e
 
 func (dt *DTopic) Publish(msg interface{}) error {
 	err := dt.dt.Publish(msg)
-	return publicDTopicError(err)
+	return convertDTopicError(err)
 }
 
 func (dt *DTopic) AddListener(f func(DTopicMessage)) (uint64, error) {
@@ -85,17 +81,17 @@ func (dt *DTopic) AddListener(f func(DTopicMessage)) (uint64, error) {
 		f(DTopicMessage(msg))
 	})
 	if err != nil {
-		return 0, publicDTopicError(err)
+		return 0, convertDTopicError(err)
 	}
 	return listenerID, nil
 }
 
 func (dt *DTopic) RemoveListener(listenerID uint64) error {
 	err := dt.dt.RemoveListener(listenerID)
-	return publicDTopicError(err)
+	return convertDTopicError(err)
 }
 
 func (dt *DTopic) Destroy() error {
 	err := dt.dt.Destroy()
-	return publicDTopicError(err)
+	return convertDTopicError(err)
 }

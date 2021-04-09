@@ -41,8 +41,8 @@ func TestDMap_Config(t *testing.T) {
 		StorageEngine:   "olric.document-store",
 	}}
 
-	dc := configuration{}
-	err := dc.load(c, "mydmap")
+	dc := dmapConfig{}
+	err := dc.load(c.DMaps, "mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -68,8 +68,8 @@ func TestDMap_Config(t *testing.T) {
 	}
 
 	t.Run("Custom config", func(t *testing.T) {
-		dcc := configuration{}
-		err := dcc.load(c, "foobar")
+		dcc := dmapConfig{}
+		err := dcc.load(c.DMaps, "foobar")
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

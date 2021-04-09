@@ -18,8 +18,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -28,16 +28,15 @@ import (
 
 var (
 	// ErrLockNotAcquired is returned when the requested lock could not be acquired
-	ErrLockNotAcquired = errors.New("lock not acquired")
+	ErrLockNotAcquired = neterrors.New(protocol.StatusErrLockNotAcquired, "lock not acquired")
 
 	// ErrNoSuchLock is returned when the requested lock does not exist
-	ErrNoSuchLock = errors.New("no such lock")
+	ErrNoSuchLock = neterrors.New(protocol.StatusErrNoSuchLock, "no such lock")
 )
 
 // LockContext is returned by Lock and LockWithTimeout methods.
 // It should be stored in a proper way to release the lock.
 type LockContext struct {
-	name  string
 	key   string
 	token []byte
 	dm    *DMap
@@ -165,7 +164,6 @@ func (dm *DMap) lockKey(opcode protocol.OpCode, key string, timeout, deadline ti
 		return nil, err
 	}
 	return &LockContext{
-		name:  dm.name, // TODO: Useless
 		key:   key,
 		token: token,
 		dm:    dm,

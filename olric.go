@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olric provides distributed cache and in-memory key/value data store.
+/*Package olric provides a distributed cache and in-memory key/value data store.
 It can be used both as an embedded Go library and as a language-independent
 service.
 
@@ -69,15 +69,12 @@ var (
 
 	// ErrUnknownOperation means that an unidentified message has been
 	// received from a client.
-	ErrUnknownOperation = neterrors.New(protocol.StatusErrUnknownOperation, "unknown operation")
+	ErrUnknownOperation = errors.New("unknown operation")
 
 	ErrServerGone = errors.New("server is gone")
 
 	ErrInvalidArgument = errors.New("invalid argument")
-
-	ErrKeyTooLarge = errors.New("key too large")
-
-	ErrNotImplemented = errors.New("not implemented")
+	ErrNotImplemented  = errors.New("not implemented")
 )
 
 type services struct {
@@ -85,14 +82,16 @@ type services struct {
 	dmap   *dmap.Service
 }
 
-// Olric implements a distributed, in-memory and embeddable key/value store.
+// Olric implements a distributed cache and in-memory key/value data store.
+// It can be used both as an embedded Go library and as a language-independent
+// service.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
 	name       string
 	env        *environment.Environment
 	config     *config.Config
 	log        *flog.Logger
-	hasher     hasher.Hasher
+	hashFunc   hasher.Hasher
 	serializer serializer.Serializer
 
 	// Logical units for data storage
@@ -188,7 +187,7 @@ func New(c *config.Config) (*Olric, error) {
 		cancel:     cancel,
 		log:        flogger,
 		config:     c,
-		hasher:     c.Hasher,
+		hashFunc:   c.Hasher,
 		serializer: c.Serializer,
 		client:     e.Get("client").(*transport.Client),
 		primary:    e.Get("primary").(*partitions.Partitions),
@@ -271,10 +270,23 @@ func (db *Olric) callStartedCallback() {
 	}
 }
 
+func convertClusterError(err error) error {
+	switch err {
+	case routingtable.ErrClusterQuorum:
+		return ErrClusterQuorum
+	case routingtable.ErrServerGone:
+		return ErrServerGone
+	case routingtable.ErrOperationTimeout:
+		return ErrOperationTimeout
+	default:
+		return err
+	}
+}
+
 // isOperable controls bootstrapping status and cluster quorum to prevent split-brain syndrome.
 func (db *Olric) isOperable() error {
 	if err := db.rt.CheckMemberCountQuorum(); err != nil {
-		return publicClusterError(err)
+		return convertClusterError(err)
 	}
 	// An Olric node has to be bootstrapped to function properly.
 	return db.rt.CheckBootstrap()
@@ -371,17 +383,4 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	// bootstrapping.
 	db.log.V(2).Printf("[INFO] %s is gone", db.name)
 	return result
-}
-
-func publicClusterError(err error) error {
-	switch err {
-	case routingtable.ErrClusterQuorum:
-		return ErrClusterQuorum
-	case routingtable.ErrServerGone:
-		return ErrServerGone
-	case routingtable.ErrOperationTimeout:
-		return ErrOperationTimeout
-	default:
-		return err
-	}
 }

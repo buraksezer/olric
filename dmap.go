@@ -42,7 +42,14 @@ var (
 	ErrEndOfQuery = errors.New("end of query")
 	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
 	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
+
+	ErrKeyTooLarge = errors.New("key too large")
 )
+
+const NumParallelQuery = 2
+
+// QueryResponse denotes returned data by a node for query.
+type QueryResponse map[string]interface{}
 
 func convertDMapError(err error) error {
 	switch err {

@@ -41,7 +41,7 @@ storageEngines:
   plugins:
     - /path/to/plugin.so
   config:
-    olric.kvstore:
+    kvstore:
       tableSize: 102134
     olric.document-store:
       foobar: "barfoo"
@@ -89,7 +89,7 @@ dmaps:
   maxInuse: 1000000
   lruSamples: 10
   evictionPolicy: "LRU"
-  storageEngine: "olric.kvstore"
+  storageEngine: "kvstore"
   custom:
     foobar:
       maxIdleDuration: "60s"
@@ -147,7 +147,7 @@ func TestConfig(t *testing.T) {
 	c.StorageEngines.Config["olric.document-store"] = map[string]interface{}{
 		"foobar": "barfoo",
 	}
-	c.StorageEngines.Config["olric.kvstore"] = map[string]interface{}{
+	c.StorageEngines.Config["kvstore"] = map[string]interface{}{
 		"tableSize": 102134,
 	}
 
