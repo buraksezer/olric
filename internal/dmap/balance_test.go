@@ -72,7 +72,7 @@ func TestDMap_Merge_Fragments(t *testing.T) {
 	})
 
 	t.Run("extractFragmentPack", func(t *testing.T) {
-		req := protocol.NewSystemMessage(protocol.OpMoveDMap)
+		req := protocol.NewSystemMessage(protocol.OpMoveFragment)
 		req.SetValue([]byte("fragment-data"))
 		req.SetBuffer(bytes.NewBuffer(nil))
 		_, err = s.extractFragmentPack(req)

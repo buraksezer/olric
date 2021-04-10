@@ -91,7 +91,7 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 		return err
 	}
 
-	req := protocol.NewSystemMessage(protocol.OpMoveDMap)
+	req := protocol.NewSystemMessage(protocol.OpMoveFragment)
 	req.SetValue(value)
 	_, err = f.service.requestTo(owner.String(), req)
 	return err

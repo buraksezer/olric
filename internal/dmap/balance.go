@@ -139,7 +139,7 @@ func (s *Service) extractFragmentPack(r protocol.EncodeDecoder) (*fragmentPack, 
 	return fp, err
 }
 
-func (s *Service) moveDMapOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
 	fp, err := s.extractFragmentPack(r)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
