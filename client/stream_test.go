@@ -47,7 +47,7 @@ func mockCreateStream(ctx context.Context, _ string, read chan<- protocol.Encode
 }
 
 func TestStream_EchoListener(t *testing.T) {
-	srv, err := testolric.NewOlric(t)
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -110,7 +110,7 @@ func TestStream_EchoListener(t *testing.T) {
 }
 
 func TestStream_CreateNewStream(t *testing.T) {
-	srv, err := testolric.NewOlric(t)
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -143,7 +143,7 @@ func TestStream_CreateNewStream(t *testing.T) {
 }
 
 func TestStream_MultipleListeners(t *testing.T) {
-	srv, err := testolric.NewOlric(t)
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -228,7 +228,7 @@ func TestStream_MultipleListeners(t *testing.T) {
 }
 
 func TestStream_PingPong(t *testing.T) {
-	srv, err := testolric.NewOlric(t)
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

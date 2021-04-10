@@ -24,7 +24,7 @@ import (
 )
 
 func TestClient_Query(t *testing.T) {
-	srv, err := testolric.NewOlric(t)
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

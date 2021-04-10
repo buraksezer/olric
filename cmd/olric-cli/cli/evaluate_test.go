@@ -29,7 +29,7 @@ var testConfig = &client.Config{
 }
 
 func TestOlric_CLI_Evaluate(t *testing.T) {
-	db, err := testolric.NewOlric(t)
+	db, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

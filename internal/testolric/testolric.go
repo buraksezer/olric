@@ -30,16 +30,16 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Olric struct {
+type TestOlric struct {
 	db   *olric.Olric
 	Addr string
 }
 
-func (o *Olric) Olric() *olric.Olric {
+func (o *TestOlric) Olric() *olric.Olric {
 	return o.db
 }
 
-func NewOlric(t *testing.T) (*Olric, error) {
+func New(t *testing.T) (*TestOlric, error) {
 	port, err := testutil.GetFreePort()
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func NewOlric(t *testing.T) (*Olric, error) {
 		return nil, err
 	}
 
-	srv := &Olric{
+	srv := &TestOlric{
 		db:   db,
 		Addr: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
 	}
