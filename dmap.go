@@ -70,7 +70,7 @@ func convertDMapError(err error) error {
 	case dmap.ErrWriteQuorum:
 		return ErrWriteQuorum
 	default:
-		return err
+		return convertClusterError(err)
 	}
 }
 

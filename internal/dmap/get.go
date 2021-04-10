@@ -15,7 +15,6 @@
 package dmap
 
 import (
-	"errors"
 	"sort"
 	"time"
 
@@ -24,6 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -35,7 +35,7 @@ type Entry struct {
 	Timestamp int64
 }
 
-var ErrReadQuorum = errors.New("read quorum cannot be reached")
+var ErrReadQuorum = neterrors.New(protocol.StatusErrReadQuorum, "read quorum cannot be reached")
 
 type version struct {
 	host  *discovery.Member

@@ -367,11 +367,14 @@ func (db *Olric) Start() error {
 		go db.callStartedCallback()
 	}
 
-	db.log.V(2).Printf("[INFO] Node name in the cluster: %s", db.name)
+	db.log.V(2).Printf("[INFO] Node name in the cluster: %s",
+		db.name)
 	if db.config.Interface != "" {
-		db.log.V(2).Printf("[INFO] Olric uses interface: %s", db.config.Interface)
+		db.log.V(2).Printf("[INFO] Olric uses interface: %s",
+			db.config.Interface)
 	}
-	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d", db.config.BindAddr, db.config.BindPort)
+	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d",
+		db.config.BindAddr, db.config.BindPort)
 	return errGr.Wait()
 }
 
