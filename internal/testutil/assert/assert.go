@@ -140,6 +140,11 @@ func Equal(t *testing.T, expected, actual interface{}) {
 	EqualSkip(t, 2, expected, actual)
 }
 
+// Error validates that expected is equal to actual and throws an error with line number
+func Error(t *testing.T, expected, actual error) {
+	EqualSkip(t, 2, expected, actual)
+}
+
 // EqualSkip validates that expected is equal to actual and throws an error with line number
 // but the skip variable tells EqualSkip how far back on the stack to report the error.
 // This is a building block to creating your own more complex validation functions.

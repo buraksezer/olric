@@ -191,7 +191,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 	return convertDMapError(err)
 }
 
-// Put sets the value for the given key. It overwrites any previous value
+// PutIf sets the value for the given key. It overwrites any previous value
 // for that key and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
@@ -293,7 +293,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 
 // Close cancels the underlying context and background goroutines stops running.
 func (c *Cursor) Close() {
-	c.Close()
+	c.cursor.Close()
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
