@@ -226,6 +226,33 @@ func New(c *config.Config) (*Olric, error) {
 	return db, nil
 }
 
+func (db *Olric) registerOperations() {
+	// System Messages
+	//
+	// Aliveness
+	db.operations[protocol.OpPing] = db.pingOperation
+
+	// Node Stats
+	db.operations[protocol.OpStats] = db.statsOperation
+
+	// Routing table
+	//
+	db.rt.RegisterOperations(db.operations)
+
+	// Operations on DTopic data structure
+	//
+	db.services.dtopic.RegisterOperations(db.operations)
+
+	// Operations on DMap data structure
+	//
+	db.services.dmap.RegisterOperations(db.operations)
+
+	// Operations on message streams
+	//
+	// Bidirectional communication channel for clients and cluster members.
+	db.streams.RegisterOperations(db.operations)
+}
+
 func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
 	// Check bootstrapping status
 	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this
