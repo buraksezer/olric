@@ -56,17 +56,12 @@ func NewOlric(t *testing.T) (*Olric, error) {
 	mc.BindAddr = "127.0.0.1"
 	mc.BindPort = 0
 
-	cfg := &config.Config{
-		PartitionCount:    7,
-		BindAddr:          "127.0.0.1",
-		BindPort:          port,
-		ReplicaCount:      config.MinimumReplicaCount,
-		WriteQuorum:       config.MinimumReplicaCount,
-		ReadQuorum:        config.MinimumReplicaCount,
-		MemberCountQuorum: config.MinimumMemberCountQuorum,
-		StorageEngines:    sc,
-		MemberlistConfig:  mc,
-	}
+	cfg := config.New("local")
+	cfg.BindAddr = "127.0.0.1"
+	cfg.BindPort = port
+	cfg.StorageEngines = sc
+	cfg.MemberlistConfig = mc
+	cfg.PartitionCount = 7
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cfg.Started = func() {

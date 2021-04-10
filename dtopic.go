@@ -57,7 +57,7 @@ func convertDTopicError(err error) error {
 // Parameters:
 //   * name: DTopic name.
 //   * concurrency: Maximum number of concurrently processing DTopic messages.
-//   * flag: Any flag to control DTopic behaviour.
+//   * flag: Any flag to control DTopic behavior.
 // Flags for delivery options:
 //   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
