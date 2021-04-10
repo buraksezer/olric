@@ -62,6 +62,10 @@ func TestOlric_Stats(t *testing.T) {
 	if total != 100 {
 		t.Fatalf("Expected total length of partition in stats is 100. Got: %d", total)
 	}
+	_, ok := s.ClusterMembers[db.rt.This().ID]
+	if !ok {
+		t.Fatalf("Expected member ID: %d could not be found in ClusterMembers", db.rt.This().ID)
+	}
 }
 
 func TestOlric_Stats_Operation(t *testing.T) {

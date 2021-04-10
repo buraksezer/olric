@@ -19,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
@@ -40,9 +41,18 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
-		Partitions: make(map[uint64]stats.Partition),
-		Backups:    make(map[uint64]stats.Partition),
+		Partitions:     make(map[uint64]stats.Partition),
+		Backups:        make(map[uint64]stats.Partition),
+		ClusterMembers: make(map[uint64]discovery.Member),
 	}
+
+	db.rt.RLock()
+	db.rt.Members().Range(func(id uint64, member discovery.Member) bool {
+		m := &member
+		s.ClusterMembers[id] = *m
+		return true
+	})
+	db.rt.RUnlock()
 
 	collect := func(partID uint64, part *partitions.Partition) stats.Partition {
 		owners := part.Owners()
