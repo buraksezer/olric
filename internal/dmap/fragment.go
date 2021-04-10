@@ -36,6 +36,10 @@ type fragment struct {
 	cancel    context.CancelFunc
 }
 
+func (f *fragment) Stats() storage.Stats {
+	return f.storage.Stats()
+}
+
 func (f *fragment) Compaction() (bool, error) {
 	select {
 	case <-f.ctx.Done():

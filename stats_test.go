@@ -14,34 +14,29 @@
 
 package olric
 
-/*
-func TestStatsStandalone(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
+import (
+	"bytes"
+	"testing"
+
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/testutil/assert"
+)
+
+func TestOlric_Stats(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
 	dm, err := db.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	assert.NoError(t, err)
+
 	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		assert.NoError(t, err)
 	}
 
 	s, err := db.Stats()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	assert.NoError(t, err)
 
 	if !s.ClusterCoordinator.CompareByID(db.rt.This()) {
 		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.rt.This(), s.ClusterCoordinator)
@@ -69,72 +64,16 @@ func TestStatsStandalone(t *testing.T) {
 	}
 }
 
-func TestStatsCluster(t *testing.T) {
-	db1, err := newDB(nil)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
+func TestOlric_Stats_Operation(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
-	db2, err := newDB(nil, db1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-	syncClusterMembers(db1, db2)
-
-	dm, err := db1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-	var primaryTotal int
-	var backupTotal int
-	for _, db := range []*Olric{db1, db2} {
-		s, err := db.Stats()
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		for _, part := range s.Partitions {
-			primaryTotal += part.Length
-		}
-		for _, part := range s.Backups {
-			backupTotal += part.Length
-		}
-	}
-	if primaryTotal != 100 {
-		t.Fatalf("Expected total length of partitions on primary "+
-			"owners in stats is 100. Got: %d", primaryTotal)
-	}
-	if backupTotal != 100 {
-		t.Fatalf("Expected total length of partitions on backup "+
-			"owners in stats is 100. Got: %d", backupTotal)
-	}
-
-	t.Run("check ClusterCoordinator", func(t *testing.T) {
-		s, err := db2.Stats()
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-
-		if !s.ClusterCoordinator.CompareByID(db1.rt.This()) {
-			t.Fatalf("Expected cluster coordinator: %v. Got: %v", db1.rt.This(), s.ClusterCoordinator)
-		}
-	})
+	buf := new(bytes.Buffer)
+	req := protocol.NewSystemMessage(protocol.OpStats)
+	req.SetBuffer(buf)
+	err = req.Encode()
+	assert.NoError(t, err)
+	resp := req.Response(nil)
+	db.statsOperation(resp, req)
+	assert.Equal(t, protocol.StatusOK, resp.Status())
 }
-*/

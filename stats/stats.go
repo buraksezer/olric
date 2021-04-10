@@ -33,12 +33,12 @@ type SlabInfo struct {
 	Garbage int
 }
 
-// dmap denotes a distributed map instance on the cluster.
+// DMap denotes a distributed map instance on the cluster.
 type DMap struct {
 	Name   string
 	Length int
 
-	// Statistics about memory representation of the dmap.
+	// Statistics about memory representation of a DMap.
 	SlabInfo SlabInfo
 
 	// Number of tables in a storage instance.

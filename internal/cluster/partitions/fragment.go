@@ -14,10 +14,14 @@
 
 package partitions
 
-import "github.com/buraksezer/olric/internal/discovery"
+import (
+	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/pkg/storage"
+)
 
 type Fragment interface {
 	Name() string
+	Stats() storage.Stats
 	Length() int
 	Move(partID uint64, kind Kind, name string, owner discovery.Member) error
 	Compaction() (bool, error)

@@ -20,10 +20,15 @@ import (
 	"testing"
 
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 type testFragment struct {
 	length int
+}
+
+func (tf *testFragment) Stats() storage.Stats {
+	return storage.Stats{}
 }
 
 func (tf *testFragment) Name() string {

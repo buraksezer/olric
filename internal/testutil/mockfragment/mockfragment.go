@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mock_fragment
+package mockfragment
 
 import (
 	"crypto/rand"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 type MockFragment struct {
@@ -33,6 +34,10 @@ func New() *MockFragment {
 	return &MockFragment{
 		m: make(map[string]interface{}),
 	}
+}
+
+func (f *MockFragment) Stats() storage.Stats {
+	return storage.Stats{}
 }
 
 func (f *MockFragment) Name() string {

@@ -57,22 +57,19 @@ func (db *Olric) stats() stats.Stats {
 		if len(owners) > 0 {
 			p.PreviousOwners = owners[:len(owners)-1]
 		}
-		/*
-			part.Map().Range(func(name, f interface{}) bool {
-				f.(*partitions.Fragment).Lock()
-				st := f.(*partitions.Fragment).storage.Stats()
-
-				tmp := stats.DMap{
-					Length:    st.Length,
-					NumTables: st.NumTables,
-				}
-				tmp.SlabInfo.Allocated = st.Allocated
-				tmp.SlabInfo.Garbage = st.Garbage
-				tmp.SlabInfo.Inuse = st.Inuse
-				p.DMaps[name.(string)] = tmp
-				dm.(*dmap).Unlock()
-				return true
-			})*/
+		part.Map().Range(func(name, item interface{}) bool {
+			f := item.(partitions.Fragment)
+			st := f.Stats()
+			tmp := stats.DMap{
+				Length:    st.Length,
+				NumTables: st.NumTables,
+			}
+			tmp.SlabInfo.Allocated = st.Allocated
+			tmp.SlabInfo.Garbage = st.Garbage
+			tmp.SlabInfo.Inuse = st.Inuse
+			p.DMaps[name.(string)] = tmp
+			return true
+		})
 		return p
 	}
 

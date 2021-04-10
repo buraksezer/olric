@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/internal/testutil/mock_fragment"
+	"github.com/buraksezer/olric/internal/testutil/mockfragment"
 )
 
 func TestRoutingTable_LeftOverData(t *testing.T) {
@@ -39,7 +39,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
 		part := rt1.primary.PartitionById(partID)
-		ts := mock_fragment.New()
+		ts := mockfragment.New()
 		ts.Fill()
 		part.Map().Store("test-data", ts)
 	}
@@ -62,7 +62,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 
 	for partID := uint64(0); partID < c2.PartitionCount; partID++ {
 		part := rt2.primary.PartitionById(partID)
-		ts := mock_fragment.New()
+		ts := mockfragment.New()
 		ts.Fill()
 		part.Map().Store("test-data", ts)
 	}
