@@ -38,7 +38,7 @@ func TestOlric_Stats(t *testing.T) {
 	s, err := db.Stats()
 	assert.NoError(t, err)
 
-	if !s.ClusterCoordinator.CompareByID(db.rt.This()) {
+	if s.ClusterCoordinator.ID != db.rt.This().ID {
 		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.rt.This(), s.ClusterCoordinator)
 	}
 
@@ -55,7 +55,7 @@ func TestOlric_Stats(t *testing.T) {
 		if part.Length <= 0 {
 			t.Fatalf("Unexpected Length: %d", part.Length)
 		}
-		if !part.Owner.CompareByID(db.rt.This()) {
+		if part.Owner.ID != db.rt.This().ID {
 			t.Fatalf("Expected partition owner: %s. Got: %s", db.rt.This(), part.Owner)
 		}
 	}

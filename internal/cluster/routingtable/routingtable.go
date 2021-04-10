@@ -72,7 +72,6 @@ type RoutingTable struct {
 	callbacks           []func()
 	callbackMtx         sync.Mutex
 	updatePeriod        time.Duration
-	updateMtx           sync.Mutex
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	wg                  sync.WaitGroup

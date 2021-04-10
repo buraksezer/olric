@@ -26,13 +26,29 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
+func toMember(member discovery.Member) stats.Member{
+	return stats.Member{
+		Name:      member.Name,
+		ID:        member.ID,
+		Birthdate: member.Birthdate,
+	}
+}
+
+func toMembers(members []discovery.Member) []stats.Member {
+	var _stats []stats.Member
+	for _, m := range members {
+		_stats = append(_stats, toMember(m))
+	}
+	return _stats
+}
+
 func (db *Olric) stats() stats.Stats {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
-		ClusterCoordinator: db.rt.Discovery().GetCoordinator(),
+		ClusterCoordinator: toMember(db.rt.Discovery().GetCoordinator()),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
@@ -41,31 +57,24 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
+		Member: toMember(db.rt.This()),
 		Partitions:     make(map[uint64]stats.Partition),
 		Backups:        make(map[uint64]stats.Partition),
-		ClusterMembers: make(map[uint64]discovery.Member),
+		ClusterMembers: make(map[uint64]stats.Member),
 	}
-
-	db.rt.RLock()
-	db.rt.Members().Range(func(id uint64, member discovery.Member) bool {
-		m := &member
-		s.ClusterMembers[id] = *m
-		return true
-	})
-	db.rt.RUnlock()
 
 	collect := func(partID uint64, part *partitions.Partition) stats.Partition {
 		owners := part.Owners()
 		p := stats.Partition{
-			Backups: db.backup.PartitionOwnersById(partID),
+			Backups: toMembers(db.backup.PartitionOwnersById(partID)),
 			Length:  part.Length(),
 			DMaps:   make(map[string]stats.DMap),
 		}
 		if part.Kind() == partitions.PRIMARY {
-			p.Owner = part.Owner()
+			p.Owner = toMember(part.Owner())
 		}
 		if len(owners) > 0 {
-			p.PreviousOwners = owners[:len(owners)-1]
+			p.PreviousOwners = toMembers(owners[:len(owners)-1])
 		}
 		part.Map().Range(func(name, item interface{}) bool {
 			f := item.(partitions.Fragment)
@@ -85,6 +94,12 @@ func (db *Olric) stats() stats.Stats {
 
 	db.rt.RLock()
 	defer db.rt.RUnlock()
+
+	db.rt.Members().Range(func(id uint64, member discovery.Member) bool {
+		s.ClusterMembers[id] = toMember(member)
+		return true
+	})
+
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		part := db.primary.PartitionById(partID)
 		s.Partitions[partID] = collect(partID, part)
