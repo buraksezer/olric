@@ -16,10 +16,11 @@ package olric
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/hashicorp/memberlist"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/hashicorp/memberlist"
 )
 
 func newTestOlric(t *testing.T) (*Olric, error) {

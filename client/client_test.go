@@ -19,11 +19,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/client/internal/testutils"
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
-func newTestConfig(db *testutils.Olric) *Config {
+func newTestConfig(db *testolric.Olric) *Config {
 	return &Config{
 		Client: &config.Client{
 			DialTimeout: time.Second,
@@ -35,7 +35,7 @@ func newTestConfig(db *testutils.Olric) *Config {
 }
 
 func TestClient_Ping(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -54,7 +54,7 @@ func TestClient_Ping(t *testing.T) {
 }
 
 func TestClient_Stats(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

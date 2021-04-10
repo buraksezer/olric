@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/client/internal/testutils"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 func mockCreateStream(ctx context.Context, _ string, read chan<- protocol.EncodeDecoder, write <-chan protocol.EncodeDecoder) error {
@@ -47,7 +47,7 @@ func mockCreateStream(ctx context.Context, _ string, read chan<- protocol.Encode
 }
 
 func TestStream_EchoListener(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -110,7 +110,7 @@ func TestStream_EchoListener(t *testing.T) {
 }
 
 func TestStream_CreateNewStream(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -143,7 +143,7 @@ func TestStream_CreateNewStream(t *testing.T) {
 }
 
 func TestStream_MultipleListeners(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -228,7 +228,7 @@ func TestStream_MultipleListeners(t *testing.T) {
 }
 
 func TestStream_PingPong(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

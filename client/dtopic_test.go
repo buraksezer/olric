@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/client/internal/testutils"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 func TestClient_DTopicPublish(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -47,7 +47,7 @@ func TestClient_DTopicPublish(t *testing.T) {
 }
 
 func TestClient_DTopicPublishMessages(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -95,7 +95,7 @@ func TestClient_DTopicPublishMessages(t *testing.T) {
 }
 
 func TestClient_DTopicAddListener(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -117,7 +117,7 @@ func TestClient_DTopicAddListener(t *testing.T) {
 }
 
 func TestClient_DTopicOnMessage(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -160,7 +160,7 @@ func TestClient_DTopicOnMessage(t *testing.T) {
 }
 
 func TestClient_DTopicRemoveListener(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -196,7 +196,7 @@ func TestClient_DTopicRemoveListener(t *testing.T) {
 }
 
 func TestClient_DTopicDestroy(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -234,7 +234,7 @@ func TestClient_DTopicDestroy(t *testing.T) {
 }
 
 func TestDTopic_DeliveryOrder(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -251,7 +251,7 @@ func TestDTopic_DeliveryOrder(t *testing.T) {
 }
 
 func TestDTopic_OrderedDelivery(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

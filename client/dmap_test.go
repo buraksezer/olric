@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/client/internal/testutils"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 func TestClient_Get(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -57,7 +57,7 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_GetEntry(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -94,7 +94,7 @@ func TestClient_GetEntry(t *testing.T) {
 }
 
 func TestClient_Put(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -142,7 +142,7 @@ func TestClient_Put(t *testing.T) {
 }
 
 func TestClient_PutEx(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -175,7 +175,7 @@ func TestClient_PutEx(t *testing.T) {
 }
 
 func TestClient_Delete(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -205,7 +205,7 @@ func TestClient_Delete(t *testing.T) {
 }
 
 func TestClient_LockWithTimeout(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -231,7 +231,7 @@ func TestClient_LockWithTimeout(t *testing.T) {
 }
 
 func TestClient_LockWithTimeoutAwaitOtherLock(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -257,7 +257,7 @@ func TestClient_LockWithTimeoutAwaitOtherLock(t *testing.T) {
 }
 
 func TestClient_Lock(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -283,7 +283,7 @@ func TestClient_Lock(t *testing.T) {
 }
 
 func TestClient_LockAwaitOtherLock(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -309,7 +309,7 @@ func TestClient_LockAwaitOtherLock(t *testing.T) {
 }
 
 func TestClient_Destroy(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -339,7 +339,7 @@ func TestClient_Destroy(t *testing.T) {
 }
 
 func TestClient_Incr(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -385,7 +385,7 @@ func TestClient_Incr(t *testing.T) {
 }
 
 func TestClient_Decr(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -431,7 +431,7 @@ func TestClient_Decr(t *testing.T) {
 }
 
 func TestClient_GetPut(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -484,7 +484,7 @@ func TestClient_GetPut(t *testing.T) {
 }
 
 func TestClient_Expire(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -524,7 +524,7 @@ func TestClient_Expire(t *testing.T) {
 }
 
 func TestClient_PutIf(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -560,7 +560,7 @@ func TestClient_PutIf(t *testing.T) {
 }
 
 func TestClient_PutIfEx(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

@@ -19,12 +19,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/buraksezer/olric/client/internal/testutils"
+	"github.com/buraksezer/olric/internal/testolric"
 	"github.com/buraksezer/olric/query"
 )
 
 func TestClient_Query(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

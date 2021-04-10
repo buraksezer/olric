@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/client/internal/testutils"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 func TestPipeline_Put(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -64,7 +64,7 @@ func TestPipeline_Put(t *testing.T) {
 }
 
 func TestPipeline_Get(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -116,7 +116,7 @@ func TestPipeline_Get(t *testing.T) {
 }
 
 func TestPipeline_PutEx(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -155,7 +155,7 @@ func TestPipeline_PutEx(t *testing.T) {
 }
 
 func TestPipeline_Delete(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -231,7 +231,7 @@ func TestPipeline_Delete(t *testing.T) {
 }
 
 func TestPipeline_IncrDecr(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -291,7 +291,7 @@ func TestPipeline_IncrDecr(t *testing.T) {
 }
 
 func TestPipeline_GetPut(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -359,7 +359,7 @@ func TestPipeline_GetPut(t *testing.T) {
 }
 
 func TestPipeline_Destroy(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -420,7 +420,7 @@ func TestPipeline_Destroy(t *testing.T) {
 }
 
 func TestPipeline_Expire(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -489,7 +489,7 @@ func TestPipeline_Expire(t *testing.T) {
 }
 
 func TestPipeline_PutIf(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -553,7 +553,7 @@ func TestPipeline_PutIf(t *testing.T) {
 }
 
 func TestPipeline_PutIfEx(t *testing.T) {
-	srv, err := testutils.NewOlric(t)
+	srv, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

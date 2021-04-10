@@ -15,97 +15,25 @@
 package cli
 
 import (
-	"context"
-	"log"
-	"net"
-	"strconv"
 	"testing"
 	"time"
-
-	"github.com/buraksezer/olric/internal/kvstore"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/client"
 	"github.com/buraksezer/olric/config"
-	"github.com/hashicorp/memberlist"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 var testConfig = &client.Config{
 	Client: config.NewClient(),
 }
 
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
-func newDB() (*olric.Olric, chan struct{}, error) {
-	port, err := getFreePort()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	mc := memberlist.DefaultLocalConfig()
-	mc.BindPort = 0
-
-	sc := config.NewStorageEngine()
-	// default storage engine: kvstore
-	engine := &kvstore.KVStore{}
-	sc.Config[engine.Name()] = map[string]interface{}{
-		"tableSize": 102134,
-	}
-	sc.Impls[engine.Name()] = engine
-
-	cfg := &config.Config{
-		PartitionCount:    7,
-		BindAddr:          "127.0.0.1",
-		BindPort:          port,
-		ReplicaCount:      config.MinimumReplicaCount,
-		WriteQuorum:       config.MinimumReplicaCount,
-		ReadQuorum:        config.MinimumReplicaCount,
-		MemberCountQuorum: config.MinimumMemberCountQuorum,
-		MemberlistConfig:  mc,
-		StorageEngines:    sc,
-	}
-	db, err := olric.New(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	done := make(chan struct{})
-	go func() {
-		rerr := db.Start()
-		if rerr != nil {
-			log.Printf("[ERROR] Expected nil. Got %v", rerr)
-		}
-		close(done)
-	}()
-	time.Sleep(100 * time.Millisecond)
-	testConfig.Servers = []string{"127.0.0.1:" + strconv.Itoa(port)}
-	return db, done, nil
-}
-
-func TestEvaluate(t *testing.T) {
-	db, done, err := newDB()
+func TestOlric_CLI_Evaluate(t *testing.T) {
+	db, err := testolric.NewOlric(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			t.Errorf("Expected nil. Got %v", err)
-		}
-		<-done
-	}()
+	testConfig.Servers = []string{db.Addr}
 
 	cl, err := client.New(testConfig)
 	if err != nil {
