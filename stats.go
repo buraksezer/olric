@@ -26,7 +26,7 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
-func toMember(member discovery.Member) stats.Member{
+func toMember(member discovery.Member) stats.Member {
 	return stats.Member{
 		Name:      member.Name,
 		ID:        member.ID,
@@ -57,7 +57,7 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
-		Member: toMember(db.rt.This()),
+		Member:         toMember(db.rt.This()),
 		Partitions:     make(map[uint64]stats.Partition),
 		Backups:        make(map[uint64]stats.Partition),
 		ClusterMembers: make(map[uint64]stats.Member),
