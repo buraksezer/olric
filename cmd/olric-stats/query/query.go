@@ -58,11 +58,6 @@ func New(addr, timeout string, logger *log.Logger) (*Query, error) {
 
 func (q *Query) prettyPrint(partID uint64, part stats.Partition) {
 	q.log.Printf("PartID: %d", partID)
-	if len(part.Owner.String()) == 0 {
-		q.log.Printf("  Owner: not found")
-	} else {
-		q.log.Printf("  Owner: %s", part.Owner.String())
-	}
 	if len(part.PreviousOwners) != 0 {
 		q.log.Printf("  Previous Owners:")
 		for idx, previous := range part.PreviousOwners {
@@ -109,15 +104,13 @@ func (q *Query) PrintRawStats(backup bool) error {
 	if backup {
 		partitions = data.Backups
 	}
-	for partID := uint64(0); partID < uint64(len(partitions)); partID++ {
-		if part, ok := partitions[partID]; ok {
-			q.prettyPrint(partID, part)
-			totalLength += part.Length
-			for _, dm := range part.DMaps {
-				totalInuse += dm.SlabInfo.Inuse
-				totalAllocated += dm.SlabInfo.Allocated
-				totalGarbage += dm.SlabInfo.Garbage
-			}
+	for partID, part := range partitions {
+		q.prettyPrint(partID, part)
+		totalLength += part.Length
+		for _, dm := range part.DMaps {
+			totalInuse += dm.SlabInfo.Inuse
+			totalAllocated += dm.SlabInfo.Allocated
+			totalGarbage += dm.SlabInfo.Garbage
 		}
 	}
 	q.log.Printf("Summary for %s:\n\n", q.addr)

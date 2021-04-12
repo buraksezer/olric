@@ -24,13 +24,53 @@ import (
 	"github.com/vmihailenco/msgpack"
 )
 
+func toMember(member discovery.Member) stats.Member {
+	return stats.Member{
+		Name:      member.Name,
+		ID:        member.ID,
+		Birthdate: member.Birthdate,
+	}
+}
+
+func toMembers(members []discovery.Member) []stats.Member {
+	var _stats []stats.Member
+	for _, m := range members {
+		_stats = append(_stats, toMember(m))
+	}
+	return _stats
+}
+
+func (db *Olric) collectPartitionStats(partID uint64, part *partition) stats.Partition {
+	p := stats.Partition{
+		Backups: toMembers(db.backups[partID].loadOwners()),
+		Length:  part.length(),
+		DMaps:   make(map[string]stats.DMap),
+	}
+	owners := part.loadOwners()
+	if len(owners) > 0 {
+		p.PreviousOwners = toMembers(owners[:len(owners)-1])
+	}
+	part.m.Range(func(name, dm interface{}) bool {
+		dm.(*dmap).Lock()
+		tmp := stats.DMap{
+			Length:    dm.(*dmap).storage.Len(),
+			NumTables: dm.(*dmap).storage.NumTables(),
+			SlabInfo:  stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),
+		}
+		p.DMaps[name.(string)] = tmp
+		dm.(*dmap).Unlock()
+		return true
+	})
+	return p
+}
+
 func (db *Olric) stats() stats.Stats {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
-		ClusterCoordinator: db.discovery.GetCoordinator(),
+		ClusterCoordinator: toMember(db.discovery.GetCoordinator()),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
@@ -39,51 +79,30 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
+		Member:         toMember(db.this),
 		Partitions:     make(map[uint64]stats.Partition),
 		Backups:        make(map[uint64]stats.Partition),
-		ClusterMembers: make(map[uint64]discovery.Member),
+		ClusterMembers: make(map[uint64]stats.Member),
 	}
 
 	db.members.mtx.RLock()
 	for id, member := range db.members.m {
 		// List of bootstrapped cluster members
-		s.ClusterMembers[id] = member
+		s.ClusterMembers[id] = toMember(member)
 	}
 	db.members.mtx.RUnlock()
 
-	collect := func(partID uint64, part *partition) stats.Partition {
-		owners := part.loadOwners()
-		p := stats.Partition{
-			Backups: db.backups[partID].loadOwners(),
-			Length:  part.length(),
-			DMaps:   make(map[string]stats.DMap),
-		}
-		if !part.backup {
-			p.Owner = part.owner()
-		}
-		if len(owners) > 0 {
-			p.PreviousOwners = owners[:len(owners)-1]
-		}
-		part.m.Range(func(name, dm interface{}) bool {
-			dm.(*dmap).Lock()
-			tmp := stats.DMap{
-				Length:    dm.(*dmap).storage.Len(),
-				NumTables: dm.(*dmap).storage.NumTables(),
-				SlabInfo:  stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),
-			}
-			p.DMaps[name.(string)] = tmp
-			dm.(*dmap).Unlock()
-			return true
-		})
-		return p
-	}
 	routingMtx.RLock()
 	for partID, part := range db.partitions {
-		s.Partitions[partID] = collect(partID, part)
+		if db.checkOwnership(part) {
+			s.Partitions[partID] = db.collectPartitionStats(partID, part)
+		}
 	}
 
 	for partID, part := range db.backups {
-		s.Backups[partID] = collect(partID, part)
+		if db.checkOwnership(part) {
+			s.Backups[partID] = db.collectPartitionStats(partID, part)
+		}
 	}
 	routingMtx.RUnlock()
 	return s
@@ -100,7 +119,8 @@ func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
-// Stats exposes some useful metrics to monitor an Olric node.
+// Stats collects and returns Golang runtime metrics and partition statistics.
+// All data is belong to the current node. See stats.Stats for more information.
 func (db *Olric) Stats() (stats.Stats, error) {
 	if err := db.checkOperationStatus(); err != nil {
 		return stats.Stats{}, err
