@@ -109,7 +109,8 @@ func (c *Client) request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, er
 	return c.client.RequestTo(addr, req)
 }
 
-// Stats exposes some useful metrics to monitor an Olric node.
+// Stats collects and returns Golang runtime metrics and partition statistics.
+// All data is belong to the given node. See stats.Stats for more information.
 func (c *Client) Stats(addr string) (stats.Stats, error) {
 	s := stats.Stats{}
 	req := protocol.NewSystemMessage(protocol.OpStats)

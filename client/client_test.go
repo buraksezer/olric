@@ -153,9 +153,6 @@ func TestClient_Stats(t *testing.T) {
 			t.Fatalf("Expected Length is bigger than 0. Got: %d", part.Length)
 		}
 		totalByKeyCount += part.Length
-		if part.Owner.String() != addr {
-			t.Fatalf("Expected partition owner: %s. Got: %s", addr, part.Owner)
-		}
 	}
 	if totalByKeyCount != 100 {
 		t.Fatalf("Expected total length of partitions in stats is 100. Got: %d", total)
