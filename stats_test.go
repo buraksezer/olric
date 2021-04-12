@@ -162,12 +162,9 @@ func TestStatsCluster(t *testing.T) {
 		}
 
 		for _, member := range []discovery.Member{db1.this, db2.this} {
-			m, ok := s.ClusterMembers[member.ID]
+			_, ok := s.ClusterMembers[member.ID]
 			if !ok {
 				t.Fatalf("Member: %s could not be found in ClusterMembers", member)
-			}
-			if !reflect.DeepEqual(member, m) {
-				t.Fatalf("Different member for the same ID: %s", member)
 			}
 		}
 	})
