@@ -95,7 +95,7 @@ func (c *Client) DeleteServer(addr string) error {
 	return c.roundRobin.delete(addr)
 }
 
-// Ping sends a dummy protocol messsage to the given host. This is useful to
+// Ping sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
 func (c *Client) Ping(addr string) error {
 	req := protocol.NewSystemMessage(protocol.OpPing)
@@ -189,9 +189,9 @@ func checkStatusCode(resp protocol.EncodeDecoder) error {
 	}
 }
 
-func (c *Client) unmarshalValue(rawval interface{}) (interface{}, error) {
+func (c *Client) unmarshalValue(raw interface{}) (interface{}, error) {
 	var value interface{}
-	err := c.serializer.Unmarshal(rawval.([]byte), &value)
+	err := c.serializer.Unmarshal(raw.([]byte), &value)
 	if err != nil {
 		return nil, err
 	}
