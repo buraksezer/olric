@@ -147,7 +147,7 @@ func (d *DTopicMessage) SetDTopic(dtopic string) {
 	d.dtopic = dtopic
 }
 
-// Returns the DTopic name.
+// DTopic returns the DTopic name.
 func (d *DTopicMessage) DTopic() string {
 	return d.dtopic
 }
