@@ -42,6 +42,42 @@ func toMembers(members []discovery.Member) []stats.Member {
 	return _stats
 }
 
+func (db *Olric) collectPartitionMetrics(partID uint64, part *partitions.Partition) stats.Partition {
+	owners := part.Owners()
+	p := stats.Partition{
+		Backups: toMembers(db.backup.PartitionOwnersById(partID)),
+		Length:  part.Length(),
+		DMaps:   make(map[string]stats.DMap),
+	}
+	if len(owners) > 0 {
+		p.PreviousOwners = toMembers(owners[:len(owners)-1])
+	}
+	part.Map().Range(func(name, item interface{}) bool {
+		f := item.(partitions.Fragment)
+		st := f.Stats()
+		tmp := stats.DMap{
+			Length:    st.Length,
+			NumTables: st.NumTables,
+		}
+		tmp.SlabInfo.Allocated = st.Allocated
+		tmp.SlabInfo.Garbage = st.Garbage
+		tmp.SlabInfo.Inuse = st.Inuse
+		p.DMaps[name.(string)] = tmp
+		return true
+	})
+	return p
+}
+
+func (db *Olric) checkPartitionOwnership(part *partitions.Partition) bool {
+	owners := part.Owners()
+	for _, owner := range owners {
+		if owner.CompareByID(db.rt.This()) {
+			return true
+		}
+	}
+	return false
+}
+
 func (db *Olric) stats() stats.Stats {
 	mem := &runtime.MemStats{}
 	runtime.ReadMemStats(mem)
@@ -63,35 +99,6 @@ func (db *Olric) stats() stats.Stats {
 		ClusterMembers: make(map[uint64]stats.Member),
 	}
 
-	collect := func(partID uint64, part *partitions.Partition) stats.Partition {
-		owners := part.Owners()
-		p := stats.Partition{
-			Backups: toMembers(db.backup.PartitionOwnersById(partID)),
-			Length:  part.Length(),
-			DMaps:   make(map[string]stats.DMap),
-		}
-		if part.Kind() == partitions.PRIMARY {
-			p.Owner = toMember(part.Owner())
-		}
-		if len(owners) > 0 {
-			p.PreviousOwners = toMembers(owners[:len(owners)-1])
-		}
-		part.Map().Range(func(name, item interface{}) bool {
-			f := item.(partitions.Fragment)
-			st := f.Stats()
-			tmp := stats.DMap{
-				Length:    st.Length,
-				NumTables: st.NumTables,
-			}
-			tmp.SlabInfo.Allocated = st.Allocated
-			tmp.SlabInfo.Garbage = st.Garbage
-			tmp.SlabInfo.Inuse = st.Inuse
-			p.DMaps[name.(string)] = tmp
-			return true
-		})
-		return p
-	}
-
 	db.rt.RLock()
 	defer db.rt.RUnlock()
 
@@ -101,9 +108,14 @@ func (db *Olric) stats() stats.Stats {
 	})
 
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		part := db.primary.PartitionById(partID)
-		s.Partitions[partID] = collect(partID, part)
-		s.Backups[partID] = collect(partID, part)
+		primary := db.primary.PartitionById(partID)
+		if db.checkPartitionOwnership(primary) {
+			s.Partitions[partID] = db.collectPartitionMetrics(partID, primary)
+		}
+		backup := db.backup.PartitionById(partID)
+		if db.checkPartitionOwnership(backup) {
+			s.Backups[partID] = db.collectPartitionMetrics(partID, backup)
+		}
 	}
 
 	return s

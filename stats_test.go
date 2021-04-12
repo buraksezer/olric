@@ -42,6 +42,10 @@ func TestOlric_Stats(t *testing.T) {
 		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.rt.This(), s.ClusterCoordinator)
 	}
 
+	assert.Equal(t, s.Member.Name, db.rt.This().Name)
+	assert.Equal(t, s.Member.ID, db.rt.This().ID)
+	assert.Equal(t, s.Member.Birthdate, db.rt.This().Birthdate)
+
 	var total int
 	for partID, part := range s.Partitions {
 		total += part.Length
@@ -54,9 +58,6 @@ func TestOlric_Stats(t *testing.T) {
 		}
 		if part.Length <= 0 {
 			t.Fatalf("Unexpected Length: %d", part.Length)
-		}
-		if part.Owner.ID != db.rt.This().ID {
-			t.Fatalf("Expected partition owner: %s. Got: %s", db.rt.This(), part.Owner)
 		}
 	}
 	if total != 100 {

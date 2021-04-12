@@ -43,7 +43,6 @@ type DMap struct {
 
 // Partition denotes a partition and its metadata in the cluster.
 type Partition struct {
-	Owner          Member
 	PreviousOwners []Member
 	Backups        []Member
 	Length         int
