@@ -186,7 +186,7 @@ func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.E
 	return nil, neterrors.GetByCode(status)
 }
 
-// Starts starts the distributed map service.
+// Start starts the distributed map service.
 func (s *Service) Start() error {
 	s.wg.Add(1)
 	go s.janitor()

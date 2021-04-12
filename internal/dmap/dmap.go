@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/pkg/storage"
 	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
@@ -41,6 +42,7 @@ var (
 type DMap struct {
 	name   string
 	s      *Service
+	engine storage.Engine
 	config *dmapConfig
 }
 
@@ -88,6 +90,13 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	if err := dm.config.load(s.config.DMaps, name); err != nil {
 		return nil, err
 	}
+
+	engine, ok := dm.s.storage.engines[dm.config.storageEngine]
+	if !ok {
+		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
+	}
+	dm.engine = engine
+
 	s.dmaps[name] = dm
 	return dm, nil
 }
@@ -110,10 +119,6 @@ func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition) (*fragment
 }
 
 func (dm *DMap) createFragmentOnPartition(part *partitions.Partition) (*fragment, error) {
-	engine, ok := dm.s.storage.engines[dm.config.storageEngine]
-	if !ok {
-		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &fragment{
 		service:   dm.s,
@@ -122,7 +127,7 @@ func (dm *DMap) createFragmentOnPartition(part *partitions.Partition) (*fragment
 		cancel:    cancel,
 	}
 	var err error
-	f.storage, err = engine.Fork(nil)
+	f.storage, err = dm.engine.Fork(nil)
 	if err != nil {
 		return nil, err
 	}

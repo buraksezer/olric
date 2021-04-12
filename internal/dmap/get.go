@@ -21,7 +21,6 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -84,7 +83,7 @@ func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*ver
 	if err != nil {
 		return nil, err
 	}
-	data := kvstore.NewEntry()
+	data := dm.engine.NewEntry()
 	data.Decode(resp.Value())
 	v.entry = data
 	return v, nil
@@ -194,10 +193,11 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		resp, err := dm.s.requestTo(replica.String(), req)
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
-				dm.s.log.V(3).Printf("[ERROR] Failed to call get on a replica owner: %s: %v", replica, err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to call get on" +
+					" a replica owner: %s: %v", replica, err)
 			}
 		} else {
-			data := kvstore.NewEntry()
+			data := dm.engine.NewEntry()
 			data.Decode(resp.Value())
 			ver.entry = data
 		}
@@ -313,7 +313,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entry := kvstore.NewEntry()
+	entry := dm.engine.NewEntry()
 	entry.Decode(resp.Value())
 	return entry, nil
 }

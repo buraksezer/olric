@@ -20,12 +20,14 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
-// dmap provides methods to access distributed maps on Olric cluster.
+// DMap provides methods to access distributed maps on Olric cluster.
 type DMap struct {
 	*Client
-	name string
+	engine storage.Engine
+	name   string
 }
 
 func (c *Client) processGetResponse(resp protocol.EncodeDecoder) (interface{}, error) {
@@ -48,7 +50,13 @@ func (d *DMap) Get(key string) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	return d.processGetResponse(resp)
+	if err := checkStatusCode(resp); err != nil {
+		return nil, err
+	}
+
+	entry := d.engine.NewEntry()
+	entry.Decode(resp.Value())
+	return d.unmarshalValue(entry.Value())
 }
 
 // GetEntry gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key.
@@ -64,12 +72,14 @@ func (d *DMap) GetEntry(key string) (*olric.Entry, error) {
 	if err := checkStatusCode(resp); err != nil {
 		return nil, err
 	}
-	entry := kvstore.NewEntry()
+
+	entry := d.engine.NewEntry()
 	entry.Decode(resp.Value())
 	value, err := d.unmarshalValue(entry.Value())
 	if err != nil {
 		return nil, err
 	}
+
 	return &olric.Entry{
 		Key:       entry.Key(),
 		TTL:       entry.TTL(),

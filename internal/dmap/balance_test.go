@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
@@ -83,7 +82,7 @@ func TestDMap_Merge_Fragments(t *testing.T) {
 
 	t.Run("selectVersionForMerge", func(t *testing.T) {
 		currentValue := []byte("current-value")
-		e := kvstore.NewEntry()
+		e := dm.engine.NewEntry()
 		e.SetKey(key)
 		e.SetTimestamp(time.Now().UnixNano())
 		e.SetValue(currentValue)

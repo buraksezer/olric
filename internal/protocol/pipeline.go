@@ -30,7 +30,7 @@ const (
 	MagicPipelineRes MagicCode = 0xE7
 )
 
-// Header defines a message header for both request and response.
+// PipelineMessageHeader defines a message header for both request and response.
 type PipelineMessageHeader struct {
 	Op         OpCode     // 1
 	ExtraLen   uint8      // 1

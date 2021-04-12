@@ -24,8 +24,10 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/serializer"
 	"github.com/buraksezer/olric/stats"
 	"github.com/pkg/errors"
@@ -39,21 +41,22 @@ var (
 
 // Client implements Go client of Olric Binary Protocol and its methods.
 type Client struct {
-	config     *Config
-	client     *transport.Client
-	roundRobin *roundRobin
-	serializer serializer.Serializer
-	streams    *streams
-	wg         sync.WaitGroup
+	config         *Config
+	client         *transport.Client
+	roundRobin     *roundRobin
+	serializer     serializer.Serializer
+	streams        *streams
+	storageEngines map[string]storage.Engine
+	wg             sync.WaitGroup
 }
 
 // Config includes configuration parameters for the Client.
 type Config struct {
-	Servers    []string
-	Serializer serializer.Serializer
-	Client     *config.Client
-	// TODO: This item may be moved to config.Client
-	MaxListenersPerStream int
+	Servers               []string
+	Serializer            serializer.Serializer
+	Client                *config.Client
+	MaxListenersPerStream int // TODO: This item may be moved to config.Client
+	StorageEngines        map[string]storage.Engine
 }
 
 // New returns a new Client instance. The second parameter is serializer, it can be nil.
@@ -77,12 +80,25 @@ func New(c *Config) (*Client, error) {
 	// createStreamFunction and I overwrite that function in test.
 	createStreamFunction = client.CreateStream
 	return &Client{
-		roundRobin: newRoundRobin(c.Servers),
-		config:     c,
-		client:     client,
-		serializer: c.Serializer,
-		streams:    &streams{m: make(map[uint64]*stream)},
+		roundRobin:     newRoundRobin(c.Servers),
+		config:         c,
+		client:         client,
+		serializer:     c.Serializer,
+		storageEngines: c.StorageEngines,
+		streams:        &streams{m: make(map[uint64]*stream)},
 	}, nil
+}
+
+func (c *Client) getStorageEngine(name string) storage.Engine {
+	// name is DMap name
+	// Get or create an uninitialized instance of the storage engine
+	// We need this to encode/decode DMap entries.
+	engine, ok := c.storageEngines[name]
+	if !ok {
+		// Use the default one.
+		engine = &kvstore.KVStore{}
+	}
+	return engine
 }
 
 // AddServer adds a new server to the servers list. Incoming requests are distributed evenly among the servers.
@@ -141,11 +157,12 @@ func (c *Client) Close() {
 	c.wg.Wait()
 }
 
-// NewDMap creates and returns a new dmap instance to access DMaps on the cluster.
+// NewDMap creates and returns a new DMap instance to access DMaps on the cluster.
 func (c *Client) NewDMap(name string) *DMap {
 	return &DMap{
 		Client: c,
 		name:   name,
+		engine: c.getStorageEngine(name),
 	}
 }
 

@@ -19,18 +19,14 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/buraksezer/olric/pkg/neterrors"
-
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/query"
 	"github.com/hashicorp/go-multierror"
 	"github.com/vmihailenco/msgpack"
 	"golang.org/x/sync/semaphore"
 )
-
-// TODO: Query implementation should be reviewed carefully
 
 const NumParallelQuery = 2
 
@@ -121,7 +117,7 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storag
 	result := make(map[uint64]storage.Entry)
 	for _, response := range responses {
 		for hkey, tmp1 := range response {
-			val1 := kvstore.NewEntry()
+			val1 := c.dm.engine.NewEntry()
 			val1.Decode(tmp1)
 
 			if val2, ok := result[hkey]; ok {

@@ -17,5 +17,5 @@ package storage
 import "testing"
 
 func Test_LoadAsPlugin(t *testing.T) {
-
+	// TODO: Add some tests here
 }
