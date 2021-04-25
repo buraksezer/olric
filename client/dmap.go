@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -26,18 +25,8 @@ import (
 // DMap provides methods to access distributed maps on Olric cluster.
 type DMap struct {
 	*Client
-	engine storage.Engine
-	name   string
-}
-
-func (c *Client) processGetResponse(resp protocol.EncodeDecoder) (interface{}, error) {
-	if err := checkStatusCode(resp); err != nil {
-		return nil, err
-	}
-	// TODO: Use engine.Entry interface
-	entry := kvstore.NewEntry()
-	entry.Decode(resp.Value())
-	return c.unmarshalValue(entry.Value())
+	entryFormat storage.Entry
+	name        string
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB does not contains the key.
@@ -53,8 +42,7 @@ func (d *DMap) Get(key string) (interface{}, error) {
 	if err := checkStatusCode(resp); err != nil {
 		return nil, err
 	}
-
-	entry := d.engine.NewEntry()
+	entry := d.getEntryFormat(d.name)
 	entry.Decode(resp.Value())
 	return d.unmarshalValue(entry.Value())
 }
@@ -73,7 +61,7 @@ func (d *DMap) GetEntry(key string) (*olric.Entry, error) {
 		return nil, err
 	}
 
-	entry := d.engine.NewEntry()
+	entry := d.getEntryFormat(d.name)
 	entry.Decode(resp.Value())
 	value, err := d.unmarshalValue(entry.Value())
 	if err != nil {
@@ -287,11 +275,11 @@ func (c *Client) processGetPutResponse(resp protocol.EncodeDecoder) (interface{}
 	if len(resp.Value()) == 0 {
 		return nil, nil
 	}
-	oldval, err := c.unmarshalValue(resp.Value())
+	old, err := c.unmarshalValue(resp.Value())
 	if err != nil {
 		return nil, err
 	}
-	return oldval, nil
+	return old, nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.

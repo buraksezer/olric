@@ -14,7 +14,10 @@
 
 package client
 
-import "github.com/buraksezer/olric/internal/protocol"
+import (
+	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
 // PipelineResponse implements response readers for pipelined requests.
 type PipelineResponse struct {
@@ -58,7 +61,16 @@ func (pr *PipelineResponse) Operation() string {
 // It's thread-safe. It is safe to modify the contents of the returned value.
 // It is safe to modify the contents of the argument after Get returns.
 func (pr *PipelineResponse) Get() (interface{}, error) {
-	return pr.processGetResponse(pr.response)
+	if err := checkStatusCode(pr.response); err != nil {
+		return nil, err
+	}
+	// TODO: Currently we cannot use the common interface for storage entries
+	// Because, we don't know what storage engine or entry format in use for this
+	// entry. This info should be carried in the protocol. For 0.4.x, it's hard to
+	// fix. We need to fix this in a new OBP revision.
+	entry := kvstore.NewEntry()
+	entry.Decode(pr.response.Value())
+	return pr.unmarshalValue(entry.Value())
 }
 
 // Put sets the value for the requested key. It overwrites any previous value for that key and
