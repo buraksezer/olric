@@ -142,13 +142,13 @@ func processMemberlistConfig(c *loader.Loader, mc *memberlist.Config) (*memberli
 
 func (c *Config) validateMemberlistConfig() error {
 	var result error
-	if len(c.MemberlistConfig.AdvertiseAddr) != 0 {
+	if c.MemberlistConfig.AdvertiseAddr != "" {
 		if ip := net.ParseIP(c.MemberlistConfig.AdvertiseAddr); ip == nil {
 			result = multierror.Append(result,
 				fmt.Errorf("memberlist: AdvertiseAddr has to be a valid IPv4 or IPv6 address"))
 		}
 	}
-	if len(c.MemberlistConfig.BindAddr) == 0 {
+	if c.MemberlistConfig.BindAddr != "" {
 		result = multierror.Append(result,
 			fmt.Errorf("memberlist: BindAddr cannot be an empty string"))
 	}

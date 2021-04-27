@@ -37,7 +37,7 @@ func durationCondition(name string) bool {
 }
 
 func keepaliveCondition(name string, field reflect.Value) bool {
-	return strings.ToUpper(name) == "KEEPALIVE" && field.Kind() == reflect.Int64
+	return strings.EqualFold(name, "KEEPALIVE") && field.Kind() == reflect.Int64
 }
 
 // mapYamlToConfig maps a parsed yaml to related configuration struct.

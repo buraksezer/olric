@@ -18,12 +18,26 @@ import (
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
+// StorageEngines contains storage engine configuration and their implementations.
+// If you don't have a custom storage engine implementation or configuration for
+// the default one, just call NewStorageEngine() function to use it with sane defaults.
 type StorageEngines struct {
+	// Plugins is an array that contains the paths of storage engine plugins.
+	// These plugins have to implement storage.Engine interface.
 	Plugins []string
-	Impls   map[string]storage.Engine
-	Config  map[string]map[string]interface{}
+
+	// Impls is a map that contains storage engines with their names.
+	// This is useful to import and use external storage engine implementations.
+	Impls map[string]storage.Engine
+
+	// Config is a map that contains configuration of the storage engines, for
+	// both plugins and imported ones.
+	Config map[string]map[string]interface{}
 }
 
+// NewStorageEngine initializes StorageEngine configuration with sane defaults.
+// Olric will set its own storage engine implementation and related configuration,
+// if there is no other engine.
 func NewStorageEngine() *StorageEngines {
 	return &StorageEngines{
 		Plugins: []string{},

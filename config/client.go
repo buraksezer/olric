@@ -22,7 +22,7 @@ const (
 	DefaultWriteTimeout = 3 * time.Second
 )
 
-// Configuration for TCP clients in Olric and the official Golang client.
+// Client denotes configuration for TCP clients in Olric and the official Golang client.
 type Client struct {
 	// Timeout for TCP dial.
 	//

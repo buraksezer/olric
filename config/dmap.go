@@ -24,49 +24,58 @@ import (
 // EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
 type EvictionPolicy string
 
-// Important note on DMap and DMaps:
+// Important note on DMap and DMaps structs:
 // Golang does not provide the typical notion of inheritance.
 // because of that I preferred to define the types explicitly.
 
-// DMap denotes cache configuration for a particular dmap.
+// DMap denotes configuration for a particular distributed map. Most of the
+// fields are related with distributed cache implementation.
 type DMap struct {
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
-	// It limits the lifetime of the entries relative to the time of the last
-	// read or write access performed on them. The entries whose idle period exceeds
-	// this limit are expired and evicted automatically. An entry is idle if no Get,
-	// Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of MaxIdleDuration
-	// feature varies by preferred deployment method.
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the
+	// DMap. It limits the lifetime of the entries relative to the time of the
+	// last read or write access performed on them. The entries whose idle period
+	// exceeds this limit are expired and evicted automatically. An entry is idle
+	// if no Get, GetEntry, Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration
+	// of MaxIdleDuration feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
 
-	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
+	// TTLDuration is useful to set a default TTL for every key/value pair a DMap
+	// instance.
 	TTLDuration time.Duration
 
-	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
-	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
+	// MaxKeys denotes maximum key count on a particular node. So if you have 10
+	// nodes with MaxKeys=100000, your key count in the cluster should be around
+	// MaxKeys*10=1000000
 	MaxKeys int
 
-	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
-	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
+	// MaxInuse denotes maximum amount of in-use memory on a particular node. So
+	// if you have 10 nodes with MaxInuse=100M (it has to be in bytes), amount of
+	// in-use memory should be around MaxInuse*10=1G
 	MaxInuse int
 
-	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
-	// Lower values are better for high performance. It's 5 by default.
+	// LRUSamples denotes amount of randomly selected key count by the approximate
+	// LRU implementation. Lower values are better for high performance. It's 5
+	// by default.
 	LRUSamples int
 
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
 
+	// Name of the storage engine. The default one is kvstore. Leave it empty if
+	// you want to use the default one.
 	StorageEngine string
 }
 
-// DMaps denotes a global configuration for DMaps. You can still overwrite it by setting a
-// DMap for a particular dmap. Don't set this if you use Olric as an ordinary key/value store.
+// DMaps denotes a global configuration for DMaps. You can still overwrite it by
+// setting a DMap for a particular distributed map via Custom field. Most of the
+// fields are related with distributed cache implementation.
 type DMaps struct {
-	// NumEvictionWorkers denotes the number of goroutines that's used to find keys for eviction.
+	// NumEvictionWorkers denotes the number of goroutines that's used to find
+	// keys for eviction.
 	NumEvictionWorkers int64
 
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the dmap.
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period exceeds
 	// this limit are expired and evicted automatically. An entry is idle if no Get,
@@ -74,25 +83,31 @@ type DMaps struct {
 	// feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
 
-	// TTLDuration is useful to set a default TTL for every key/value pair a dmap instance.
+	// TTLDuration is useful to set a default TTL for every key/value pair a
+	// distributed map instance.
 	TTLDuration time.Duration
 
-	// MaxKeys denotes maximum key count on a particular node. So if you have 10 nodes with
-	// MaxKeys=100000, your key count in the cluster should be around MaxKeys*10=1000000
+	// MaxKeys denotes maximum key count on a particular node. So if you have 10
+	// nodes with MaxKeys=100000, your key count in the cluster should be around
+	// MaxKeys*10=1000000
 	MaxKeys int
 
-	// MaxInuse denotes maximum amount of in-use memory on a particular node. So if you have 10 nodes with
-	// MaxInuse=100M (it has to be in bytes), amount of in-use memory should be around MaxInuse*10=1G
+	// MaxInuse denotes maximum amount of in-use memory on a particular node.
+	// So if you have 10 nodes with MaxInuse=100M (it has to be in bytes), amount
+	// of in-use memory should be around MaxInuse*10=1G
 	MaxInuse int
 
-	// LRUSamples denotes amount of randomly selected key count by the aproximate LRU implementation.
-	// Lower values are better for high performance. It's 5 by default.
+	// LRUSamples denotes amount of randomly selected key count by the approximate
+	// LRU implementation. Lower values are better for high performance. It's
+	// 5 by default.
 	LRUSamples int
 
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
 
+	// Name of the storage engine. The default one is kvstore. Leave it empty if
+	// you want to use the default one.
 	StorageEngine string
 
 	// Custom is useful to set custom cache config per DMap instance.
