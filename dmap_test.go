@@ -19,10 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/query"
-
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/buraksezer/olric/query"
 )
 
 func TestOlric_DMap_Get(t *testing.T) {

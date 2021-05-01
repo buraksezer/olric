@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -56,9 +57,8 @@ func newTestOlric(t *testing.T) (*Olric, error) {
 	}
 
 	go func() {
-		err = db.Start()
-		if err != nil {
-			t.Fatalf("Failed to run Olric: %v", err)
+		if err := db.Start(); err != nil {
+			panic(fmt.Sprintf("Failed to run Olric: %v", err))
 		}
 	}()
 
@@ -69,8 +69,7 @@ func newTestOlric(t *testing.T) (*Olric, error) {
 		// everything is fine
 	}
 	t.Cleanup(func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
+		if err := db.Shutdown(context.Background()); err != nil {
 			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
 	})

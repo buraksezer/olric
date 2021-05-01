@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/checkpoint"
 	"io"
 	"net"
 	"strconv"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/hashicorp/go-multierror"
@@ -65,6 +65,8 @@ type Server struct {
 	started    context.CancelFunc
 	ctx        context.Context
 	cancel     context.CancelFunc
+	// some components of the TCP server should be closed after the listener
+	listenerGone chan struct{}
 }
 
 // NewServer creates and returns a new Server.
@@ -74,12 +76,13 @@ func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	startedCtx, started := context.WithCancel(context.Background())
 	return &Server{
-		config:     c,
-		log:        l,
-		started:    started,
-		StartedCtx: startedCtx,
-		ctx:        ctx,
-		cancel:     cancel,
+		config:       c,
+		log:          l,
+		started:      started,
+		StartedCtx:   startedCtx,
+		listenerGone: make(chan struct{}),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
@@ -233,6 +236,7 @@ func (s *Server) processConn(conn io.ReadWriteCloser) {
 // listenAndServe calls Accept on given net.Listener.
 func (s *Server) listenAndServe() error {
 	s.started()
+	defer close(s.listenerGone)
 
 	for {
 		conn, err := s.listener.Accept()
@@ -297,6 +301,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if err != nil {
 		result = multierror.Append(result, err)
 	}
+
+	// Listener is closed successfully. Now we can await for closing
+	// other components of the TCP server.
+	<-s.listenerGone
 
 	done := make(chan struct{})
 	go func() {

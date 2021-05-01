@@ -82,7 +82,7 @@ func (ss *Streams) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (ss *Streams) GetStreamById(id uint64) (*Stream, error) {
+func (ss *Streams) GetStreamByID(id uint64) (*Stream, error) {
 	ss.RLock()
 	defer ss.RUnlock()
 
@@ -93,9 +93,9 @@ func (ss *Streams) GetStreamById(id uint64) (*Stream, error) {
 	return s, nil
 }
 
-func (ss *Streams) DeleteStreamById(id uint64) {
-	ss.RLock()
-	defer ss.RUnlock()
+func (ss *Streams) DeleteStreamByID(id uint64) {
+	ss.Lock()
+	defer ss.Unlock()
 
 	delete(ss.m, id)
 }
@@ -148,7 +148,7 @@ func (ss *Streams) createStreamOperation(w, r protocol.EncodeDecoder) {
 	go ss.checkStreamAliveness(s, streamID)
 
 	defer func() {
-		ss.DeleteStreamById(streamID)
+		ss.DeleteStreamByID(streamID)
 		ss.log.V(4).Printf("[INFO] StreamID: %d is gone", streamID)
 	}()
 

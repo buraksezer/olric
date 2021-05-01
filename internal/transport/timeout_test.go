@@ -17,12 +17,13 @@ package transport
 import (
 	"bytes"
 	"context"
-	"github.com/buraksezer/olric/config"
+	"fmt"
 	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
@@ -116,9 +117,8 @@ func TestConnWithTimeout_Disabled(t *testing.T) {
 		w.SetStatus(protocol.StatusOK)
 	})
 	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+		if err := s.ListenAndServe(); err != nil {
+			panic(fmt.Sprintf("Failed to run ListenAndServe: %v", err))
 		}
 	}()
 	defer func() {
@@ -134,7 +134,10 @@ func TestConnWithTimeout_Disabled(t *testing.T) {
 		ReadTimeout:  -1 * time.Millisecond,
 		WriteTimeout: -1 * time.Millisecond,
 	}
-	cc.Sanitize()
+	if err = cc.Sanitize(); err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
 	c := NewClient(cc)
 	conn, err := c.conn(s.listener.Addr().String())
 	if err != nil {

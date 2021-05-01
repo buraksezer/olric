@@ -98,7 +98,7 @@ loop:
 			}
 
 			streamID := msg.Extra().(protocol.StreamCreatedExtra).StreamID
-			s, err := ss.GetStreamById(streamID)
+			s, err := ss.GetStreamByID(streamID)
 			if err != nil {
 				t.Fatalf("StreamID is invalid: %d", streamID)
 			}
@@ -145,7 +145,7 @@ func TestStream_EchoMessage(t *testing.T) {
 
 	f := func(m protocol.EncodeDecoder) {
 		streamID := m.Extra().(protocol.StreamCreatedExtra).StreamID
-		s, err := ss.GetStreamById(streamID)
+		s, err := ss.GetStreamByID(streamID)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}

@@ -24,7 +24,7 @@ func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	name := req.DTopic()
 	streamID := req.Extra().(protocol.DTopicAddListenerExtra).StreamID
-	ss, err := s.streams.GetStreamById(streamID)
+	ss, err := s.streams.GetStreamByID(streamID)
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return
@@ -48,7 +48,7 @@ func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	}()
 
 	f := func(msg Message) {
-		ss, err := s.streams.GetStreamById(streamID)
+		ss, err := s.streams.GetStreamByID(streamID)
 		if err != nil {
 			s.log.V(4).Printf("[ERROR] Stream could not be found with the given StreamID: %d", streamID)
 			err := s.dispatcher.removeListener(name, listenerID)
