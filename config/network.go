@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,19 +88,18 @@ func getBindIP(ifname, address string) (string, error) {
 				return "", fmt.Errorf("ip scan on %s: %w", ifname, err)
 			}
 			return addr, nil
-		} else {
-			// If there is a bind IP, ensure it is available
-			for _, a := range addrs {
-				addr, ok := a.(*net.IPNet)
-				if !ok {
-					continue
-				}
-				if addr.IP.String() == bindIP {
-					return bindIP, nil
-				}
-			}
-			return "", fmt.Errorf("interface '%s' has no '%s' address", ifname, bindIP)
 		}
+		// If there is a bind IP, ensure it is available
+		for _, a := range addrs {
+			addr, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if addr.IP.String() == bindIP {
+				return bindIP, nil
+			}
+		}
+		return "", fmt.Errorf("interface '%s' has no '%s' address", ifname, bindIP)
 	}
 	if bindIP == "0.0.0.0" {
 		// if we're not bound to a specific IP, let's use a suitable private IP address.

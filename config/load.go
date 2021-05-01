@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import (
 	"github.com/buraksezer/olric/config/internal/loader"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/serializer"
+	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 )
 
@@ -37,7 +38,7 @@ func durationCondition(name string) bool {
 }
 
 func keepaliveCondition(name string, field reflect.Value) bool {
-	return strings.ToUpper(name) == "KEEPALIVE" && field.Kind() == reflect.Int64
+	return strings.EqualFold(name, "KEEPALIVE") && field.Kind() == reflect.Int64
 }
 
 // mapYamlToConfig maps a parsed yaml to related configuration struct.
@@ -67,6 +68,172 @@ func mapYamlToConfig(rawDst, rawSrc interface{}) error {
 		}
 	}
 	return nil
+}
+
+func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
+	res := &DMaps{}
+	if c.DMaps.MaxIdleDuration != "" {
+		maxIdleDuration, err := time.ParseDuration(c.DMaps.MaxIdleDuration)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse cache.MaxIdleDuration")
+		}
+		res.MaxIdleDuration = maxIdleDuration
+	}
+	if c.DMaps.TTLDuration != "" {
+		ttlDuration, err := time.ParseDuration(c.DMaps.TTLDuration)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse cache.TTLDuration")
+		}
+		res.TTLDuration = ttlDuration
+	}
+	res.NumEvictionWorkers = c.DMaps.NumEvictionWorkers
+	res.MaxKeys = c.DMaps.MaxKeys
+	res.MaxInuse = c.DMaps.MaxInuse
+	res.EvictionPolicy = EvictionPolicy(c.DMaps.EvictionPolicy)
+	res.LRUSamples = c.DMaps.LRUSamples
+	res.StorageEngine = c.DMaps.StorageEngine
+	if c.DMaps.Custom != nil {
+		res.Custom = make(map[string]DMap)
+		for name, dc := range c.DMaps.Custom {
+			cc := DMap{
+				MaxInuse:       dc.MaxInuse,
+				MaxKeys:        dc.MaxKeys,
+				EvictionPolicy: EvictionPolicy(dc.EvictionPolicy),
+				LRUSamples:     dc.LRUSamples,
+				StorageEngine:  dc.StorageEngine,
+			}
+			if dc.MaxIdleDuration != "" {
+				maxIdleDuration, err := time.ParseDuration(dc.MaxIdleDuration)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "failed to parse dmaps.%s.MaxIdleDuration", name)
+				}
+				cc.MaxIdleDuration = maxIdleDuration
+			}
+			if dc.TTLDuration != "" {
+				ttlDuration, err := time.ParseDuration(dc.TTLDuration)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "failed to parse dmaps.%s.TTLDuration", name)
+				}
+				cc.TTLDuration = ttlDuration
+			}
+			res.Custom[name] = cc
+		}
+	}
+	return res, nil
+}
+
+// loadMemberlistConfig creates a new *memberlist.Config by parsing olricd.yaml
+func loadMemberlistConfig(c *loader.Loader, mc *memberlist.Config) (*memberlist.Config, error) {
+	var err error
+	if c.Memberlist.BindAddr == "" {
+		name, err := os.Hostname()
+		if err != nil {
+			return nil, err
+		}
+		c.Memberlist.BindAddr = name
+	}
+	mc.BindAddr = c.Memberlist.BindAddr
+	mc.BindPort = c.Memberlist.BindPort
+
+	if c.Memberlist.EnableCompression != nil {
+		mc.EnableCompression = *c.Memberlist.EnableCompression
+	}
+
+	if c.Memberlist.TCPTimeout != nil {
+		mc.TCPTimeout, err = time.ParseDuration(*c.Memberlist.TCPTimeout)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if c.Memberlist.IndirectChecks != nil {
+		mc.IndirectChecks = *c.Memberlist.IndirectChecks
+	}
+
+	if c.Memberlist.RetransmitMult != nil {
+		mc.RetransmitMult = *c.Memberlist.RetransmitMult
+	}
+
+	if c.Memberlist.SuspicionMult != nil {
+		mc.SuspicionMult = *c.Memberlist.SuspicionMult
+	}
+
+	if c.Memberlist.PushPullInterval != nil {
+		mc.PushPullInterval, err = time.ParseDuration(*c.Memberlist.PushPullInterval)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if c.Memberlist.ProbeTimeout != nil {
+		mc.ProbeTimeout, err = time.ParseDuration(*c.Memberlist.ProbeTimeout)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.Memberlist.ProbeInterval != nil {
+		mc.ProbeInterval, err = time.ParseDuration(*c.Memberlist.ProbeInterval)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if c.Memberlist.GossipInterval != nil {
+		mc.GossipInterval, err = time.ParseDuration(*c.Memberlist.GossipInterval)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if c.Memberlist.GossipToTheDeadTime != nil {
+		mc.GossipToTheDeadTime, err = time.ParseDuration(*c.Memberlist.GossipToTheDeadTime)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if c.Memberlist.AdvertiseAddr != nil {
+		mc.AdvertiseAddr = *c.Memberlist.AdvertiseAddr
+	}
+
+	if c.Memberlist.AdvertisePort != nil {
+		mc.AdvertisePort = *c.Memberlist.AdvertisePort
+	} else {
+		mc.AdvertisePort = mc.BindPort
+	}
+
+	if c.Memberlist.SuspicionMaxTimeoutMult != nil {
+		mc.SuspicionMaxTimeoutMult = *c.Memberlist.SuspicionMaxTimeoutMult
+	}
+
+	if c.Memberlist.DisableTCPPings != nil {
+		mc.DisableTcpPings = *c.Memberlist.DisableTCPPings
+	}
+
+	if c.Memberlist.AwarenessMaxMultiplier != nil {
+		mc.AwarenessMaxMultiplier = *c.Memberlist.AwarenessMaxMultiplier
+	}
+
+	if c.Memberlist.GossipNodes != nil {
+		mc.GossipNodes = *c.Memberlist.GossipNodes
+	}
+	if c.Memberlist.GossipVerifyIncoming != nil {
+		mc.GossipVerifyIncoming = *c.Memberlist.GossipVerifyIncoming
+	}
+	if c.Memberlist.GossipVerifyOutgoing != nil {
+		mc.GossipVerifyOutgoing = *c.Memberlist.GossipVerifyOutgoing
+	}
+
+	if c.Memberlist.DNSConfigPath != nil {
+		mc.DNSConfigPath = *c.Memberlist.DNSConfigPath
+	}
+
+	if c.Memberlist.HandoffQueueDepth != nil {
+		mc.HandoffQueueDepth = *c.Memberlist.HandoffQueueDepth
+	}
+	if c.Memberlist.UDPBufferSize != nil {
+		mc.UDPBufferSize = *c.Memberlist.UDPBufferSize
+	}
+	return mc, nil
 }
 
 // Load reads and loads Olric configuration.
@@ -116,7 +283,7 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	mc, err := processMemberlistConfig(c, rawMc)
+	memberlistConfig, err := loadMemberlistConfig(c, rawMc)
 	if err != nil {
 		return nil, err
 	}
@@ -145,24 +312,29 @@ func Load(filename string) (*Config, error) {
 		}
 	}
 
-	cc := Client{}
-	err = mapYamlToConfig(&cc, &c.Client)
+	clientConfig := Client{}
+	err = mapYamlToConfig(&clientConfig, &c.Client)
 	if err != nil {
 		return nil, err
 	}
 
-	cacheConfig, err := processCacheConfig(c)
+	dmapConfig, err := loadDMapConfig(c)
 	if err != nil {
 		return nil, err
 	}
+
+	storageEngines := NewStorageEngine()
+	storageEngines.Plugins = c.StorageEngines.Plugins
+	storageEngines.Config = c.StorageEngines.Config
+
 	cfg := &Config{
 		BindAddr:            c.Olricd.BindAddr,
 		BindPort:            c.Olricd.BindPort,
 		Interface:           c.Olricd.Interface,
 		ServiceDiscovery:    c.ServiceDiscovery,
 		MemberlistInterface: c.Memberlist.Interface,
-		MemberlistConfig:    mc,
-		Client:              &cc,
+		MemberlistConfig:    memberlistConfig,
+		Client:              &clientConfig,
 		LogLevel:            c.Logging.Level,
 		JoinRetryInterval:   joinRetryInterval,
 		MaxJoinAttempts:     c.Memberlist.MaxJoinAttempts,
@@ -182,10 +354,15 @@ func Load(filename string) (*Config, error) {
 		Serializer:          sr,
 		KeepAlivePeriod:     keepAlivePeriod,
 		BootstrapTimeout:    bootstrapTimeout,
-		Cache:               cacheConfig,
-		TableSize:           c.Olricd.TableSize,
+		DMaps:               dmapConfig,
+		StorageEngines:      storageEngines,
 	}
+
 	if err := cfg.Sanitize(); err != nil {
+		return nil, err
+	}
+
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil

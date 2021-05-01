@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,8 +18,9 @@ package query
 import (
 	"errors"
 	"fmt"
-	"github.com/vmihailenco/msgpack"
 	"reflect"
+
+	"github.com/vmihailenco/msgpack"
 )
 
 // ErrInvalidQuery denotes a given query is empty or badly formatted.

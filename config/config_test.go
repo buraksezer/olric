@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,12 @@
 package config
 
 import (
+	"bytes"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/buraksezer/olric/serializer"
@@ -35,8 +38,14 @@ var testConfig = `olricd:
   readQuorum: 1
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
-  tableSize: 1048576 # 1MB in bytes
   memberCountQuorum: 1
+
+storageEngines:
+  plugins:
+    - {{.TmpPluginPath}}
+  config:
+    kvstore:
+      tableSize: 102134
 
 client:
   dialTimeout: "10s"
@@ -73,8 +82,7 @@ memberlist:
   handoffQueueDepth: 1024
   udpBufferSize: 1400
 
-
-cache:
+dmaps:
   numEvictionWorkers: 1
   maxIdleDuration: ""
   ttlDuration: "100s"
@@ -82,14 +90,15 @@ cache:
   maxInuse: 1000000
   lruSamples: 10
   evictionPolicy: "LRU"
-
-dmaps:
-  foobar:
-    maxIdleDuration: "60s"
-    ttlDuration: "300s"
-    maxKeys: 500000
-    lruSamples: 20
-    evictionPolicy: "NONE"
+  storageEngine: "kvstore"
+  custom:
+    foobar:
+      maxIdleDuration: "60s"
+      ttlDuration: "300s"
+      maxKeys: 500000
+      lruSamples: 20
+      evictionPolicy: "NONE"
+      storageEngine: "kvstore"
 
 
 serviceDiscovery:
@@ -101,21 +110,45 @@ serviceDiscovery:
   insecureSkipVerify: true
   payload: 'SAMPLE-PAYLOAD'`
 
-func TestConfig(t *testing.T) {
-	f, err := ioutil.TempFile("/tmp/", "olric-yaml-config-test")
+func createTmpFile(t *testing.T, pattern string) *os.File {
+	f, err := ioutil.TempFile("/tmp/", pattern)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	_, err = f.Write([]byte(testConfig))
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
+	t.Cleanup(func() {
 		err = f.Close()
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-	}()
+		err = os.Remove(f.Name())
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	})
+	return f
+}
+
+func TestConfig(t *testing.T) {
+	fakePlugin := createTmpFile(t, "olric-fake-test-plugin.*.so")
+	type ConfigTemplate struct {
+		TmpPluginPath string
+	}
+	tmpl := ConfigTemplate{
+		TmpPluginPath: fakePlugin.Name(),
+	}
+	w := bytes.NewBuffer(nil)
+	tp := template.Must(template.New("testConfig").Parse(testConfig))
+	err := tp.Execute(w, tmpl)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	f := createTmpFile(t, "olric-yaml-config-test")
+	_, err = f.Write(w.Bytes())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
 	lc, err := Load(f.Name())
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -132,8 +165,10 @@ func TestConfig(t *testing.T) {
 	c.ReadQuorum = 1
 	c.ReadRepair = false
 	c.ReplicationMode = SyncReplicationMode
-	c.TableSize = 1048576
 	c.MemberCountQuorum = 1
+
+	c.StorageEngines = NewStorageEngine()
+	c.StorageEngines.Plugins = []string{fakePlugin.Name()}
 
 	c.Client.DialTimeout = 10 * time.Second
 	c.Client.ReadTimeout = 3 * time.Second
@@ -162,19 +197,21 @@ func TestConfig(t *testing.T) {
 	c.MemberlistConfig.HandoffQueueDepth = 1024
 	c.MemberlistConfig.UDPBufferSize = 1400
 
-	c.Cache.NumEvictionWorkers = 1
-	c.Cache.TTLDuration = 100 * time.Second
-	c.Cache.MaxKeys = 100000
-	c.Cache.MaxInuse = 1000000
-	c.Cache.LRUSamples = 10
-	c.Cache.EvictionPolicy = LRUEviction
+	c.DMaps.NumEvictionWorkers = 1
+	c.DMaps.TTLDuration = 100 * time.Second
+	c.DMaps.MaxKeys = 100000
+	c.DMaps.MaxInuse = 1000000
+	c.DMaps.LRUSamples = 10
+	c.DMaps.EvictionPolicy = LRUEviction
+	c.DMaps.StorageEngine = DefaultStorageEngine
 
-	c.Cache.DMapConfigs = map[string]DMapCacheConfig{"foobar": {
+	c.DMaps.Custom = map[string]DMap{"foobar": {
 		MaxIdleDuration: 60 * time.Second,
 		TTLDuration:     300 * time.Second,
 		MaxKeys:         500000,
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
+		StorageEngine:   "kvstore",
 	}}
 
 	c.ServiceDiscovery = make(map[string]interface{})
@@ -186,12 +223,15 @@ func TestConfig(t *testing.T) {
 	c.ServiceDiscovery["insecureSkipVerify"] = true
 	c.ServiceDiscovery["payload"] = "SAMPLE-PAYLOAD"
 
+	err = c.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	// Disable the following fields. They include unexported fields, pointers and mutexes.
 	c.LogOutput = nil
 	lc.LogOutput = nil
 	c.Logger = nil
 	lc.Logger = nil
-
 	if !reflect.DeepEqual(lc, c) {
 		t.Fatalf("Expected true. Got: false")
 	}

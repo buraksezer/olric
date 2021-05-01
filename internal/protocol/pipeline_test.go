@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -87,8 +87,8 @@ func TestPipelineMessage_Response(t *testing.T) {
 		t.Fatalf("response.Value() returned a different value")
 	}
 
-	resp.SetStatus(StatusInternalServerError)
-	if resp.Status() != StatusInternalServerError {
-		t.Fatalf("Expected status code: %d. Got: %d", StatusInternalServerError, resp.Status())
+	resp.SetStatus(StatusErrInternalFailure)
+	if resp.Status() != StatusErrInternalFailure {
+		t.Fatalf("Expected status code: %d. Got: %d", StatusErrInternalFailure, resp.Status())
 	}
 }

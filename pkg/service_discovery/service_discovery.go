@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*Package service_discovery provides ServiceDiscovery interface for plugins*/
-package service_discovery
+package service_discovery // import "github.com/buraksezer/olric/pkg/service_discovery"
 
 import "log"
 

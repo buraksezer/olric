@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -147,7 +147,7 @@ func (d *DTopicMessage) SetDTopic(dtopic string) {
 	d.dtopic = dtopic
 }
 
-// Returns the DTopic name.
+// DTopic returns the DTopic name.
 func (d *DTopicMessage) DTopic() string {
 	return d.dtopic
 }

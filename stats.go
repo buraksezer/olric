@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,65 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
 )
+
+func toMember(member discovery.Member) stats.Member {
+	return stats.Member{
+		Name:      member.Name,
+		ID:        member.ID,
+		Birthdate: member.Birthdate,
+	}
+}
+
+func toMembers(members []discovery.Member) []stats.Member {
+	var _stats []stats.Member
+	for _, m := range members {
+		_stats = append(_stats, toMember(m))
+	}
+	return _stats
+}
+
+func (db *Olric) collectPartitionMetrics(partID uint64, part *partitions.Partition) stats.Partition {
+	owners := part.Owners()
+	p := stats.Partition{
+		Backups: toMembers(db.backup.PartitionOwnersById(partID)),
+		Length:  part.Length(),
+		DMaps:   make(map[string]stats.DMap),
+	}
+	if len(owners) > 0 {
+		p.PreviousOwners = toMembers(owners[:len(owners)-1])
+	}
+	part.Map().Range(func(name, item interface{}) bool {
+		f := item.(partitions.Fragment)
+		st := f.Stats()
+		tmp := stats.DMap{
+			Length:    st.Length,
+			NumTables: st.NumTables,
+		}
+		tmp.SlabInfo.Allocated = st.Allocated
+		tmp.SlabInfo.Garbage = st.Garbage
+		tmp.SlabInfo.Inuse = st.Inuse
+		p.DMaps[name.(string)] = tmp
+		return true
+	})
+	return p
+}
+
+func (db *Olric) checkPartitionOwnership(part *partitions.Partition) bool {
+	owners := part.Owners()
+	for _, owner := range owners {
+		if owner.CompareByID(db.rt.This()) {
+			return true
+		}
+	}
+	return false
+}
 
 func (db *Olric) stats() stats.Stats {
 	mem := &runtime.MemStats{}
@@ -30,7 +84,7 @@ func (db *Olric) stats() stats.Stats {
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
-		ClusterCoordinator: db.discovery.GetCoordinator(),
+		ClusterCoordinator: toMember(db.rt.Discovery().GetCoordinator()),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
@@ -39,53 +93,31 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
+		Member:         toMember(db.rt.This()),
 		Partitions:     make(map[uint64]stats.Partition),
 		Backups:        make(map[uint64]stats.Partition),
-		ClusterMembers: make(map[uint64]discovery.Member),
+		ClusterMembers: make(map[uint64]stats.Member),
 	}
 
-	db.members.mtx.RLock()
-	for id, member := range db.members.m {
-		// List of bootstrapped cluster members
-		s.ClusterMembers[id] = member
-	}
-	db.members.mtx.RUnlock()
+	db.rt.RLock()
+	defer db.rt.RUnlock()
 
-	collect := func(partID uint64, part *partition) stats.Partition {
-		owners := part.loadOwners()
-		p := stats.Partition{
-			Backups: db.backups[partID].loadOwners(),
-			Length:  part.length(),
-			DMaps:   make(map[string]stats.DMap),
+	db.rt.Members().Range(func(id uint64, member discovery.Member) bool {
+		s.ClusterMembers[id] = toMember(member)
+		return true
+	})
+
+	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
+		primary := db.primary.PartitionById(partID)
+		if db.checkPartitionOwnership(primary) {
+			s.Partitions[partID] = db.collectPartitionMetrics(partID, primary)
 		}
-		if !part.backup {
-			p.Owner = part.owner()
+		backup := db.backup.PartitionById(partID)
+		if db.checkPartitionOwnership(backup) {
+			s.Backups[partID] = db.collectPartitionMetrics(partID, backup)
 		}
-		if len(owners) > 0 {
-			p.PreviousOwners = owners[:len(owners)-1]
-		}
-		part.m.Range(func(name, dm interface{}) bool {
-			dm.(*dmap).Lock()
-			tmp := stats.DMap{
-				Length:    dm.(*dmap).storage.Len(),
-				NumTables: dm.(*dmap).storage.NumTables(),
-				SlabInfo:  stats.SlabInfo(dm.(*dmap).storage.SlabInfo()),
-			}
-			p.DMaps[name.(string)] = tmp
-			dm.(*dmap).Unlock()
-			return true
-		})
-		return p
-	}
-	routingMtx.RLock()
-	for partID, part := range db.partitions {
-		s.Partitions[partID] = collect(partID, part)
 	}
 
-	for partID, part := range db.backups {
-		s.Backups[partID] = collect(partID, part)
-	}
-	routingMtx.RUnlock()
 	return s
 }
 
@@ -93,7 +125,7 @@ func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
 	s := db.stats()
 	value, err := msgpack.Marshal(s)
 	if err != nil {
-		db.errorResponse(w, err)
+		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)

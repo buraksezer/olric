@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,90 +15,38 @@
 package client
 
 import (
-	"context"
-	"log"
-	"net"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
-var testConfig = &Config{
-	Client: &config.Client{
-		DialTimeout: time.Second,
-		KeepAlive:   time.Second,
-		MaxConn:     10,
-	},
-}
-
-func getFreePort() (int, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
+func newTestConfig(db *testolric.TestOlric) *Config {
+	return &Config{
+		Client: &config.Client{
+			DialTimeout: time.Second,
+			KeepAlive:   time.Second,
+			MaxConn:     10,
+		},
+		Servers: []string{db.Addr},
 	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
-func newDB() (*olric.Olric, chan struct{}, error) {
-	port, err := getFreePort()
-	if err != nil {
-		return nil, nil, err
-	}
-	cfg := &config.Config{
-		PartitionCount:    7,
-		BindAddr:          "127.0.0.1",
-		BindPort:          port,
-		ReplicaCount:      config.MinimumReplicaCount,
-		WriteQuorum:       config.MinimumReplicaCount,
-		ReadQuorum:        config.MinimumReplicaCount,
-		MemberCountQuorum: config.MinimumMemberCountQuorum,
-	}
-	db, err := olric.New(cfg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	done := make(chan struct{})
-	go func() {
-		rerr := db.Start()
-		if rerr != nil {
-			log.Printf("[ERROR] Expected nil. Got %v", rerr)
-		}
-		close(done)
-	}()
-	time.Sleep(100 * time.Millisecond)
-	testConfig.Servers = []string{"127.0.0.1:" + strconv.Itoa(port)}
-	return db, done, nil
 }
 
 func TestClient_Ping(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	addr := testConfig.Servers[0]
+	addr := tc.Servers[0]
 	err = c.Ping(addr)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -106,19 +54,13 @@ func TestClient_Ping(t *testing.T) {
 }
 
 func TestClient_Stats(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -132,7 +74,7 @@ func TestClient_Stats(t *testing.T) {
 		}
 	}
 
-	addr := testConfig.Servers[0]
+	addr := tc.Servers[0]
 	s, err := c.Stats(addr)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -153,9 +95,6 @@ func TestClient_Stats(t *testing.T) {
 			t.Fatalf("Expected Length is bigger than 0. Got: %d", part.Length)
 		}
 		totalByKeyCount += part.Length
-		if part.Owner.String() != addr {
-			t.Fatalf("Expected partition owner: %s. Got: %s", addr, part.Owner)
-		}
 	}
 	if totalByKeyCount != 100 {
 		t.Fatalf("Expected total length of partitions in stats is 100. Got: %d", total)

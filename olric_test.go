@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,32 +18,72 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/hashicorp/memberlist"
 )
 
-func TestOlric_StartedCallback(t *testing.T) {
-	c := testSingleReplicaConfig()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func newTestOlric(t *testing.T) (*Olric, error) {
+	c := testutil.NewConfig()
+	port, err := testutil.GetFreePort()
+	if err != nil {
+		return nil, err
+	}
+	if c.MemberlistConfig == nil {
+		c.MemberlistConfig = memberlist.DefaultLocalConfig()
+	}
+	c.MemberlistConfig.BindPort = 0
+
+	c.BindAddr = "127.0.0.1"
+	c.BindPort = port
+
+	err = c.Sanitize()
+	if err != nil {
+		return nil, err
+	}
+	err = c.Validate()
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
 	c.Started = func() {
 		cancel()
 	}
 
-	db, err := newDB(c)
+	db, err := New(c)
 	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
+		return nil, err
 	}
-	defer func() {
-		err = db.Shutdown(context.Background())
+
+	go func() {
+		err = db.Start()
 		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
+			t.Fatalf("Failed to run Olric: %v", err)
 		}
 	}()
 
 	select {
-	case <-time.After(31 * time.Second):
-		t.Fatalf("Failed to callback function in 30 seconds")
+	case <-time.After(time.Second):
+		t.Fatalf("Olric cannot be started in one second")
 	case <-ctx.Done():
-		if ctx.Err() != context.Canceled {
-			t.Fatalf("context returned an error: %v", ctx.Err())
+		// everything is fine
+	}
+	t.Cleanup(func() {
+		err = db.Shutdown(context.Background())
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 		}
+	})
+	return db, nil
+}
+
+func TestOlric_StartAndShutdown(t *testing.T) {
+	db, err := newTestOlric(t)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	err = db.Shutdown(context.Background())
+	if err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
 	}
 }

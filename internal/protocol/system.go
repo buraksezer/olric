@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,117 +66,117 @@ func NewSystemMessageFromRequest(buf *bytes.Buffer) *SystemMessage {
 	}
 }
 
-func (d *SystemMessage) Response(buf *bytes.Buffer) EncodeDecoder {
+func (s *SystemMessage) Response(buf *bytes.Buffer) EncodeDecoder {
 	msg := &SystemMessage{
 		Header: Header{
 			Magic:   MagicSystemRes,
 			Version: Version1,
 		},
 		SystemMessageHeader: SystemMessageHeader{
-			Op: d.Op,
+			Op: s.Op,
 		},
-		buf: d.buf,
+		buf: s.buf,
 	}
 	if buf != nil {
 		msg.buf = buf
 	} else {
-		d.buf.Reset()
-		msg.buf = d.buf
+		s.buf.Reset()
+		msg.buf = s.buf
 	}
-	msg.MessageLength = uint32(d.buf.Len())
+	msg.MessageLength = uint32(s.buf.Len())
 	return msg
 }
 
-func (d *SystemMessage) SetStatus(code StatusCode) {
-	d.StatusCode = code
+func (s *SystemMessage) SetStatus(code StatusCode) {
+	s.StatusCode = code
 }
 
-func (d *SystemMessage) Status() StatusCode {
-	return d.StatusCode
+func (s *SystemMessage) Status() StatusCode {
+	return s.StatusCode
 }
 
-func (d *SystemMessage) SetValue(value []byte) {
-	d.value = value
+func (s *SystemMessage) SetValue(value []byte) {
+	s.value = value
 }
 
-func (d *SystemMessage) Value() []byte {
-	return d.value
+func (s *SystemMessage) Value() []byte {
+	return s.value
 }
 
-func (d *SystemMessage) OpCode() OpCode {
-	return d.Op
+func (s *SystemMessage) OpCode() OpCode {
+	return s.Op
 }
 
-func (d *SystemMessage) SetBuffer(buf *bytes.Buffer) {
-	d.buf = buf
+func (s *SystemMessage) SetBuffer(buf *bytes.Buffer) {
+	s.buf = buf
 }
 
-func (d *SystemMessage) Buffer() *bytes.Buffer {
-	return d.buf
+func (s *SystemMessage) Buffer() *bytes.Buffer {
+	return s.buf
 }
 
-func (d *SystemMessage) SetExtra(extra interface{}) {
-	d.extra = extra
+func (s *SystemMessage) SetExtra(extra interface{}) {
+	s.extra = extra
 }
 
-func (d *SystemMessage) Extra() interface{} {
-	return d.extra
+func (s *SystemMessage) Extra() interface{} {
+	return s.extra
 }
 
 // Encode writes a protocol message to given TCP connection by encoding it.
-func (d *SystemMessage) Encode() error {
+func (s *SystemMessage) Encode() error {
 	// Calculate lengths here
-	if d.extra != nil {
-		d.ExtraLen = uint8(binary.Size(d.extra))
+	if s.extra != nil {
+		s.ExtraLen = uint8(binary.Size(s.extra))
 	}
-	d.MessageLength = SystemMessageHeaderSize + uint32(len(d.value)+int(d.ExtraLen))
+	s.MessageLength = SystemMessageHeaderSize + uint32(len(s.value)+int(s.ExtraLen))
 
-	err := binary.Write(d.buf, binary.BigEndian, d.Header)
+	err := binary.Write(s.buf, binary.BigEndian, s.Header)
 	if err != nil {
 		return err
 	}
 
-	err = binary.Write(d.buf, binary.BigEndian, d.SystemMessageHeader)
+	err = binary.Write(s.buf, binary.BigEndian, s.SystemMessageHeader)
 	if err != nil {
 		return err
 	}
 
-	if d.extra != nil {
-		err = binary.Write(d.buf, binary.BigEndian, d.extra)
+	if s.extra != nil {
+		err = binary.Write(s.buf, binary.BigEndian, s.extra)
 		if err != nil {
 			return err
 		}
 	}
 
-	_, err = d.buf.Write(d.value)
+	_, err = s.buf.Write(s.value)
 	return err
 }
 
-func (d *SystemMessage) Decode() error {
-	err := binary.Read(d.buf, binary.BigEndian, &d.SystemMessageHeader)
+func (s *SystemMessage) Decode() error {
+	err := binary.Read(s.buf, binary.BigEndian, &s.SystemMessageHeader)
 	if err != nil {
 		return err
 	}
-	if d.Magic != MagicSystemReq && d.Magic != MagicSystemRes {
+	if s.Magic != MagicSystemReq && s.Magic != MagicSystemRes {
 		return fmt.Errorf("invalid System message")
 	}
 
-	if d.Magic == MagicSystemReq && d.ExtraLen > 0 {
-		raw := d.buf.Next(int(d.ExtraLen))
-		extra, err := loadExtras(raw, d.Op)
+	if s.Magic == MagicSystemReq && s.ExtraLen > 0 {
+		raw := s.buf.Next(int(s.ExtraLen))
+		extra, err := loadExtras(raw, s.Op)
 		if err != nil {
 			return err
 		}
-		d.extra = extra
+		s.extra = extra
 	}
 
 	// There is no maximum value for BodyLen which also includes ValueLen.
 	// So our limit is available memory amount at the time of execution.
 	// Please note that maximum partition size should not exceed 50MB for a smooth operation.
-	vlen := int(d.MessageLength) - int(d.ExtraLen) - int(SystemMessageHeaderSize)
+	vlen := int(s.MessageLength) - int(s.ExtraLen) - int(SystemMessageHeaderSize)
 	if vlen != 0 {
-		d.value = make([]byte, vlen)
-		copy(d.value, d.buf.Next(vlen))
+		s.value = make([]byte, vlen)
+		copy(s.value, s.buf.Next(vlen))
 	}
 	return nil
 }

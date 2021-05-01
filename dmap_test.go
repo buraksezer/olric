@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,388 +15,365 @@
 package olric
 
 import (
-	"context"
 	"fmt"
-	"net"
-	"strconv"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/config"
-	"github.com/hashicorp/memberlist"
+	"github.com/buraksezer/olric/query"
+
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/testutil/assert"
 )
 
-func bkey(i int) string {
-	return fmt.Sprintf("%09d", i)
+func TestOlric_DMap_Get(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	t.Run("ErrKeyNotFound", func(t *testing.T) {
+		_, err = dm.Get("mykey")
+		assert.Error(t, ErrKeyNotFound, err)
+	})
+
+	t.Run("Put and Get", func(t *testing.T) {
+		value := "myvalue"
+		err = dm.Put("mykey-2", value)
+		assert.NoError(t, err)
+
+		retrieved, err := dm.Get("mykey-2")
+		assert.NoError(t, err)
+		assert.Equal(t, value, retrieved)
+	})
 }
 
-func bval(i int) []byte {
-	return []byte(fmt.Sprintf("%025d", i))
-}
+func TestOlric_DMap_GetEntry(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
-func getRandomAddr() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
-	}
-
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-	return l.Addr().String(), nil
-}
-
-func testConfig(peers []*Olric) *config.Config {
-	var speers []string
-	for _, peer := range peers {
-		speers = append(speers, peer.discovery.LocalNode().Address())
-	}
-	return &config.Config{
-		PartitionCount:    7,
-		ReplicaCount:      2,
-		WriteQuorum:       1,
-		ReadQuorum:        1,
-		Peers:             speers,
-		KeepAlivePeriod:   10 * time.Millisecond,
-		LogVerbosity:      6,
-		MemberCountQuorum: config.MinimumMemberCountQuorum,
-	}
-}
-
-func testSingleReplicaConfig() *config.Config {
-	c := testConfig(nil)
-	c.ReplicaCount = 1
-	c.WriteQuorum = 1
-	c.ReadQuorum = 1
-	return c
-}
-
-func newDB(c *config.Config, peers ...*Olric) (*Olric, error) {
-	if c == nil {
-		c = testConfig(peers)
-	}
-	if len(c.Peers) == 0 {
-		for _, peer := range peers {
-			c.Peers = append(c.Peers, peer.discovery.LocalNode().Address())
-		}
-	}
-
-	addr, err := getRandomAddr()
-	if err != nil {
-		return nil, err
-	}
-	if c.MemberlistConfig == nil {
-		c.MemberlistConfig = memberlist.DefaultLocalConfig()
-	}
-	c.MemberlistConfig.BindPort = 0
-	bindAddr, bindPort, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-	port, err := strconv.Atoi(bindPort)
-	if err != nil {
-		return nil, err
-	}
-	c.BindAddr = bindAddr
-	c.BindPort = port
-
-	err = c.Sanitize()
-	if err != nil {
-		return nil, err
-	}
-	err = c.Validate()
-	if err != nil {
-		return nil, err
-	}
-
-	db, err := New(c)
-	if err != nil {
-		return nil, err
-	}
-
-	db.wg.Add(1)
-	go db.callStartedCallback()
-
-	db.wg.Add(1)
-	go func() {
-		defer db.wg.Done()
-		err = db.server.ListenAndServe()
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to run TCP server")
-		}
-	}()
-	<-db.server.StartedCtx.Done()
-	db.passCheckpoint()
-
-	err = db.startDiscovery()
-	if err != nil {
-		return nil, err
-	}
-	// Wait some time for goroutines
-	<-time.After(100 * time.Millisecond)
-	db.passCheckpoint()
-
-	return db, nil
-}
-
-func syncClusterMembers(peers ...*Olric) {
-	updateRouting := func() {
-		for _, peer := range peers {
-			if peer.discovery.IsCoordinator() {
-				peer.updateRouting()
-			}
-		}
-	}
-
-	// Update routing table on the cluster before running rebalancer
-	updateRouting()
-	for _, peer := range peers {
-		peer.rebalancer()
-	}
-	// Update routing table again to get correct responses from the high level dmap API.
-	updateRouting()
-}
-
-type testCustomConfig struct {
-	ReadRepair        bool
-	ReplicationMode   int
-	ReplicaCount      int
-	WriteQuorum       int
-	ReadQuorum        int
-	MemberCountQuorum int32
-}
-
-func newTestCustomConfig() *testCustomConfig {
-	return &testCustomConfig{
-		ReadRepair:        false,
-		ReplicaCount:      2,
-		WriteQuorum:       1,
-		ReadQuorum:        1,
-		MemberCountQuorum: config.MinimumMemberCountQuorum,
-	}
-}
-
-type testCluster struct {
-	peers  []*Olric
-	config *testCustomConfig
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cancel context.CancelFunc
-	mu     sync.Mutex
-}
-
-func newTestCluster(c *testCustomConfig) *testCluster {
-	ctx, cancel := context.WithCancel(context.Background())
-	t := &testCluster{
-		config: c,
-		peers:  []*Olric{},
-		ctx:    ctx,
-		cancel: cancel,
-	}
-	return t
-}
-
-func (t *testCluster) teardown() {
-	t.cancel()
-	t.wg.Wait()
-}
-
-func (t *testCluster) newDB() (*Olric, error) {
-	c := testConfig(nil)
-	if t.config != nil {
-		if t.config.ReplicaCount != 0 {
-			c.ReplicaCount = t.config.ReplicaCount
-		}
-		if t.config.WriteQuorum != 0 {
-			c.WriteQuorum = t.config.WriteQuorum
-		}
-		if t.config.ReadQuorum != 0 {
-			c.ReadQuorum = t.config.ReadQuorum
-		}
-		c.ReplicationMode = t.config.ReplicationMode
-		c.ReadRepair = t.config.ReadRepair
-		c.MemberCountQuorum = t.config.MemberCountQuorum
-	}
-	db, err := newDB(c, t.peers...)
-	if err != nil {
-		return nil, err
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	t.peers = append(t.peers, db)
-	syncClusterMembers(t.peers...)
-
-	t.wg.Add(1)
-	go func(db *Olric) {
-		<-t.ctx.Done()
-		defer t.wg.Done()
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric on %s: %v", db.this, err)
-		}
-	}(db)
-	return db, nil
-}
-
-func TestDMap_Standalone(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
 
 	key := "mykey"
 	value := "myvalue"
-	// Create a new dmap instance and put a K/V pair.
-	d, err := db.NewDMap("foobar")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	err = d.Put(key, value)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	// Get the value and check it.
-	val, err := d.Get(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if val != value {
-		t.Fatalf("Expected value %v. Got: %v", value, val)
-	}
+	err = dm.Put(key, value)
+	assert.NoError(t, err)
 
-	// Delete it and check again.
-	err = d.Delete(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	_, err = d.Get(key)
-	if err != ErrKeyNotFound {
-		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-	}
+	retrieved, err := dm.GetEntry(key)
+	assert.NoError(t, err)
+	assert.Equal(t, key, retrieved.Key)
+	assert.Equal(t, value, retrieved.Value)
+	assert.NotEqual(t, 0, retrieved.Timestamp)
+	assert.Equal(t, int64(0), retrieved.TTL)
 }
 
-func TestDMap_PruneHosts(t *testing.T) {
-	c := newTestCluster(nil)
-	defer c.teardown()
+func TestOlric_DMap_Put(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
-	db1, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
 
-	eventsDB1 := db1.discovery.SubscribeNodeEvents()
-	db2, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	<-eventsDB1
-	syncClusterMembers(db1, db2)
-
-	dm, err := db1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	eventsDB2 := db2.discovery.SubscribeNodeEvents()
-	db3, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	<-eventsDB1
-	<-eventsDB2
-	syncClusterMembers(db1, db2, db3)
-
-	instances := []*Olric{db1, db2, db3}
-	for partID := uint64(0); partID < db1.config.PartitionCount; partID++ {
-		for _, db := range instances {
-			part := db.partitions[partID]
-			if part.ownerCount() != 1 {
-				t.Fatalf("Expected owner count is 1. Got: %d", part.ownerCount())
-			}
-		}
-	}
+	err = dm.Put("mykey", "myvalue")
+	assert.NoError(t, err)
 }
 
-func TestDMap_CrashServer(t *testing.T) {
-	c := newTestCluster(nil)
-	defer c.teardown()
+func TestOlric_DMap_PutIf_IfNotFound(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
-	db1, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
 
-	db2, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	err = dm.PutIf("mykey", "myvalue", IfNotFound)
+	assert.NoError(t, err)
 
-	db3, err := c.newDB()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	value, err := dm.Get("mykey")
+	assert.NoError(t, err)
+	assert.Equal(t, "myvalue", value)
 
-	var maxIteration int
-	for {
-		<-time.After(10 * time.Millisecond)
-		members := db3.discovery.GetMembers()
-		if len(members) == 3 {
-			break
+	err = dm.PutIf("mykey", "myvalue", IfNotFound)
+	assert.Error(t, ErrKeyFound, err)
+}
+
+func TestOlric_DMap_PutIf_IfFound(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.PutIf("mykey", "myvalue", IfFound)
+	assert.Error(t, ErrKeyNotFound, err)
+}
+
+func TestOlric_DMap_PutIfEx_IfFound(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.PutIfEx("mykey", "myvalue", time.Second, IfFound)
+	assert.Error(t, err, ErrKeyNotFound)
+
+	err = dm.Put("mykey", "myvalue")
+	assert.NoError(t, err)
+
+	err = dm.PutIfEx("mykey", "myvalue-2", 100*time.Millisecond, IfFound)
+	assert.NoError(t, err)
+
+	value, err := dm.Get("mykey")
+	assert.NoError(t, err)
+	assert.Equal(t, "myvalue-2", value)
+
+	<-time.After(100 * time.Millisecond)
+	_, err = dm.Get("mykey")
+	assert.Error(t, err, ErrKeyNotFound)
+}
+
+func TestOlric_DMap_PutIfEx_IfNotFound(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.PutIfEx("mykey", "myvalue", 100*time.Millisecond, IfNotFound)
+	assert.NoError(t, err)
+
+	value, err := dm.Get("mykey")
+	assert.NoError(t, err)
+	assert.Equal(t, "myvalue", value)
+
+	<-time.After(100 * time.Millisecond)
+	err = dm.PutIfEx("mykey", "myvalue", 100*time.Millisecond, IfNotFound)
+	assert.NoError(t, err)
+}
+
+func TestOlric_DMap_Expire(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.Put("mykey", "myvalue")
+	assert.NoError(t, err)
+
+	err = dm.Expire("mykey", 100*time.Millisecond)
+	assert.NoError(t, err)
+
+	_, err = dm.Get("mykey")
+	assert.NoError(t, err)
+}
+
+func TestOlric_DMap_Query(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		var key string
+		if i%2 == 0 {
+			key = fmt.Sprintf("even:%d", i)
+		} else {
+			key = fmt.Sprintf("odd:%d", i)
 		}
-		maxIteration++
-		if maxIteration >= 1000 {
-			t.Fatalf("Routing table has not been updated yet: %v", members)
-		}
+		err = dm.Put(key, "myvalue")
+		assert.NoError(t, err)
 	}
 
-	dm, err := db1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
+	c, err := dm.Query(query.M{
+		"$onKey": query.M{
+			"$regexMatch": "^even:",
+		},
+	})
+	assert.NoError(t, err)
 
-	eventsDB2 := db2.discovery.SubscribeNodeEvents()
-	eventsDB3 := db3.discovery.SubscribeNodeEvents()
-	err = db1.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Failed to shutdown Olric: %v", err)
+	defer c.Close()
+	expected := map[string]string{
+		"even:8": "myvalue",
+		"even:0": "myvalue",
+		"even:6": "myvalue",
+		"even:2": "myvalue",
+		"even:4": "myvalue",
 	}
-	<-eventsDB2
-	<-eventsDB3
+	var count int
+	err = c.Range(func(key string, value interface{}) bool {
+		val, ok := expected[key]
+		assert.Equal(t, true, ok)
+		assert.Equal(t, val, value)
+		count++
+		return true
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, len(expected), count)
+}
 
-	// The new coordinator is db2
-	syncClusterMembers(db2, db3)
+func TestOlric_DMap_PutEx(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
-	dm2, err := db2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 100; i++ {
-		_, err = dm2.Get(bkey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for %s: %s", err, bkey(i), db1.this)
-		}
-	}
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.PutEx("mykey", "myvalue", 100*time.Millisecond)
+	assert.NoError(t, err)
+
+	value, err := dm.Get("mykey")
+	assert.NoError(t, err)
+	assert.Equal(t, "myvalue", value)
+
+	<-time.After(100 * time.Millisecond)
+	_, err = dm.Get("mykey")
+	assert.Error(t, ErrKeyNotFound, err)
+}
+
+func TestOlric_DMap_Delete(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.Put("mykey", "myvalue")
+	assert.NoError(t, err)
+
+	err = dm.Delete("mykey")
+	assert.NoError(t, err)
+
+	_, err = dm.Get("mykey")
+	assert.Error(t, ErrKeyNotFound, err)
+}
+
+func TestOlric_DMap_Incr(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	value, err := dm.Incr("mykey", 10)
+	assert.NoError(t, err)
+	assert.Equal(t, 10, value)
+}
+
+func TestOlric_DMap_Decr(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	value, err := dm.Decr("mykey", 10)
+	assert.NoError(t, err)
+	assert.Equal(t, -10, value)
+}
+
+func TestOlric_DMap_GetPut(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	key := "mykey"
+	value := "myvalue"
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.Put(key, value)
+	assert.NoError(t, err)
+
+	oldval, err := dm.GetPut(key, "new-value")
+	assert.NoError(t, err)
+	assert.Equal(t, value, oldval)
+
+	current, err := dm.Get(key)
+	assert.NoError(t, err)
+	assert.Equal(t, "new-value", current)
+}
+
+func TestOlric_DMap_Destroy(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	key := "mykey"
+	value := "myvalue"
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	err = dm.Put(key, value)
+	assert.NoError(t, err)
+
+	err = dm.Destroy()
+	assert.NoError(t, err)
+
+	_, err = dm.Get(key)
+	assert.Error(t, ErrKeyNotFound, err)
+}
+
+func TestOlric_DMap_LockWithTimeout(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	ctx, err := dm.LockWithTimeout("mykey", time.Second, time.Second)
+	assert.NoError(t, err)
+
+	err = ctx.Unlock()
+	assert.NoError(t, err)
+}
+
+func TestOlric_DMap_LockWithTimeout_Timeout(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	_, err = dm.LockWithTimeout("mykey", 100*time.Millisecond, time.Second)
+	assert.NoError(t, err)
+
+	err = testutil.TryWithInterval(10, time.Millisecond, func() error {
+		_, err = dm.LockWithTimeout("mykey", 100*time.Millisecond, time.Millisecond)
+		return err
+	})
+	assert.Error(t, ErrLockNotAcquired, err)
+}
+
+func TestOlric_DMap_Lock(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	ctx, err := dm.Lock("mykey", time.Second)
+	assert.NoError(t, err)
+
+	err = ctx.Unlock()
+	assert.NoError(t, err)
+}
+
+func TestOlric_DMap_Lock_Deadline(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	dm, err := db.NewDMap("mydmap")
+	assert.NoError(t, err)
+
+	ctx, err := dm.Lock("mykey", time.Second)
+	assert.NoError(t, err)
+
+	defer func() {
+		err = ctx.Unlock()
+		assert.NoError(t, err)
+	}()
+
+	_, errTwo := dm.Lock("mykey", time.Millisecond)
+	assert.Error(t, ErrLockNotAcquired, errTwo)
 }

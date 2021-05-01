@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,7 @@
 /*Package stats exposes internal data structures for Stat command*/
 package stats
 
-import (
-	"runtime"
-
-	"github.com/buraksezer/olric/internal/discovery"
-)
+import "runtime"
 
 // SlabInfo denotes memory usage of the storage engine(a hash indexed append only log file).
 type SlabInfo struct {
@@ -33,12 +29,12 @@ type SlabInfo struct {
 	Garbage int
 }
 
-// dmap denotes a distributed map instance on the cluster.
+// DMap denotes a distributed map instance on the cluster.
 type DMap struct {
 	Name   string
 	Length int
 
-	// Statistics about memory representation of the dmap.
+	// Statistics about memory representation of a DMap.
 	SlabInfo SlabInfo
 
 	// Number of tables in a storage instance.
@@ -47,9 +43,8 @@ type DMap struct {
 
 // Partition denotes a partition and its metadata in the cluster.
 type Partition struct {
-	Owner          discovery.Member
-	PreviousOwners []discovery.Member
-	Backups        []discovery.Member
+	PreviousOwners []Member
+	Backups        []Member
 	Length         int
 	DMaps          map[string]DMap
 }
@@ -64,13 +59,24 @@ type Runtime struct {
 	MemStats     runtime.MemStats
 }
 
+type Member struct {
+	Name      string
+	ID        uint64
+	Birthdate int64
+}
+
+func (m Member) String() string {
+	return m.Name
+}
+
 // Stats includes some metadata information about the cluster. The nodes add everything it knows about the cluster.
 type Stats struct {
 	Cmdline            []string
 	ReleaseVersion     string
 	Runtime            Runtime
-	ClusterCoordinator discovery.Member
+	ClusterCoordinator Member
+	Member             Member
 	Partitions         map[uint64]Partition
 	Backups            map[uint64]Partition
-	ClusterMembers     map[uint64]discovery.Member
+	ClusterMembers     map[uint64]Member
 }

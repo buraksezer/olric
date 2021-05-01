@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ func (s *Olricd) waitForInterrupt() {
 
 // Start starts a new olricd server instance and blocks until the server is closed.
 func (s *Olricd) Start() error {
+	s.log.Printf("[olricd] pid: %d has been started", os.Getpid())
 	// Wait for SIGTERM or SIGINT
 	go s.waitForInterrupt()
 
@@ -83,7 +84,6 @@ func (s *Olricd) Start() error {
 		return err
 	}
 	s.db = db
-	s.log.Printf("[olricd] pid: %d has been started on %s:%d", os.Getpid(), s.config.BindAddr, s.config.BindPort)
 	s.errgr.Go(func() error {
 		if err = s.db.Start(); err != nil {
 			s.log.Printf("[olricd] Failed to run Olric: %v", err)

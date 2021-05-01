@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,28 +15,22 @@
 package client
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/buraksezer/olric/internal/testolric"
 	"github.com/buraksezer/olric/query"
 )
 
 func TestClient_Query(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

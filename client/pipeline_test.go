@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,29 +15,23 @@
 package client
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 func TestPipeline_Put(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -70,19 +64,13 @@ func TestPipeline_Put(t *testing.T) {
 }
 
 func TestPipeline_Get(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -128,19 +116,13 @@ func TestPipeline_Get(t *testing.T) {
 }
 
 func TestPipeline_PutEx(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -173,19 +155,13 @@ func TestPipeline_PutEx(t *testing.T) {
 }
 
 func TestPipeline_Delete(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -255,19 +231,13 @@ func TestPipeline_Delete(t *testing.T) {
 }
 
 func TestPipeline_IncrDecr(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -321,19 +291,13 @@ func TestPipeline_IncrDecr(t *testing.T) {
 }
 
 func TestPipeline_GetPut(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -395,19 +359,13 @@ func TestPipeline_GetPut(t *testing.T) {
 }
 
 func TestPipeline_Destroy(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -462,19 +420,13 @@ func TestPipeline_Destroy(t *testing.T) {
 }
 
 func TestPipeline_Expire(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -537,19 +489,13 @@ func TestPipeline_Expire(t *testing.T) {
 }
 
 func TestPipeline_PutIf(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -607,19 +553,13 @@ func TestPipeline_PutIf(t *testing.T) {
 }
 
 func TestPipeline_PutIfEx(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Errorf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}

@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,17 +25,28 @@ import (
 
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/serializer"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/memberlist"
 )
 
+// IConfig is an interface that has to be implemented by Config and its nested
+// structs. It provides a clear and granular way to sanitize and validate
+// the configuration.
+type IConfig interface {
+	// Sanitize methods should be used to set defaults.
+	Sanitize() error
+
+	// Validate method should be used to find configuration errors.
+	Validate() error
+}
+
 const (
-	// SyncReplicationMode enables sync replication mode which means that the caller is blocked
-	// until write/delete operation is applied by replica owners. The default mode is SyncReplicationMode
+	// SyncReplicationMode enables sync replication mode which means that the
+	// caller is blocked until write/delete operation is applied by replica
+	// owners. The default mode is SyncReplicationMode
 	SyncReplicationMode = 0
 
-	// AsyncReplicationMode enables async replication mode which means that write/delete operations
-	// are done in a background task.
+	// AsyncReplicationMode enables async replication mode which means that
+	// write/delete operations are done in a background task.
 	AsyncReplicationMode = 1
 )
 
@@ -52,7 +63,8 @@ const (
 	// DefaultLoadFactor is used by the consistent hashing function. Keep it small.
 	DefaultLoadFactor = 1.25
 
-	// DefaultLogLevel determines the log level without extra configuration. It's DEBUG.
+	// DefaultLogLevel determines the log level without extra configuration.
+	// It's DEBUG.
 	DefaultLogLevel = "DEBUG"
 
 	// DefaultLogVerbosity denotes default log verbosity level.
@@ -63,9 +75,12 @@ const (
 	//   * CLI argument handling
 	// * flog.V(2) - A reasonable default log level if you don't want verbosity.
 	//   * Information about config (listening on X, watching Y)
-	//   * Errors that repeat frequently that relate to conditions that can be corrected (pod detected as unhealthy)
-	// * flog.V(3) - Useful steady state information about the service and important log messages that may correlate to
-	//   significant changes in the system.  This is the recommended default log level for most systems.
+	//   * Errors that repeat frequently that relate to conditions that can be
+	//     corrected (pod detected as unhealthy)
+	// * flog.V(3) - Useful steady state information about the service and
+	//     important log messages that may correlate to
+	//   significant changes in the system.  This is the recommended default log
+	//     level for most systems.
 	//   * Logging HTTP requests and their exit code
 	//   * System state changing (killing pod)
 	//   * Controller state change events (starting pods)
@@ -73,16 +88,19 @@ const (
 	// * flog.V(4) - Extended information about changes
 	//   * More info about system state changes
 	// * flog.V(5) - Debug level verbosity
-	//   * Logging in particularly thorny parts of code where you may want to come back later and check it
+	//   * Logging in particularly thorny parts of code where you may want to come
+	//     back later and check it
 	// * flog.V(6) - Trace level verbosity
-	//   * Context to understand the steps leading up to errors and warnings
+	//   * Context to understand the steps leading up to neterrors and warnings
 	//   * More information for troubleshooting reported issues
 	DefaultLogVerbosity = 3
 
-	// MinimumReplicaCount denotes default and minimum replica count in an Olric cluster.
+	// MinimumReplicaCount denotes default and minimum replica count in an Olric
+	// cluster.
 	MinimumReplicaCount = 1
 
-	// DefaultBootstrapTimeout denotes default timeout value to check bootstrapping status.
+	// DefaultBootstrapTimeout denotes default timeout value to check bootstrapping
+	// status.
 	DefaultBootstrapTimeout = 10 * time.Second
 
 	// DefaultJoinRetryInterval denotes a time gap between sequential join attempts.
@@ -92,49 +110,64 @@ const (
 	// before forming a standalone cluster.
 	DefaultMaxJoinAttempts = 10
 
-	// MinimumMemberCountQuorum denotes minimum required count of members to form a cluster.
+	// MinimumMemberCountQuorum denotes minimum required count of members to form
+	// a cluster.
 	MinimumMemberCountQuorum = 1
 
-	// DefaultTableSize is 1MB if you don't set your own value.
-	DefaultTableSize = 1 << 20
-
+	// DefaultLRUSamples is a sane default for randomly selected keys
+	// in approximate LRU implementation. It's 5.
 	DefaultLRUSamples int = 5
 
-	// Assign this as EvictionPolicy in order to enable LRU eviction algorithm.
+	// LRUEviction assigns this as EvictionPolicy in order to enable LRU eviction
+	// algorithm.
 	LRUEviction EvictionPolicy = "LRU"
+
+	// DefaultStorageEngine denotes the storage engine implementation provided by
+	// Olric project.
+	DefaultStorageEngine = "kvstore"
 )
 
 // Config is the configuration to create a Olric instance.
 type Config struct {
-	// Interface denotes a binding interface. It can be used instead of BindAddr if the interface is known but not the address.
-	// If both are provided, then Olric verifies that the interface has the bind address that is provided.
+	// Interface denotes a binding interface. It can be used instead of BindAddr
+	// if the interface is known but not the address. If both are provided, then
+	// Olric verifies that the interface has the bind address that is provided.
 	Interface string
 
-	// LogVerbosity denotes the level of message verbosity. The default value is 3. Valid values are between 1 to 6.
+	// LogVerbosity denotes the level of message verbosity. The default value
+	// is 3. Valid values are between 1 to 6.
 	LogVerbosity int32
 
 	// Default LogLevel is DEBUG. Valid ones: "DEBUG", "WARN", "ERROR", "INFO"
 	LogLevel string
 
-	// BindAddr denotes the address that Olric will bind to for communication with other Olric nodes.
+	// BindAddr denotes the address that Olric will bind to for communication
+	// with other Olric nodes.
 	BindAddr string
 
-	// BindPort denotes the address that Olric will bind to for communication with other Olric nodes.
+	// BindPort denotes the address that Olric will bind to for communication
+	// with other Olric nodes.
 	BindPort int
 
+	// Client denotes configuration for TCP clients in Olric and the official
+	// Golang client.
 	Client *Client
 
-	// KeepAlivePeriod denotes whether the operating system should send keep-alive messages on the connection.
+	// KeepAlivePeriod denotes whether the operating system should send
+	// keep-alive messages on the connection.
 	KeepAlivePeriod time.Duration
 
 	// Timeout for bootstrap control
 	//
-	// An Olric node checks operation status before taking any action for the cluster events, responding incoming requests
-	// and running API functions. Bootstrapping status is one of the most important checkpoints for an "operable" Olric node.
-	// BootstrapTimeout sets a deadline to check bootstrapping status without blocking indefinitely.
+	// An Olric node checks operation status before taking any action for the
+	// cluster events, responding incoming requests and running API functions.
+	// Bootstrapping status is one of the most important checkpoints for an
+	// "operable" Olric node. BootstrapTimeout sets a deadline to check
+	// bootstrapping status without blocking indefinitely.
 	BootstrapTimeout time.Duration
 
-	// The list of host:port which are used by memberlist for discovery. Don't confuse it with Name.
+	// The list of host:port which are used by memberlist for discovery.
+	// Don't confuse it with Name.
 	Peers []string
 
 	// PartitionCount is 271, by default.
@@ -158,8 +191,8 @@ type Config struct {
 	// Default value is SyncReplicationMode.
 	ReplicationMode int
 
-	// LoadFactor is used by consistent hashing function. It determines the maximum load
-	// for a server in the cluster. Keep it small.
+	// LoadFactor is used by consistent hashing function. It determines the maximum
+	// load for a server in the cluster. Keep it small.
 	LoadFactor float64
 
 	// Default hasher is github.com/cespare/xxhash
@@ -179,23 +212,31 @@ type Config struct {
 	// at the same time.
 	Logger *log.Logger
 
-	Cache *CacheConfig
+	// DMaps denotes a global configuration for DMaps. You can still overwrite it
+	// by setting a DMap for a particular distributed map via DMaps.Custom field.
+	// Most of the fields are related with distributed cache implementation.
+	DMaps *DMaps
 
-	// Minimum size(in-bytes) for append-only file
-	TableSize int
-
+	// JoinRetryInterval is the time gap between attempts to join an existing
+	// cluster.
 	JoinRetryInterval time.Duration
-	MaxJoinAttempts   int
+
+	// MaxJoinAttempts denotes the maximum number of attemps to join an existing
+	// cluster before forming a new one.
+	MaxJoinAttempts int
 
 	// Callback function. Olric calls this after
 	// the server is ready to accept new connections.
 	Started func()
 
+	// ServiceDiscovery is a map that contains plugins implement ServiceDiscovery
+	// interface. See pkg/service_discovery/service_discovery.go for details.
 	ServiceDiscovery map[string]interface{}
 
-	// Interface denotes a binding interface. It can be used instead of memberlist.Loader.BindAddr if the interface is
-	// known but not the address. If both are provided, then Olric verifies that the interface has the bind address that
-	// is provided.
+	// Interface denotes a binding interface. It can be used instead of
+	// memberlist.Loader.BindAddr if the interface is known but not the address.
+	// If both are provided, then Olric verifies that the interface has the bind
+	// address that is provided.
 	MemberlistInterface string
 
 	// MemberlistConfig is the memberlist configuration that Olric will
@@ -213,57 +254,71 @@ type Config struct {
 	// You have to use NewMemberlistConfig to create a new one.
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
+
+	// StorageEngines contains storage engine configuration and their implementations.
+	StorageEngines *StorageEngines
 }
 
-// Validate validates the given configuration.
+// Validate finds errors in the current configuration.
 func (c *Config) Validate() error {
-	var result error
 	if c.ReplicaCount < MinimumReplicaCount {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify ReplicaCount smaller than MinimumReplicaCount"))
+		return fmt.Errorf("cannot specify ReplicaCount smaller than MinimumReplicaCount")
 	}
 
 	if c.ReadQuorum <= 0 {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify ReadQuorum less than or equal to zero"))
+		return fmt.Errorf("cannot specify ReadQuorum less than or equal to zero")
 	}
 	if c.ReplicaCount < c.ReadQuorum {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify ReadQuorum greater than ReplicaCount"))
+		return fmt.Errorf("cannot specify ReadQuorum greater than ReplicaCount")
 	}
 
 	if c.WriteQuorum <= 0 {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify WriteQuorum less than or equal to zero"))
+		return fmt.Errorf("cannot specify WriteQuorum less than or equal to zero")
 	}
 	if c.ReplicaCount < c.WriteQuorum {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify WriteQuorum greater than ReplicaCount"))
+		return fmt.Errorf("cannot specify WriteQuorum greater than ReplicaCount")
 	}
 
 	if err := c.validateMemberlistConfig(); err != nil {
-		result = multierror.Append(result, err)
+		return err
 	}
 
 	if c.MemberCountQuorum < MinimumMemberCountQuorum {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify MemberCountQuorum "+
-				"smaller than MinimumMemberCountQuorum"))
+		return fmt.Errorf("cannot specify MemberCountQuorum smaller than MinimumMemberCountQuorum")
 	}
 
 	if c.BindAddr == "" {
-		result = multierror.Append(result, fmt.Errorf("BindAddr cannot be empty"))
+		return fmt.Errorf("bindAddr cannot be empty")
 	}
 
 	if c.BindPort == 0 {
-		result = multierror.Append(result, fmt.Errorf("BindPort cannot be empty or zero"))
+		return fmt.Errorf("bindPort cannot be empty or zero")
 	}
 
-	return result
+	// Check peers. If Peers slice contains node's itself, return an error.
+	port := strconv.Itoa(c.MemberlistConfig.BindPort)
+	this := net.JoinHostPort(c.MemberlistConfig.BindAddr, port)
+	for _, peer := range c.Peers {
+		if this == peer {
+			return fmt.Errorf("cannot be peer with itself")
+		}
+	}
+
+	if err := c.Client.Validate(); err != nil {
+		return fmt.Errorf("failed to validate client configuration: %w", err)
+	}
+
+	if err := c.DMaps.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.StorageEngines.Validate(); err != nil {
+		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
+	}
+	return nil
 }
 
-// Sanitize sanitizes the given configuration.
-// It returns an error if there is something very bad in the configuration.
+// Sanitize sets default values to empty configuration variables, if it's possible.
 func (c *Config) Sanitize() error {
 	if c.Logger == nil {
 		if c.LogOutput == nil {
@@ -289,12 +344,12 @@ func (c *Config) Sanitize() error {
 	if c.BindAddr == "" {
 		name, err := os.Hostname()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read hostname from kernel: %w", err)
 		}
 		c.BindAddr = name
 	}
-	// We currently don't support ephemeral port selection. Because it needs improved flow
-	// control in server initialization stage.
+	// We currently don't support ephemeral port selection. Because it needs
+	// improved flow control in server initialization stage.
 	if c.BindPort == 0 {
 		c.BindPort = DefaultPort
 	}
@@ -316,6 +371,7 @@ func (c *Config) Sanitize() error {
 		m.AdvertisePort = DefaultDiscoveryPort
 		c.MemberlistConfig = m
 	}
+
 	if c.BootstrapTimeout == 0*time.Second {
 		c.BootstrapTimeout = DefaultBootstrapTimeout
 	}
@@ -325,47 +381,48 @@ func (c *Config) Sanitize() error {
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
 	}
-	if c.TableSize == 0 {
-		c.TableSize = DefaultTableSize
-	}
 
-	// Check peers. If Peers slice contains node's itself, return an error.
-	port := strconv.Itoa(c.MemberlistConfig.BindPort)
-	this := net.JoinHostPort(c.MemberlistConfig.BindAddr, port)
-	for _, peer := range c.Peers {
-		if this == peer {
-			return fmt.Errorf("a node cannot be peer with itself")
-		}
-	}
 	if c.Client == nil {
 		c.Client = NewClient()
-	} else {
-		c.Client.Sanitize()
 	}
 
+	if err := c.Client.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize TCP client configuration: %w", err)
+	}
+
+	if err := c.DMaps.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize DMap configuration: %w", err)
+	}
+
+	if err := c.StorageEngines.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
+	}
 	return nil
 }
 
-// DefaultConfig returns a Config with sane defaults.
+// New returns a Config with sane defaults.
 // It takes an env parameter used by memberlist: local, lan and wan.
 //
 // local:
 //
-// DefaultLocalConfig works like DefaultConfig, however it returns a configuration that
-// is optimized for a local loopback environments. The default configuration is still very conservative
-// and errs on the side of caution.
+// DefaultLocalConfig works like DefaultConfig, however it returns a configuration
+// that is optimized for a local loopback environments. The default configuration
+// is still very conservative and errs on the side of caution.
 //
 // lan:
 //
-// DefaultLANConfig returns a sane set of configurations for Memberlist. It uses the hostname
-// as the node name, and otherwise sets very conservative values that are sane for most LAN environments.
-// The default configuration errs on the side of caution, choosing values that are optimized for higher convergence
-// at the cost of higher bandwidth usage. Regardless, these values are a good starting point when getting started with memberlist.
+// DefaultLANConfig returns a sane set of configurations for Memberlist. It uses
+// the hostname as the node name, and otherwise sets very conservative values
+// that are sane for most LAN environments. The default configuration errs on
+// the side of caution, choosing values that are optimized for higher convergence
+// at the cost of higher bandwidth usage. Regardless, these values are a good
+// starting point when getting started with memberlist.
 //
 // wan:
 //
-// DefaultWANConfig works like DefaultConfig, however it returns a configuration that is optimized for most WAN environments.
-// The default configuration is still very conservative and errs on the side of caution.
+// DefaultWANConfig works like DefaultConfig, however it returns a configuration
+// that is optimized for most WAN environments. The default configuration is still
+// very conservative and errs on the side of caution.
 func New(env string) *Config {
 	c := &Config{
 		BindAddr:          "0.0.0.0",
@@ -376,11 +433,10 @@ func New(env string) *Config {
 		ReadQuorum:        1,
 		MemberCountQuorum: 1,
 		Peers:             []string{},
-		Cache:             &CacheConfig{},
+		DMaps:             &DMaps{},
+		StorageEngines:    NewStorageEngine(),
 	}
-	if err := c.Sanitize(); err != nil {
-		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))
-	}
+
 	m, err := NewMemberlistConfig(env)
 	if err != nil {
 		panic(fmt.Sprintf("unable to create a new memberlist config: %v", err))
@@ -390,8 +446,15 @@ func New(env string) *Config {
 	m.AdvertisePort = DefaultDiscoveryPort
 	c.MemberlistConfig = m
 
+	if err := c.Sanitize(); err != nil {
+		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))
+	}
+
 	if err := c.Validate(); err != nil {
 		panic(fmt.Sprintf("unable to validate Olric config: %v", err))
 	}
 	return c
 }
+
+// Interface guard
+var _ IConfig = (*Config)(nil)

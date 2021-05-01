@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/checkpoint"
 	"io"
 	"net"
 	"strconv"
@@ -68,6 +69,8 @@ type Server struct {
 
 // NewServer creates and returns a new Server.
 func NewServer(c *ServerConfig, l *flog.Logger) *Server {
+	checkpoint.Add()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	startedCtx, started := context.WithCancel(context.Background())
 	return &Server{

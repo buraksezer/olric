@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,10 @@
 
 package config
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 const (
 	DefaultDialTimeout  = 5 * time.Second
@@ -22,7 +25,7 @@ const (
 	DefaultWriteTimeout = 3 * time.Second
 )
 
-// Configuration for TCP clients in Olric and the official Golang client.
+// Client denotes configuration for TCP clients in Olric and the official Golang client.
 type Client struct {
 	// Timeout for TCP dial.
 	//
@@ -60,12 +63,15 @@ type Client struct {
 // NewClient returns a new configuration object for clients.
 func NewClient() *Client {
 	c := &Client{}
-	c.Sanitize()
+	err := c.Sanitize()
+	if err != nil {
+		panic(fmt.Sprintf("failed to create a new client configuration: %v", err))
+	}
 	return c
 }
 
-// Sanitize sanitizes the given configuration.
-func (c *Client) Sanitize() {
+// Sanitize sets default values to empty configuration variables, if it's possible.
+func (c *Client) Sanitize() error {
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = DefaultDialTimeout
 	}
@@ -87,8 +93,15 @@ func (c *Client) Sanitize() {
 	if c.MaxConn == 0 {
 		c.MaxConn = 1
 	}
+	return nil
 }
+
+// Validate finds errors in the current configuration.
+func (c *Client) Validate() error { return nil }
 
 func (c *Client) HasTimeout() bool {
 	return c.ReadTimeout > 0 || c.WriteTimeout > 0
 }
+
+// Interface guard
+var _ IConfig = (*Client)(nil)

@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testolric"
 )
 
 func mockCreateStream(ctx context.Context, _ string, read chan<- protocol.EncodeDecoder, write <-chan protocol.EncodeDecoder) error {
@@ -46,19 +47,13 @@ func mockCreateStream(ctx context.Context, _ string, read chan<- protocol.Encode
 }
 
 func TestStream_EchoListener(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Fatalf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
+	tc := newTestConfig(srv)
 
-	c, err := New(testConfig)
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -115,18 +110,13 @@ func TestStream_EchoListener(t *testing.T) {
 }
 
 func TestStream_CreateNewStream(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Fatalf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
-	modifiedTestConfig := *testConfig
+	tc := newTestConfig(srv)
+
+	modifiedTestConfig := *tc
 	modifiedTestConfig.MaxListenersPerStream = 1
 	c, err := New(&modifiedTestConfig)
 	if err != nil {
@@ -153,18 +143,13 @@ func TestStream_CreateNewStream(t *testing.T) {
 }
 
 func TestStream_MultipleListeners(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Fatalf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
-	c, err := New(testConfig)
+	tc := newTestConfig(srv)
+
+	c, err := New(tc)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -243,18 +228,13 @@ func TestStream_MultipleListeners(t *testing.T) {
 }
 
 func TestStream_PingPong(t *testing.T) {
-	db, done, err := newDB()
+	srv, err := testolric.New(t)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	defer func() {
-		serr := db.Shutdown(context.Background())
-		if serr != nil {
-			t.Fatalf("Expected nil. Got %v", serr)
-		}
-		<-done
-	}()
-	modifiedTestConfig := *testConfig
+	tc := newTestConfig(srv)
+
+	modifiedTestConfig := *tc
 	modifiedTestConfig.MaxListenersPerStream = 1
 	c, err := New(&modifiedTestConfig)
 	if err != nil {

@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,55 +15,36 @@
 package olric
 
 import (
-	"context"
-	"reflect"
+	"bytes"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/testutil/assert"
 )
 
-func TestStatsStandalone(t *testing.T) {
-	db, err := newDB(testSingleReplicaConfig())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db.Shutdown(context.Background())
-		if err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
+func TestOlric_Stats(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
 	dm, err := db.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	assert.NoError(t, err)
+
 	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		assert.NoError(t, err)
 	}
 
 	s, err := db.Stats()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
+	assert.NoError(t, err)
+
+	if s.ClusterCoordinator.ID != db.rt.This().ID {
+		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.rt.This(), s.ClusterCoordinator)
 	}
 
-	if !cmpMembersByID(s.ClusterCoordinator, db.this) {
-		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.this, s.ClusterCoordinator)
-	}
-
-	if len(s.ClusterMembers) != 1 {
-		t.Fatalf("Expected length of ClusterMembers map: 1. Got: %d", len(s.ClusterMembers))
-	}
-	m, ok := s.ClusterMembers[s.ClusterCoordinator.ID]
-	if !ok {
-		t.Fatalf("Member could not be found in ClusterMembers")
-	}
-	if !reflect.DeepEqual(m, s.ClusterCoordinator) {
-		t.Fatalf("Different member for the same ID")
-	}
+	assert.Equal(t, s.Member.Name, db.rt.This().Name)
+	assert.Equal(t, s.Member.ID, db.rt.This().ID)
+	assert.Equal(t, s.Member.Birthdate, db.rt.This().Birthdate)
 
 	var total int
 	for partID, part := range s.Partitions {
@@ -78,100 +59,26 @@ func TestStatsStandalone(t *testing.T) {
 		if part.Length <= 0 {
 			t.Fatalf("Unexpected Length: %d", part.Length)
 		}
-		if !cmpMembersByID(part.Owner, db.this) {
-			t.Fatalf("Expected partition owner: %s. Got: %s", db.this, part.Owner)
-		}
 	}
 	if total != 100 {
 		t.Fatalf("Expected total length of partition in stats is 100. Got: %d", total)
 	}
+	_, ok := s.ClusterMembers[db.rt.This().ID]
+	if !ok {
+		t.Fatalf("Expected member ID: %d could not be found in ClusterMembers", db.rt.This().ID)
+	}
 }
 
-func TestStatsCluster(t *testing.T) {
-	db1, err := newDB(nil)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db1.Shutdown(context.Background())
-		if err != nil {
-			db1.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
+func TestOlric_Stats_Operation(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
 
-	db2, err := newDB(nil, db1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = db2.Shutdown(context.Background())
-		if err != nil {
-			db2.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
-	}()
-	syncClusterMembers(db1, db2)
-
-	dm, err := db1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 100; i++ {
-		err = dm.Put(bkey(i), bval(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-	var primaryTotal int
-	var backupTotal int
-	for _, db := range []*Olric{db1, db2} {
-		s, err := db.Stats()
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		for _, part := range s.Partitions {
-			primaryTotal += part.Length
-		}
-		for _, part := range s.Backups {
-			backupTotal += part.Length
-		}
-	}
-	if primaryTotal != 100 {
-		t.Fatalf("Expected total length of partitions on primary "+
-			"owners in stats is 100. Got: %d", primaryTotal)
-	}
-	if backupTotal != 100 {
-		t.Fatalf("Expected total length of partitions on backup "+
-			"owners in stats is 100. Got: %d", backupTotal)
-	}
-
-	t.Run("check ClusterCoordinator", func(t *testing.T) {
-		s, err := db2.Stats()
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-
-		if !cmpMembersByID(s.ClusterCoordinator, db1.this) {
-			t.Fatalf("Expected cluster coordinator: %v. Got: %v", db1.this, s.ClusterCoordinator)
-		}
-	})
-
-	t.Run("check ClusterMembers", func(t *testing.T) {
-		s, err := db2.Stats()
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if len(s.ClusterMembers) != 2 {
-			t.Fatalf("Expected length of ClusterMembers map: 2. Got: %d", len(s.ClusterMembers))
-		}
-
-		for _, member := range []discovery.Member{db1.this, db2.this} {
-			m, ok := s.ClusterMembers[member.ID]
-			if !ok {
-				t.Fatalf("Member: %s could not be found in ClusterMembers", member)
-			}
-			if !reflect.DeepEqual(member, m) {
-				t.Fatalf("Different member for the same ID: %s", member)
-			}
-		}
-	})
+	buf := new(bytes.Buffer)
+	req := protocol.NewSystemMessage(protocol.OpStats)
+	req.SetBuffer(buf)
+	err = req.Encode()
+	assert.NoError(t, err)
+	resp := req.Response(nil)
+	db.statsOperation(resp, req)
+	assert.Equal(t, protocol.StatusOK, resp.Status())
 }

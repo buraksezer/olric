@@ -1,4 +1,4 @@
-// Copyright 2018-2020 Burak Sezer
+// Copyright 2018-2021 Burak Sezer
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ package transport
 
 import (
 	"context"
-	"github.com/buraksezer/olric/config"
 	"io"
 	"log"
 	"net"
@@ -26,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/flog"
 )
