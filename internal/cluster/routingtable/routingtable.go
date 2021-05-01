@@ -45,36 +45,32 @@ type route struct {
 type RoutingTable struct {
 	sync.RWMutex // routingMtx
 
-	// These values is useful to control operation status.
-	bootstrapped int32
-
-	updateRoutingMtx sync.Mutex
-
-	table map[uint64]*route
-
-	// consistent hash ring implementation.
-	consistent *consistent.Consistent
-
 	// numMembers is used to check cluster quorum.
 	numMembers int32
 	// Currently owned partition count. Approximate LRU implementation
 	// uses that.
 	ownedPartitionCount uint64
 	signature           uint64
-	this                discovery.Member
-	members             *Members
-	config              *config.Config
-	log                 *flog.Logger
-	primary             *partitions.Partitions
-	backup              *partitions.Partitions
-	client              *transport.Client
-	discovery           *discovery.Discovery
-	callbacks           []func()
-	callbackMtx         sync.Mutex
-	updatePeriod        time.Duration
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	wg                  sync.WaitGroup
+	// These values is useful to control operation status.
+	bootstrapped int32
+
+	updateRoutingMtx sync.Mutex
+	table            map[uint64]*route
+	consistent       *consistent.Consistent
+	this             discovery.Member
+	members          *Members
+	config           *config.Config
+	log              *flog.Logger
+	primary          *partitions.Partitions
+	backup           *partitions.Partitions
+	client           *transport.Client
+	discovery        *discovery.Discovery
+	callbacks        []func()
+	callbackMtx      sync.Mutex
+	updatePeriod     time.Duration
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
 }
 
 func New(e *environment.Environment) *RoutingTable {
