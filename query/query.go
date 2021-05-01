@@ -18,8 +18,9 @@ package query
 import (
 	"errors"
 	"fmt"
-	"github.com/vmihailenco/msgpack"
 	"reflect"
+
+	"github.com/vmihailenco/msgpack"
 )
 
 // ErrInvalidQuery denotes a given query is empty or badly formatted.
