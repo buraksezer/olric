@@ -31,7 +31,6 @@ import (
 type Loader struct {
 	mu         sync.RWMutex
 	responses  []int
-	commands   []string
 	keyCount   int
 	numClients int
 	serializer string
@@ -151,12 +150,12 @@ func (l *Loader) call(cmd string, ch chan int) {
 }
 
 func (l *Loader) Run(cmd string) error {
-	if len(cmd) == 0 {
+	if cmd == "" {
 		return fmt.Errorf("no command given")
 	}
 	var found bool
 	for _, c := range []string{"put", "get", "delete"} {
-		if strings.ToUpper(c) == strings.ToUpper(cmd) {
+		if strings.EqualFold(c, cmd) {
 			found = true
 		}
 	}

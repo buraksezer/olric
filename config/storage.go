@@ -15,7 +15,10 @@
 package config
 
 import (
+	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/pkg/storage"
+	"os"
 )
 
 // StorageEngines contains storage engine configuration and their implementations.
@@ -31,7 +34,8 @@ type StorageEngines struct {
 	Impls map[string]storage.Engine
 
 	// Config is a map that contains configuration of the storage engines, for
-	// both plugins and imported ones.
+	// both plugins and imported ones. If you want to use a storage engine other
+	// than the default one, you must set configuration for it.
 	Config map[string]map[string]interface{}
 }
 
@@ -45,3 +49,40 @@ func NewStorageEngine() *StorageEngines {
 		Config:  make(map[string]map[string]interface{}),
 	}
 }
+
+// Validate finds errors in the current configuration.
+func (s *StorageEngines) Validate() error {
+	for name := range s.Impls {
+		_, ok := s.Config[name]
+		if !ok {
+			return fmt.Errorf("missing storage engine configuration: %s", name)
+		}
+	}
+
+	for name := range s.Config {
+		_, ok := s.Impls[name]
+		if !ok {
+			return fmt.Errorf("missing storage engine implementation: %s", name)
+		}
+	}
+
+	for _, file := range s.Plugins {
+		_, err := os.Stat(file)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("storage engine plugin could not be found on disk: %s", file)
+		}
+	}
+	return nil
+}
+
+// Sanitize sets default values to empty configuration variables, if it's possible.
+func (s *StorageEngines) Sanitize() error {
+	if len(s.Impls) == 0 {
+		s.Impls[DefaultStorageEngine] = &kvstore.KVStore{}
+		s.Config[DefaultStorageEngine] = kvstore.DefaultConfig().ToMap()
+	}
+	return nil
+}
+
+// Interface guard
+var _ IConfig = (*StorageEngines)(nil)

@@ -15,29 +15,28 @@
 package config
 
 import (
+	"runtime"
 	"time"
 )
 
-// EvictionPolicy denotes eviction policy. Currently: LRU or NONE.
-type EvictionPolicy string
-
-// Important note on DMap and DMaps structs:
-// Golang does not provide the typical notion of inheritance.
-// because of that I preferred to define the types explicitly.
-
-// DMap denotes configuration for a particular distributed map. Most of the
+// DMaps denotes a global configuration for DMaps. You can still overwrite it by
+// setting a DMap for a particular distributed map via Custom field. Most of the
 // fields are related with distributed cache implementation.
-type DMap struct {
-	// MaxIdleDuration denotes maximum time for each entry to stay idle in the
-	// DMap. It limits the lifetime of the entries relative to the time of the
-	// last read or write access performed on them. The entries whose idle period
-	// exceeds this limit are expired and evicted automatically. An entry is idle
-	// if no Get, GetEntry, Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration
-	// of MaxIdleDuration feature varies by preferred deployment method.
+type DMaps struct {
+	// NumEvictionWorkers denotes the number of goroutines that's used to find
+	// keys for eviction.
+	NumEvictionWorkers int64
+
+	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
+	// It limits the lifetime of the entries relative to the time of the last
+	// read or write access performed on them. The entries whose idle period exceeds
+	// this limit are expired and evicted automatically. An entry is idle if no Get,
+	// GetEntry, Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of
+	// MaxIdleDuration feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
 
-	// TTLDuration is useful to set a default TTL for every key/value pair a DMap
-	// instance.
+	// TTLDuration is useful to set a default TTL for every key/value pair a
+	// distributed map instance.
 	TTLDuration time.Duration
 
 	// MaxKeys denotes maximum key count on a particular node. So if you have 10
@@ -45,14 +44,14 @@ type DMap struct {
 	// MaxKeys*10=1000000
 	MaxKeys int
 
-	// MaxInuse denotes maximum amount of in-use memory on a particular node. So
-	// if you have 10 nodes with MaxInuse=100M (it has to be in bytes), amount of
-	// in-use memory should be around MaxInuse*10=1G
+	// MaxInuse denotes maximum amount of in-use memory on a particular node.
+	// So if you have 10 nodes with MaxInuse=100M (it has to be in bytes), amount
+	// of in-use memory should be around MaxInuse*10=1G
 	MaxInuse int
 
 	// LRUSamples denotes amount of randomly selected key count by the approximate
-	// LRU implementation. Lower values are better for high performance. It's 5
-	// by default.
+	// LRU implementation. Lower values are better for high performance. It's
+	// 5 by default.
 	LRUSamples int
 
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
@@ -62,10 +61,16 @@ type DMap struct {
 	// Name of the storage engine. The default one is kvstore. Leave it empty if
 	// you want to use the default one.
 	StorageEngine string
+
+	// Custom is useful to set custom cache config per DMap instance.
+	Custom map[string]DMap
 }
 
 // Sanitize sets default values to empty configuration variables, if it's possible.
-func (dm *DMap) Sanitize() error {
+func (dm *DMaps) Sanitize() error {
+	if dm.Custom == nil {
+		dm.Custom = make(map[string]DMap)
+	}
 	if dm.EvictionPolicy == "" {
 		dm.EvictionPolicy = "NONE"
 	}
@@ -78,13 +83,21 @@ func (dm *DMap) Sanitize() error {
 	if dm.MaxKeys < 0 {
 		dm.MaxKeys = 0
 	}
+	if dm.NumEvictionWorkers <= 0 {
+		dm.NumEvictionWorkers = int64(runtime.NumCPU())
+	}
 	if dm.StorageEngine == "" {
 		dm.StorageEngine = DefaultStorageEngine
+	}
+
+	for _, d := range dm.Custom {
+		if err := d.Sanitize(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// Validate finds errors in the current configuration.
-func (dm *DMap) Validate() error { return nil }
+func (dm *DMaps) Validate() error { return nil }
 
-var _ IConfig = (*DMap)(nil)
+var _ IConfig = (*DMaps)(nil)

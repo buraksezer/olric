@@ -25,9 +25,19 @@ import (
 
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/serializer"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/memberlist"
 )
+
+// IConfig is an interface that has to be implemented by Config and its nested
+// structs. It provides a clear and granular way to sanitize and validate
+// the configuration.
+type IConfig interface {
+	// Sanitize methods should be used to set defaults.
+	Sanitize() error
+
+	// Validate method should be used to find configuration errors.
+	Validate() error
+}
 
 const (
 	// SyncReplicationMode enables sync replication mode which means that the
@@ -249,55 +259,66 @@ type Config struct {
 	StorageEngines *StorageEngines
 }
 
-// Validate finds mistakes in the current configuration.
+// Validate finds errors in the current configuration.
 func (c *Config) Validate() error {
-	var result error
 	if c.ReplicaCount < MinimumReplicaCount {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify ReplicaCount smaller than MinimumReplicaCount"))
+		return fmt.Errorf("cannot specify ReplicaCount smaller than MinimumReplicaCount")
 	}
 
 	if c.ReadQuorum <= 0 {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify ReadQuorum less than or equal to zero"))
+		return fmt.Errorf("cannot specify ReadQuorum less than or equal to zero")
 	}
 	if c.ReplicaCount < c.ReadQuorum {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify ReadQuorum greater than ReplicaCount"))
+		return fmt.Errorf("cannot specify ReadQuorum greater than ReplicaCount")
 	}
 
 	if c.WriteQuorum <= 0 {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify WriteQuorum less than or equal to zero"))
+		return fmt.Errorf("cannot specify WriteQuorum less than or equal to zero")
 	}
 	if c.ReplicaCount < c.WriteQuorum {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify WriteQuorum greater than ReplicaCount"))
+		return fmt.Errorf("cannot specify WriteQuorum greater than ReplicaCount")
 	}
 
 	if err := c.validateMemberlistConfig(); err != nil {
-		result = multierror.Append(result, err)
+		return err
 	}
 
 	if c.MemberCountQuorum < MinimumMemberCountQuorum {
-		result = multierror.Append(result,
-			fmt.Errorf("cannot specify MemberCountQuorum "+
-				"smaller than MinimumMemberCountQuorum"))
+		return fmt.Errorf("cannot specify MemberCountQuorum smaller than MinimumMemberCountQuorum")
 	}
 
 	if c.BindAddr == "" {
-		result = multierror.Append(result, fmt.Errorf("bindAddr cannot be empty"))
+		return fmt.Errorf("bindAddr cannot be empty")
 	}
 
 	if c.BindPort == 0 {
-		result = multierror.Append(result, fmt.Errorf("bindPort cannot be empty or zero"))
+		return fmt.Errorf("bindPort cannot be empty or zero")
 	}
 
-	return result
+	// Check peers. If Peers slice contains node's itself, return an error.
+	port := strconv.Itoa(c.MemberlistConfig.BindPort)
+	this := net.JoinHostPort(c.MemberlistConfig.BindAddr, port)
+	for _, peer := range c.Peers {
+		if this == peer {
+			return fmt.Errorf("cannot be peer with itself")
+		}
+	}
+
+	if err := c.Client.Validate(); err != nil {
+		return fmt.Errorf("failed to validate client configuration: %w", err)
+	}
+
+	if err := c.DMaps.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.StorageEngines.Validate(); err != nil {
+		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
+	}
+	return nil
 }
 
-// Sanitize sanitizes the given configuration. It returns an error if there is
-// something very bad in the configuration.
+// Sanitize sets default values to empty configuration variables, if it's possible.
 func (c *Config) Sanitize() error {
 	if c.Logger == nil {
 		if c.LogOutput == nil {
@@ -323,7 +344,7 @@ func (c *Config) Sanitize() error {
 	if c.BindAddr == "" {
 		name, err := os.Hostname()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to read hostname from kernel: %w", err)
 		}
 		c.BindAddr = name
 	}
@@ -361,20 +382,21 @@ func (c *Config) Sanitize() error {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
 	}
 
-	// Check peers. If Peers slice contains node's itself, return an error.
-	port := strconv.Itoa(c.MemberlistConfig.BindPort)
-	this := net.JoinHostPort(c.MemberlistConfig.BindAddr, port)
-	for _, peer := range c.Peers {
-		if this == peer {
-			return fmt.Errorf("a node cannot be peer with itself")
-		}
-	}
 	if c.Client == nil {
 		c.Client = NewClient()
-	} else {
-		c.Client.Sanitize()
 	}
 
+	if err := c.Client.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize TCP client configuration: %w", err)
+	}
+
+	if err := c.DMaps.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize DMap configuration: %w", err)
+	}
+
+	if err := c.StorageEngines.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
+	}
 	return nil
 }
 
@@ -414,9 +436,7 @@ func New(env string) *Config {
 		DMaps:             &DMaps{},
 		StorageEngines:    NewStorageEngine(),
 	}
-	if err := c.Sanitize(); err != nil {
-		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))
-	}
+
 	m, err := NewMemberlistConfig(env)
 	if err != nil {
 		panic(fmt.Sprintf("unable to create a new memberlist config: %v", err))
@@ -426,8 +446,15 @@ func New(env string) *Config {
 	m.AdvertisePort = DefaultDiscoveryPort
 	c.MemberlistConfig = m
 
+	if err := c.Sanitize(); err != nil {
+		panic(fmt.Sprintf("unable to sanitize Olric config: %v", err))
+	}
+
 	if err := c.Validate(); err != nil {
 		panic(fmt.Sprintf("unable to validate Olric config: %v", err))
 	}
 	return c
 }
+
+// Interface guard
+var _ IConfig = (*Config)(nil)

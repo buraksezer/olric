@@ -112,15 +112,16 @@ type storageEngines struct {
 
 // Loader is the main configuration struct
 type Loader struct {
-	Memberlist       memberlist
-	Logging          logging
-	Olricd           olricd
-	Client           client
+	Memberlist       memberlist       `yaml:"memberlist"`
+	Logging          logging          `yaml:"logging"`
+	Olricd           olricd           `yaml:"olricd"`
+	Client           client           `yaml:"client"`
 	DMaps            dmaps            `yaml:"dmaps"`
 	ServiceDiscovery serviceDiscovery `yaml:"serviceDiscovery"`
 	StorageEngines   storageEngines   `yaml:"storageEngines"`
 }
 
+// New tries to read Olric configuration from a YAML file.
 func New(data []byte) (*Loader, error) {
 	var lc Loader
 	if err := yaml.Unmarshal(data, &lc); err != nil {

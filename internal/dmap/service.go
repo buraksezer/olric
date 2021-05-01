@@ -25,7 +25,6 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
@@ -110,14 +109,6 @@ func (s *Service) initializeAndLoadStorageEngines() error {
 			return err
 		}
 		s.storage.engines[engine.Name()] = engine
-	}
-
-	// Set a default engine, if required.
-	if len(s.config.StorageEngines.Impls) == 0 {
-		if _, ok := s.config.StorageEngines.Config[config.DefaultStorageEngine]; !ok {
-			s.config.StorageEngines.Config[config.DefaultStorageEngine] = kvstore.DefaultConfig().ToMap()
-		}
-		s.storage.engines[config.DefaultStorageEngine] = &kvstore.KVStore{}
 	}
 
 	// Set configuration for the loaded engines.
