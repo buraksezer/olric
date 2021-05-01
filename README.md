@@ -398,7 +398,7 @@ In order to get more details about the command, call `olric-stats -h`.
 
 ### olric-load
 
-olric-load simulates running commands done by N clients at the same time sending M total queries. It measures response time. 
+olric-load simulates running commands done by N clients at the same time sending M total queries. It measures response time.
 
 In order to install `olric-load`:
 
