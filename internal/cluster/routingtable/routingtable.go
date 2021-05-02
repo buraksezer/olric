@@ -45,12 +45,13 @@ type route struct {
 type RoutingTable struct {
 	sync.RWMutex // routingMtx
 
-	// numMembers is used to check cluster quorum.
-	numMembers int32
 	// Currently owned partition count. Approximate LRU implementation
 	// uses that.
 	ownedPartitionCount uint64
 	signature           uint64
+	// numMembers is used to check cluster quorum.
+	numMembers int32
+
 	// These values is useful to control operation status.
 	bootstrapped int32
 
