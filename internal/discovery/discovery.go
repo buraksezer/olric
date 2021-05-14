@@ -171,11 +171,12 @@ func (d *Discovery) deadMemberTracker() {
 			return
 		case e := <-d.deadMemberEvents:
 			member := e.MemberAddr()
-			if e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate {
+			switch {
+			case e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate:
 				delete(d.deadMembers, member)
-			} else if e.Event == memberlist.NodeLeave {
+			case e.Event == memberlist.NodeLeave:
 				d.deadMembers[member] = time.Now().UnixNano()
-			} else {
+			default:
 				d.log.V(2).Printf("[ERROR] Unknown memberlist event received for: %s: %v",
 					e.NodeName, e.Event)
 			}

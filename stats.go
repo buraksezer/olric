@@ -149,6 +149,7 @@ func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
 // Stats exposes some useful metrics to monitor an Olric node.
 func (db *Olric) Stats() (stats.Stats, error) {
 	if err := db.isOperable(); err != nil {
+		// this node is not bootstrapped yet.
 		return stats.Stats{}, err
 	}
 	return db.stats(), nil
