@@ -28,6 +28,7 @@ import (
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/checkpoint"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -36,6 +37,17 @@ import (
 const (
 	idleConn uint32 = 0
 	busyConn uint32 = 1
+)
+
+var (
+	// CommandsTotal is total number of all requests broken down by command (get, set, etc.) and status.
+	CommandsTotal = stats.NewInt64Counter("commands_total")
+
+	// ConnectionsTotal is total number of connections opened since the server started running.
+	ConnectionsTotal = stats.NewInt64Counter("connections_total")
+
+	// CurrentConnections is current number of open connections.
+	CurrentConnections = stats.NewInt64Gauge("current_connections")
 )
 
 // pool is good for recycling memory while reading messages from the socket.
@@ -109,6 +121,9 @@ func (s *Server) SetDispatcher(f func(w, r protocol.EncodeDecoder)) {
 }
 
 func (s *Server) controlConnLifeCycle(conn io.ReadWriteCloser, connStatus *uint32, done chan struct{}) {
+	CurrentConnections.Increase()
+	defer CurrentConnections.Decrease()
+
 	// Control connection state and close it.
 	defer s.wg.Done()
 
@@ -165,6 +180,8 @@ func (s *Server) closeStream(req *protocol.StreamMessage, done chan struct{}) {
 
 // processMessage waits for a new request, handles it and returns the appropriate response.
 func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, done chan struct{}) error {
+	CommandsTotal.Increase()
+
 	buf := bufferPool.Get()
 	defer bufferPool.Put(buf)
 
@@ -208,6 +225,7 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 
 // processConn waits for requests and calls request handlers to generate a response. The connections are reusable.
 func (s *Server) processConn(conn io.ReadWriteCloser) {
+	ConnectionsTotal.Increase()
 	defer s.wg.Done()
 
 	// connStatus is useful for closing the server gracefully.
