@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -25,7 +26,7 @@ import (
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	entry, err := dm.get(e.key)
-	if err == ErrKeyNotFound {
+	if errors.Is(err, ErrKeyNotFound) {
 		err = nil
 	}
 	if err != nil {
@@ -65,11 +66,12 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 	}
 
 	var updated int
-	if opcode == protocol.OpIncr {
+	switch {
+	case opcode == protocol.OpIncr:
 		updated = current + delta
-	} else if opcode == protocol.OpDecr {
+	case opcode == protocol.OpDecr:
 		updated = current - delta
-	} else {
+	default:
 		return 0, fmt.Errorf("invalid operation")
 	}
 
@@ -77,11 +79,13 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 	if err != nil {
 		return 0, err
 	}
+
 	e.value = val
 	err = dm.put(e)
 	if err != nil {
 		return 0, err
 	}
+
 	return updated, nil
 }
 
@@ -122,7 +126,7 @@ func (dm *DMap) getPut(e *env) ([]byte, error) {
 	}()
 
 	entry, err := dm.get(e.key)
-	if err == ErrKeyNotFound {
+	if errors.Is(err, ErrKeyNotFound) {
 		err = nil
 	}
 	if err != nil {

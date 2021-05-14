@@ -29,13 +29,13 @@ func TestUint64Counter(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			c.Increase()
+			c.Increase(1)
 		}()
 	}
 
 	wg.Wait()
 
-	assert.Equal(t, int64(100), c.Read().(int64))
+	assert.Equal(t, int64(100), c.Read())
 
 	assert.Equal(t, "foobar", c.Tag())
 }
@@ -48,7 +48,7 @@ func TestUint64Gauge(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			g.Increase()
+			g.Increase(1)
 		}()
 	}
 
@@ -56,13 +56,13 @@ func TestUint64Gauge(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			g.Decrease()
+			g.Decrease(1)
 		}()
 	}
 
 	wg.Wait()
 
-	assert.Equal(t, int64(80), g.Read().(int64))
+	assert.Equal(t, int64(80), g.Read())
 
 	assert.Equal(t, "foobar", g.Tag())
 }

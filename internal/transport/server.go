@@ -48,6 +48,13 @@ var (
 
 	// CurrentConnections is current number of open connections.
 	CurrentConnections = stats.NewInt64Gauge("current_connections")
+
+	// WrittenBytesTotal is total number of bytes sent by this server to network.
+	WrittenBytesTotal = stats.NewInt64Counter("written_bytes_total")
+
+	// ReadBytesTotal is total number of bytes read by this server from network.
+	ReadBytesTotal = stats.NewInt64Counter("read_bytes_total")
+
 )
 
 // pool is good for recycling memory while reading messages from the socket.
@@ -100,17 +107,18 @@ func NewServer(c *ServerConfig, l *flog.Logger) *Server {
 
 func prepareRequest(header *protocol.Header, buf *bytes.Buffer) (protocol.EncodeDecoder, error) {
 	var req protocol.EncodeDecoder
-	if header.Magic == protocol.MagicDMapReq {
+	switch header.Magic {
+	case protocol.MagicDMapReq:
 		req = protocol.NewDMapMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicStreamReq {
+	case protocol.MagicStreamReq:
 		req = protocol.NewStreamMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicPipelineReq {
+	case protocol.MagicPipelineReq:
 		req = protocol.NewPipelineMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicSystemReq {
+	case protocol.MagicSystemReq:
 		req = protocol.NewSystemMessageFromRequest(buf)
-	} else if header.Magic == protocol.MagicDTopicReq {
+	case protocol.MagicDTopicReq:
 		req = protocol.NewDTopicMessageFromRequest(buf)
-	} else {
+	default:
 		return nil, errors.WithMessage(ErrInvalidMagic, fmt.Sprint(header.Magic))
 	}
 	return req, nil
@@ -121,8 +129,8 @@ func (s *Server) SetDispatcher(f func(w, r protocol.EncodeDecoder)) {
 }
 
 func (s *Server) controlConnLifeCycle(conn io.ReadWriteCloser, connStatus *uint32, done chan struct{}) {
-	CurrentConnections.Increase()
-	defer CurrentConnections.Decrease()
+	CurrentConnections.Increase(1)
+	defer CurrentConnections.Decrease(1)
 
 	// Control connection state and close it.
 	defer s.wg.Done()
@@ -180,7 +188,7 @@ func (s *Server) closeStream(req *protocol.StreamMessage, done chan struct{}) {
 
 // processMessage waits for a new request, handles it and returns the appropriate response.
 func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, done chan struct{}) error {
-	CommandsTotal.Increase()
+	CommandsTotal.Increase(1)
 
 	buf := bufferPool.Get()
 	defer bufferPool.Put(buf)
@@ -200,6 +208,8 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 		go s.closeStream(req.(*protocol.StreamMessage), done)
 	}
 
+	ReadBytesTotal.Increase(int64(buf.Len()))
+
 	// Decode reads the incoming message from the underlying TCP socket and parses
 	err = req.Decode()
 	if err != nil {
@@ -213,19 +223,23 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 	defer atomic.StoreUint32(connStatus, idleConn)
 
 	resp := req.Response(nil)
-	// The dispatcher is defined by olric package and responsible to evaluate the incoming message.
+
+	// The dispatcher is defined by the olric package and responsible to evaluate
+	// the incoming message.
 	s.dispatcher(resp, req)
 	err = resp.Encode()
 	if err != nil {
 		return err
 	}
-	_, err = resp.Buffer().WriteTo(conn)
+
+	nr, err := resp.Buffer().WriteTo(conn)
+	WrittenBytesTotal.Increase(nr)
 	return err
 }
 
 // processConn waits for requests and calls request handlers to generate a response. The connections are reusable.
 func (s *Server) processConn(conn io.ReadWriteCloser) {
-	ConnectionsTotal.Increase()
+	ConnectionsTotal.Increase(1)
 	defer s.wg.Done()
 
 	// connStatus is useful for closing the server gracefully.

@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"errors"
 	"sort"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -33,6 +35,17 @@ type Entry struct {
 	TTL       int64
 	Timestamp int64
 }
+
+var (
+	// GetMisses is the number of entries that have been requested and not found
+	GetMisses = stats.NewInt64Counter("get_misses")
+
+	// GetHits is the number of entries that have been requested and found present
+	GetHits = stats.NewInt64Counter("get_hits")
+
+	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
+	EvictedTotal = stats.NewInt64Counter("evicted_total")
+)
 
 var ErrReadQuorum = neterrors.New(protocol.StatusErrReadQuorum, "read quorum cannot be reached")
 
@@ -101,7 +114,7 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, key string) *version {
 	// Check on localhost, the partition owner.
 	f, err := dm.getFragment(hkey, partitions.PRIMARY)
 	if err != nil {
-		if err != errFragmentNotFound {
+		if !errors.Is(err, errFragmentNotFound) {
 			dm.s.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)
 		}
 		return dm.valueToVersion(nil)
@@ -110,7 +123,7 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, key string) *version {
 	defer f.RUnlock()
 	value, err := f.storage.Get(hkey)
 	if err != nil {
-		if err != storage.ErrKeyNotFound {
+		if !errors.Is(err, storage.ErrKeyNotFound) {
 			// still need to use "ver". just log this error.
 			dm.s.log.V(3).Printf("[ERROR] Failed to get key: %s on %s: %s", key, dm.name, err)
 		}
@@ -302,17 +315,36 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
 	if member.CompareByName(dm.s.rt.This()) {
-		return dm.getOnCluster(hkey, key)
+		entry, err := dm.getOnCluster(hkey, key)
+		if errors.Is(err, ErrKeyNotFound) {
+			GetMisses.Increase(1)
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// number of keys that have been requested and found present
+		GetHits.Increase(1)
+
+		return entry, nil
 	}
 
 	// Redirect to the partition owner
 	req := protocol.NewDMapMessage(protocol.OpGet)
 	req.SetDMap(dm.name)
 	req.SetKey(key)
+
 	resp, err := dm.s.requestTo(member.String(), req)
+	if errors.Is(err, ErrKeyNotFound) {
+		GetMisses.Increase(1)
+	}
 	if err != nil {
 		return nil, err
 	}
+
+	// number of keys that have been requested and found present
+	GetHits.Increase(1)
+
 	entry := dm.engine.NewEntry()
 	entry.Decode(resp.Value())
 	return entry, nil

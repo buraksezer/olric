@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buraksezer/olric/internal/stats"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/service_discovery"
@@ -33,6 +35,9 @@ import (
 )
 
 const eventChanCapacity = 256
+
+// UptimeSeconds is number of seconds since the server started.
+var UptimeSeconds = stats.NewInt64Counter("uptime_seconds")
 
 // ErrMemberNotFound indicates that the requested member could not be found in the member list.
 var ErrMemberNotFound = errors.New("member not found")
@@ -191,6 +196,23 @@ func (d *Discovery) deadMemberTracker() {
 	}
 }
 
+// increaseUptimeSeconds calls UptimeSeconds.Increase function every second.
+func (d *Discovery) increaseUptimeSeconds() {
+	defer d.wg.Done()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			UptimeSeconds.Increase(1)
+		case <-d.ctx.Done():
+			return
+		}
+	}
+}
+
 func (d *Discovery) Start() error {
 	if d.config.ServiceDiscovery != nil {
 		if err := d.loadServiceDiscoveryPlugin(); err != nil {
@@ -229,6 +251,9 @@ func (d *Discovery) Start() error {
 
 	d.wg.Add(1)
 	go d.deadMemberTracker()
+
+	d.wg.Add(1)
+	go d.increaseUptimeSeconds()
 
 	return nil
 }
