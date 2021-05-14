@@ -15,6 +15,9 @@
 package olric
 
 import (
+	"fmt"
+	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/transport"
 	"os"
 	"runtime"
 
@@ -117,6 +120,13 @@ func (db *Olric) stats() stats.Stats {
 			s.Backups[partID] = db.collectPartitionMetrics(partID, backup)
 		}
 	}
+
+	fmt.Println("GetMisses", dmap.GetMisses.Read())
+	fmt.Println("GetHits", dmap.GetHits.Read())
+	fmt.Println("CurrentEntries", dmap.CurrentEntries.Read())
+	fmt.Println("CurrentEntriesTotal", dmap.CurrentEntriesTotal.Read())
+	fmt.Println("WrittenBytesTotal", transport.WrittenBytesTotal.Read())
+	fmt.Println("ReadBytesTotal", transport.ReadBytesTotal.Read())
 
 	return s
 }

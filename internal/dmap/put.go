@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -29,6 +31,16 @@ import (
 const (
 	IfNotFound = int16(1) << iota
 	IfFound
+)
+
+var (
+	// CurrentEntries is the current number of entries(including replicas)
+	// stored by this instance.
+	CurrentEntries = stats.NewInt64Gauge("current_entries")
+
+	// CurrentEntriesTotal is the total number of entries(including replicas)
+	// stored during the life of this instance.
+	CurrentEntriesTotal = stats.NewInt64Counter("current_entries_total")
 )
 
 var (
@@ -54,18 +66,26 @@ func (dm *DMap) putOnFragment(e *env) error {
 	entry.SetTTL(timeoutToTTL(e.timeout))
 	entry.SetTimestamp(e.timestamp)
 	err := e.fragment.storage.Put(e.hkey, entry)
-	if err == storage.ErrFragmented {
+	if errors.Is(err, storage.ErrFragmented) {
 		dm.s.wg.Add(1)
 		go dm.s.callCompactionOnStorage(e.fragment)
 		err = nil
 	}
-	if err == storage.ErrKeyTooLarge {
+	if errors.Is(err, storage.ErrKeyTooLarge) {
 		err = ErrKeyTooLarge
 	}
-	if err == nil {
-		dm.updateAccessLog(e.hkey, e.fragment)
+	if err != nil {
+		return err
 	}
-	return err
+
+	// current number of entries stored by this instance.
+	CurrentEntries.Increase(1)
+
+	// total number of entries stored during the life of this instance.
+	CurrentEntriesTotal.Increase(1)
+
+	dm.updateAccessLog(e.hkey, e.fragment)
+	return nil
 }
 
 func (dm *DMap) putOnReplicaFragment(e *env) error {
@@ -133,7 +153,7 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 	// MaxKeys and MaxInuse properties of LRU can be used in the same time.
 	// But I think that it's good to use only one of time in a production system.
 	// Because it should be easy to understand and debug.
-	stats := e.fragment.storage.Stats()
+	st := e.fragment.storage.Stats()
 	// This works for every request if you enabled LRU.
 	// But loading a number from memory should be very cheap.
 	// ownedPartitionCount changes in the case of node join or leave.
@@ -143,7 +163,7 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 		// We need ownedPartitionCount property because every partition
 		// manages itself independently. So if you set MaxKeys=70 and
 		// your partition count is 7, every partition 10 keys at maximum.
-		if stats.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
+		if st.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
 			err := dm.evictKeyWithLRU(e)
 			if err != nil {
 				return err
@@ -157,7 +177,7 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 		// manages itself independently. So if you set MaxInuse=70M(in bytes) and
 		// your partition count is 7, every partition consumes 10M in-use space at maximum.
 		// WARNING: Actual allocated memory can be different.
-		if stats.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
+		if st.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
 			err := dm.evictKeyWithLRU(e)
 			if err != nil {
 				return err
@@ -176,7 +196,7 @@ func (dm *DMap) checkPutConditions(e *env) error {
 				return ErrKeyFound
 			}
 		}
-		if err == storage.ErrKeyNotFound {
+		if errors.Is(err, storage.ErrKeyNotFound) {
 			err = nil
 		}
 		if err != nil {
@@ -192,7 +212,7 @@ func (dm *DMap) checkPutConditions(e *env) error {
 				return ErrKeyNotFound
 			}
 		}
-		if err == storage.ErrKeyNotFound {
+		if errors.Is(err, storage.ErrKeyNotFound) {
 			err = ErrKeyNotFound
 		}
 		if err != nil {
@@ -239,6 +259,7 @@ func (dm *DMap) putOnCluster(e *env) error {
 			return fmt.Errorf("invalid replication mode: %v", dm.s.config.ReplicationMode)
 		}
 	}
+
 	// single replica
 	return dm.putOnFragment(e)
 }
@@ -252,18 +273,15 @@ func (dm *DMap) put(e *env) error {
 		// We are on the partition owner.
 		return dm.putOnCluster(e)
 	}
+
 	// Redirect to the partition owner.
 	req := e.toReq(e.opcode)
 	_, err := dm.s.requestTo(member.String(), req)
 	return err
 }
 
-func (dm *DMap) prepareAndSerialize(
-	opcode protocol.OpCode,
-	key string,
-	value interface{},
-	timeout time.Duration,
-	flags int16) (*env, error) {
+func (dm *DMap) prepareAndSerialize(opcode protocol.OpCode, key string, value interface{},
+	timeout time.Duration, flags int16) (*env, error) {
 	val, err := dm.s.serializer.Marshal(value)
 	if err != nil {
 		return nil, err
@@ -295,7 +313,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 	return dm.put(e)
 }
 
-// Put sets the value for the given key. It overwrites any previous value
+// PutIf Put sets the value for the given key. It overwrites any previous value
 // for that key and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.

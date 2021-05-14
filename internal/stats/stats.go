@@ -16,19 +16,6 @@ package stats
 
 import "sync/atomic"
 
-type Counter interface {
-	Tag() string
-	Increase()
-	Read() interface{}
-}
-
-type Gauge interface {
-	Tag() string
-	Increase()
-	Decrease()
-	Read() interface{}
-}
-
 type Int64Counter struct {
 	tag     string
 	counter int64
@@ -44,17 +31,17 @@ func (c *Int64Counter) Tag() string {
 	return c.tag
 }
 
-func (c *Int64Counter) Increase() {
-	atomic.AddInt64(&c.counter, 1)
+func (c *Int64Counter) Increase(delta int64) {
+	atomic.AddInt64(&c.counter, delta)
 }
 
-func (c *Int64Counter) Read() interface{} {
+func (c *Int64Counter) Read() int64 {
 	return atomic.LoadInt64(&c.counter)
 }
 
 type Int64Gauge struct {
-	tag     string
-	counter int64
+	tag   string
+	gauge int64
 }
 
 func NewInt64Gauge(tag string) *Int64Gauge {
@@ -67,14 +54,14 @@ func (c *Int64Gauge) Tag() string {
 	return c.tag
 }
 
-func (c *Int64Gauge) Increase() {
-	atomic.AddInt64(&c.counter, 1)
+func (c *Int64Gauge) Increase(delta int64) {
+	atomic.AddInt64(&c.gauge, delta)
 }
 
-func (c *Int64Gauge) Decrease() {
-	atomic.AddInt64(&c.counter, -1)
+func (c *Int64Gauge) Decrease(delta int64) {
+	atomic.AddInt64(&c.gauge, -1*delta)
 }
 
-func (c *Int64Gauge) Read() interface{} {
-	return atomic.LoadInt64(&c.counter)
+func (c *Int64Gauge) Read() int64 {
+	return atomic.LoadInt64(&c.gauge)
 }

@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"errors"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -25,7 +27,7 @@ import (
 func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error {
 	hkey := partitions.HKey(dm.name, key)
 	f, err := dm.getFragment(hkey, kind)
-	if err == errFragmentNotFound {
+	if errors.Is(err, errFragmentNotFound) {
 		// key doesn't exist
 		return nil
 	}
@@ -36,7 +38,7 @@ func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error
 	defer f.Unlock()
 
 	err = f.storage.Delete(hkey)
-	if err == storage.ErrFragmented {
+	if errors.Is(err, storage.ErrFragmented) {
 		dm.s.wg.Add(1)
 		go dm.s.callCompactionOnStorage(f)
 		err = nil
@@ -129,9 +131,17 @@ func (dm *DMap) deleteKey(key string) error {
 	if err != nil {
 		return err
 	}
+
 	f.Lock()
 	defer f.Unlock()
-	return dm.deleteOnCluster(hkey, key, f)
+	err = dm.deleteOnCluster(hkey, key, f)
+	if err != nil {
+		return err
+	}
+
+	// current number of entries stored by this instance.
+	CurrentEntries.Decrease(1)
+	return nil
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

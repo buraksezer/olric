@@ -1,6 +1,6 @@
 module github.com/buraksezer/olric
 
-go 1.15
+go 1.13
 
 require (
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72

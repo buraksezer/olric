@@ -104,7 +104,7 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 // getOrCreate is a shortcut function to create a new DMap or get an already initialized DMap instance.
 func (s *Service) getOrCreateDMap(name string) (*DMap, error) {
 	dm, err := s.getDMap(name)
-	if err == ErrDMapNotFound {
+	if errors.Is(err, ErrDMapNotFound) {
 		return s.NewDMap(name)
 	}
 	return dm, err
@@ -137,12 +137,12 @@ func (dm *DMap) createFragmentOnPartition(part *partitions.Partition) (*fragment
 
 func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
 	var part *partitions.Partition
-	if kind == partitions.PRIMARY {
+	switch {
+	case kind == partitions.PRIMARY:
 		part = dm.s.primary.PartitionByHKey(hkey)
-	} else if kind == partitions.BACKUP {
+	case kind == partitions.BACKUP:
 		part = dm.s.backup.PartitionByHKey(hkey)
-	} else {
-		// impossible
+	default:
 		panic("unknown partition kind")
 	}
 	return part
@@ -162,7 +162,7 @@ func (dm *DMap) getOrCreateFragment(hkey uint64, kind partitions.Kind) (*fragmen
 
 	// try to get
 	f, err := dm.loadFragmentFromPartition(part)
-	if err == errFragmentNotFound {
+	if errors.Is(err, errFragmentNotFound) {
 		// create the fragment and return
 		return dm.createFragmentOnPartition(part)
 	}
@@ -181,6 +181,12 @@ func isKeyExpired(ttl int64) bool {
 	if ttl == 0 {
 		return false
 	}
+
 	// convert nanoseconds to milliseconds
-	return (time.Now().UnixNano() / 1000000) >= ttl
+	res := (time.Now().UnixNano() / 1000000) >= ttl
+	if res {
+		// number of valid items removed from cache to free memory for new items.
+		EvictedTotal.Increase(1)
+	}
+	return res
 }
