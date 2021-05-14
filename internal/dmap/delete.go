@@ -20,8 +20,17 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
 	"golang.org/x/sync/errgroup"
+)
+
+var (
+	// DeleteHits is the number of deletion reqs resulting in an item being removed.
+	DeleteHits = stats.NewInt64Counter("delete_hits")
+
+	// DeleteMisses is the number of deletions reqs for missing keys
+	DeleteMisses = stats.NewInt64Counter("delete_misses")
 )
 
 func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error {
@@ -101,18 +110,23 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 	}
 
 	err = f.storage.Delete(hkey)
-	if err == storage.ErrFragmented {
+	if errors.Is(err, storage.ErrFragmented) {
 		dm.s.wg.Add(1)
 		go dm.s.callCompactionOnStorage(f)
 		err = nil
 	}
+	if err != nil {
+		return err
+	}
 
 	// Delete it from access log if everything is ok.
 	// If we delete the hkey when err is not nil, LRU/MaxIdleDuration may not work properly.
-	if err == nil {
-		dm.deleteAccessLog(hkey, f)
-	}
-	return err
+	dm.deleteAccessLog(hkey, f)
+
+	// DeleteHits is the number of deletion reqs resulting in an item being removed.
+	DeleteHits.Increase(1)
+
+	return nil
 }
 
 func (dm *DMap) deleteKey(key string) error {
@@ -134,14 +148,15 @@ func (dm *DMap) deleteKey(key string) error {
 
 	f.Lock()
 	defer f.Unlock()
-	err = dm.deleteOnCluster(hkey, key, f)
-	if err != nil {
-		return err
+
+	// Check the HKey before trying to delete it.
+	if !f.storage.Check(hkey) {
+		// DeleteMisses is the number of deletions reqs for missing keys
+		DeleteMisses.Increase(1)
+		return nil
 	}
 
-	// current number of entries stored by this instance.
-	CurrentEntries.Decrease(1)
-	return nil
+	return dm.deleteOnCluster(hkey, key, f)
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

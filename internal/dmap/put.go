@@ -33,15 +33,9 @@ const (
 	IfFound
 )
 
-var (
-	// CurrentEntries is the current number of entries(including replicas)
-	// stored by this instance.
-	CurrentEntries = stats.NewInt64Gauge("current_entries")
-
-	// CurrentEntriesTotal is the total number of entries(including replicas)
-	// stored during the life of this instance.
-	CurrentEntriesTotal = stats.NewInt64Counter("current_entries_total")
-)
+// EntriesTotal is the total number of entries(including replicas)
+// stored during the life of this instance.
+var EntriesTotal = stats.NewInt64Counter("current_entries_total")
 
 var (
 	ErrKeyFound    = neterrors.New(protocol.StatusErrKeyFound, "key found")
@@ -78,11 +72,8 @@ func (dm *DMap) putOnFragment(e *env) error {
 		return err
 	}
 
-	// current number of entries stored by this instance.
-	CurrentEntries.Increase(1)
-
 	// total number of entries stored during the life of this instance.
-	CurrentEntriesTotal.Increase(1)
+	EntriesTotal.Increase(1)
 
 	dm.updateAccessLog(e.hkey, e.fragment)
 	return nil

@@ -15,15 +15,14 @@
 package olric
 
 import (
-	"fmt"
-	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/transport"
 	"os"
 	"runtime"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
@@ -87,6 +86,7 @@ func (db *Olric) stats() stats.Stats {
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
+		UptimeSeconds:      discovery.UptimeSeconds.Read(),
 		ClusterCoordinator: toMember(db.rt.Discovery().GetCoordinator()),
 		Runtime: stats.Runtime{
 			GOOS:         runtime.GOOS,
@@ -96,10 +96,21 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
-		Member:         toMember(db.rt.This()),
-		Partitions:     make(map[uint64]stats.Partition),
-		Backups:        make(map[uint64]stats.Partition),
-		ClusterMembers: make(map[uint64]stats.Member),
+		Member:             toMember(db.rt.This()),
+		Partitions:         make(map[uint64]stats.Partition),
+		Backups:            make(map[uint64]stats.Partition),
+		ClusterMembers:     make(map[uint64]stats.Member),
+		ConnectionsTotal:   transport.ConnectionsTotal.Read(),
+		CurrentConnections: transport.CurrentConnections.Read(),
+		WrittenBytesTotal:  transport.WrittenBytesTotal.Read(),
+		ReadBytesTotal:     transport.ReadBytesTotal.Read(),
+		CommandsTotal:      transport.CommandsTotal.Read(),
+		EntriesTotal:       dmap.EntriesTotal.Read(),
+		DeleteHits:         dmap.DeleteHits.Read(),
+		DeleteMisses:       dmap.DeleteMisses.Read(),
+		GetMisses:          dmap.GetMisses.Read(),
+		GetHits:            dmap.GetHits.Read(),
+		EvictedTotal:       dmap.EvictedTotal.Read(),
 	}
 
 	db.rt.RLock()
@@ -120,13 +131,6 @@ func (db *Olric) stats() stats.Stats {
 			s.Backups[partID] = db.collectPartitionMetrics(partID, backup)
 		}
 	}
-
-	fmt.Println("GetMisses", dmap.GetMisses.Read())
-	fmt.Println("GetHits", dmap.GetHits.Read())
-	fmt.Println("CurrentEntries", dmap.CurrentEntries.Read())
-	fmt.Println("CurrentEntriesTotal", dmap.CurrentEntriesTotal.Read())
-	fmt.Println("WrittenBytesTotal", transport.WrittenBytesTotal.Read())
-	fmt.Println("ReadBytesTotal", transport.ReadBytesTotal.Read())
 
 	return s
 }
