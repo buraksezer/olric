@@ -22,16 +22,16 @@ import (
 )
 
 type env struct {
+	hkey          uint64
+	timestamp     int64
+	flags         int16
 	opcode        protocol.OpCode
 	replicaOpcode protocol.OpCode
 	dmap          string
 	key           string
 	value         []byte
-	timestamp     int64
 	timeout       time.Duration
-	flags         int16
 	kind          partitions.Kind
-	hkey          uint64
 	fragment      *fragment
 }
 
