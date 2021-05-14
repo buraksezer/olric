@@ -149,7 +149,6 @@ func Error(t *testing.T, expected, actual error) {
 // but the skip variable tells EqualSkip how far back on the stack to report the error.
 // This is a building block to creating your own more complex validation functions.
 func EqualSkip(t *testing.T, skip int, expected, actual interface{}) {
-
 	if !IsEqual(expected, actual) {
 		_, file, line, _ := runtime.Caller(skip)
 		fmt.Printf("%s:%d %v does not equal %v\n", path.Base(file), line, expected, actual)
