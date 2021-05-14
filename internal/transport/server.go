@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	// CommandsTotal is total number of all requests broken down by command (get, set, etc.) and status.
+	// CommandsTotal is total number of all requests broken down by command (get, put, etc.) and status.
 	CommandsTotal = stats.NewInt64Counter("commands_total")
 
 	// ConnectionsTotal is total number of connections opened since the server started running.

@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"errors"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
@@ -23,7 +25,7 @@ import (
 func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
 	dm, err := s.getDMap(req.DMap())
-	if err == ErrDMapNotFound {
+	if errors.Is(err, ErrDMapNotFound) {
 		// we don't even have the DMap. It's just OK.
 		w.SetStatus(protocol.StatusOK)
 		return

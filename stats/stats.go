@@ -31,7 +31,7 @@ type SlabInfo struct {
 
 // DMap denotes a distributed map instance on the cluster.
 type DMap struct {
-	Name   string
+	// Number of keys in the DMap.
 	Length int
 
 	// Statistics about memory representation of a DMap.
@@ -43,8 +43,11 @@ type DMap struct {
 
 // Partition denotes a partition and its metadata in the cluster.
 type Partition struct {
+	// Previous owners who still owns some fragments
 	PreviousOwners []Member
 	Backups        []Member
+
+	// Total number of keys in the DMaps of the partition.
 	Length         int
 	DMaps          map[string]DMap
 }
@@ -73,10 +76,47 @@ func (m Member) String() string {
 type Stats struct {
 	Cmdline            []string
 	ReleaseVersion     string
+
+	// UptimeSeconds is number of seconds since the server started.
+	UptimeSeconds int64
+
 	Runtime            Runtime
 	ClusterCoordinator Member
 	Member             Member
 	Partitions         map[uint64]Partition
 	Backups            map[uint64]Partition
 	ClusterMembers     map[uint64]Member
+
+	// ConnectionsTotal is total number of connections opened since the server started running.
+	ConnectionsTotal int64
+
+	// CurrentConnections is current number of open connections.
+	CurrentConnections int64
+
+	// WrittenBytesTotal is total number of bytes sent by this server to network.
+	WrittenBytesTotal int64
+
+	// ReadBytesTotal is total number of bytes read by this server from network.
+	ReadBytesTotal int64
+
+	// CommandsTotal is total number of all requests (get, put, etc.).
+	CommandsTotal int64
+
+	// EntriesTotal is the total number of entries(including replicas) stored during the life of this instance.
+	EntriesTotal int64
+
+	// DeleteHits is the number of deletion reqs resulting in an item being removed.
+	DeleteHits int64
+
+	// DeleteMisses is the number of deletions reqs for missing keys
+	DeleteMisses int64
+
+	// GetMisses is the number of entries that have been requested and not found
+	GetMisses int64
+
+	// GetHits is the number of entries that have been requested and found present
+	GetHits int64
+
+	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
+	EvictedTotal int64
 }
