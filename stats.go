@@ -18,6 +18,8 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/buraksezer/olric/internal/dtopic"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
@@ -96,21 +98,30 @@ func (db *Olric) stats() stats.Stats {
 			NumGoroutine: runtime.NumGoroutine(),
 			MemStats:     *mem,
 		},
-		Member:             toMember(db.rt.This()),
-		Partitions:         make(map[uint64]stats.Partition),
-		Backups:            make(map[uint64]stats.Partition),
-		ClusterMembers:     make(map[uint64]stats.Member),
-		ConnectionsTotal:   transport.ConnectionsTotal.Read(),
-		CurrentConnections: transport.CurrentConnections.Read(),
-		WrittenBytesTotal:  transport.WrittenBytesTotal.Read(),
-		ReadBytesTotal:     transport.ReadBytesTotal.Read(),
-		CommandsTotal:      transport.CommandsTotal.Read(),
-		EntriesTotal:       dmap.EntriesTotal.Read(),
-		DeleteHits:         dmap.DeleteHits.Read(),
-		DeleteMisses:       dmap.DeleteMisses.Read(),
-		GetMisses:          dmap.GetMisses.Read(),
-		GetHits:            dmap.GetHits.Read(),
-		EvictedTotal:       dmap.EvictedTotal.Read(),
+		Member:         toMember(db.rt.This()),
+		Partitions:     make(map[uint64]stats.Partition),
+		Backups:        make(map[uint64]stats.Partition),
+		ClusterMembers: make(map[uint64]stats.Member),
+		Network: stats.Network{
+			ConnectionsTotal:   transport.ConnectionsTotal.Read(),
+			CurrentConnections: transport.CurrentConnections.Read(),
+			WrittenBytesTotal:  transport.WrittenBytesTotal.Read(),
+			ReadBytesTotal:     transport.ReadBytesTotal.Read(),
+			CommandsTotal:      transport.CommandsTotal.Read(),
+		},
+		DMaps: stats.DMaps{
+			EntriesTotal: dmap.EntriesTotal.Read(),
+			DeleteHits:   dmap.DeleteHits.Read(),
+			DeleteMisses: dmap.DeleteMisses.Read(),
+			GetMisses:    dmap.GetMisses.Read(),
+			GetHits:      dmap.GetHits.Read(),
+			EvictedTotal: dmap.EvictedTotal.Read(),
+		},
+		DTopics: stats.DTopics{
+			PublishedTotal:   dtopic.PublishedTotal.Read(),
+			CurrentListeners: dtopic.CurrentListeners.Read(),
+			ListenersTotal:   dtopic.ListenersTotal.Read(),
+		},
 	}
 
 	db.rt.RLock()
