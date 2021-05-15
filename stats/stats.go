@@ -95,9 +95,60 @@ func (m Member) String() string {
 	return m.Name
 }
 
+// Network holds network statistics.
+type Network struct {
+	// ConnectionsTotal is total number of connections opened since the server started running.
+	ConnectionsTotal int64
+
+	// CurrentConnections is current number of open connections.
+	CurrentConnections int64
+
+	// WrittenBytesTotal is total number of bytes sent by this server to network.
+	WrittenBytesTotal int64
+
+	// ReadBytesTotal is total number of bytes read by this server from network.
+	ReadBytesTotal int64
+
+	// CommandsTotal is total number of all requests (get, put, etc.).
+	CommandsTotal int64
+}
+
+// DMaps holds global DMap statistics.
+type DMaps struct {
+	// EntriesTotal is the total number of entries(including replicas) stored during the life of this instance.
+	EntriesTotal int64
+
+	// DeleteHits is the number of deletion reqs resulting in an item being removed.
+	DeleteHits int64
+
+	// DeleteMisses is the number of deletions reqs for missing keys
+	DeleteMisses int64
+
+	// GetMisses is the number of entries that have been requested and not found
+	GetMisses int64
+
+	// GetHits is the number of entries that have been requested and found present
+	GetHits int64
+
+	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
+	EvictedTotal int64
+}
+
+// DTopics holds global DTopic statistics.
+type DTopics struct {
+	// PublishedTotal is the total number of published messages to DTopics during the life of this instance.
+	PublishedTotal int64
+
+	// CurrentListeners is the current number of DTopic listeners of DTopics.
+	CurrentListeners int64
+
+	// ListenersTotal is the total number of registered DTopic listeners during the life of this instance.
+	ListenersTotal int64
+}
+
 // Stats is a struct that exposes statistics about the current state of a member.
 type Stats struct {
-	// Cmdline hold the command-line arguments, starting with the program name.
+	// Cmdline holds the command-line arguments, starting with the program name.
 	Cmdline []string
 
 	// ReleaseVersion is the current Olric version
@@ -124,36 +175,12 @@ type Stats struct {
 	// ClusterMembers is a map that contains bootstrapped cluster members
 	ClusterMembers map[uint64]Member
 
-	// ConnectionsTotal is total number of connections opened since the server started running.
-	ConnectionsTotal int64
+	// Network holds network statistics.
+	Network Network
 
-	// CurrentConnections is current number of open connections.
-	CurrentConnections int64
+	// DMaps holds global DMap statistics.
+	DMaps DMaps
 
-	// WrittenBytesTotal is total number of bytes sent by this server to network.
-	WrittenBytesTotal int64
-
-	// ReadBytesTotal is total number of bytes read by this server from network.
-	ReadBytesTotal int64
-
-	// CommandsTotal is total number of all requests (get, put, etc.).
-	CommandsTotal int64
-
-	// EntriesTotal is the total number of entries(including replicas) stored during the life of this instance.
-	EntriesTotal int64
-
-	// DeleteHits is the number of deletion reqs resulting in an item being removed.
-	DeleteHits int64
-
-	// DeleteMisses is the number of deletions reqs for missing keys
-	DeleteMisses int64
-
-	// GetMisses is the number of entries that have been requested and not found
-	GetMisses int64
-
-	// GetHits is the number of entries that have been requested and found present
-	GetHits int64
-
-	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
-	EvictedTotal int64
+	// DTopics holds global DTopic statistics.
+	DTopics DTopics
 }

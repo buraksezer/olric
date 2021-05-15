@@ -16,12 +16,12 @@ package dtopic
 
 import (
 	"errors"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"runtime"
 	"time"
 
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/vmihailenco/msgpack"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -104,6 +104,10 @@ func (s *Service) publishDTopicMessage(topic string, msg *Message) error {
 		})
 		return true
 	})
+
+	// PublishedTotal is the total number of published messages during the life of this instance.
+	PublishedTotal.Increase(1)
+
 	// Wait blocks until all function calls from the Go method have returned,
 	// then returns the first non-nil error (if any) from them.
 	return g.Wait()
