@@ -79,6 +79,9 @@ func TestClient_Stats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	if s.Runtime != nil {
+		t.Error("Expected no runtime metrics. Got:", s.Runtime)
+	}
 
 	var totalByKeyCount int
 	var total int
@@ -101,5 +104,28 @@ func TestClient_Stats(t *testing.T) {
 	}
 	if total != 100 {
 		t.Fatalf("Expected total length of partitions in stats is 100. Got: %d", total)
+	}
+}
+
+func TestClient_Stats_CollectRuntime(t *testing.T) {
+	srv, err := testolric.New(t)
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	tc := newTestConfig(srv)
+
+	c, err := New(tc)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	addr := tc.Servers[0]
+	s, err := c.Stats(addr, CollectRuntime())
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	if s.Runtime == nil {
+		t.Error("Expected runtime metrics. Got nil")
 	}
 }

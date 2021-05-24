@@ -78,25 +78,26 @@ func (db *Olric) checkPartitionOwnership(part *partitions.Partition) bool {
 	return false
 }
 
-func (db *Olric) stats() stats.Stats {
-	mem := &runtime.MemStats{}
-	runtime.ReadMemStats(mem)
+func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
 		ClusterCoordinator: toMember(db.rt.Discovery().GetCoordinator()),
-		Runtime: stats.Runtime{
+		Member:             toMember(db.rt.This()),
+		Partitions:         make(map[uint64]stats.Partition),
+		Backups:            make(map[uint64]stats.Partition),
+		ClusterMembers:     make(map[uint64]stats.Member),
+	}
+
+	if cfg.CollectRuntime {
+		s.Runtime = &stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
 			Version:      runtime.Version(),
 			NumCPU:       runtime.NumCPU(),
 			NumGoroutine: runtime.NumGoroutine(),
-			MemStats:     *mem,
-		},
-		Member:         toMember(db.rt.This()),
-		Partitions:     make(map[uint64]stats.Partition),
-		Backups:        make(map[uint64]stats.Partition),
-		ClusterMembers: make(map[uint64]stats.Member),
+		}
+		runtime.ReadMemStats(&s.Runtime.MemStats)
 	}
 
 	db.rt.RLock()
@@ -121,8 +122,12 @@ func (db *Olric) stats() stats.Stats {
 	return s
 }
 
-func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
-	s := db.stats()
+func (db *Olric) statsOperation(w, r protocol.EncodeDecoder) {
+	extra := r.Extra().(protocol.StatsExtra)
+	cfg := statsConfig{
+		CollectRuntime: extra.CollectRuntime,
+	}
+	s := db.stats(cfg)
 	value, err := msgpack.Marshal(s)
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
@@ -132,10 +137,26 @@ func (db *Olric) statsOperation(w, _ protocol.EncodeDecoder) {
 	w.SetValue(value)
 }
 
+type statsConfig struct {
+	CollectRuntime bool
+}
+
+type statsOption func(*statsConfig)
+
+func CollectRuntime() statsOption {
+	return func(cfg *statsConfig) {
+		cfg.CollectRuntime = true
+	}
+}
+
 // Stats exposes some useful metrics to monitor an Olric node.
-func (db *Olric) Stats() (stats.Stats, error) {
+func (db *Olric) Stats(options ...statsOption) (stats.Stats, error) {
 	if err := db.isOperable(); err != nil {
 		return stats.Stats{}, err
 	}
-	return db.stats(), nil
+	var cfg statsConfig
+	for _, opt := range options {
+		opt(&cfg)
+	}
+	return db.stats(cfg), nil
 }
