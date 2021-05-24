@@ -73,7 +73,7 @@ func (m Member) String() string {
 type Stats struct {
 	Cmdline            []string
 	ReleaseVersion     string
-	Runtime            Runtime
+	Runtime            *Runtime
 	ClusterCoordinator Member
 	Member             Member
 	Partitions         map[uint64]Partition
