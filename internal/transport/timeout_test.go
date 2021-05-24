@@ -46,7 +46,7 @@ func TestConnWithTimeout(t *testing.T) {
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	defer func() {
@@ -72,7 +72,7 @@ func TestConnWithTimeout(t *testing.T) {
 			req := protocol.NewDMapMessage(protocol.OpPut)
 			_, err := c.RequestTo(s.listener.Addr().String(), req)
 			if err.(*net.OpError).Err.Error() != "i/o timeout" {
-				t.Fatalf("Expected i/o timeout. Got: %v", err)
+				t.Errorf("Expected i/o timeout. Got: %v", err)
 			}
 		}()
 		select {
@@ -90,13 +90,13 @@ func TestConnWithTimeout(t *testing.T) {
 			req := protocol.NewDMapMessage(protocol.OpGet)
 			resp, err := c.RequestTo(s.listener.Addr().String(), req)
 			if err != nil {
-				t.Fatalf("Expected nil. Got: %v", err)
+				t.Errorf("Expected nil. Got: %v", err)
 			}
 			if resp.Status() != protocol.StatusOK {
-				t.Fatalf("Expected response status: %v. Got: %v", protocol.StatusOK, resp.Status())
+				t.Errorf("Expected response status: %v. Got: %v", protocol.StatusOK, resp.Status())
 			}
 			if !bytes.Equal(resp.Value(), value) {
-				t.Fatalf("Value in response is different")
+				t.Errorf("Value in response is different")
 			}
 		}()
 
