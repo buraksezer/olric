@@ -85,7 +85,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	defer func() {
@@ -110,7 +110,7 @@ func TestServer_ProcessConn(t *testing.T) {
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	defer func() {
@@ -199,7 +199,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	defer func() {
@@ -223,7 +223,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 		req := protocol.NewDMapMessage(protocol.OpPut)
 		_, err = c.RequestTo(s.listener.Addr().String(), req)
 		if err != io.EOF {
-			t.Fatalf("Expected io.EOF. Got: %v", err)
+			t.Errorf("Expected io.EOF. Got: %v", err)
 		}
 		cancel()
 	}()

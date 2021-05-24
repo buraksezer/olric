@@ -30,7 +30,7 @@ func TestClient_CreateStream(t *testing.T) {
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	defer func() {
@@ -80,7 +80,7 @@ func TestClient_CreateStream(t *testing.T) {
 	go func() {
 		err := c.CreateStream(ctx, addr, readCh, writeCh)
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 

@@ -37,13 +37,13 @@ func TestClient_Request(t *testing.T) {
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	defer func() {
 		err = s.Shutdown(context.TODO())
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
 	<-s.StartedCtx.Done()

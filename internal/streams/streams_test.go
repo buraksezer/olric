@@ -83,7 +83,7 @@ func TestStream_CreateStream(t *testing.T) {
 	go func() {
 		err := client.CreateStream(ctx, c.MemberlistConfig.Name, readCh, writeCh)
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 		close(streamClosed)
 	}()
@@ -138,7 +138,7 @@ func TestStream_EchoMessage(t *testing.T) {
 	go func() {
 		err := client.CreateStream(ctx, c.MemberlistConfig.Name, readCh, writeCh)
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 		close(streamClosed)
 	}()
@@ -215,7 +215,7 @@ func TestStream_PingPong(t *testing.T) {
 	go func() {
 		err := client.CreateStream(ctx, c.MemberlistConfig.Name, readCh, writeCh)
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			t.Errorf("Expected nil. Got: %v", err)
 		}
 		close(streamClosed)
 	}()
