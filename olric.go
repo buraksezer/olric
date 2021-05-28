@@ -297,12 +297,12 @@ func (db *Olric) callStartedCallback() {
 }
 
 func convertClusterError(err error) error {
-	switch err {
-	case routingtable.ErrClusterQuorum:
+	switch {
+	case errors.Is(err, routingtable.ErrClusterQuorum):
 		return ErrClusterQuorum
-	case routingtable.ErrServerGone:
+	case errors.Is(err, routingtable.ErrServerGone):
 		return ErrServerGone
-	case routingtable.ErrOperationTimeout:
+	case errors.Is(err, routingtable.ErrOperationTimeout):
 		return ErrOperationTimeout
 	default:
 		return err
@@ -354,7 +354,7 @@ func (db *Olric) Start() error {
 		return err
 	}
 
-	// Warn the user about its choice of configuration
+	// Warn the user about his/her choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
 		db.log.V(2).
 			Printf("[WARN] Olric is running in async replication mode. WriteQuorum (%d) is ineffective",
@@ -410,7 +410,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
-	// TODO: It's a good idea to add graceful period
+	// TODO: It's a good idea to add graceful period here
 	db.wg.Wait()
 
 	// db.name will be shown as empty string, if the program is killed before

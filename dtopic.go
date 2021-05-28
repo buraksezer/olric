@@ -15,15 +15,19 @@
 package olric
 
 import (
+	"errors"
+
 	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 const (
-	// Messages are delivered in random order. It's good to distribute independent events in a distributed system.
+	// UnorderedDelivery means that messages are delivered in random order.
+	// It's good to distribute independent events in a distributed system.
 	UnorderedDelivery = int16(1) << iota
 
-	// Messages are delivered in some order. Not implemented yet.
+	// OrderedDelivery means that messages are delivered in some order.
+	// Not implemented yet.
 	OrderedDelivery
 )
 
@@ -39,14 +43,14 @@ type DTopic struct {
 }
 
 func convertDTopicError(err error) error {
-	switch err {
-	case neterrors.ErrInvalidArgument:
+	switch {
+	case errors.Is(err, neterrors.ErrInvalidArgument):
 		return ErrInvalidArgument
-	case neterrors.ErrNotImplemented:
+	case errors.Is(err, neterrors.ErrNotImplemented):
 		return ErrNotImplemented
-	case neterrors.ErrOperationTimeout:
+	case errors.Is(err, neterrors.ErrOperationTimeout):
 		return ErrOperationTimeout
-	case neterrors.ErrUnknownOperation:
+	case errors.Is(err, neterrors.ErrUnknownOperation):
 		return ErrUnknownOperation
 	default:
 		return err

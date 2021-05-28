@@ -52,30 +52,30 @@ const NumParallelQuery = 2
 type QueryResponse map[string]interface{}
 
 func convertDMapError(err error) error {
-	switch err {
-	case dmap.ErrKeyFound:
+	switch {
+	case errors.Is(err, dmap.ErrKeyFound):
 		return ErrKeyFound
-	case dmap.ErrKeyNotFound:
+	case errors.Is(err, dmap.ErrKeyNotFound):
 		return ErrKeyNotFound
-	case dmap.ErrDMapNotFound:
+	case errors.Is(err, dmap.ErrDMapNotFound):
 		return ErrKeyNotFound
-	case dmap.ErrEndOfQuery:
+	case errors.Is(err, dmap.ErrEndOfQuery):
 		return ErrEndOfQuery
-	case dmap.ErrLockNotAcquired:
+	case errors.Is(err, dmap.ErrLockNotAcquired):
 		return ErrLockNotAcquired
-	case dmap.ErrNoSuchLock:
+	case errors.Is(err, dmap.ErrNoSuchLock):
 		return ErrNoSuchLock
-	case dmap.ErrReadQuorum:
+	case errors.Is(err, dmap.ErrReadQuorum):
 		return ErrReadQuorum
-	case dmap.ErrWriteQuorum:
+	case errors.Is(err, dmap.ErrWriteQuorum):
 		return ErrWriteQuorum
 	default:
 		return convertClusterError(err)
 	}
 }
 
-// TODO: kvstore.NewEntry should not be used to create a new entry instance here. The DMap functions will be moved to
-// their own DMap struct and all they can access their own dmap instance without hacking.
+// TODO: The DMap functions will be moved to their own DMap struct and all they
+// can access their own dmap instance without hacking.
 
 // Entry is a DMap entry with its metadata.
 type Entry struct {
