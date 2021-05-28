@@ -50,7 +50,6 @@ import (
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/serializer"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -382,35 +381,40 @@ func (db *Olric) Start() error {
 func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
-	var result error
+	var latestError error
 
 	if err := db.services.dtopic.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown DTopic service: %v", err)
+		latestError = err
 	}
 
 	if err := db.services.dmap.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown DMap service: %v", err)
+		latestError = err
 	}
 
-	db.log.V(2).Printf("[INFO] Closing active streams")
 	if err := db.streams.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown stream service: %v", err)
+		latestError = err
 	}
 
 	db.balancer.Shutdown()
 
-	if err := db.server.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
-	}
-
 	if err := db.rt.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown routing table service: %v", err)
+		latestError = err
 	}
 
+	if err := db.server.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown TCP server: %v", err)
+		latestError = err
+	}
+
+	// TODO: It's a good idea to add graceful period
 	db.wg.Wait()
 
 	// db.name will be shown as empty string, if the program is killed before
 	// bootstrapping.
 	db.log.V(2).Printf("[INFO] %s is gone", db.name)
-	return result
+	return latestError
 }

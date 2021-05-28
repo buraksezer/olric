@@ -30,7 +30,6 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 )
 
@@ -54,7 +53,6 @@ var (
 
 	// ReadBytesTotal is total number of bytes read by this server from network.
 	ReadBytesTotal = stats.NewInt64Counter("read_bytes_total")
-
 )
 
 // pool is good for recycling memory while reading messages from the socket.
@@ -256,7 +254,7 @@ func (s *Server) processConn(conn io.ReadWriteCloser) {
 		err := s.processMessage(conn, &connStatus, done)
 		if err != nil {
 			// The socket probably would have been closed by the client.
-			if errors.Cause(err) == io.EOF || errors.Cause(err) == protocol.ErrConnClosed {
+			if errors.Is(errors.Cause(err), io.EOF) || errors.Is(errors.Cause(err), protocol.ErrConnClosed) {
 				s.log.V(5).Printf("[ERROR] End of the TCP connection: %v", err)
 				break
 			}
@@ -327,11 +325,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	default:
 	}
 
-	var result error
+	var latestError error
 	s.cancel()
 	err := s.listener.Close()
 	if err != nil {
-		result = multierror.Append(result, err)
+		s.log.V(2).Printf("[ERROR] Failed to close listener: %v", err)
+		latestError = err
 	}
 
 	// Listener is closed successfully. Now we can await for closing
@@ -347,9 +346,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		err = ctx.Err()
 		if err != nil {
-			result = multierror.Append(result, err)
+			s.log.V(2).Printf("[ERROR] Context has an error: %v", err)
+			latestError = err
 		}
 	case <-done:
 	}
-	return result
+
+	return latestError
 }

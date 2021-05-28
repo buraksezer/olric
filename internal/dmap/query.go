@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -192,7 +193,7 @@ func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan erro
 	sem := semaphore.NewWeighted(NumParallelQuery)
 	for partID := uint64(0); partID < c.dm.s.config.PartitionCount; partID++ {
 		err := sem.Acquire(c.ctx, 1)
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			break
 		}
 		if err != nil {
