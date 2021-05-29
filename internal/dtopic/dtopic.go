@@ -17,16 +17,28 @@ package dtopic
 import (
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/stats"
 	"time"
 
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
+var (
+	// PublishedTotal is the total number of published messages during the life of this instance.
+	PublishedTotal = stats.NewInt64Counter("published_total")
+
+	// CurrentListeners is the current number of listeners of DTopics.
+	CurrentListeners = stats.NewInt64Gauge("current_listeners")
+
+	// ListenersTotal is the total number of registered listeners during the life of this instance.
+	ListenersTotal = stats.NewInt64Counter("listeners_total")
+)
+
 const (
-	// Messages are delivered in random order. It's good to distribute independent events in a distributed system.
+	// UnorderedDelivery means that messages are delivered in random order. It's good to distribute independent events in a distributed system.
 	UnorderedDelivery = int16(1) << iota
 
-	// Messages are delivered in some order. Not implemented yet.
+	// OrderedDelivery means that messages are delivered in some order. Not implemented yet.
 	OrderedDelivery
 )
 
@@ -111,11 +123,18 @@ func (d *DTopic) Publish(msg interface{}) error {
 // AddListener adds a new listener for the topic. Returns a registration ID or a non-nil error.
 // Registered functions are run by parallel.
 func (d *DTopic) AddListener(f func(Message)) (uint64, error) {
+	// CurrentListeners is the current number of listeners of DTopics.
+	CurrentListeners.Increase(1)
+
+	// ListenersTotal is the total number of registered listeners during the life of this instance.
+	ListenersTotal.Increase(1)
+
 	return d.s.dispatcher.addListener(d.name, d.concurrency, f)
 }
 
 // RemoveListener removes a listener with the given listenerID.
 func (d *DTopic) RemoveListener(listenerID uint64) error {
+	CurrentListeners.Decrease(1)
 	return d.s.dispatcher.removeListener(d.name, listenerID)
 }
 

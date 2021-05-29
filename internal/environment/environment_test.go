@@ -14,45 +14,38 @@
 
 package environment
 
-import "sync"
+import (
+	"testing"
 
-type Environment struct {
-	sync.RWMutex
+	"github.com/buraksezer/olric/internal/testutil/assert"
+)
 
-	m map[string]interface{}
+type envTest struct {
+	number uint64
 }
 
-func New() *Environment {
-	return &Environment{
-		m: make(map[string]interface{}),
+func TestEnvironment(t *testing.T) {
+	e := New()
+
+	st := &envTest{
+		number: 1988,
 	}
-}
 
-func (e *Environment) Get(key string) interface{} {
-	e.RLock()
-	defer e.RUnlock()
+	e.Set("my-struct", st)
+	e.Set("my-string", "value")
+	e.Set("my-uint64", uint64(4576))
 
-	value, ok := e.m[key]
-	if ok {
-		return value
-	}
-	return nil
-}
+	structVal := e.Get("my-struct")
+	assert.Equal(t, uint64(1988), structVal.(*envTest).number)
 
-func (e *Environment) Set(key string, value interface{}) {
-	e.Lock()
-	defer e.Unlock()
+	stringVal := e.Get("my-string")
+	assert.Equal(t, "value", stringVal)
 
-	e.m[key] = value
-}
+	stringUint64 := e.Get("my-uint64")
+	assert.Equal(t, uint64(4576), stringUint64.(uint64))
 
-func (e *Environment) Clone() *Environment {
-	e.RLock()
-	defer e.RUnlock()
-
-	f := New()
-	for key, value := range e.m {
-		f.Set(key, value)
-	}
-	return f
+	t.Run("Clone", func(t *testing.T) {
+		clone := e.Clone()
+		assert.Equal(t, e, clone)
+	})
 }

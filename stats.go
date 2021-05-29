@@ -18,9 +18,13 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/buraksezer/olric/internal/dtopic"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
@@ -82,11 +86,32 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	s := stats.Stats{
 		Cmdline:            os.Args,
 		ReleaseVersion:     ReleaseVersion,
+		UptimeSeconds:      discovery.UptimeSeconds.Read(),
 		ClusterCoordinator: toMember(db.rt.Discovery().GetCoordinator()),
 		Member:             toMember(db.rt.This()),
 		Partitions:         make(map[uint64]stats.Partition),
 		Backups:            make(map[uint64]stats.Partition),
 		ClusterMembers:     make(map[uint64]stats.Member),
+		Network: stats.Network{
+			ConnectionsTotal:   transport.ConnectionsTotal.Read(),
+			CurrentConnections: transport.CurrentConnections.Read(),
+			WrittenBytesTotal:  transport.WrittenBytesTotal.Read(),
+			ReadBytesTotal:     transport.ReadBytesTotal.Read(),
+			CommandsTotal:      transport.CommandsTotal.Read(),
+		},
+		DMaps: stats.DMaps{
+			EntriesTotal: dmap.EntriesTotal.Read(),
+			DeleteHits:   dmap.DeleteHits.Read(),
+			DeleteMisses: dmap.DeleteMisses.Read(),
+			GetMisses:    dmap.GetMisses.Read(),
+			GetHits:      dmap.GetHits.Read(),
+			EvictedTotal: dmap.EvictedTotal.Read(),
+		},
+		DTopics: stats.DTopics{
+			PublishedTotal:   dtopic.PublishedTotal.Read(),
+			CurrentListeners: dtopic.CurrentListeners.Read(),
+			ListenersTotal:   dtopic.ListenersTotal.Read(),
+		},
 	}
 
 	if cfg.CollectRuntime {
@@ -141,17 +166,18 @@ type statsConfig struct {
 	CollectRuntime bool
 }
 
-type statsOption func(*statsConfig)
+type StatsOption func(*statsConfig)
 
-func CollectRuntime() statsOption {
+func CollectRuntime() StatsOption {
 	return func(cfg *statsConfig) {
 		cfg.CollectRuntime = true
 	}
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.
-func (db *Olric) Stats(options ...statsOption) (stats.Stats, error) {
+func (db *Olric) Stats(options ...StatsOption) (stats.Stats, error) {
 	if err := db.isOperable(); err != nil {
+		// this node is not bootstrapped yet.
 		return stats.Stats{}, err
 	}
 	var cfg statsConfig

@@ -28,54 +28,64 @@ const (
 )
 
 var (
-	// ErrKeyNotFound is returned when a key could not be found.
+	// ErrKeyNotFound means that returned when a key could not be found.
 	ErrKeyNotFound = errors.New("key not found")
+
+	// ErrKeyFound means that the requested key found in the cluster.
 	ErrKeyFound    = errors.New("key found")
+
+	// ErrWriteQuorum means that write quorum cannot be reached to operate.
 	ErrWriteQuorum = errors.New("write quorum cannot be reached")
+
+	// ErrReadQuorum means that read quorum cannot be reached to operate.
 	ErrReadQuorum  = errors.New("read quorum cannot be reached")
+
 	// ErrLockNotAcquired is returned when the requested lock could not be acquired
 	ErrLockNotAcquired = errors.New("lock not acquired")
+
 	// ErrNoSuchLock is returned when the requested lock does not exist
 	ErrNoSuchLock = errors.New("no such lock")
+
 	// ErrEndOfQuery is the error returned by Range when no more data is available.
 	// Functions should return ErrEndOfQuery only to signal a graceful end of input.
 	ErrEndOfQuery = errors.New("end of query")
+
 	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
 	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
 
+	// ErrKeyTooLarge means that the given key is too large to process.
+	// Maximum length of a key is 256 bytes.
 	ErrKeyTooLarge = errors.New("key too large")
 )
 
-const NumParallelQuery = 2
+// NumConcurrentWorkers is the number of concurrent workers to run a query on the cluster.
+const NumConcurrentWorkers = 2
 
 // QueryResponse denotes returned data by a node for query.
 type QueryResponse map[string]interface{}
 
 func convertDMapError(err error) error {
-	switch err {
-	case dmap.ErrKeyFound:
+	switch {
+	case errors.Is(err, dmap.ErrKeyFound):
 		return ErrKeyFound
-	case dmap.ErrKeyNotFound:
+	case errors.Is(err, dmap.ErrKeyNotFound):
 		return ErrKeyNotFound
-	case dmap.ErrDMapNotFound:
+	case errors.Is(err, dmap.ErrDMapNotFound):
 		return ErrKeyNotFound
-	case dmap.ErrEndOfQuery:
+	case errors.Is(err, dmap.ErrEndOfQuery):
 		return ErrEndOfQuery
-	case dmap.ErrLockNotAcquired:
+	case errors.Is(err, dmap.ErrLockNotAcquired):
 		return ErrLockNotAcquired
-	case dmap.ErrNoSuchLock:
+	case errors.Is(err, dmap.ErrNoSuchLock):
 		return ErrNoSuchLock
-	case dmap.ErrReadQuorum:
+	case errors.Is(err, dmap.ErrReadQuorum):
 		return ErrReadQuorum
-	case dmap.ErrWriteQuorum:
+	case errors.Is(err, dmap.ErrWriteQuorum):
 		return ErrWriteQuorum
 	default:
 		return convertClusterError(err)
 	}
 }
-
-// TODO: kvstore.NewEntry should not be used to create a new entry instance here. The DMap functions will be moved to
-// their own DMap struct and all they can access their own dmap instance without hacking.
 
 // Entry is a DMap entry with its metadata.
 type Entry struct {
@@ -103,7 +113,7 @@ type DMap struct {
 
 // NewDMap creates an returns a new DMap instance.
 func (db *Olric) NewDMap(name string) (*DMap, error) {
-	dm, err := db.services.dmap.NewDMap(name)
+	dm, err := db.dmap.NewDMap(name)
 	if err != nil {
 		return nil, convertDMapError(err)
 	}

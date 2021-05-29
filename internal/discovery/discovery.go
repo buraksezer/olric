@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buraksezer/olric/internal/stats"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/service_discovery"
@@ -33,6 +35,9 @@ import (
 )
 
 const eventChanCapacity = 256
+
+// UptimeSeconds is number of seconds since the server started.
+var UptimeSeconds = stats.NewInt64Counter("uptime_seconds")
 
 // ErrMemberNotFound indicates that the requested member could not be found in the member list.
 var ErrMemberNotFound = errors.New("member not found")
@@ -166,11 +171,12 @@ func (d *Discovery) deadMemberTracker() {
 			return
 		case e := <-d.deadMemberEvents:
 			member := e.MemberAddr()
-			if e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate {
+			switch {
+			case e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate:
 				delete(d.deadMembers, member)
-			} else if e.Event == memberlist.NodeLeave {
+			case e.Event == memberlist.NodeLeave:
 				d.deadMembers[member] = time.Now().UnixNano()
-			} else {
+			default:
 				d.log.V(2).Printf("[ERROR] Unknown memberlist event received for: %s: %v",
 					e.NodeName, e.Event)
 			}
@@ -187,6 +193,23 @@ func (d *Discovery) deadMemberTracker() {
 				break
 			}
 			// Just try one item
+		}
+	}
+}
+
+// increaseUptimeSeconds calls UptimeSeconds.Increase function every second.
+func (d *Discovery) increaseUptimeSeconds() {
+	defer d.wg.Done()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			UptimeSeconds.Increase(1)
+		case <-d.ctx.Done():
+			return
 		}
 	}
 }
@@ -229,6 +252,9 @@ func (d *Discovery) Start() error {
 
 	d.wg.Add(1)
 	go d.deadMemberTracker()
+
+	d.wg.Add(1)
+	go d.increaseUptimeSeconds()
 
 	return nil
 }

@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -28,7 +29,8 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const NumParallelQuery = 2
+// NumConcurrentWorkers is the number of concurrent workers to run a query on the cluster.
+const NumConcurrentWorkers = 2
 
 // ErrEndOfQuery is the error returned by Range when no more data is available.
 // Functions should return ErrEndOfQuery only to signal a graceful end of input.
@@ -189,10 +191,10 @@ func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan erro
 		return multierror.Append(e, errs)
 	}
 
-	sem := semaphore.NewWeighted(NumParallelQuery)
+	sem := semaphore.NewWeighted(NumConcurrentWorkers)
 	for partID := uint64(0); partID < c.dm.s.config.PartitionCount; partID++ {
 		err := sem.Acquire(c.ctx, 1)
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			break
 		}
 		if err != nil {
@@ -233,7 +235,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	defer c.Close()
 
 	// Currently we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
-	results := make(chan []storage.Entry, NumParallelQuery)
+	results := make(chan []storage.Entry, NumConcurrentWorkers)
 	errCh := make(chan error, 1)
 
 	c.dm.s.wg.Add(1)

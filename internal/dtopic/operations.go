@@ -76,6 +76,13 @@ func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 		neterrors.ErrorResponse(w, err)
 		return
 	}
+
+	// CurrentListeners is the current number of listeners of DTopics.
+	CurrentListeners.Increase(1)
+
+	// ListenersTotal is the total number of registered listeners during the life of this instance.
+	ListenersTotal.Increase(1)
+
 	w.SetStatus(protocol.StatusOK)
 }
 
@@ -91,5 +98,6 @@ func (s *Service) removeListenerOperation(w, r protocol.EncodeDecoder) {
 		neterrors.ErrorResponse(w, err)
 		return
 	}
+	CurrentListeners.Decrease(1)
 	w.SetStatus(protocol.StatusOK)
 }

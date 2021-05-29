@@ -18,12 +18,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 var (
@@ -56,7 +57,7 @@ func (dm *DMap) unlockKey(key string, token []byte) error {
 
 	// get the key to check its value
 	entry, err := dm.get(key)
-	if err == ErrKeyNotFound {
+	if errors.Is(err, ErrKeyNotFound) {
 		return ErrNoSuchLock
 	}
 	if err != nil {
@@ -88,6 +89,7 @@ func (dm *DMap) unlock(key string, token []byte) error {
 	if member.CompareByName(dm.s.rt.This()) {
 		return dm.unlockKey(key, token)
 	}
+
 	req := protocol.NewDMapMessage(protocol.OpUnlock)
 	req.SetDMap(dm.name)
 	req.SetKey(key)
@@ -110,7 +112,7 @@ func (dm *DMap) tryLock(e *env, deadline time.Duration) error {
 		return nil
 	}
 	// If it returns ErrKeyFound, the lock is already acquired.
-	if err != ErrKeyFound {
+	if !errors.Is(err, ErrKeyFound) {
 		// something went wrong
 		return err
 	}
@@ -128,7 +130,7 @@ LOOP:
 		select {
 		case <-timer.C:
 			err = dm.put(e)
-			if err == ErrKeyFound {
+			if errors.Is(err, ErrKeyFound) {
 				// not released by the other process/goroutine. try again.
 				continue
 			}

@@ -50,7 +50,6 @@ import (
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/serializer"
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -71,16 +70,17 @@ var (
 	// received from a client.
 	ErrUnknownOperation = errors.New("unknown operation")
 
+	// ErrServerGone means that a cluster member is closed unexpectedly.
 	ErrServerGone = errors.New("server is gone")
 
+	// ErrInvalidArgument means that an invalid parameter is sent by the
+	// client or a cluster member.
 	ErrInvalidArgument = errors.New("invalid argument")
-	ErrNotImplemented  = errors.New("not implemented")
-)
 
-type services struct {
-	dtopic *dtopic.Service
-	dmap   *dmap.Service
-}
+	// ErrNotImplemented means that the requested feature has not been implemented
+	// yet.
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 // Olric implements a distributed cache and in-memory key/value data store.
 // It can be used both as an embedded Go library and as a language-independent
@@ -94,7 +94,7 @@ type Olric struct {
 	hashFunc   hasher.Hasher
 	serializer serializer.Serializer
 
-	// Logical units for data storage
+	// Logical units to store data
 	primary *partitions.Partitions
 	backup  *partitions.Partitions
 
@@ -109,7 +109,8 @@ type Olric struct {
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
 
-	services *services
+	dtopic *dtopic.Service
+	dmap   *dmap.Service
 
 	// Bidirectional stream sockets for Olric clients and nodes.
 	streams *streams.Streams
@@ -124,19 +125,21 @@ type Olric struct {
 	started func()
 }
 
-// New creates a new Olric instance, otherwise returns an error.
-func New(c *config.Config) (*Olric, error) {
+func prepareConfig(c *config.Config) (*config.Config, error) {
 	if c == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
+
 	err := c.Sanitize()
 	if err != nil {
 		return nil, err
 	}
+
 	err = c.Validate()
 	if err != nil {
 		return nil, err
 	}
+
 	err = c.SetupNetworkConfig()
 	if err != nil {
 		return nil, err
@@ -150,6 +153,39 @@ func New(c *config.Config) (*Olric, error) {
 		Writer:   c.LogOutput,
 	}
 	c.Logger.SetOutput(filter)
+
+	return c, nil
+}
+
+func initializeServices(db *Olric) error {
+	db.rt = routingtable.New(db.env)
+	db.env.Set("routingtable", db.rt)
+
+	db.balancer = balancer.New(db.env)
+
+	// Add Services
+	dt, err := dtopic.NewService(db.env)
+	if err != nil {
+		return err
+	}
+	db.dtopic = dt.(*dtopic.Service)
+
+	dm, err := dmap.NewService(db.env)
+	if err != nil {
+		return err
+	}
+	db.dmap = dm.(*dmap.Service)
+
+	return nil
+}
+
+// New creates a new Olric instance, otherwise returns an error.
+func New(c *config.Config) (*Olric, error) {
+	var err error
+	c, err = prepareConfig(c)
+	if err != nil {
+		return nil, err
+	}
 
 	e := environment.New()
 	e.Set("config", c)
@@ -172,8 +208,8 @@ func New(c *config.Config) (*Olric, error) {
 		GracefulPeriod:  10 * time.Second,
 	}
 	client := transport.NewClient(c.Client)
-	e.Set("client", client)
 
+	e.Set("client", client)
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("locker", locker.New())
@@ -183,8 +219,6 @@ func New(c *config.Config) (*Olric, error) {
 	db := &Olric{
 		name:       c.MemberlistConfig.Name,
 		env:        e,
-		ctx:        ctx,
-		cancel:     cancel,
 		log:        flogger,
 		config:     c,
 		hashFunc:   c.Hasher,
@@ -196,33 +230,19 @@ func New(c *config.Config) (*Olric, error) {
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		started:    c.Started,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
-	db.rt = routingtable.New(e)
-	e.Set("routingtable", db.rt)
-
-	db.balancer = balancer.New(e)
-
-	// Add Services
-	dt, err := dtopic.NewService(e)
+	err = initializeServices(db)
 	if err != nil {
 		return nil, err
-	}
-
-	dm, err := dmap.NewService(e)
-	if err != nil {
-		return nil, err
-	}
-
-	db.services = &services{
-		dtopic: dt.(*dtopic.Service),
-		dmap:   dm.(*dmap.Service),
 	}
 
 	// Add callback functions to routing table.
 	db.rt.AddCallback(db.balancer.Balance)
-	db.server.SetDispatcher(db.requestDispatcher)
 	db.registerOperations()
+	db.server.SetDispatcher(db.requestDispatcher)
 	return db, nil
 }
 
@@ -241,11 +261,11 @@ func (db *Olric) registerOperations() {
 
 	// Operations on DTopic data structure
 	//
-	db.services.dtopic.RegisterOperations(db.operations)
+	db.dtopic.RegisterOperations(db.operations)
 
 	// Operations on DMap data structure
 	//
-	db.services.dmap.RegisterOperations(db.operations)
+	db.dmap.RegisterOperations(db.operations)
 
 	// Operations on message streams
 	//
@@ -298,12 +318,12 @@ func (db *Olric) callStartedCallback() {
 }
 
 func convertClusterError(err error) error {
-	switch err {
-	case routingtable.ErrClusterQuorum:
+	switch {
+	case errors.Is(err, routingtable.ErrClusterQuorum):
 		return ErrClusterQuorum
-	case routingtable.ErrServerGone:
+	case errors.Is(err, routingtable.ErrServerGone):
 		return ErrServerGone
-	case routingtable.ErrOperationTimeout:
+	case errors.Is(err, routingtable.ErrOperationTimeout):
 		return ErrOperationTimeout
 	default:
 		return err
@@ -346,16 +366,16 @@ func (db *Olric) Start() error {
 	}
 
 	// Start distributed topic service
-	if err := db.services.dtopic.Start(); err != nil {
+	if err := db.dtopic.Start(); err != nil {
 		return err
 	}
 
 	// Start distributed map service
-	if err := db.services.dmap.Start(); err != nil {
+	if err := db.dmap.Start(); err != nil {
 		return err
 	}
 
-	// Warn the user about its choice of configuration
+	// Warn the user about his/her choice of configuration
 	if db.config.ReplicationMode == config.AsyncReplicationMode && db.config.WriteQuorum > 1 {
 		db.log.V(2).
 			Printf("[WARN] Olric is running in async replication mode. WriteQuorum (%d) is ineffective",
@@ -382,35 +402,40 @@ func (db *Olric) Start() error {
 func (db *Olric) Shutdown(ctx context.Context) error {
 	db.cancel()
 
-	var result error
+	var latestError error
 
-	if err := db.services.dtopic.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+	if err := db.dtopic.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown DTopic service: %v", err)
+		latestError = err
 	}
 
-	if err := db.services.dmap.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+	if err := db.dmap.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown DMap service: %v", err)
+		latestError = err
 	}
 
-	db.log.V(2).Printf("[INFO] Closing active streams")
 	if err := db.streams.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown stream service: %v", err)
+		latestError = err
 	}
 
 	db.balancer.Shutdown()
 
-	if err := db.server.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
-	}
-
 	if err := db.rt.Shutdown(ctx); err != nil {
-		result = multierror.Append(result, err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown routing table service: %v", err)
+		latestError = err
 	}
 
+	if err := db.server.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown TCP server: %v", err)
+		latestError = err
+	}
+
+	// TODO: It's a good idea to add graceful period here
 	db.wg.Wait()
 
 	// db.name will be shown as empty string, if the program is killed before
 	// bootstrapping.
 	db.log.V(2).Printf("[INFO] %s is gone", db.name)
-	return result
+	return latestError
 }

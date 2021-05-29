@@ -31,7 +31,7 @@ type SlabInfo struct {
 
 // DMap denotes a distributed map instance on the cluster.
 type DMap struct {
-	Name   string
+	// Number of keys in the DMap.
 	Length int
 
 	// Statistics about memory representation of a DMap.
@@ -43,40 +43,144 @@ type DMap struct {
 
 // Partition denotes a partition and its metadata in the cluster.
 type Partition struct {
+	// PreviousOwners is a list of members whose still owns some fragments.
 	PreviousOwners []Member
-	Backups        []Member
-	Length         int
-	DMaps          map[string]DMap
+
+	// Backups is a list of members whose holds replicas of this partition.
+	Backups []Member
+
+	// Total number of entries in the partition.
+	Length int
+
+	// DMaps is a map that contains statistics of DMaps in this partition.
+	DMaps map[string]DMap
 }
 
 // Runtime exposes memory stats and various metrics from Go runtime.
 type Runtime struct {
-	GOOS         string
-	GOARCH       string
-	Version      string
-	NumCPU       int
+	// GOOS is the running program's operating system target
+	GOOS string
+
+	// GOARCH is the running program's architecture target
+	GOARCH string
+
+	// Version returns the Go tree's version string.
+	Version string
+
+	// NumCPU returns the number of logical CPUs usable by the current process.
+	NumCPU int
+
+	// NumGoroutine returns the number of goroutines that currently exist.
 	NumGoroutine int
-	MemStats     runtime.MemStats
+
+	// MemStats records statistics about the memory allocator.
+	MemStats runtime.MemStats
 }
 
+// Member denotes a cluster member.
 type Member struct {
-	Name      string
-	ID        uint64
+	// Name is name of the node in the cluster.
+	Name string
+
+	// ID is the unique identifier of this node in the cluster. It's derived
+	// from Name and Birthdate.
+	ID uint64
+
+	// Birthdate is UNIX time in nanoseconds.
 	Birthdate int64
 }
 
+// String returns the member name.
 func (m Member) String() string {
 	return m.Name
 }
 
-// Stats includes some metadata information about the cluster. The nodes add everything it knows about the cluster.
+// Network holds network statistics.
+type Network struct {
+	// ConnectionsTotal is total number of connections opened since the server started running.
+	ConnectionsTotal int64
+
+	// CurrentConnections is current number of open connections.
+	CurrentConnections int64
+
+	// WrittenBytesTotal is total number of bytes sent by this server to network.
+	WrittenBytesTotal int64
+
+	// ReadBytesTotal is total number of bytes read by this server from network.
+	ReadBytesTotal int64
+
+	// CommandsTotal is total number of all requests (get, put, etc.).
+	CommandsTotal int64
+}
+
+// DMaps holds global DMap statistics.
+type DMaps struct {
+	// EntriesTotal is the total number of entries(including replicas) stored during the life of this instance.
+	EntriesTotal int64
+
+	// DeleteHits is the number of deletion reqs resulting in an item being removed.
+	DeleteHits int64
+
+	// DeleteMisses is the number of deletions reqs for missing keys
+	DeleteMisses int64
+
+	// GetMisses is the number of entries that have been requested and not found
+	GetMisses int64
+
+	// GetHits is the number of entries that have been requested and found present
+	GetHits int64
+
+	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
+	EvictedTotal int64
+}
+
+// DTopics holds global DTopic statistics.
+type DTopics struct {
+	// PublishedTotal is the total number of published messages to DTopics during the life of this instance.
+	PublishedTotal int64
+
+	// CurrentListeners is the current number of DTopic listeners of DTopics.
+	CurrentListeners int64
+
+	// ListenersTotal is the total number of registered DTopic listeners during the life of this instance.
+	ListenersTotal int64
+}
+
+// Stats is a struct that exposes statistics about the current state of a member.
 type Stats struct {
-	Cmdline            []string
-	ReleaseVersion     string
-	Runtime            *Runtime
+	// Cmdline holds the command-line arguments, starting with the program name.
+	Cmdline []string
+
+	// ReleaseVersion is the current Olric version
+	ReleaseVersion string
+
+	// UptimeSeconds is number of seconds since the server started.
+	UptimeSeconds int64
+
+	// Stats from Golang runtime
+	Runtime * Runtime
+
+	// ClusterCoordinator is the current cluster coordinator.
 	ClusterCoordinator Member
-	Member             Member
-	Partitions         map[uint64]Partition
-	Backups            map[uint64]Partition
-	ClusterMembers     map[uint64]Member
+
+	// Member denotes the current member.
+	Member Member
+
+	// Partitions is a map that contains partition statistics.
+	Partitions map[uint64]Partition
+
+	// Backups is a map that contains backup partition statistics.
+	Backups map[uint64]Partition
+
+	// ClusterMembers is a map that contains bootstrapped cluster members
+	ClusterMembers map[uint64]Member
+
+	// Network holds network statistics.
+	Network Network
+
+	// DMaps holds global DMap statistics.
+	DMaps DMaps
+
+	// DTopics holds global DTopic statistics.
+	DTopics DTopics
 }

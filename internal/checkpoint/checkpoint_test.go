@@ -12,47 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package environment
+package checkpoint
 
-import "sync"
+import (
+	"sync"
+	"testing"
 
-type Environment struct {
-	sync.RWMutex
+	"github.com/buraksezer/olric/internal/testutil/assert"
+)
 
-	m map[string]interface{}
-}
-
-func New() *Environment {
-	return &Environment{
-		m: make(map[string]interface{}),
+func TestCheckpoint(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Add()
+		}()
 	}
-}
 
-func (e *Environment) Get(key string) interface{} {
-	e.RLock()
-	defer e.RUnlock()
+	wg.Wait()
 
-	value, ok := e.m[key]
-	if ok {
-		return value
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			Pass()
+		}()
 	}
-	return nil
-}
 
-func (e *Environment) Set(key string, value interface{}) {
-	e.Lock()
-	defer e.Unlock()
-
-	e.m[key] = value
-}
-
-func (e *Environment) Clone() *Environment {
-	e.RLock()
-	defer e.RUnlock()
-
-	f := New()
-	for key, value := range e.m {
-		f.Set(key, value)
-	}
-	return f
+	wg.Wait()
+	assert.Equal(t, true, AllPassed())
 }

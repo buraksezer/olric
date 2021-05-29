@@ -16,6 +16,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/buraksezer/olric"
@@ -78,10 +79,10 @@ func (c *Cursor) runQueryOnCluster(results chan olric.QueryResponse, errCh chan 
 		return multierror.Append(e, errs)
 	}
 
-	sem := semaphore.NewWeighted(olric.NumParallelQuery)
+	sem := semaphore.NewWeighted(olric.NumConcurrentWorkers)
 	for {
 		err := sem.Acquire(c.ctx, 1)
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			break
 		}
 		if err != nil {
@@ -95,7 +96,7 @@ func (c *Cursor) runQueryOnCluster(results chan olric.QueryResponse, errCh chan 
 			defer sem.Release(1)
 
 			resp, err := c.runQueryOnPartition(id)
-			if err == olric.ErrEndOfQuery {
+			if errors.Is(err, olric.ErrEndOfQuery) {
 				c.Close()
 				return
 			}
@@ -124,7 +125,7 @@ func (c *Cursor) runQueryOnCluster(results chan olric.QueryResponse, errCh chan 
 func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	defer c.Close()
 
-	results := make(chan olric.QueryResponse, olric.NumParallelQuery)
+	results := make(chan olric.QueryResponse, olric.NumConcurrentWorkers)
 	errCh := make(chan error, 1)
 
 	c.wg.Add(1)

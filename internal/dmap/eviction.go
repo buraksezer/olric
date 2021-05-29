@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -48,7 +49,7 @@ func (dm *DMap) isKeyIdleOnFragment(hkey uint64, f *fragment) bool {
 
 func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	f, err := dm.getFragment(hkey, partitions.PRIMARY)
-	if err == errFragmentNotFound {
+	if errors.Is(err, errFragmentNotFound) {
 		// it's no possible to know whether the key is idle or not.
 		return false
 	}
@@ -153,7 +154,11 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 					// It will be tried again.
 					dm.s.log.V(3).Printf("[ERROR] Failed to delete expired key: %s on DMap: %s: %v",
 						entry.Key(), dm.name, err)
+					return true
 				}
+
+				// number of valid items removed from cache to free memory for new items.
+				EvictedTotal.Increase(1)
 			}
 			return true
 		})
@@ -220,8 +225,9 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	item := items[0]
 	key, err := e.fragment.storage.GetKey(item.HKey)
 	if err != nil {
-		if err == storage.ErrKeyNotFound {
+		if errors.Is(err, storage.ErrKeyNotFound) {
 			err = ErrKeyNotFound
+			GetMisses.Increase(1)
 		}
 		return err
 	}
@@ -229,5 +235,12 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	if dm.s.log.V(6).Ok() {
 		dm.s.log.V(6).Printf("[DEBUG] Evicted item on DMap: %s, key: %s with LRU", e.dmap, key)
 	}
-	return dm.deleteOnCluster(item.HKey, key, e.fragment)
+	err = dm.deleteOnCluster(item.HKey, key, e.fragment)
+	if err != nil {
+		return err
+	}
+
+	// number of valid items removed from cache to free memory for new items.
+	EvictedTotal.Increase(1)
+	return nil
 }
