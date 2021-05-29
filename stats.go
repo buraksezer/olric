@@ -165,16 +165,16 @@ type statsConfig struct {
 	CollectRuntime bool
 }
 
-type statsOption func(*statsConfig)
+type StatsOption func(*statsConfig)
 
-func CollectRuntime() statsOption {
+func CollectRuntime() StatsOption {
 	return func(cfg *statsConfig) {
 		cfg.CollectRuntime = true
 	}
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.
-func (db *Olric) Stats(options ...statsOption) (stats.Stats, error) {
+func (db *Olric) Stats(options ...StatsOption) (stats.Stats, error) {
 	if err := db.isOperable(); err != nil {
 		// this node is not bootstrapped yet.
 		return stats.Stats{}, err
