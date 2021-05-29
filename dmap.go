@@ -32,13 +32,13 @@ var (
 	ErrKeyNotFound = errors.New("key not found")
 
 	// ErrKeyFound means that the requested key found in the cluster.
-	ErrKeyFound    = errors.New("key found")
+	ErrKeyFound = errors.New("key found")
 
 	// ErrWriteQuorum means that write quorum cannot be reached to operate.
 	ErrWriteQuorum = errors.New("write quorum cannot be reached")
 
 	// ErrReadQuorum means that read quorum cannot be reached to operate.
-	ErrReadQuorum  = errors.New("read quorum cannot be reached")
+	ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 	// ErrLockNotAcquired is returned when the requested lock could not be acquired
 	ErrLockNotAcquired = errors.New("lock not acquired")

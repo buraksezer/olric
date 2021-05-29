@@ -45,6 +45,9 @@ func TestOlric_Stats(t *testing.T) {
 	assert.Equal(t, s.Member.Name, db.rt.This().Name)
 	assert.Equal(t, s.Member.ID, db.rt.This().ID)
 	assert.Equal(t, s.Member.Birthdate, db.rt.This().Birthdate)
+	if s.Runtime != nil {
+		t.Error("Runtime stats must not be collected by default:", s.Runtime)
+	}
 
 	var total int
 	for partID, part := range s.Partitions {
@@ -69,12 +72,25 @@ func TestOlric_Stats(t *testing.T) {
 	}
 }
 
+func TestOlric_Stats_CollectRuntime(t *testing.T) {
+	db, err := newTestOlric(t)
+	assert.NoError(t, err)
+
+	s, err := db.Stats(CollectRuntime())
+	assert.NoError(t, err)
+
+	if s.Runtime == nil {
+		t.Fatal("Runtime stats must be collected by default:", s.Runtime)
+	}
+}
+
 func TestOlric_Stats_Operation(t *testing.T) {
 	db, err := newTestOlric(t)
 	assert.NoError(t, err)
 
 	buf := new(bytes.Buffer)
 	req := protocol.NewSystemMessage(protocol.OpStats)
+	req.SetExtra(protocol.StatsExtra{})
 	req.SetBuffer(buf)
 	err = req.Encode()
 	assert.NoError(t, err)

@@ -158,7 +158,7 @@ type Stats struct {
 	UptimeSeconds int64
 
 	// Stats from Golang runtime
-	Runtime Runtime
+	Runtime *Runtime
 
 	// ClusterCoordinator is the current cluster coordinator.
 	ClusterCoordinator Member
