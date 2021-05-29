@@ -103,7 +103,7 @@ type DMap struct {
 
 // NewDMap creates an returns a new DMap instance.
 func (db *Olric) NewDMap(name string) (*DMap, error) {
-	dm, err := db.services.dmap.NewDMap(name)
+	dm, err := db.dmap.NewDMap(name)
 	if err != nil {
 		return nil, convertDMapError(err)
 	}
