@@ -38,6 +38,11 @@ type DTopicMessage struct {
 	PublishedAt   int64
 }
 
+// DTopic implements a distributed topic to deliver messages between clients and Olric nodes.
+// You should know that:
+// 	* Communication between parties is one-to-many (fan-out).
+// 	* All data is in-memory, and the published messages are not stored in the cluster.
+// 	* Fire&Forget: message delivery is not guaranteed.
 type DTopic struct {
 	dt *dtopic.DTopic
 }
@@ -63,7 +68,8 @@ func convertDTopicError(err error) error {
 //   * concurrency: Maximum number of concurrently processing DTopic messages.
 //   * flag: Any flag to control DTopic behavior.
 // Flags for delivery options:
-//   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
+//   * UnorderedDelivery: Messages are delivered in random order. It's good to
+//     distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
 func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
 	dt, err := db.dtopic.NewDTopic(name, concurrency, flag)
@@ -75,11 +81,15 @@ func (db *Olric) NewDTopic(name string, concurrency int, flag int16) (*DTopic, e
 	}, nil
 }
 
+// Publish publishes the given message to listeners of the topic. Message order
+// and delivery are not guaranteed.
 func (dt *DTopic) Publish(msg interface{}) error {
 	err := dt.dt.Publish(msg)
 	return convertDTopicError(err)
 }
 
+// AddListener adds a new listener for the topic. Returns a registration ID or
+// a non-nil error. Registered functions are run by parallel.
 func (dt *DTopic) AddListener(f func(DTopicMessage)) (uint64, error) {
 	listenerID, err := dt.dt.AddListener(func(msg dtopic.Message) {
 		f(DTopicMessage(msg))
@@ -90,11 +100,14 @@ func (dt *DTopic) AddListener(f func(DTopicMessage)) (uint64, error) {
 	return listenerID, nil
 }
 
+// RemoveListener removes a listener with the given listenerID.
 func (dt *DTopic) RemoveListener(listenerID uint64) error {
 	err := dt.dt.RemoveListener(listenerID)
 	return convertDTopicError(err)
 }
 
+// Destroy removes all listeners for this topic on the cluster. If Publish function
+// is called again after Destroy, the topic will be recreated.
 func (dt *DTopic) Destroy() error {
 	err := dt.dt.Destroy()
 	return convertDTopicError(err)
