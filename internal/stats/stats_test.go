@@ -22,7 +22,7 @@ import (
 )
 
 func TestUint64Counter(t *testing.T) {
-	c := NewInt64Counter("foobar")
+	c := NewInt64Counter()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
@@ -36,12 +36,10 @@ func TestUint64Counter(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, int64(100), c.Read())
-
-	assert.Equal(t, "foobar", c.Tag())
 }
 
 func TestUint64Gauge(t *testing.T) {
-	g := NewInt64Gauge("foobar")
+	g := NewInt64Gauge()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
@@ -63,6 +61,4 @@ func TestUint64Gauge(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, int64(80), g.Read())
-
-	assert.Equal(t, "foobar", g.Tag())
 }

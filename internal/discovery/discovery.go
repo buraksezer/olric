@@ -37,7 +37,7 @@ import (
 const eventChanCapacity = 256
 
 // UptimeSeconds is number of seconds since the server started.
-var UptimeSeconds = stats.NewInt64Counter("uptime_seconds")
+var UptimeSeconds = stats.NewInt64Counter()
 
 // ErrMemberNotFound indicates that the requested member could not be found in the member list.
 var ErrMemberNotFound = errors.New("member not found")

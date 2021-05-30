@@ -27,10 +27,10 @@ import (
 
 var (
 	// DeleteHits is the number of deletion reqs resulting in an item being removed.
-	DeleteHits = stats.NewInt64Counter("delete_hits")
+	DeleteHits = stats.NewInt64Counter()
 
 	// DeleteMisses is the number of deletions reqs for missing keys
-	DeleteMisses = stats.NewInt64Counter("delete_misses")
+	DeleteMisses = stats.NewInt64Counter()
 )
 
 func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error {

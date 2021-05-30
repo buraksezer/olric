@@ -40,19 +40,19 @@ const (
 
 var (
 	// CommandsTotal is total number of all requests broken down by command (get, put, etc.) and status.
-	CommandsTotal = stats.NewInt64Counter("commands_total")
+	CommandsTotal = stats.NewInt64Counter()
 
 	// ConnectionsTotal is total number of connections opened since the server started running.
-	ConnectionsTotal = stats.NewInt64Counter("connections_total")
+	ConnectionsTotal = stats.NewInt64Counter()
 
 	// CurrentConnections is current number of open connections.
-	CurrentConnections = stats.NewInt64Gauge("current_connections")
+	CurrentConnections = stats.NewInt64Gauge()
 
 	// WrittenBytesTotal is total number of bytes sent by this server to network.
-	WrittenBytesTotal = stats.NewInt64Counter("written_bytes_total")
+	WrittenBytesTotal = stats.NewInt64Counter()
 
 	// ReadBytesTotal is total number of bytes read by this server from network.
-	ReadBytesTotal = stats.NewInt64Counter("read_bytes_total")
+	ReadBytesTotal = stats.NewInt64Counter()
 )
 
 // pool is good for recycling memory while reading messages from the socket.

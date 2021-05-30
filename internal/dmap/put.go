@@ -35,7 +35,7 @@ const (
 
 // EntriesTotal is the total number of entries(including replicas)
 // stored during the life of this instance.
-var EntriesTotal = stats.NewInt64Counter("current_entries_total")
+var EntriesTotal = stats.NewInt64Counter()
 
 var (
 	ErrKeyFound    = neterrors.New(protocol.StatusErrKeyFound, "key found")

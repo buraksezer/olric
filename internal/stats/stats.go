@@ -16,52 +16,49 @@ package stats
 
 import "sync/atomic"
 
+// Int64Counter is a cumulative metric that represents a single monotonically
+// increasing counter whose value can only increase or be reset to zero on restart.
 type Int64Counter struct {
-	tag     string
 	counter int64
 }
 
-func NewInt64Counter(tag string) *Int64Counter {
-	return &Int64Counter{
-		tag: tag,
-	}
+// NewInt64Counter returns a new Int64Counter
+func NewInt64Counter() *Int64Counter {
+	return &Int64Counter{}
 }
 
-func (c *Int64Counter) Tag() string {
-	return c.tag
-}
-
+// Increase increases the counter by delta.
 func (c *Int64Counter) Increase(delta int64) {
 	atomic.AddInt64(&c.counter, delta)
 }
 
+// Read returns the current value of counter.
 func (c *Int64Counter) Read() int64 {
 	return atomic.LoadInt64(&c.counter)
 }
 
+// Int64Gauge is a metric that represents a single numerical value that can
+// arbitrarily go up and down.
 type Int64Gauge struct {
-	tag   string
 	gauge int64
 }
 
-func NewInt64Gauge(tag string) *Int64Gauge {
-	return &Int64Gauge{
-		tag: tag,
-	}
+// NewInt64Gauge returns a new Int64Gauge
+func NewInt64Gauge() *Int64Gauge {
+	return &Int64Gauge{}
 }
 
-func (c *Int64Gauge) Tag() string {
-	return c.tag
-}
-
+// Increase increases the gauge by delta.
 func (c *Int64Gauge) Increase(delta int64) {
 	atomic.AddInt64(&c.gauge, delta)
 }
 
+// Decrease decreases the counter by delta.
 func (c *Int64Gauge) Decrease(delta int64) {
 	atomic.AddInt64(&c.gauge, -1*delta)
 }
 
+// Read returns the current value of gauge.
 func (c *Int64Gauge) Read() int64 {
 	return atomic.LoadInt64(&c.gauge)
 }

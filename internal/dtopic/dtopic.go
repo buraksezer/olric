@@ -25,13 +25,13 @@ import (
 
 var (
 	// PublishedTotal is the total number of published messages during the life of this instance.
-	PublishedTotal = stats.NewInt64Counter("published_total")
+	PublishedTotal = stats.NewInt64Counter()
 
 	// CurrentListeners is the current number of listeners of DTopics.
-	CurrentListeners = stats.NewInt64Gauge("current_listeners")
+	CurrentListeners = stats.NewInt64Gauge()
 
 	// ListenersTotal is the total number of registered listeners during the life of this instance.
-	ListenersTotal = stats.NewInt64Counter("listeners_total")
+	ListenersTotal = stats.NewInt64Counter()
 )
 
 const (

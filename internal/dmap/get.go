@@ -38,13 +38,13 @@ type Entry struct {
 
 var (
 	// GetMisses is the number of entries that have been requested and not found
-	GetMisses = stats.NewInt64Counter("get_misses")
+	GetMisses = stats.NewInt64Counter()
 
 	// GetHits is the number of entries that have been requested and found present
-	GetHits = stats.NewInt64Counter("get_hits")
+	GetHits = stats.NewInt64Counter()
 
 	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
-	EvictedTotal = stats.NewInt64Counter("evicted_total")
+	EvictedTotal = stats.NewInt64Counter()
 )
 
 var ErrReadQuorum = neterrors.New(protocol.StatusErrReadQuorum, "read quorum cannot be reached")
