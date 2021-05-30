@@ -105,7 +105,7 @@ func (q *Query) PrintRawStats(backup bool) error {
 		partitions = data.Backups
 	}
 	for partID, part := range partitions {
-		q.prettyPrint(partID, &part)
+		q.prettyPrint(uint64(partID), &part)
 		totalLength += part.Length
 		for _, dm := range part.DMaps {
 			totalInuse += dm.SlabInfo.Inuse
@@ -132,7 +132,7 @@ func (q *Query) PrintPartitionStats(partID uint64, backup bool) error {
 	if backup {
 		partitions = data.Backups
 	}
-	part, ok := partitions[partID]
+	part, ok := partitions[stats.PartitionID(partID)]
 	if !ok {
 		return fmt.Errorf("partition could not be found")
 	}
