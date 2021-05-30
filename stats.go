@@ -89,9 +89,9 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 		UptimeSeconds:      discovery.UptimeSeconds.Read(),
 		ClusterCoordinator: toMember(db.rt.Discovery().GetCoordinator()),
 		Member:             toMember(db.rt.This()),
-		Partitions:         make(map[uint64]stats.Partition),
-		Backups:            make(map[uint64]stats.Partition),
-		ClusterMembers:     make(map[uint64]stats.Member),
+		Partitions:         make(map[stats.PartitionID]stats.Partition),
+		Backups:            make(map[stats.PartitionID]stats.Partition),
+		ClusterMembers:     make(map[stats.MemberID]stats.Member),
 		Network: stats.Network{
 			ConnectionsTotal:   transport.ConnectionsTotal.Read(),
 			CurrentConnections: transport.CurrentConnections.Read(),
@@ -129,18 +129,18 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	defer db.rt.RUnlock()
 
 	db.rt.Members().Range(func(id uint64, member discovery.Member) bool {
-		s.ClusterMembers[id] = toMember(member)
+		s.ClusterMembers[stats.MemberID(id)] = toMember(member)
 		return true
 	})
 
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
 		primary := db.primary.PartitionById(partID)
 		if db.checkPartitionOwnership(primary) {
-			s.Partitions[partID] = db.collectPartitionMetrics(partID, primary)
+			s.Partitions[stats.PartitionID(partID)] = db.collectPartitionMetrics(partID, primary)
 		}
 		backup := db.backup.PartitionById(partID)
 		if db.checkPartitionOwnership(backup) {
-			s.Backups[partID] = db.collectPartitionMetrics(partID, backup)
+			s.Backups[stats.PartitionID(partID)] = db.collectPartitionMetrics(partID, backup)
 		}
 	}
 

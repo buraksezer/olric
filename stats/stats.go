@@ -17,6 +17,14 @@ package stats
 
 import "runtime"
 
+type (
+	// PartitionID denotes ID of a partition in the cluster.
+	PartitionID uint64
+
+	// MemberID denotes ID of a member in the cluster.
+	MemberID uint64
+)
+
 // SlabInfo denotes memory usage of the storage engine(a hash indexed append only log file).
 type SlabInfo struct {
 	// Total allocated space by the append-only log files.
@@ -167,13 +175,13 @@ type Stats struct {
 	Member Member
 
 	// Partitions is a map that contains partition statistics.
-	Partitions map[uint64]Partition
+	Partitions map[PartitionID]Partition
 
 	// Backups is a map that contains backup partition statistics.
-	Backups map[uint64]Partition
+	Backups map[PartitionID]Partition
 
 	// ClusterMembers is a map that contains bootstrapped cluster members
-	ClusterMembers map[uint64]Member
+	ClusterMembers map[MemberID]Member
 
 	// Network holds network statistics.
 	Network Network

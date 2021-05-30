@@ -16,6 +16,7 @@ package olric
 
 import (
 	"bytes"
+	"github.com/buraksezer/olric/stats"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -66,7 +67,7 @@ func TestOlric_Stats(t *testing.T) {
 	if total != 100 {
 		t.Fatalf("Expected total length of partition in stats is 100. Got: %d", total)
 	}
-	_, ok := s.ClusterMembers[db.rt.This().ID]
+	_, ok := s.ClusterMembers[stats.MemberID(db.rt.This().ID)]
 	if !ok {
 		t.Fatalf("Expected member ID: %d could not be found in ClusterMembers", db.rt.This().ID)
 	}
