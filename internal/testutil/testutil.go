@@ -16,8 +16,11 @@ package testutil
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -115,4 +118,33 @@ func ToKey(i int) string {
 
 func ToVal(i int) []byte {
 	return []byte(fmt.Sprintf("%010d", i))
+}
+
+func CreateTmpfile(t *testing.T, data []byte) (*os.File, error) {
+	tmpfile, err := ioutil.TempFile("", "olric-test.*.data")
+	if err != nil {
+		return nil, err
+	}
+	if data != nil {
+		if _, err := tmpfile.Write(data); err != nil {
+			return nil, err
+		}
+	}
+	t.Cleanup(func() {
+		err = os.Remove(tmpfile.Name())
+		if os.IsNotExist(err) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %s", err)
+		}
+	})
+	err = tmpfile.Close()
+	if err == os.ErrClosed {
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return tmpfile, nil
 }
