@@ -135,7 +135,7 @@ func main() {
 		return
 	case args.version:
 		_, _ = fmt.Fprintf(os.Stdout,
-			"olric-load %s with runtime %s\n",
+			"olric-stats %s with runtime %s\n",
 			olric.ReleaseVersion, runtime.Version())
 	}
 

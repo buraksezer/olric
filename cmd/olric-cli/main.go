@@ -30,8 +30,7 @@ import (
 func usage() {
 	var msg = `Usage: olric-cli [options] [command] ...
 
-Send commands to Olric cluster, and read the replies sent by the server, directly 
-from the terminal.
+Send commands to Olric cluster and read the replies, directly from the terminal.
 
 Options:
   -h, --help       Print this message and exit.
