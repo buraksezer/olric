@@ -53,10 +53,12 @@ func (s *Olricd) waitForInterrupt() {
 	s.errgr.Go(func() error {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
 		if err := s.db.Shutdown(ctx); err != nil {
 			s.log.Printf("[olricd] Failed to shutdown Olric: %v", err)
 			return err
 		}
+
 		return nil
 	})
 
@@ -64,10 +66,12 @@ func (s *Olricd) waitForInterrupt() {
 	go func() {
 		s.log.Printf("[olricd] Awaiting for background tasks")
 		s.log.Printf("[olricd] Press CTRL+C or send SIGTERM/SIGINT to quit immediately")
+
 		forceQuitCh := make(chan os.Signal, 1)
 		signal.Notify(forceQuitCh, syscall.SIGTERM, syscall.SIGINT)
 		ch := <-forceQuitCh
-		s.log.Printf("[olricd] Signal catched: %s", ch.String())
+
+		s.log.Printf("[olricd] Signal caught: %s", ch.String())
 		s.log.Printf("[olricd] Quits with exit code 1")
 		os.Exit(1)
 	}()
@@ -84,6 +88,7 @@ func (s *Olricd) Start() error {
 		return err
 	}
 	s.db = db
+
 	s.errgr.Go(func() error {
 		if err = s.db.Start(); err != nil {
 			s.log.Printf("[olricd] Failed to run Olric: %v", err)
@@ -91,5 +96,6 @@ func (s *Olricd) Start() error {
 		}
 		return nil
 	})
+
 	return s.errgr.Wait()
 }

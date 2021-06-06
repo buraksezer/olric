@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
@@ -29,86 +28,115 @@ import (
 	"github.com/sean-/seed"
 )
 
-const defaultAddr string = "127.0.0.1:3320"
+const defaultAddress = "127.0.0.1:3320"
 
-var usage = `Pretty printer for Olric stats
+type arguments struct {
+	help       bool
+	version    bool
+	runtime    bool
+	partitions bool
+	backup     bool
+	dump       bool
+	dmap       bool
+	dtopic     bool
+	network    bool
+	members    bool
+	address    string
+	timeout    string
+	id         int
+}
 
-Usage: 
-  olric-stats [flags] ...
+func usage() {
+	var msg = `Usage: olric-stats [options] ...
 
-Flags:
-  -h -help                      
-      Shows this screen.
-  -v -version                   
-      Shows version information.
-  -a -addr
-      Server URI. Default: %s.
-  -r -runtime
-      Runtime stats, including runtime.MemStats.
-  -b -backup
-      Query backup partitions.
-  -p -partID
-      Partition ID to query.
-  -d -dump
-      Dump stats data in JSON format.
-  -t -timeout
-      Specifies a time limit for requests and dial made by Olric client.
+Inspect cluster state and per-node statistics.
+
+Options:
+  -h, --help	   Print this message and exit.
+  -v, --version	   Print the version number and exit.
+  -a  --address	   Network address of the server in <host:port> format.
+                   Default: 127.0.0.1:3320
+  -t  --timeout    Set time limit for requests and dial made by the client.
+                   Default: 10ms
+  -r  --runtime	   Print Go runtime stats. It calls runtime.ReadMemStats
+                   on the target server. You should know that this function stops
+                   all running goroutines to collect statistics.
+  -p  --partitions Print partition statistics of the server.
+        --id       Partition id to query.
+        --backup   Enable to query backup partitions.
+  -d  --dump       Dump stats data in JSON format.
+  -D  --dmap       Print DMap statistics.
+  -T  --dtopic     Print DTopic statistics.
+  -n  --network    Print network statistics.
+  -m  --members    List current members of the cluster.
 
 The Go runtime version %s
-Report bugs to https://github.com/buraksezer/olric/issues`
-
-var (
-	showHelp    bool
-	showVersion bool
-	backup      bool
-	dump        bool
-	runstats    bool
-	partID      int
-	addr        string
-	timeout     string
-)
+Report bugs to https://github.com/buraksezer/olric/issues
+`
+	_, err := fmt.Fprintf(os.Stdout, msg, runtime.Version())
+	if err != nil {
+		panic(err)
+	}
+}
 
 func main() {
+	args := &arguments{}
+	// No need for timestamp and etc in this function. Just log it.
+	log.SetFlags(0)
+
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
+	f.SetOutput(os.Stdout)
+	f.BoolVar(&args.help, "h", false, "")
+	f.BoolVar(&args.help, "help", false, "")
 
-	f.BoolVar(&showVersion, "v", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
+	f.BoolVar(&args.version, "version", false, "")
+	f.BoolVar(&args.version, "v", false, "")
 
-	f.StringVar(&timeout, "t", "10s", "")
-	f.StringVar(&timeout, "timeout", "10s", "")
+	f.StringVar(&args.address, "a", defaultAddress, "")
+	f.StringVar(&args.address, "addr", defaultAddress, "")
 
-	f.IntVar(&partID, "p", -1, "")
-	f.IntVar(&partID, "partID", -1, "")
+	f.StringVar(&args.timeout, "t", "10ms", "")
+	f.StringVar(&args.timeout, "timeout", "10ms", "")
 
-	f.StringVar(&addr, "a", defaultAddr, "")
-	f.StringVar(&addr, "addr", defaultAddr, "")
+	f.BoolVar(&args.partitions, "p", false, "")
+	f.BoolVar(&args.partitions, "partitions", false, "")
+	f.IntVar(&args.id, "id", -1, "")
+	f.BoolVar(&args.backup, "backup", false, "")
 
-	f.BoolVar(&backup, "b", false, "")
-	f.BoolVar(&backup, "backup", false, "")
+	f.BoolVar(&args.runtime, "r", false, "")
+	f.BoolVar(&args.runtime, "runtime", false, "")
 
-	f.BoolVar(&runstats, "r", false, "")
-	f.BoolVar(&runstats, "runtime", false, "")
+	f.BoolVar(&args.dump, "d", false, "")
+	f.BoolVar(&args.dump, "dump", false, "")
 
-	f.BoolVar(&dump, "d", false, "")
-	f.BoolVar(&dump, "dump", false, "")
+	f.BoolVar(&args.dmap, "D", false, "")
+	f.BoolVar(&args.dmap, "dmap", false, "")
+
+	f.BoolVar(&args.dtopic, "T", false, "")
+	f.BoolVar(&args.dtopic, "dtopic", false, "")
+
+	f.BoolVar(&args.network, "n", false, "")
+	f.BoolVar(&args.network, "network", false, "")
+
+	f.BoolVar(&args.members, "m", false, "")
+	f.BoolVar(&args.members, "members", false, "")
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
 	if err := f.Parse(os.Args[1:]); err != nil {
-		logger.Fatalf("Failed to parse flags: %v\n", err)
+		log.Fatalf("Failed to parse flags: %v", err)
 	}
 
-	if showVersion {
-		fmt.Printf("olric-load %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
+	switch {
+	case args.help:
+		usage()
 		return
-	} else if showHelp {
-		logger.Printf(usage, defaultAddr, runtime.Version())
-		return
+	case args.version:
+		_, _ = fmt.Fprintf(os.Stdout,
+			"olric-load %s with runtime %s\n",
+			olric.ReleaseVersion, runtime.Version())
 	}
 
 	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
@@ -117,28 +145,32 @@ func main() {
 	// call to Init() failed in the past.
 	seed.MustInit()
 
-	q, err := query.New(addr, timeout, logger)
+	q, err := query.New(args.address, args.timeout, logger)
 	if err != nil {
-		logger.Fatalf("Failed to run olric-stats: %v", err)
+		logger.Fatalf("olric-stats: %v", err)
 	}
 
-	if dump {
+	switch {
+	case args.dump:
 		err = q.Dump()
-		if err != nil {
-			logger.Fatalf("Failed to run olric-stats: %v", err)
-		}
+	case args.runtime:
+		err = q.PrintRuntimeStats()
+	case args.partitions:
+		err = q.PrintPartitionStats(args.id, args.backup)
+	case args.members:
+		err = q.PrintClusterMembers()
+	case args.dmap:
+		err = q.PrintDMapStatistics()
+	case args.dtopic:
+		err = q.PrintDTopicStatistics()
+	case args.network:
+		err = q.PrintNetworkStatistics()
+	default:
+		usage()
 		return
 	}
 
-	if runstats {
-		err = q.PrintRuntimeStats()
-	} else if partID == -1 {
-		err = q.PrintRawStats(backup)
-	} else {
-		err = q.PrintPartitionStats(uint64(partID), backup)
-	}
-
 	if err != nil {
-		logger.Fatalf("Failed to run olric-stats: %v", err)
+		logger.Fatalf("olric-stats: %v", err)
 	}
 }

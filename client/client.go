@@ -129,7 +129,7 @@ func (c *Client) request(req protocol.EncodeDecoder) (protocol.EncodeDecoder, er
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.
-func (c *Client) Stats(addr string, options ...statsOption) (stats.Stats, error) {
+func (c *Client) Stats(addr string, options ...StatsOption) (stats.Stats, error) {
 	var extra protocol.StatsExtra
 	for _, opt := range options {
 		opt(&extra)
@@ -154,9 +154,9 @@ func (c *Client) Stats(addr string, options ...statsOption) (stats.Stats, error)
 	return s, nil
 }
 
-type statsOption func(*protocol.StatsExtra)
+type StatsOption func(*protocol.StatsExtra)
 
-func CollectRuntime() statsOption {
+func CollectRuntime() StatsOption {
 	return func(extra *protocol.StatsExtra) {
 		extra.CollectRuntime = true
 	}

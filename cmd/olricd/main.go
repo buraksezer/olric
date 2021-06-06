@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -29,26 +30,31 @@ import (
 	"github.com/sean-/seed"
 )
 
-var usage = `Usage: 
-  olricd [flags] ...
+func usage() {
+	var msg = `Usage: olricd [options] ...
 
-Flags:
-  -h -help                      
-      Shows this screen.
-  -v -version                   
-      Shows version information.
-  -c -config                    
-      Sets configuration file path. Default is olricd.yaml in the current folder.
-      Set OLRICD_CONFIG to overwrite it.
+Distributed cache and in-memory data structure server.
+
+Options:
+  -h, --help    Print this message and exit.
+  -v, --version Print the version number and exit.
+  -c, --config  Sets configuration file path. Default is olricd.yaml in the
+                current folder. Set OLRICD_CONFIG to overwrite it.
 
 The Go runtime version %s
-Report bugs to https://github.com/buraksezer/olric/issues`
+Report bugs to https://github.com/buraksezer/olric/issues
+`
+	_, err := fmt.Fprintf(os.Stdout, msg, runtime.Version())
+	if err != nil {
+		panic(err)
+	}
+}
 
-var (
-	cpath       string
-	showHelp    bool
-	showVersion bool
-)
+type arguments struct {
+	config  string
+	help    bool
+	version bool
+}
 
 const (
 	// DefaultConfigFile is the default configuration file path on a Unix-based operating system.
@@ -59,28 +65,31 @@ const (
 )
 
 func main() {
+	args := &arguments{}
 	// No need for timestamp and etc in this function. Just log it.
 	log.SetFlags(0)
 
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
-	f.BoolVar(&showVersion, "v", false, "")
-	f.StringVar(&cpath, "config", DefaultConfigFile, "")
-	f.StringVar(&cpath, "c", DefaultConfigFile, "")
+	f.BoolVar(&args.help, "h", false, "")
+	f.BoolVar(&args.help, "help", false, "")
+
+	f.BoolVar(&args.version, "version", false, "")
+	f.BoolVar(&args.version, "v", false, "")
+
+	f.StringVar(&args.config, "config", DefaultConfigFile, "")
+	f.StringVar(&args.config, "c", DefaultConfigFile, "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("Failed to parse flags: %v", err)
 	}
 
-	if showVersion {
+	if args.version {
 		log.Printf("olricd %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
-	} else if showHelp {
-		log.Printf(usage, runtime.Version())
+	} else if args.help {
+		usage()
 		return
 	}
 
@@ -92,21 +101,22 @@ func main() {
 
 	envPath := os.Getenv(EnvConfigFile)
 	if envPath != "" {
-		cpath = envPath
+		args.config = envPath
 	}
 
-	c, err := config.Load(cpath)
+	c, err := config.Load(args.config)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		log.Fatalf("olricd: %v", err)
 	}
 
 	s, err := server.New(c)
 	if err != nil {
-		log.Fatalf("Failed to create a new olricd instance:\n%v", err)
+		log.Fatalf("olricd: %v", err)
 	}
 
 	if err = s.Start(); err != nil {
-		log.Fatalf("olricd returned an error:\n%v", err)
+		log.Fatalf("olricd: %v", err)
 	}
+
 	log.Print("Quit!")
 }
