@@ -17,7 +17,6 @@ package transport
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -31,11 +30,7 @@ func TestConnWithTimeout(t *testing.T) {
 	var value = []byte("value")
 	var cond int32
 
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	s.SetDispatcher(func(w, _ protocol.EncodeDecoder) {
+	s := newServer(t, func(w, _ protocol.EncodeDecoder) {
 		if atomic.LoadInt32(&cond) == 0 {
 			<-time.After(40 * time.Millisecond)
 		} else {
@@ -43,18 +38,6 @@ func TestConnWithTimeout(t *testing.T) {
 			w.SetStatus(protocol.StatusOK)
 		}
 	})
-	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			t.Errorf("Expected nil. Got: %v", err)
-		}
-	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
 	<-s.StartedCtx.Done()
 
 	cc := &config.Client{
@@ -62,7 +45,10 @@ func TestConnWithTimeout(t *testing.T) {
 		ReadTimeout:  20 * time.Millisecond,
 		WriteTimeout: 20 * time.Millisecond,
 	}
-	cc.Sanitize()
+	err := cc.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	c := NewClient(cc)
 
 	t.Run("Connection with i/o timeout", func(t *testing.T) {
@@ -109,24 +95,10 @@ func TestConnWithTimeout(t *testing.T) {
 }
 
 func TestConnWithTimeout_Disabled(t *testing.T) {
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	s.SetDispatcher(func(w, _ protocol.EncodeDecoder) {
+	s := newServer(t, func(w, _ protocol.EncodeDecoder) {
 		w.SetStatus(protocol.StatusOK)
 	})
-	go func() {
-		if err := s.ListenAndServe(); err != nil {
-			panic(fmt.Sprintf("Failed to run ListenAndServe: %v", err))
-		}
-	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
+
 	<-s.StartedCtx.Done()
 
 	cc := &config.Client{
@@ -134,7 +106,7 @@ func TestConnWithTimeout_Disabled(t *testing.T) {
 		ReadTimeout:  -1 * time.Millisecond,
 		WriteTimeout: -1 * time.Millisecond,
 	}
-	if err = cc.Sanitize(); err != nil {
+	if err := cc.Sanitize(); err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 

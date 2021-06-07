@@ -16,11 +16,11 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -34,66 +34,66 @@ func dispatcher(w, _ protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-func getRandomAddr() (string, int, error) {
+// getFreePort copied from testutil package to prevent cycle import.
+func getFreePort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", 0, err
+		return 0, err
 	}
 
 	l, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		return "", 0, err
+		return 0, err
 	}
-	defer l.Close()
-	// Now, parse the obtained address
-	host, rawPort, err := net.SplitHostPort(l.Addr().String())
-	if err != nil {
-		return "", 0, err
+	port := l.Addr().(*net.TCPAddr).Port
+	if err := l.Close(); err != nil {
+		return 0, err
 	}
-	port, err := strconv.Atoi(rawPort)
-	if err != nil {
-		return "", 0, err
-	}
-	return host, port, nil
+	return port, nil
 }
 
-func newServer() (*Server, error) {
-	bindAddr, bindPort, err := getRandomAddr()
+func newServer(t *testing.T, f func(w, r protocol.EncodeDecoder)) *Server {
+	bindPort, err := getFreePort()
 	if err != nil {
-		return nil, err
+		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
 	l := log.New(os.Stdout, "transport-test: ", log.LstdFlags)
 	fl := flog.New(l)
 	fl.SetLevel(6)
 	fl.ShowLineNumber(1)
 	c := &ServerConfig{
-		BindAddr:        bindAddr,
+		BindAddr:        "127.0.0.1",
 		BindPort:        bindPort,
 		KeepAlivePeriod: time.Second,
 		GracefulPeriod:  time.Second,
 	}
 	s := NewServer(c, fl)
-	s.SetDispatcher(dispatcher)
-	return s, nil
-}
-
-func TestServer_ListenAndServe(t *testing.T) {
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
+	if f != nil {
+		s.SetDispatcher(f)
+	} else {
+		s.SetDispatcher(dispatcher)
 	}
+
 	go func() {
 		err := s.ListenAndServe()
 		if err != nil {
 			t.Errorf("Expected nil. Got: %v", err)
 		}
 	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
+
+	t.Cleanup(func() {
+		err = s.Shutdown(context.Background())
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-	}()
+	})
+
+	return s
+}
+
+func TestServer_ListenAndServe(t *testing.T) {
+	s := newServer(t, nil)
 	select {
 	case <-time.After(5 * time.Second):
 		t.Fatal("StartedCtx could not be closed")
@@ -103,28 +103,16 @@ func TestServer_ListenAndServe(t *testing.T) {
 }
 
 func TestServer_ProcessConn(t *testing.T) {
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			t.Errorf("Expected nil. Got: %v", err)
-		}
-	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
+	s := newServer(t, nil)
 
 	<-s.StartedCtx.Done()
 	cc := &config.Client{
 		MaxConn: 10,
 	}
-	cc.Sanitize()
+	err := cc.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	c := NewClient(cc)
 
 	t.Run("process DMapMessage", func(t *testing.T) {
@@ -184,36 +172,21 @@ func TestServer_ProcessConn(t *testing.T) {
 }
 
 func TestServer_GracefulShutdown(t *testing.T) {
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
-	s.SetDispatcher(func(w, _ protocol.EncodeDecoder) {
+	s := newServer(t, func(w, _ protocol.EncodeDecoder) {
 		// Quit after aborting. Dont leak any goroutine in tests!
 		<-ctx.Done()
 		w.SetStatus(protocol.StatusErrOperationTimeout) // Dummy
 	})
 
-	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			t.Errorf("Expected nil. Got: %v", err)
-		}
-	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
-
 	<-s.StartedCtx.Done()
 
 	// Create a client and make a request. It will never return.
 	cc := &config.Client{}
-	cc.Sanitize()
+	err := cc.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	c := NewClient(cc)
 
 	var wg sync.WaitGroup
@@ -222,7 +195,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 		defer wg.Done()
 		req := protocol.NewDMapMessage(protocol.OpPut)
 		_, err = c.RequestTo(s.listener.Addr().String(), req)
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			t.Errorf("Expected io.EOF. Got: %v", err)
 		}
 		cancel()
@@ -236,4 +209,40 @@ func TestServer_GracefulShutdown(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	wg.Wait()
+}
+
+func TestServer_Statistics(t *testing.T) {
+	s := newServer(t, nil)
+	<-s.StartedCtx.Done()
+
+	cc := &config.Client{
+		MaxConn: 10,
+	}
+	err := cc.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	c := NewClient(cc)
+
+	req := protocol.NewDMapMessage(protocol.OpPut)
+	resp, err := c.RequestTo(s.listener.Addr().String(), req)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if resp.Status() != protocol.StatusOK {
+		t.Fatalf("Expected status: %v. Got: %v", protocol.StatusOK, resp.Status())
+	}
+
+	var stats = map[string]int64{
+		"CommandsTotal":      CommandsTotal.Read(),
+		"ConnectionsTotal":   ConnectionsTotal.Read(),
+		"CurrentConnections": CurrentConnections.Read(),
+		"WrittenBytesTotal":  WrittenBytesTotal.Read(),
+		"ReadBytesTotal":     ReadBytesTotal.Read(),
+	}
+	for name, value := range stats {
+		if value == 0 {
+			t.Fatalf("%s has to be bigger than zero", name)
+		}
+	}
 }

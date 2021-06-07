@@ -16,42 +16,28 @@ package transport
 
 import (
 	"bytes"
-	"context"
-	"github.com/buraksezer/olric/config"
 	"testing"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
 func TestClient_Request(t *testing.T) {
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
 	value := []byte("value")
-	s.SetDispatcher(func(w, _ protocol.EncodeDecoder) {
+	s := newServer(t, func(w, _ protocol.EncodeDecoder) {
 		w.SetValue(value)
 		w.SetStatus(protocol.StatusOK)
 	})
 
-	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			t.Errorf("Expected nil. Got: %v", err)
-		}
-	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
-		if err != nil {
-			t.Errorf("Expected nil. Got: %v", err)
-		}
-	}()
 	<-s.StartedCtx.Done()
 
 	cc := &config.Client{
 		MaxConn: 10,
 	}
-	cc.Sanitize()
+	err := cc.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	c := NewClient(cc)
 
 	t.Run("Request with round-robin", func(t *testing.T) {

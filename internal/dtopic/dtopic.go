@@ -17,9 +17,9 @@ package dtopic
 import (
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/stats"
 	"time"
 
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 

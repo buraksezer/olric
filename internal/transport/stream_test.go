@@ -16,30 +16,14 @@ package transport
 
 import (
 	"context"
+	"testing"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
-	"testing"
 )
 
 func TestClient_CreateStream(t *testing.T) {
-	s, err := newServer()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	go func() {
-		err := s.ListenAndServe()
-		if err != nil {
-			t.Errorf("Expected nil. Got: %v", err)
-		}
-	}()
-	defer func() {
-		err = s.Shutdown(context.TODO())
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
-
+	s := newServer(t, nil)
 	<-s.StartedCtx.Done()
 
 	readCh := make(chan protocol.EncodeDecoder, 1)
@@ -74,7 +58,10 @@ func TestClient_CreateStream(t *testing.T) {
 	cc := &config.Client{
 		MaxConn: 10,
 	}
-	cc.Sanitize()
+	err := cc.Sanitize()
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 	c := NewClient(cc)
 
 	go func() {
