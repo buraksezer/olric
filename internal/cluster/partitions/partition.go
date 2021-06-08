@@ -65,7 +65,7 @@ func (p *Partition) OwnerCount() int {
 	return len(owners.([]discovery.Member))
 }
 
-// Owners loads the partition owners from atomic.value and returns.
+// Owners loads the partition owners from atomic.Value and returns.
 func (p *Partition) Owners() []discovery.Member {
 	owners := p.owners.Load()
 	if owners == nil {
