@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package loader
+package benchmark
 
 import (
 	"fmt"
@@ -28,29 +28,32 @@ import (
 	_serializer "github.com/buraksezer/olric/serializer"
 )
 
-type Loader struct {
+type Benchmark struct {
 	mu          sync.RWMutex
 	responses   []time.Duration
-	commands    []string
-	numRequests int
-	numClients  int
+	requests    int
+	connections int
 	serializer  string
 	client      *client.Client
 	log         *log.Logger
 	wg          sync.WaitGroup
 }
 
-func New(addrs, timeout, serializer string,
-	numClients, keyCount int, logger *log.Logger) (*Loader, error) {
+func New(address,
+	timeout,
+	serializer string,
+	conns, requests int,
+	logger *log.Logger) (*Benchmark, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var s _serializer.Serializer
-	if serializer == "json" {
+	switch {
+	case serializer == "json":
 		s = _serializer.NewJSONSerializer()
-	} else if serializer == "msgpack" {
+	case serializer == "msgpack":
 		s = _serializer.NewMsgpackSerializer()
-	} else if serializer == "gob" {
+	case serializer == "gob":
 		s = _serializer.NewGobSerializer()
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid serializer: %s", serializer)
 	}
 
@@ -59,44 +62,45 @@ func New(addrs, timeout, serializer string,
 		return nil, err
 	}
 	cc := &client.Config{
-		Servers:    strings.Split(addrs, ","),
+		Servers:    strings.Split(address, ","),
 		Serializer: s,
 		Client: &config.Client{
 			DialTimeout: dt,
-			MaxConn:     numClients,
+			MaxConn:     conns,
 		},
 	}
+
 	c, err := client.New(cc)
 	if err != nil {
 		return nil, err
 	}
-	l := &Loader{
+
+	return &Benchmark{
 		responses:   []time.Duration{},
-		numRequests: keyCount,
-		numClients:  numClients,
+		requests:    requests,
+		connections: conns,
 		client:      c,
 		serializer:  serializer,
 		log:         logger,
-	}
-	return l, nil
+	}, nil
 }
 
-func (l *Loader) stats(cmd string, elapsed time.Duration) {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
+func (b *Benchmark) stats(cmd string, elapsed time.Duration) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 
-	l.log.Printf("### STATS FOR COMMAND: %s ###", strings.ToUpper(cmd))
-	l.log.Printf("Serializer is %s", l.serializer)
-	l.log.Printf("%d requests completed in %v", l.numRequests, elapsed)
-	l.log.Printf("%d parallel clients", l.numClients)
-	l.log.Printf("\n")
+	b.log.Printf("### STATS FOR COMMAND: %s ###", strings.ToUpper(cmd))
+	b.log.Printf("Serializer is %s", b.serializer)
+	b.log.Printf("%d requests completed in %v", b.requests, elapsed)
+	b.log.Printf("%d parallel clients", b.connections)
+	b.log.Printf("\n")
 
 	var limit time.Duration
 	var lastper float64
 	for {
 		limit += time.Millisecond
 		var hits, count int
-		for _, rtime := range l.responses {
+		for _, rtime := range b.responses {
 			if rtime < limit {
 				hits++
 			}
@@ -112,51 +116,51 @@ func (l *Loader) stats(cmd string, elapsed time.Duration) {
 			break
 		}
 	}
-	rps := float64(l.numRequests) / (float64(elapsed) / float64(time.Second))
-	l.log.Printf("\n%f requests per second\n", rps)
+	rps := float64(b.requests) / (float64(elapsed) / float64(time.Second))
+	b.log.Printf("\n%f requests per second\n", rps)
 }
 
-func (l *Loader) worker(cmd string, ch chan int) {
-	defer l.wg.Done()
+func (b *Benchmark) worker(cmd string, ch chan int) {
+	defer b.wg.Done()
 
-	dm := l.client.NewDMap("olric-load-test")
+	dm := b.client.NewDMap("olric-benchmark-test")
 	for i := range ch {
 		now := time.Now()
 		switch {
 		case strings.ToLower(cmd) == "put":
 			if err := dm.Put(strconv.Itoa(i), i); err != nil {
-				l.log.Printf("[ERROR] Failed to call Put command for %d: %v", i, err)
+				b.log.Printf("[ERROR] Failed to call Put command for %d: %v", i, err)
 			}
 		case strings.ToLower(cmd) == "get":
 			_, err := dm.Get(strconv.Itoa(i))
 			if err != nil {
-				l.log.Printf("[ERROR] Failed to call Get command for %d: %v", i, err)
+				b.log.Printf("[ERROR] Failed to call Get command for %d: %v", i, err)
 			}
 		case strings.ToLower(cmd) == "delete":
 			err := dm.Delete(strconv.Itoa(i))
 			if err != nil {
-				l.log.Printf("[ERROR] Failed to call Delete command for %d: %v", i, err)
+				b.log.Printf("[ERROR] Failed to call Delete command for %d: %v", i, err)
 			}
 		case strings.ToLower(cmd) == "incr":
 			_, err := dm.Incr(strconv.Itoa(i), 1)
 			if err != nil {
-				l.log.Printf("[ERROR] Failed to call Incr command for %d: %v", i, err)
+				b.log.Printf("[ERROR] Failed to call Incr command for %d: %v", i, err)
 			}
 		case strings.ToLower(cmd) == "decr":
 			_, err := dm.Decr(strconv.Itoa(i), 1)
 			if err != nil {
-				l.log.Printf("[ERROR] Failed to call Decr command for %d: %v", i, err)
+				b.log.Printf("[ERROR] Failed to call Decr command for %d: %v", i, err)
 			}
 		}
 
 		response := time.Since(now)
-		l.mu.Lock()
-		l.responses = append(l.responses, response)
-		l.mu.Unlock()
+		b.mu.Lock()
+		b.responses = append(b.responses, response)
+		b.mu.Unlock()
 	}
 }
 
-func (l *Loader) Run(cmd string) error {
+func (b *Benchmark) Run(cmd string) error {
 	if cmd == "" {
 		return fmt.Errorf("no command given")
 	}
@@ -172,19 +176,19 @@ func (l *Loader) Run(cmd string) error {
 
 	var elapsed time.Duration
 	ch := make(chan int)
-	for i := 0; i < l.numClients; i++ {
-		l.wg.Add(1)
-		go l.worker(cmd, ch)
+	for i := 0; i < b.connections; i++ {
+		b.wg.Add(1)
+		go b.worker(cmd, ch)
 	}
 
 	now := time.Now()
-	for i := 0; i < l.numRequests; i++ {
+	for i := 0; i < b.requests; i++ {
 		ch <- i
 	}
 	close(ch)
-	l.wg.Wait()
+	b.wg.Wait()
 
 	elapsed = time.Since(now)
-	l.stats(cmd, elapsed)
+	b.stats(cmd, elapsed)
 	return nil
 }

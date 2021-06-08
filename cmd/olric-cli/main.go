@@ -27,68 +27,69 @@ import (
 	"github.com/buraksezer/olric/cmd/olric-cli/cli"
 )
 
-const (
-	defaultSerializer string = "gob"
-	defaultAddr       string = "127.0.0.1:3320"
-)
+func usage() {
+	var msg = `Usage: olric-cli [options] [command] ...
 
-var usage = `Usage: 
-  olric-cli [flags] [commands] ...
+Send commands to Olric cluster and read the replies, directly from the terminal.
 
-Flags:
-  -h -help                      
-      Shows this screen.
-  -v -version                   
-      Shows version information.
-  -d -dmap
-      dmap to access.
-  -c -command
-      Command to run.
-  -s -serializer
-      Specifies serialization format. 
-      Available formats: gob, json, msgpack. Default: %s
-  -a -addr
-      Server URI. Default: %s
-  -t timeout
-      Specifies a time limit for requests and dial made by Olric client
+Options:
+  -h, --help       Print this message and exit.
+  -v, --version    Print the version number and exit.
+  -a  --address    Network address of the server in <host:port> format.
+                   Default: 127.0.0.1:3320
+  -t  --timeout    Set time limit for requests and dial made by the client.
+                   Default: 10ms
+  -d  --dmap       DMap to access.
+  -c  --command    Command to run.
+  -s  --serializer Serialization format. Built-in: gob, json, msgpack.
+                   Default: gob
 
 The Go runtime version %s
-Report bugs to https://github.com/buraksezer/olric/issues`
+Report bugs to https://github.com/buraksezer/olric/issues
+`
+	_, err := fmt.Fprintf(os.Stdout, msg, runtime.Version())
+	if err != nil {
+		panic(err)
+	}
+}
 
-var (
-	showHelp    bool
-	showVersion bool
-	dmap        string
-	command     string
-	addr        string
-	timeout     string
-	serializer  string
-)
+type arguments struct {
+	help       bool
+	version    bool
+	dmap       string
+	command    string
+	address    string
+	timeout    string
+	serializer string
+}
 
 func main() {
+	args := arguments{}
+
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
-	f.BoolVar(&showHelp, "h", false, "")
-	f.BoolVar(&showHelp, "help", false, "")
 
-	f.BoolVar(&showVersion, "v", false, "")
-	f.BoolVar(&showVersion, "version", false, "")
+	f.BoolVar(&args.help, "h", false, "")
+	f.BoolVar(&args.help, "help", false, "")
 
-	f.StringVar(&command, "c", "", "")
-	f.StringVar(&command, "command", "", "")
+	f.BoolVar(&args.version, "v", false, "")
+	f.BoolVar(&args.version, "version", false, "")
 
-	f.StringVar(&dmap, "d", "", "")
-	f.StringVar(&dmap, "dmap", "", "")
+	f.StringVar(&args.command, "c", "", "")
+	f.StringVar(&args.command, "command", "", "")
 
-	f.StringVar(&timeout, "t", "10s", "")
-	f.StringVar(&timeout, "timeout", "10s", "")
+	f.StringVar(&args.dmap, "d", "", "")
+	f.StringVar(&args.dmap, "dmap", "", "")
 
-	f.StringVar(&addr, "a", defaultAddr, "")
-	f.StringVar(&addr, "addr", defaultAddr, "")
+	f.StringVar(&args.timeout, "t", "10s", "")
+	f.StringVar(&args.timeout, "timeout", "10s", "")
 
-	f.StringVar(&serializer, "s", defaultSerializer, "")
-	f.StringVar(&serializer, "serializer", defaultSerializer, "")
+	f.StringVar(&args.address, "a", "127.0.0.1:3320", "")
+	f.StringVar(&args.address, "address", "127.0.0.1:3320", "")
+
+	f.StringVar(&args.serializer, "s", "gob", "")
+	f.StringVar(&args.serializer, "serializer", "gob", "")
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
@@ -97,27 +98,27 @@ func main() {
 		logger.Fatalf("Failed to parse flags: %v", err)
 	}
 
-	if showVersion {
+	if args.version {
 		logger.Printf("olric-cli %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
-	} else if showHelp {
-		logger.Println(fmt.Sprintf(usage, defaultSerializer, defaultAddr, runtime.Version()))
+	} else if args.help {
+		usage()
 		return
 	}
 
-	c, err := cli.New(addr, serializer, timeout)
+	c, err := cli.New(args.address, args.serializer, args.timeout)
 	if err != nil {
-		logger.Fatalf("Failed to create olric-cli instance: %v\n", err)
+		logger.Fatalf("olric-cli: %v\n", err)
 	}
 
-	if command != "" {
-		if err := c.RunCommand(dmap, command); err != nil {
-			logger.Fatalf("olric-cli has returned an error: %v\n", err)
+	if args.command != "" {
+		if err := c.RunCommand(args.dmap, args.command); err != nil {
+			logger.Fatalf("olric-cli: %v\n", err)
 		}
 		return
 	}
 
-	if err := c.WaitForCommand(dmap); err != nil {
+	if err := c.WaitForCommand(args.dmap); err != nil {
 		logger.Fatalf("olric-cli has returned an error: %v\n", err)
 	}
 }

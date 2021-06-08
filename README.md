@@ -8,6 +8,8 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 
 See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 
+Current production version is [v0.3.7](https://github.com/buraksezer/olric/tree/7e13bd0c669b83f2b1ef1716ec8564b2e0098977)
+
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
@@ -45,7 +47,7 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
   * [olricd](#olricd)
   * [olric-cli](#olric-cli)
   * [olric-stats](#olric-stats)
-  * [olric-load](#olric-load)
+  * [olric-benchmark](#olric-benchmark)
 * [Usage](#usage)
   * [Distributed Map](#distributed-map)
     * [Put](#put)
@@ -167,7 +169,7 @@ Then, install olricd and its siblings:
 go install -v ./cmd/*
 ```
 
-Now you should access **olricd**, **olric-stats**, **olric-cli** and **olric-load** on your path. You can just run olricd
+Now you should access **olricd**, **olric-stats**, **olric-cli** and **olric-benchmark** on your path. You can just run olricd
 to start experimenting: 
 
 ```
@@ -249,7 +251,7 @@ Get a shell to the running container:
 kubectl exec -it olric-debug -- /bin/sh
 ```
 
-Now you have a running Alpine Linux setup on Kubernetes. It includes `olric-cli`, `olric-load` and `olric-stats` commands. 
+Now you have a running Alpine Linux setup on Kubernetes. It includes `olric-cli`, `olric-benchmark` and `olric-stats` commands. 
 
 ```bash
 /go/src/github.com/buraksezer/olric # olric-cli -a olricd.default.svc.cluster.local:3320
@@ -366,8 +368,11 @@ In order to get more details about the options, call `olric-cli -h` in your shel
 
 ### olric-stats 
 
-olric-stats calls `Stats` command on a cluster member and prints the result. The returned data from the member includes the Go runtime 
-metrics and statistics from hosted primary and backup partitions. 
+olric-stats calls `Stats` command on a given cluster member and prints the result. 
+The results from the member also includes the Go runtime metrics and statistics from 
+hosted primary and backup partitions. 
+
+You should know that all the statistics are belonged to the current member. 
 
 In order to install `olric-stats`:
 
@@ -378,39 +383,39 @@ go get -u github.com/buraksezer/olric/cmd/olric-stats
 Statistics about a partition:
 
 ```
-olric-stats -p 69
+olric-stats --partitions --id 69
 PartID: 69
   Owner: olric.node:3320
   Previous Owners: not found
   Backups: not found
   DMap count: 1
   DMaps:
-    Name: olric-load-test
+    Name: olric-benchmark-test
     Length: 1374
     Allocated: 1048576
     Inuse: 47946
     Garbage: 0
 ```
 
-In order to get detailed statistics about the Go runtime, you should call `olric-stats -a <ADDRESS> -r`.
-
-Without giving a partition number, it will print everything about the cluster and hosted primary/backup partitions. 
+In order to get detailed statistics about the Go runtime, you should call `olric-stats -a <ADDRESS> -r`. 
 In order to get more details about the command, call `olric-stats -h`.
 
-### olric-load
+See [stats/stats.go](stats/stats.go) file to get detailed information about the statistics.
 
-olric-load simulates running commands done by N clients at the same time sending M total queries. It measures response time.
+### olric-benchmark
 
-In order to install `olric-load`:
+olric-benchmark simulates running commands done by N clients at the same time sending M total queries. It measures response time.
+
+In order to install `olric-benchmark`:
 
 ```bash
-go get -u github.com/buraksezer/olric/cmd/olric-load
+go get -u github.com/buraksezer/olric/cmd/olric-benchmark
 ```
 
 The following command calls `Put` command for 1M keys on `127.0.0.1:3320` (it's default) and uses `msgpack` for serialization.
 
 ```
-olric-load -a 192.168.1.3:3320 -s msgpack -k 1000000 -c put
+olric-benchmark -a 192.168.1.3:3320 -s msgpack -r 1000000 -T put
 ### STATS FOR COMMAND: PUT ###
 Serializer is msgpack
 1000000 requests completed in 6.943316278s
@@ -431,7 +436,7 @@ Serializer is msgpack
 144023.397460 requests per second
 ```
 
-In order to get more details about the command, call `olric-load -h`.
+In order to get more details about the command, call `olric-benchmark -h`.
 
 ## Usage
 

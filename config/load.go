@@ -255,26 +255,29 @@ func Load(filename string) (*Config, error) {
 	}
 
 	var logOutput io.Writer
-	if c.Logging.Output == "stderr" {
+	switch {
+	case c.Logging.Output == "stderr":
 		logOutput = os.Stderr
-	} else if c.Logging.Output == "stdout" {
+	case c.Logging.Output == "stdout":
 		logOutput = os.Stdout
-	} else {
+	default:
 		logOutput = os.Stderr
 	}
+
 	if c.Logging.Level == "" {
 		c.Logging.Level = DefaultLogLevel
 	}
 
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var sr serializer.Serializer
-	if c.Olricd.Serializer == "json" {
+	switch {
+	case c.Olricd.Serializer == "json":
 		sr = serializer.NewJSONSerializer()
-	} else if c.Olricd.Serializer == "msgpack" {
+	case c.Olricd.Serializer == "msgpack":
 		sr = serializer.NewMsgpackSerializer()
-	} else if c.Olricd.Serializer == "gob" {
+	case c.Olricd.Serializer == "gob":
 		sr = serializer.NewGobSerializer()
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid serializer: %s", c.Olricd.Serializer)
 	}
 
