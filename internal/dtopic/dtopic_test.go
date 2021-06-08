@@ -17,12 +17,12 @@ package dtopic
 import (
 	"context"
 	"errors"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testcluster"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func TestDTopic_PublishStandalone(t *testing.T) {
@@ -63,6 +63,19 @@ func TestDTopic_PublishStandalone(t *testing.T) {
 	case <-ctx.Done():
 	case <-time.After(5 * time.Second):
 		t.Fatal("Failed to call onMessage function")
+	}
+
+	// Check statistics
+	stats := map[string]int64{
+		"PublishedTotal":   PublishedTotal.Read(),
+		"CurrentListeners": CurrentListeners.Read(),
+		"ListenersTotal":   ListenersTotal.Read(),
+	}
+
+	for name, value := range stats {
+		if value <= 0 {
+			t.Fatalf("Expected %s has to be bigger than zero", name)
+		}
 	}
 }
 
@@ -327,7 +340,7 @@ func TestDTopic_OrderedDelivery(t *testing.T) {
 	defer cluster.Shutdown()
 
 	_, err := s.NewDTopic("my-topic", 0, OrderedDelivery)
-	if err != neterrors.ErrNotImplemented {
+	if !errors.Is(err, neterrors.ErrNotImplemented) {
 		t.Errorf("Expected ErrNotImplemented. Got: %v", err)
 	}
 }

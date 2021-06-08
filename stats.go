@@ -18,11 +18,10 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/buraksezer/olric/internal/dtopic"
-
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/neterrors"

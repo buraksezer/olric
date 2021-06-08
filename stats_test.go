@@ -16,12 +16,12 @@ package olric
 
 import (
 	"bytes"
-	"github.com/buraksezer/olric/stats"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/buraksezer/olric/stats"
 )
 
 func TestOlric_Stats(t *testing.T) {
