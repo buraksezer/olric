@@ -8,7 +8,7 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 
 See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 
-Current production version is [v0.3.7](https://github.com/buraksezer/olric/tree/7e13bd0c669b83f2b1ef1716ec8564b2e0098977)
+The current production version is [v0.3.7](https://github.com/buraksezer/olric/tree/7e13bd0c669b83f2b1ef1716ec8564b2e0098977)
 
 ## At a glance
 
