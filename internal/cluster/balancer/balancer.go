@@ -77,7 +77,7 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owner 
 			b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v", u.Name(), name, part.Id(), owner, err)
 		}
 		if err == nil {
-			// Delete the moved storage unit instance. The GC will free the allocated memory.
+			// Delete the moved storage unit instance. GC will free the allocated memory.
 			part.Map().Delete(name)
 		}
 		// if this returns true, the iteration continues
