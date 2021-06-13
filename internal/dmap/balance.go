@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"errors"
 	"fmt"
 	"github.com/buraksezer/olric/pkg/neterrors"
 
@@ -34,7 +35,7 @@ type fragmentPack struct {
 
 func (dm *DMap) selectVersionForMerge(f *fragment, hkey uint64, entry storage.Entry) (storage.Entry, error) {
 	current, err := f.storage.Get(hkey)
-	if err == storage.ErrKeyNotFound {
+	if errors.Is(err, storage.ErrKeyNotFound) {
 		return entry, nil
 	}
 	if err != nil {
@@ -47,7 +48,7 @@ func (dm *DMap) selectVersionForMerge(f *fragment, hkey uint64, entry storage.En
 
 func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) error {
 	f, err := dm.loadFragmentFromPartition(part)
-	if err == errFragmentNotFound {
+	if errors.Is(err, errFragmentNotFound) {
 		f, err = dm.createFragmentOnPartition(part)
 	}
 	if err != nil {
@@ -57,6 +58,7 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) err
 	// Acquire fragment's lock. No one should work on it.
 	f.Lock()
 	defer f.Unlock()
+
 	// TODO: This may be useless. Check it.
 	defer part.Map().Store(fp.Name, f)
 
@@ -89,7 +91,7 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) err
 		}
 		// TODO: Don't put the winner again if it comes from dm.storage
 		mergeErr = f.storage.Put(hkey, winner)
-		if mergeErr == storage.ErrFragmented {
+		if errors.Is(mergeErr, storage.ErrFragmented) {
 			dm.s.wg.Add(1)
 			go dm.s.callCompactionOnStorage(f)
 			mergeErr = nil
