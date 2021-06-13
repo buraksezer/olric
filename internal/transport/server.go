@@ -126,7 +126,7 @@ func (s *Server) SetDispatcher(f func(w, r protocol.EncodeDecoder)) {
 	s.dispatcher = f
 }
 
-func (s *Server) controlConnLifeCycle(conn io.ReadWriteCloser, connStatus *uint32, done chan struct{}) {
+func (s *Server) controlLifeCycle(conn io.Closer, connStatus *uint32, done chan struct{}) {
 	CurrentConnections.Increase(1)
 	defer CurrentConnections.Decrease(1)
 
@@ -184,8 +184,8 @@ func (s *Server) closeStream(req *protocol.StreamMessage, done chan struct{}) {
 	}
 }
 
-// processMessage waits for a new request, handles it and returns the appropriate response.
-func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, done chan struct{}) error {
+// handleMessage waits for a new request, handles it and returns the appropriate response.
+func (s *Server) handleMessage(conn io.ReadWriteCloser, status *uint32, done chan struct{}) error {
 	CommandsTotal.Increase(1)
 
 	buf := bufferPool.Get()
@@ -215,10 +215,10 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 	}
 
 	// Mark connection as busy.
-	atomic.StoreUint32(connStatus, busyConn)
+	atomic.StoreUint32(status, busyConn)
 
 	// Mark connection as idle before start waiting a new request
-	defer atomic.StoreUint32(connStatus, idleConn)
+	defer atomic.StoreUint32(status, idleConn)
 
 	resp := req.Response(nil)
 
@@ -235,8 +235,8 @@ func (s *Server) processMessage(conn io.ReadWriteCloser, connStatus *uint32, don
 	return err
 }
 
-// processConn waits for requests and calls request handlers to generate a response. The connections are reusable.
-func (s *Server) processConn(conn io.ReadWriteCloser) {
+// handleConn waits for requests and calls request handlers to generate a response. The connections are reusable.
+func (s *Server) handleConn(conn io.ReadWriteCloser) {
 	ConnectionsTotal.Increase(1)
 	defer s.wg.Done()
 
@@ -246,12 +246,12 @@ func (s *Server) processConn(conn io.ReadWriteCloser) {
 	defer close(done)
 
 	s.wg.Add(1)
-	go s.controlConnLifeCycle(conn, &connStatus, done)
+	go s.controlLifeCycle(conn, &connStatus, done)
 
 	for {
-		// processMessage waits to read a message from the TCP socket.
+		// handleMessage waits to read a message from the TCP socket.
 		// Then calls its handler to generate a response.
-		err := s.processMessage(conn, &connStatus, done)
+		err := s.handleMessage(conn, &connStatus, done)
 		if err != nil {
 			// The socket probably would have been closed by the client.
 			if errors.Is(errors.Cause(err), io.EOF) || errors.Is(errors.Cause(err), protocol.ErrConnClosed) {
@@ -291,7 +291,7 @@ func (s *Server) listenAndServe() error {
 			}
 		}
 		s.wg.Add(1)
-		go s.processConn(conn)
+		go s.handleConn(conn)
 	}
 }
 
