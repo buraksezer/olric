@@ -77,7 +77,7 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owner 
 			b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v", u.Name(), name, part.Id(), owner, err)
 		}
 		if err == nil {
-			// Delete the moved storage unit instance. The GC will free the allocated memory.
+			// Delete the moved storage unit instance. GC will free the allocated memory.
 			part.Map().Delete(name)
 		}
 		// if this returns true, the iteration continues
@@ -92,8 +92,8 @@ func (b *Balancer) primaryCopies() {
 			break
 		}
 		if sign != b.rt.Signature() {
-			// Routing table is updated. Just quit. Another balancer goroutine will work on the
-			// new table immediately.
+			// Routing table is updated. Just quit. Another balancer goroutine
+			// will work on the new table immediately.
 			break
 		}
 
@@ -104,8 +104,9 @@ func (b *Balancer) primaryCopies() {
 		}
 
 		owner := part.Owner()
-		// Here we don't use CompareByID function because the routing table has an eventually consistent
-		// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
+		// Here we don't use CompareByID function because the routing table is an
+		// eventually consistent data structure and a node can try to move data
+		// to previous instance(the same name but a different birthdate)
 		// of itself. So just check the name.
 		if owner.CompareByName(b.rt.This()) {
 			// Already belongs to me.
@@ -124,8 +125,8 @@ func (b *Balancer) backupCopies() {
 		}
 
 		if sign != b.rt.Signature() {
-			// Routing table is updated. Just quit. Another balancer goroutine will work on the
-			// new table immediately.
+			// Routing table is updated. Just quit. Another balancer goroutine
+			// will work on the new table immediately.
 			break
 		}
 
@@ -146,33 +147,37 @@ func (b *Balancer) backupCopies() {
 			continue
 		}
 
-		var ownerIds []uint64
+		var ownerIDs []uint64
 		offset := len(owners) - 1 - (b.config.ReplicaCount - 1)
+		if offset <= 0 {
+			offset = -1
+		}
 		for i := len(owners) - 1; i > offset; i-- {
 			owner := owners[i]
-			// Here we don't use cmpMembersById function because the routing table has an eventually consistent
-			// data structure and a node can try to move data to previous instance(the same name but a different birthdate)
+			// Here we don't use CompareById function because the routing table
+			// is an eventually consistent data structure and a node can try to
+			// move data to previous instance(the same name but a different birthdate)
 			// of itself. So just check the name.
 			if b.rt.This().CompareByName(owner) {
 				// Already belongs to me.
 				continue
 			}
-			ownerIds = append(ownerIds, owner.ID)
+			ownerIDs = append(ownerIDs, owner.ID)
 		}
 
-		for _, ownerId := range ownerIds {
+		for _, ownerID := range ownerIDs {
 			if !b.isAlive() {
 				break
 			}
 			if sign != b.rt.Signature() {
-				// Routing table is updated. Just quit. Another balancer goroutine will work on the
-				// new table immediately.
+				// Routing table is updated. Just quit. Another balancer goroutine
+				// will work on the new table immediately.
 				break
 			}
 
-			owner, err := b.rt.Discovery().FindMemberByID(ownerId)
+			owner, err := b.rt.Discovery().FindMemberByID(ownerID)
 			if err != nil {
-				b.log.V(2).Printf("[ERROR] Failed to get host by ownerId: %d: %v", ownerId, err)
+				b.log.V(2).Printf("[ERROR] Failed to get host by ownerId: %d: %v", ownerID, err)
 				continue
 			}
 			b.scanPartition(sign, part, owner)

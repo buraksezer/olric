@@ -18,7 +18,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/buraksezer/pool"
+	"github.com/buraksezer/connpool"
 )
 
 // ConnWithTimeout denotes a composite type which can used to implement i/o timeout feature for TCP sockets.
@@ -61,16 +61,16 @@ func (c *ConnWithTimeout) UnsetDeadline() error {
 }
 
 // MarkUnusable() marks the connection not usable any more, to let the pool close it instead of returning it to pool.
-// Wrapper around pool.PoolConn.MarkUnusable
+// Wrapper around connpool.PoolConn.MarkUnusable
 func (c *ConnWithTimeout) MarkUnusable() {
-	if conn, ok := c.Conn.(*pool.PoolConn); ok {
+	if conn, ok := c.Conn.(*connpool.PoolConn); ok {
 		conn.MarkUnusable()
 	}
 }
 
 // Close closes the connection.
 func (c *ConnWithTimeout) Close() error {
-	conn, ok := c.Conn.(*pool.PoolConn)
+	conn, ok := c.Conn.(*connpool.PoolConn)
 	if ok {
 		return conn.Close()
 	}

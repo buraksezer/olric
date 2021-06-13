@@ -235,6 +235,8 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 					winner.entry.Key(), dm.name, err)
 				return
 			}
+
+			f.Lock()
 			e := &env{
 				dmap:      dm.name,
 				key:       winner.entry.Key(),
@@ -248,6 +250,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
+			f.Unlock()
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
 			var req *protocol.DMapMessage

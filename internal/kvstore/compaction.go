@@ -14,7 +14,10 @@
 
 package kvstore
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 func (kv *KVStore) Compaction() (bool, error) {
 	if len(kv.tables) == 1 {
@@ -28,7 +31,7 @@ func (kv *KVStore) Compaction() (bool, error) {
 		for hkey := range old.hkeys {
 			entry, _ := old.getRaw(hkey)
 			err := fresh.putRaw(hkey, entry)
-			if err == errNotEnoughSpace {
+			if errors.Is(err, errNotEnoughSpace) {
 				// Create a new table and put the new k/v pair in it.
 				nt := newTable(kv.Stats().Inuse * 2)
 				kv.tables = append(kv.tables, nt)

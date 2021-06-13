@@ -20,8 +20,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/buraksezer/connpool"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/pool"
 )
 
 func readFromStream(conn io.ReadWriteCloser, bufCh chan<- protocol.EncodeDecoder, errCh chan<- error) {
@@ -62,14 +62,14 @@ func (c *Client) CreateStream(ctx context.Context, addr string, read chan<- prot
 		return err
 	}
 
-	conn, err := p.Get()
+	conn, err := p.Get(ctx)
 	if err != nil {
 		return err
 	}
 
 	defer func() {
 		// marks the connection not usable any more, to let the pool close it instead of returning it to pool.
-		pc, _ := conn.(*pool.PoolConn)
+		pc, _ := conn.(*connpool.PoolConn)
 		pc.MarkUnusable()
 		if err = pc.Close(); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "[ERROR] Failed to close connection: %v", err)
