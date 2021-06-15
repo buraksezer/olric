@@ -91,10 +91,10 @@ loop:
 		case <-ctx.Done():
 			// context is done
 			err := ctx.Err()
-			if err == context.DeadlineExceeded {
+			if errors.Is(err, context.DeadlineExceeded) {
 				break loop
 			}
-			if err == context.Canceled {
+			if errors.Is(err, context.Canceled) {
 				return ErrServerGone
 			}
 			return err

@@ -23,11 +23,12 @@ import (
 type Kind int
 
 func (k Kind) String() string {
-	if k == PRIMARY {
+	switch {
+	case k == PRIMARY:
 		return "Primary"
-	} else if k == BACKUP {
+	case k == BACKUP:
 		return "Backup"
-	} else {
+	default:
 		return "Unknown"
 	}
 }
@@ -59,19 +60,19 @@ func New(count uint64, kind Kind) *Partitions {
 	return ps
 }
 
-// PartitionById returns the partition for the given HKey
-func (ps *Partitions) PartitionById(partID uint64) *Partition {
+// PartitionByID returns the partition for the given HKey
+func (ps *Partitions) PartitionByID(partID uint64) *Partition {
 	return ps.m[partID]
 }
 
-// PartitionIdByHKey returns partition ID for a given HKey.
-func (ps *Partitions) PartitionIdByHKey(hkey uint64) uint64 {
+// PartitionIDByHKey returns partition ID for a given HKey.
+func (ps *Partitions) PartitionIDByHKey(hkey uint64) uint64 {
 	return hkey % ps.count
 }
 
 // PartitionByHKey returns the partition for the given HKey
 func (ps *Partitions) PartitionByHKey(hkey uint64) *Partition {
-	partID := ps.PartitionIdByHKey(hkey)
+	partID := ps.PartitionIDByHKey(hkey)
 	return ps.m[partID]
 }
 
@@ -81,8 +82,8 @@ func (ps *Partitions) PartitionOwnersByHKey(hkey uint64) []discovery.Member {
 	return part.owners.Load().([]discovery.Member)
 }
 
-// PartitionOwnersByHKey loads the partition owners list for a given hkey.
-func (ps *Partitions) PartitionOwnersById(partID uint64) []discovery.Member {
-	part := ps.PartitionById(partID)
+// PartitionOwnersByID loads the partition owners list for a given hkey.
+func (ps *Partitions) PartitionOwnersByID(partID uint64) []discovery.Member {
+	part := ps.PartitionByID(partID)
 	return part.owners.Load().([]discovery.Member)
 }

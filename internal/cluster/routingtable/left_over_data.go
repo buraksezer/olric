@@ -48,12 +48,12 @@ func (r *RoutingTable) processLeftOverDataReports(reports map[discovery.Member]*
 	// data structures in this function is guarded by routingMtx
 	for member, report := range reports {
 		for _, partID := range report.Partitions {
-			part := r.primary.PartitionById(partID)
+			part := r.primary.PartitionByID(partID)
 			ensureOwnership(member, partID, part)
 		}
 
 		for _, partID := range report.Backups {
-			part := r.backup.PartitionById(partID)
+			part := r.backup.PartitionByID(partID)
 			ensureOwnership(member, partID, part)
 		}
 	}

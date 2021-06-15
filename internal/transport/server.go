@@ -255,7 +255,7 @@ func (s *Server) handleConn(conn io.ReadWriteCloser) {
 		if err != nil {
 			// The socket probably would have been closed by the client.
 			if errors.Is(errors.Cause(err), io.EOF) || errors.Is(errors.Cause(err), protocol.ErrConnClosed) {
-				s.log.V(5).Printf("[ERROR] End of the TCP connection: %v", err)
+				s.log.V(6).Printf("[DEBUG] End of the TCP connection: %v", err)
 				break
 			}
 			s.log.V(5).Printf("[ERROR] Failed to process the incoming request: %v", err)

@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 	"time"
 
@@ -241,7 +242,7 @@ func TestDMap_Put_IfFound(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		err = dm.PutIf(testutil.ToKey(i), testutil.ToVal(i*2), IfFound)
-		if err == ErrKeyNotFound {
+		if errors.Is(err, ErrKeyNotFound) {
 			err = nil
 		}
 		if err != nil {
@@ -251,7 +252,7 @@ func TestDMap_Put_IfFound(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		_, err = dm.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
+		if !errors.Is(err, ErrKeyNotFound) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}

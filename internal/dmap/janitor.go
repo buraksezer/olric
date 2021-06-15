@@ -60,10 +60,10 @@ func (s *Service) deleteEmptyFragments() {
 	}
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
 		// Clean stale DMap fragments on partition table
-		part := s.primary.PartitionById(partID)
+		part := s.primary.PartitionByID(partID)
 		janitor(part)
 		// Clean stale DMap fragments on backup partition table
-		backup := s.backup.PartitionById(partID)
+		backup := s.backup.PartitionByID(partID)
 		janitor(backup)
 	}
 }

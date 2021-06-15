@@ -31,9 +31,9 @@ func (r *RoutingTable) keyCountOnPartOperation(w, rq protocol.EncodeDecoder) {
 
 	var part *partitions.Partition
 	if isBackup {
-		part = r.backup.PartitionById(partID)
+		part = r.backup.PartitionByID(partID)
 	} else {
-		part = r.primary.PartitionById(partID)
+		part = r.primary.PartitionByID(partID)
 	}
 
 	value, err := msgpack.Marshal(part.Length())
@@ -92,15 +92,15 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	}
 
 	// owners(atomic.value) is guarded by routingUpdateMtx against parallel writers.
-	// Calculate routing signature. This is useful to control rebalancing tasks.
+	// Calculate routing signature. This is useful to control balancing tasks.
 	r.setSignature(xxhash.Sum64(req.Value()))
 	for partID, data := range table {
 		// Set partition(primary copies) owners
-		part := r.primary.PartitionById(partID)
+		part := r.primary.PartitionByID(partID)
 		part.SetOwners(data.Owners)
 
 		// Set backup owners
-		bpart := r.backup.PartitionById(partID)
+		bpart := r.backup.PartitionByID(partID)
 		bpart.SetOwners(data.Backups)
 	}
 

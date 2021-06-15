@@ -30,7 +30,7 @@ func TestDMapDMap_Fragment(t *testing.T) {
 	}
 
 	t.Run("loadFragmentFromPartition", func(t *testing.T) {
-		part := s.primary.PartitionById(1)
+		part := s.primary.PartitionByID(1)
 		_, err = dm.loadFragmentFromPartition(part)
 		if err != errFragmentNotFound {
 			t.Fatalf("Expected %v. Got: %v", errFragmentNotFound, err)
@@ -38,7 +38,7 @@ func TestDMapDMap_Fragment(t *testing.T) {
 	})
 
 	t.Run("createFragmentOnPartition", func(t *testing.T) {
-		part := s.primary.PartitionById(1)
+		part := s.primary.PartitionByID(1)
 		_, err = dm.createFragmentOnPartition(part)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)

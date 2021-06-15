@@ -138,7 +138,7 @@ func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
 	c := e.Get("config").(*config.Config)
 	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		part := part.PartitionById(partID)
+		part := part.PartitionByID(partID)
 		s := mockfragment.New()
 		s.Fill()
 		part.Map().Store("test-data", s)
@@ -152,7 +152,7 @@ func checkKeyCountAfterBalance(e *environment.Environment, kind partitions.Kind,
 	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
 	var afterBalance int
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		part := part.PartitionById(partID)
+		part := part.PartitionByID(partID)
 		afterBalance += part.Length()
 	}
 	if afterBalance == total {
@@ -166,8 +166,8 @@ func checkBackupOwnership(e *environment.Environment) error {
 	primary := e.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
 	backup := e.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		primaryOwner := primary.PartitionById(partID).Owner()
-		part := backup.PartitionById(partID)
+		primaryOwner := primary.PartitionByID(partID).Owner()
+		part := backup.PartitionByID(partID)
 		for _, owner := range part.Owners() {
 			if primaryOwner.CompareByID(owner) {
 				return fmt.Errorf("%s is the primary and backup owner of partID: %d at the same time", primaryOwner, partID)

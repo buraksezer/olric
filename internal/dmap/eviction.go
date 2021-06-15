@@ -105,7 +105,7 @@ func (s *Service) evictKeysAtBackground() {
 
 func (s *Service) evictKeys() {
 	partID := uint64(rand.Intn(int(s.config.PartitionCount)))
-	part := s.primary.PartitionById(partID)
+	part := s.primary.PartitionByID(partID)
 	part.Map().Range(func(name, tmp interface{}) bool {
 		f := tmp.(*fragment)
 		s.scanFragmentForEviction(partID, name.(string), f)

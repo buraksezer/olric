@@ -38,7 +38,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
-		part := rt1.primary.PartitionById(partID)
+		part := rt1.primary.PartitionByID(partID)
 		ts := mockfragment.New()
 		ts.Fill()
 		part.Map().Store("test-data", ts)
@@ -61,7 +61,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < c2.PartitionCount; partID++ {
-		part := rt2.primary.PartitionById(partID)
+		part := rt2.primary.PartitionByID(partID)
 		ts := mockfragment.New()
 		ts.Fill()
 		part.Map().Store("test-data", ts)
@@ -70,7 +70,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 	rt1.UpdateEagerly()
 
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
-		part := rt1.primary.PartitionById(partID)
+		part := rt1.primary.PartitionByID(partID)
 		if len(part.Owners()) != 2 {
 			t.Fatalf("Expected partition owners count: 2. Got: %d", part.OwnerCount())
 		}

@@ -140,7 +140,7 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 		return nil, err
 	}
 
-	owners := c.dm.s.primary.PartitionOwnersById(partID)
+	owners := c.dm.s.primary.PartitionOwnersByID(partID)
 	var responses []queryResponse
 	for _, owner := range owners {
 		if owner.CompareByID(c.dm.s.rt.This()) {
