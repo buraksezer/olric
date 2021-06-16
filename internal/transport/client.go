@@ -15,14 +15,15 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 
+	"github.com/buraksezer/connpool"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/pool"
 )
 
 // Client is the client implementation for the internal TCP server.
@@ -32,7 +33,7 @@ type Client struct {
 
 	dialer *net.Dialer
 	config *config.Client
-	pools  map[string]pool.Pool
+	pools  map[string]connpool.Pool
 }
 
 // NewClient returns a new Client.
@@ -49,7 +50,7 @@ func NewClient(cc *config.Client) *Client {
 	c := &Client{
 		dialer: dialer,
 		config: cc,
-		pools:  make(map[string]pool.Pool),
+		pools:  make(map[string]connpool.Pool),
 	}
 	return c
 }
@@ -62,7 +63,7 @@ func (c *Client) Close() {
 		p.Close()
 	}
 	// Reset pool
-	c.pools = make(map[string]pool.Pool)
+	c.pools = make(map[string]connpool.Pool)
 }
 
 // ClosePool closes the underlying connections in a pool,
@@ -81,7 +82,7 @@ func (c *Client) ClosePool(addr string) {
 }
 
 // pool creates a new pool for a given addr or returns an exiting one.
-func (c *Client) pool(addr string) (pool.Pool, error) {
+func (c *Client) pool(addr string) (connpool.Pool, error) {
 	factory := func() (net.Conn, error) {
 		return c.dialer.Dial("tcp", addr)
 	}
@@ -89,26 +90,28 @@ func (c *Client) pool(addr string) (pool.Pool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	cpool, ok := c.pools[addr]
+	p, ok := c.pools[addr]
 	if ok {
-		return cpool, nil
+		return p, nil
 	}
 
-	cpool, err := pool.NewChannelPool(c.config.MinConn, c.config.MaxConn, factory)
+	p, err := connpool.NewChannelPool(c.config.MinConn, c.config.MaxConn, factory)
 	if err != nil {
 		return nil, err
 	}
-	c.pools[addr] = cpool
-	return cpool, nil
+	c.pools[addr] = p
+	return p, nil
 }
 
 func (c *Client) conn(addr string) (net.Conn, error) {
-	cpool, err := c.pool(addr)
+	p, err := c.pool(addr)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := cpool.Get()
+	// Use context.Background here because we dont want to change the default
+	// behaviour.
+	conn, err := p.Get(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +141,7 @@ func (c *Client) teardownConn(rawConn net.Conn, dead bool) {
 		c.teardownConnWithTimeout(rawConn.(*ConnWithTimeout), dead)
 		return
 	}
-	pc, _ := rawConn.(*pool.PoolConn)
+	pc, _ := rawConn.(*connpool.PoolConn)
 	pc.MarkUnusable()
 	err := pc.Close()
 	if err != nil {
