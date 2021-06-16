@@ -85,7 +85,7 @@ func (c *Client) Sanitize() {
 	}
 
 	if c.MaxConn == 0 {
-		c.MaxConn = 1
+		c.MaxConn = 100
 	}
 }
 
