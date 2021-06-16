@@ -49,7 +49,7 @@ func TestDMap_Eviction_TTL(t *testing.T) {
 	length := 0
 	for _, ins := range []*Service{s1, s2} {
 		for partID := uint64(0); partID < s1.config.PartitionCount; partID++ {
-			part := ins.primary.PartitionById(partID)
+			part := ins.primary.PartitionByID(partID)
 			part.Map().Range(func(k, v interface{}) bool {
 				f := v.(*fragment)
 				length += f.storage.Stats().Length
@@ -92,7 +92,7 @@ func TestDMap_Eviction_Config_TTLDuration(t *testing.T) {
 
 	length := 0
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-		part := s.primary.PartitionById(partID)
+		part := s.primary.PartitionByID(partID)
 		part.Map().Range(func(k, v interface{}) bool {
 			f := v.(*fragment)
 			length += f.storage.Stats().Length
@@ -134,7 +134,7 @@ func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 
 	length := 0
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-		part := s.primary.PartitionById(partID)
+		part := s.primary.PartitionByID(partID)
 		part.Map().Range(func(k, v interface{}) bool {
 			f := v.(*fragment)
 			length += f.storage.Stats().Length
@@ -172,7 +172,7 @@ func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 	}
 	length := 0
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-		part := s.primary.PartitionById(partID)
+		part := s.primary.PartitionByID(partID)
 		part.Map().Range(func(k, v interface{}) bool {
 			f := v.(*fragment)
 			length += f.storage.Stats().Length
@@ -210,7 +210,7 @@ func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 	}
 	length := 0
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-		part := s.primary.PartitionById(partID)
+		part := s.primary.PartitionByID(partID)
 		part.Map().Range(func(k, v interface{}) bool {
 			f := v.(*fragment)
 			length += f.storage.Stats().Length

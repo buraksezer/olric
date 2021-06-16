@@ -16,6 +16,7 @@ package routingtable
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -140,7 +141,7 @@ func (r *RoutingTable) Signature() uint64 {
 func (r *RoutingTable) setOwnedPartitionCount() {
 	var count uint64
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
-		part := r.primary.PartitionById(partID)
+		part := r.primary.PartitionByID(partID)
 		if part.Owner().CompareByID(r.this) {
 			count++
 		}
@@ -330,7 +331,7 @@ func (r *RoutingTable) Start() error {
 	}
 
 	err = r.attemptToJoin()
-	if err == ErrClusterJoin {
+	if errors.Is(err, ErrClusterJoin) {
 		r.log.V(1).Printf("[INFO] Forming a new Olric cluster")
 		err = nil
 	}
@@ -379,7 +380,7 @@ func (r *RoutingTable) Start() error {
 
 	if r.discovery.IsCoordinator() {
 		err = r.bootstrapCoordinator()
-		if err != err {
+		if err != nil {
 			return err
 		}
 	}

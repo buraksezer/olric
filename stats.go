@@ -48,7 +48,7 @@ func toMembers(members []discovery.Member) []stats.Member {
 func (db *Olric) collectPartitionMetrics(partID uint64, part *partitions.Partition) stats.Partition {
 	owners := part.Owners()
 	p := stats.Partition{
-		Backups: toMembers(db.backup.PartitionOwnersById(partID)),
+		Backups: toMembers(db.backup.PartitionOwnersByID(partID)),
 		Length:  part.Length(),
 		DMaps:   make(map[string]stats.DMap),
 	}
@@ -133,11 +133,11 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	})
 
 	for partID := uint64(0); partID < db.config.PartitionCount; partID++ {
-		primary := db.primary.PartitionById(partID)
+		primary := db.primary.PartitionByID(partID)
 		if db.checkPartitionOwnership(primary) {
 			s.Partitions[stats.PartitionID(partID)] = db.collectPartitionMetrics(partID, primary)
 		}
-		backup := db.backup.PartitionById(partID)
+		backup := db.backup.PartitionByID(partID)
 		if db.checkPartitionOwnership(backup) {
 			s.Backups[stats.PartitionID(partID)] = db.collectPartitionMetrics(partID, backup)
 		}

@@ -36,7 +36,7 @@ func newQueryPipeline(dm *DMap, partID uint64) *queryPipeline {
 }
 
 func (p *queryPipeline) doOnKey(q query.M) error {
-	part := p.dm.s.primary.PartitionById(p.partID)
+	part := p.dm.s.primary.PartitionByID(p.partID)
 	f, err := p.dm.loadFragmentFromPartition(part)
 	if err == errFragmentNotFound {
 		// there is nothing to do

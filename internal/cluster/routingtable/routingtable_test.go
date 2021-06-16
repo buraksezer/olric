@@ -139,7 +139,7 @@ func TestRoutingTable_SingleNode(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		part := rt.primary.PartitionById(partID)
+		part := rt.primary.PartitionByID(partID)
 		if !part.Owner().CompareByID(rt.This()) {
 			t.Fatalf("PartID: %d has a different owner", partID)
 		}
@@ -244,8 +244,8 @@ func TestRoutingTable_CheckPartitionOwnership(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
-		ownerOne := rt1.primary.PartitionById(partID).Owner()
-		ownerTwo := rt2.primary.PartitionById(partID).Owner()
+		ownerOne := rt1.primary.PartitionByID(partID).Owner()
+		ownerTwo := rt2.primary.PartitionByID(partID).Owner()
 		if !ownerOne.CompareByID(ownerTwo) {
 			t.Fatalf("Different partition: %d owner: %s != %s", partID, ownerOne, ownerTwo)
 		}
@@ -307,7 +307,7 @@ func TestRoutingTable_NodeLeave(t *testing.T) {
 	}
 
 	for partID := uint64(0); partID < c2.PartitionCount; partID++ {
-		part := rt2.primary.PartitionById(partID)
+		part := rt2.primary.PartitionByID(partID)
 		if !part.Owner().CompareByID(rt2.This()) {
 			t.Fatalf("PartID: %d has a different owner", partID)
 		}

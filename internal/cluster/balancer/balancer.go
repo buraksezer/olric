@@ -63,41 +63,39 @@ func (b *Balancer) isAlive() bool {
 	return true
 }
 
-func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owner discovery.Member) {
+func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners... discovery.Member) bool {
+	var clean = true
 	part.Map().Range(func(name, tmp interface{}) bool {
-		if !b.isAlive() {
-			// Break the loop
-			return false
-		}
 		u := tmp.(partitions.Fragment)
 
-		b.log.V(2).Printf("[INFO] Moving %s: %s (kind: %s) on PartID: %d to %s", u.Name(), name, part.Kind(), part.Id(), owner)
-		err := u.Move(part.Id(), part.Kind(), name.(string), owner)
-		if err != nil {
-			b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v", u.Name(), name, part.Id(), owner, err)
+		for _, owner := range owners {
+			b.log.V(2).Printf("[INFO] Moving %s: %s (kind: %s) on PartID: %d to %s",
+				u.Name(), name, part.Kind(), part.Id(), owner)
+
+			err := u.Move(part.Id(), part.Kind(), name.(string), owner)
+
+			if err != nil {
+				b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v",
+					u.Name(), name, part.Id(), owner, err)
+				clean = false
+			}
 		}
-		if err == nil {
-			// Delete the moved storage unit instance. GC will free the allocated memory.
-			part.Map().Delete(name)
-		}
+
 		// if this returns true, the iteration continues
-		return sign == b.rt.Signature()
+		return !b.breakLoop(sign)
 	})
+
+	return clean
 }
 
 func (b *Balancer) primaryCopies() {
 	sign := b.rt.Signature()
 	for partID := uint64(0); partID < b.config.PartitionCount; partID++ {
-		if !b.isAlive() {
-			break
-		}
-		if sign != b.rt.Signature() {
-			// Routing table is updated. Just quit. Another balancer goroutine
-			// will work on the new table immediately.
+		if b.breakLoop(sign) {
 			break
 		}
 
-		part := b.primary.PartitionById(partID)
+		part := b.primary.PartitionByID(partID)
 		if part.Length() == 0 {
 			// Empty partition. Skip it.
 			continue
@@ -112,47 +110,57 @@ func (b *Balancer) primaryCopies() {
 			// Already belongs to me.
 			continue
 		}
+
 		// This is a previous owner. Move the keys.
-		b.scanPartition(sign, part, owner)
+		if b.scanPartition(sign, part, owner) {
+			part.Map().Range(func(name, tmp interface{}) bool {
+				// Delete the moved storage unit instance. GC will free the allocated memory.
+				part.Map().Delete(name)
+				return true
+			})
+		}
 	}
+}
+
+func (b *Balancer) breakLoop(sign uint64) bool {
+	if !b.isAlive() {
+		return true
+	}
+
+	if sign != b.rt.Signature() {
+		// Routing table is updated. Just quit. Another balancer goroutine
+		// will work on the new table immediately.
+		return true
+	}
+
+	return false
 }
 
 func (b *Balancer) backupCopies() {
 	sign := b.rt.Signature()
+LOOP:
 	for partID := uint64(0); partID < b.config.PartitionCount; partID++ {
-		if !b.isAlive() {
+		if b.breakLoop(sign) {
 			break
 		}
 
-		if sign != b.rt.Signature() {
-			// Routing table is updated. Just quit. Another balancer goroutine
-			// will work on the new table immediately.
-			break
-		}
-
-		part := b.backup.PartitionById(partID)
-		if part.Length() == 0 {
-			// Empty partition. Skip it.
+		part := b.backup.PartitionByID(partID)
+		if part.Length() == 0 || part.OwnerCount() == 0{
 			continue
 		}
 
-		if part.OwnerCount() == 0 {
-			// This partition doesn't have any backup owner
-			continue
-		}
+		var (
+			counter = 1
+			currentOwners []discovery.Member
+		)
 
 		owners := part.Owners()
-		if len(owners) == b.config.ReplicaCount-1 {
-			// Everything is ok
-			continue
-		}
+		for i := len(owners) - 1; i >= 0; i-- {
+			if counter >= b.config.ReplicaCount-1 {
+				break
+			}
 
-		var ownerIDs []uint64
-		offset := len(owners) - 1 - (b.config.ReplicaCount - 1)
-		if offset <= 0 {
-			offset = -1
-		}
-		for i := len(owners) - 1; i > offset; i-- {
+			counter++
 			owner := owners[i]
 			// Here we don't use CompareById function because the routing table
 			// is an eventually consistent data structure and a node can try to
@@ -160,27 +168,17 @@ func (b *Balancer) backupCopies() {
 			// of itself. So just check the name.
 			if b.rt.This().CompareByName(owner) {
 				// Already belongs to me.
-				continue
+				continue LOOP
 			}
-			ownerIDs = append(ownerIDs, owner.ID)
+			currentOwners = append(currentOwners, owner)
 		}
 
-		for _, ownerID := range ownerIDs {
-			if !b.isAlive() {
-				break
-			}
-			if sign != b.rt.Signature() {
-				// Routing table is updated. Just quit. Another balancer goroutine
-				// will work on the new table immediately.
-				break
-			}
-
-			owner, err := b.rt.Discovery().FindMemberByID(ownerID)
-			if err != nil {
-				b.log.V(2).Printf("[ERROR] Failed to get host by ownerId: %d: %v", ownerID, err)
-				continue
-			}
-			b.scanPartition(sign, part, owner)
+		if b.scanPartition(sign, part, currentOwners...) {
+			part.Map().Range(func(name, tmp interface{}) bool {
+				// Delete the moved storage unit instance. GC will free the allocated memory.
+				part.Map().Delete(name)
+				return true
+			})
 		}
 	}
 }

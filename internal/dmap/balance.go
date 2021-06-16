@@ -121,9 +121,9 @@ func (s *Service) validateFragmentPack(fp *fragmentPack) error {
 
 	var part *partitions.Partition
 	if fp.Kind == partitions.PRIMARY {
-		part = s.primary.PartitionById(fp.PartID)
+		part = s.primary.PartitionByID(fp.PartID)
 	} else {
-		part = s.backup.PartitionById(fp.PartID)
+		part = s.backup.PartitionByID(fp.PartID)
 	}
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
@@ -156,9 +156,9 @@ func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
 
 	var part *partitions.Partition
 	if fp.Kind == partitions.PRIMARY {
-		part = s.primary.PartitionById(fp.PartID)
+		part = s.primary.PartitionByID(fp.PartID)
 	} else {
-		part = s.backup.PartitionById(fp.PartID)
+		part = s.backup.PartitionByID(fp.PartID)
 	}
 	s.log.V(2).Printf("[INFO] Received DMap (kind: %s): %s on PartID: %d", fp.Kind, fp.Name, fp.PartID)
 

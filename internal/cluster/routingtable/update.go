@@ -33,12 +33,12 @@ type leftOverDataReport struct {
 func (r *RoutingTable) prepareLeftOverDataReport() ([]byte, error) {
 	res := leftOverDataReport{}
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
-		part := r.primary.PartitionById(partID)
+		part := r.primary.PartitionByID(partID)
 		if part.Length() != 0 {
 			res.Partitions = append(res.Partitions, partID)
 		}
 
-		backup := r.backup.PartitionById(partID)
+		backup := r.backup.PartitionByID(partID)
 		if backup.Length() != 0 {
 			res.Backups = append(res.Backups, partID)
 		}
@@ -79,6 +79,8 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*left
 	reports := make(map[discovery.Member]*leftOverDataReport)
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
+
+	r.Members().RLock()
 	r.Members().Range(func(id uint64, tmp discovery.Member) bool {
 		member := tmp
 		g.Go(func() error {
@@ -100,6 +102,7 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*left
 		})
 		return true
 	})
+	r.Members().RUnlock()
 
 	if err := g.Wait(); err != nil {
 		return nil, err

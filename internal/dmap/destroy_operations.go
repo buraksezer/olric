@@ -61,7 +61,7 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 			return
 		}
 
-		part := dm.s.primary.PartitionById(partID)
+		part := dm.s.primary.PartitionByID(partID)
 		err = dm.destroyFragmentOnPartition(part)
 		if err != nil {
 			neterrors.ErrorResponse(w, err)
@@ -70,7 +70,7 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 
 		// Destroy on replicas
 		if s.config.ReplicaCount > config.MinimumReplicaCount {
-			backup := dm.s.backup.PartitionById(partID)
+			backup := dm.s.backup.PartitionByID(partID)
 			err = dm.destroyFragmentOnPartition(backup)
 			if err != nil {
 				neterrors.ErrorResponse(w, err)

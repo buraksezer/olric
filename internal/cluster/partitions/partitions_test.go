@@ -27,7 +27,7 @@ func TestPartitions(t *testing.T) {
 
 	t.Run("PartitionById", func(t *testing.T) {
 		for partID := uint64(0); partID < partitionCount; partID++ {
-			part := ps.PartitionById(partID)
+			part := ps.PartitionByID(partID)
 			if part.Id() != partID {
 				t.Fatalf("Expected PartID: %d. Got: %d", partID, part.Id())
 			}
@@ -39,7 +39,7 @@ func TestPartitions(t *testing.T) {
 
 	t.Run("PartitionIdByHKey", func(t *testing.T) {
 		// 1 % 271 = 1
-		partID := ps.PartitionIdByHKey(1)
+		partID := ps.PartitionIDByHKey(1)
 		if partID != 1 {
 			t.Fatalf("Expected PartID: 1. Got: %d", partID)
 		}
@@ -66,12 +66,12 @@ func TestPartitions(t *testing.T) {
 	})
 
 	t.Run("PartitionOwnersById", func(t *testing.T) {
-		part := ps.PartitionById(1)
+		part := ps.PartitionByID(1)
 		tmp := []discovery.Member{{
 			Name: "test-member",
 		}}
 		part.SetOwners(tmp)
-		owners := ps.PartitionOwnersById(1)
+		owners := ps.PartitionOwnersByID(1)
 		if !reflect.DeepEqual(owners, tmp) {
 			t.Fatalf("Partition owners slice is different")
 		}

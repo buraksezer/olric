@@ -32,7 +32,7 @@ func checkCompactionForTest(t *testing.T, s *Service) {
 	maximum := 50
 	check := func(current int) (bool, error) {
 		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-			part := s.primary.PartitionById(partID)
+			part := s.primary.PartitionByID(partID)
 			tmp, ok := part.Map().Load("mymap")
 			if !ok {
 				continue
@@ -182,10 +182,10 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 		dc = 0
 		for partID := uint64(0); partID < s1.config.PartitionCount; partID++ {
 			for _, instance := range []*Service{s1, s2} {
-				part := instance.primary.PartitionById(partID)
+				part := instance.primary.PartitionByID(partID)
 				part.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 
-				bpart := instance.backup.PartitionById(partID)
+				bpart := instance.backup.PartitionByID(partID)
 				bpart.Map().Range(func(name, dm interface{}) bool { dc++; return true })
 			}
 		}

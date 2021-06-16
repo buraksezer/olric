@@ -70,7 +70,7 @@ func TestRoutingTable_distributedBackups(t *testing.T) {
 	rt2.UpdateEagerly()
 
 	for partID := uint64(0); partID < c3.PartitionCount; partID++ {
-		part := rt3.backup.PartitionById(partID)
+		part := rt3.backup.PartitionByID(partID)
 		if part.OwnerCount() != 1 {
 			t.Fatalf("Expected backup owners count: 1. Got: %d", part.OwnerCount())
 		}

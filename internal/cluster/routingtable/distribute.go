@@ -15,6 +15,8 @@
 package routingtable
 
 import (
+	"errors"
+
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -23,7 +25,7 @@ import (
 
 func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member {
 	// First you need to create a copy of the owners list. Don't modify the current list.
-	part := r.primary.PartitionById(partID)
+	part := r.primary.PartitionByID(partID)
 	owners := make([]discovery.Member, part.OwnerCount())
 	copy(owners, part.Owners())
 
@@ -41,7 +43,7 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 		owner := owners[i]
 		current, err := r.discovery.FindMemberByName(owner.Name)
 		if err != nil {
-			r.log.V(4).Printf("[ERROR] Failed to find %s in the cluster: %v", owner, err)
+			r.log.V(6).Printf("[DEBUG] Failed to find %s in the cluster: %v", owner, err)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
 			continue
@@ -69,7 +71,6 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 		var count int32
 		err = msgpack.Unmarshal(res.Value(), &count)
 		if err != nil {
-			//db.log.V(3).Printf("[ERROR] Failed to unmarshal key count while checking primary partition: %d: %v", partID, err)
 			// This may be a temporary issue.
 			// Pass it. If the node is gone, memberlist package will notify us.
 			continue
@@ -96,7 +97,7 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 func (r *RoutingTable) getReplicaOwners(partID uint64) ([]consistent.Member, error) {
 	for i := r.config.ReplicaCount; i > 0; i-- {
 		newOwners, err := r.consistent.GetClosestNForPartition(int(partID), i)
-		if err == consistent.ErrInsufficientMemberCount {
+		if errors.Is(err, consistent.ErrInsufficientMemberCount) {
 			continue
 		}
 		if err != nil {
@@ -109,7 +110,7 @@ func (r *RoutingTable) getReplicaOwners(partID uint64) ([]consistent.Member, err
 }
 
 func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
-	part := r.backup.PartitionById(partID)
+	part := r.backup.PartitionByID(partID)
 	owners := make([]discovery.Member, part.OwnerCount())
 	copy(owners, part.Owners())
 
@@ -136,7 +137,7 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 		backup := owners[i]
 		cur, err := r.discovery.FindMemberByName(backup.Name)
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to find %s in the cluster: %v", backup, err)
+			r.log.V(6).Printf("[DEBUG] Failed to find %s in the cluster: %v", backup, err)
 			// Delete it.
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
