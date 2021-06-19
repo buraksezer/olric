@@ -173,6 +173,10 @@ LOOP:
 			currentOwners = append(currentOwners, owner)
 		}
 
+		if len(currentOwners) == 0 {
+			continue LOOP
+		}
+
 		if b.scanPartition(sign, part, currentOwners...) {
 			part.Map().Range(func(name, tmp interface{}) bool {
 				// Delete the moved storage unit instance. GC will free the allocated memory.
