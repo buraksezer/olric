@@ -156,7 +156,7 @@ LOOP:
 
 		owners := part.Owners()
 		for i := len(owners) - 1; i >= 0; i-- {
-			if counter >= b.config.ReplicaCount-1 {
+			if counter > b.config.ReplicaCount-1 {
 				break
 			}
 

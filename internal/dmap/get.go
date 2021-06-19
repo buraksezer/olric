@@ -195,14 +195,15 @@ func (dm *DMap) sanitizeAndSortVersions(versions []*version) []*version {
 }
 
 func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
-	var versions []*version
 	// Check backup.
 	backups := dm.s.backup.PartitionOwnersByHKey(hkey)
+	versions := make([]*version, 0, len(backups))
 	for _, replica := range backups {
 		req := protocol.NewDMapMessage(protocol.OpGetBackup)
 		req.SetDMap(dm.name)
 		req.SetKey(key)
-		ver := &version{host: &replica}
+		host := replica
+		v := &version{host: &host}
 		resp, err := dm.s.requestTo(replica.String(), req)
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
@@ -212,9 +213,9 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		} else {
 			data := dm.engine.NewEntry()
 			data.Decode(resp.Value())
-			ver.entry = data
+			v.entry = data
 		}
-		versions = append(versions, ver)
+		versions = append(versions, v)
 	}
 	return versions
 }
