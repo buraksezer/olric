@@ -220,13 +220,13 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 }
 
 func (dm *DMap) readRepair(winner *version, versions []*version) {
-	for _, ver := range versions {
-		if ver.entry != nil && winner.entry.Timestamp() == ver.entry.Timestamp() {
+	for _, version := range versions {
+		if version.entry != nil && winner.entry.Timestamp() == version.entry.Timestamp() {
 			continue
 		}
 
 		// Sync
-		tmp := *ver.host
+		tmp := *version.host
 		if tmp.CompareByID(dm.s.rt.This()) {
 			hkey := partitions.HKey(dm.name, winner.entry.Key())
 			f, err := dm.getOrCreateFragment(hkey, partitions.PRIMARY)
@@ -270,9 +270,9 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 					TTL:       winner.entry.TTL(),
 				})
 			}
-			_, err := dm.s.requestTo(ver.host.String(), req)
+			_, err := dm.s.requestTo(version.host.String(), req)
 			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", ver.host, err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", version.host, err)
 			}
 		}
 	}

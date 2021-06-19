@@ -201,6 +201,7 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 	c2.ReplicaCount = 2
 	e2 := testcluster.NewEnvironment(c2)
 	s2 := cluster.AddMember(e2).(*Service)
+
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
@@ -230,7 +231,6 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 	c3.ReplicaCount = 2
 	e3 := testcluster.NewEnvironment(c3)
 	s3 := cluster.AddMember(e3).(*Service)
-	defer cluster.Shutdown()
 
 	// Call DMap.Get on S2
 	dm2, err := s3.NewDMap("mymap")
