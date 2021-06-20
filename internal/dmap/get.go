@@ -67,7 +67,8 @@ func (dm *DMap) unmarshalValue(raw []byte) (interface{}, error) {
 }
 
 func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
-	f, err := dm.getFragment(e.hkey, e.kind)
+	part := dm.getPartitionByHKey(e.hkey, e.kind)
+	f, err := dm.loadFragment(part)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +113,8 @@ func (dm *DMap) valueToVersion(value storage.Entry) *version {
 
 func (dm *DMap) lookupOnThisNode(hkey uint64, key string) *version {
 	// Check on localhost, the partition owner.
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+	f, err := dm.loadFragment(part)
 	if err != nil {
 		if !errors.Is(err, errFragmentNotFound) {
 			dm.s.log.V(3).Printf("[ERROR] Failed to get DMap fragment: %v", err)
@@ -230,7 +232,8 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 		tmp := *version.host
 		if tmp.CompareByID(dm.s.rt.This()) {
 			hkey := partitions.HKey(dm.name, winner.entry.Key())
-			f, err := dm.getOrCreateFragment(hkey, partitions.PRIMARY)
+			part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+			f, err := dm.loadOrCreateFragment(part)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to get or create the fragment for: %s on %s: %v",
 					winner.entry.Key(), dm.name, err)

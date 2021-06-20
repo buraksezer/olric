@@ -15,13 +15,16 @@
 package dmap
 
 import (
+	"errors"
+	"sync"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/testcluster"
+	"github.com/buraksezer/olric/internal/testutil"
 )
 
-func TestDMapDMap_Fragment(t *testing.T) {
+func TestDMap_Fragment(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	dm, err := s.NewDMap("mydmap")
@@ -29,38 +32,92 @@ func TestDMapDMap_Fragment(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	t.Run("loadFragmentFromPartition", func(t *testing.T) {
+	t.Run("loadFragment", func(t *testing.T) {
 		part := s.primary.PartitionByID(1)
-		_, err = dm.loadFragmentFromPartition(part)
-		if err != errFragmentNotFound {
+		_, err = dm.loadFragment(part)
+		if !errors.Is(err, errFragmentNotFound) {
 			t.Fatalf("Expected %v. Got: %v", errFragmentNotFound, err)
 		}
 	})
 
-	t.Run("createFragmentOnPartition", func(t *testing.T) {
-		part := s.primary.PartitionByID(1)
-		_, err = dm.createFragmentOnPartition(part)
+	t.Run("newFragment", func(t *testing.T) {
+		_, err := dm.newFragment()
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	})
 
-	t.Run("getFragment -- errFragmentNotFound", func(t *testing.T) {
-		_, err = dm.getFragment(123, partitions.PRIMARY)
-		if err != errFragmentNotFound {
+	t.Run("loadFragment -- errFragmentNotFound", func(t *testing.T) {
+		part := dm.getPartitionByHKey(123, partitions.PRIMARY)
+		_, err := dm.loadFragment(part)
+		if !errors.Is(err, errFragmentNotFound) {
 			t.Fatalf("Expected %v. Got: %v", errFragmentNotFound, err)
 		}
 	})
 
-	t.Run("getOrCreateFragment", func(t *testing.T) {
-		_, err = dm.getOrCreateFragment(123, partitions.PRIMARY)
+	t.Run("loadOrCreateFragment", func(t *testing.T) {
+		part := dm.getPartitionByHKey(123, partitions.PRIMARY)
+		_, err = dm.loadOrCreateFragment(part)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		_, err = dm.getFragment(123, partitions.PRIMARY)
+		_, err := dm.loadFragment(part)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	})
+}
+
+func TestDMap_Fragment_Concurrent_Access(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	dm, err := s.NewDMap("mydmap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	part := dm.getPartitionByHKey(123, partitions.PRIMARY)
+
+	var mtx sync.RWMutex
+	var wg sync.WaitGroup
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			f, err := dm.loadOrCreateFragment(part)
+			if err != nil {
+				t.Errorf("Expected nil. Got: %v", err)
+			}
+
+			e := f.storage.NewEntry()
+			e.SetKey(testutil.ToKey(idx))
+
+			mtx.Lock()
+			// storage engine is not thread-safe
+			err = f.storage.Put(uint64(idx), e)
+			mtx.Unlock()
+
+			if err != nil {
+				t.Errorf("Expected nil. Got: %v", err)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	f, err := dm.loadFragment(part)
+	if err != nil {
+		t.Errorf("Expected nil. Got: %v", err)
+	}
+	for i := 0; i < 1000; i++ {
+		entry, err := f.storage.Get(uint64(i))
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		if entry.Key() != testutil.ToKey(i) {
+			t.Fatalf("Expected key: %s. Got: %s", testutil.ToKey(i), entry.Key())
+		}
+	}
 }

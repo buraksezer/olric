@@ -28,8 +28,8 @@ func TestPartitions(t *testing.T) {
 	t.Run("PartitionById", func(t *testing.T) {
 		for partID := uint64(0); partID < partitionCount; partID++ {
 			part := ps.PartitionByID(partID)
-			if part.Id() != partID {
-				t.Fatalf("Expected PartID: %d. Got: %d", partID, part.Id())
+			if part.ID() != partID {
+				t.Fatalf("Expected PartID: %d. Got: %d", partID, part.ID())
 			}
 			if part.Kind() != PRIMARY {
 				t.Fatalf("Expected Kind: %s. Got: %s", PRIMARY, part.Kind())
@@ -48,8 +48,8 @@ func TestPartitions(t *testing.T) {
 	t.Run("PartitionByHKey", func(t *testing.T) {
 		// 1 % 271 = 1
 		part := ps.PartitionByHKey(1)
-		if part.Id() != 1 {
-			t.Fatalf("Expected PartID: 1. Got: %d", part.Id())
+		if part.ID() != 1 {
+			t.Fatalf("Expected PartID: 1. Got: %d", part.ID())
 		}
 	})
 

@@ -54,7 +54,7 @@ func New(count uint64, kind Kind) *Partitions {
 		ps.m[i] = &Partition{
 			id:   i,
 			kind: kind,
-			smap: &sync.Map{},
+			m:    &sync.Map{},
 		}
 	}
 	return ps

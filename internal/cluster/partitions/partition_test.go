@@ -59,7 +59,7 @@ func TestPartition(t *testing.T) {
 	p := Partition{
 		id:   1,
 		kind: PRIMARY,
-		smap: &sync.Map{},
+		m:    &sync.Map{},
 	}
 
 	tmp := []discovery.Member{{

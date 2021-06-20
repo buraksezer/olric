@@ -47,10 +47,7 @@ func (dm *DMap) selectVersionForMerge(f *fragment, hkey uint64, entry storage.En
 }
 
 func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) error {
-	f, err := dm.loadFragmentFromPartition(part)
-	if errors.Is(err, errFragmentNotFound) {
-		f, err = dm.createFragmentOnPartition(part)
-	}
+	f, err := dm.loadOrCreateFragment(part)
 	if err != nil {
 		return err
 	}

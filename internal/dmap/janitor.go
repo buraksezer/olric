@@ -49,12 +49,12 @@ func (s *Service) deleteEmptyFragments() {
 			err := wipeOutFragment(part, name.(string), f)
 			if err != nil {
 				s.log.V(3).Printf("[ERROR] Failed to delete empty DMap fragment (kind: %s): %s on PartID: %d",
-					part.Kind(), name, part.Id())
+					part.Kind(), name, part.ID())
 				// continue scanning
 				return true
 			}
 			s.log.V(4).Printf("[INFO] Empty DMap fragment (kind: %s) has been deleted: %s on PartID: %d",
-				part.Kind(), name, part.Id())
+				part.Kind(), name, part.ID())
 			return true
 		})
 	}

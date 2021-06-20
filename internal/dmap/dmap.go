@@ -15,7 +15,6 @@
 package dmap
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -38,7 +37,7 @@ var (
 	ErrDMapNotFound = errors.New("dmap not found")
 )
 
-// DMap implements a single hop distributed hash table.
+// DMap implements a single-hop distributed hash table.
 type DMap struct {
 	name   string
 	s      *Service
@@ -110,31 +109,6 @@ func (s *Service) getOrCreateDMap(name string) (*DMap, error) {
 	return dm, err
 }
 
-func (dm *DMap) loadFragmentFromPartition(part *partitions.Partition) (*fragment, error) {
-	f, ok := part.Map().Load(dm.name)
-	if !ok {
-		return nil, errFragmentNotFound
-	}
-	return f.(*fragment), nil
-}
-
-func (dm *DMap) createFragmentOnPartition(part *partitions.Partition) (*fragment, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	f := &fragment{
-		service:   dm.s,
-		accessLog: newAccessLog(),
-		ctx:       ctx,
-		cancel:    cancel,
-	}
-	var err error
-	f.storage, err = dm.engine.Fork(nil)
-	if err != nil {
-		return nil, err
-	}
-	part.Map().Store(dm.name, f)
-	return f, nil
-}
-
 func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partitions.Partition {
 	var part *partitions.Partition
 	switch {
@@ -146,27 +120,6 @@ func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partition
 		panic("unknown partition kind")
 	}
 	return part
-}
-
-func (dm *DMap) getFragment(hkey uint64, kind partitions.Kind) (*fragment, error) {
-	part := dm.getPartitionByHKey(hkey, kind)
-	part.Lock()
-	defer part.Unlock()
-	return dm.loadFragmentFromPartition(part)
-}
-
-func (dm *DMap) getOrCreateFragment(hkey uint64, kind partitions.Kind) (*fragment, error) {
-	part := dm.getPartitionByHKey(hkey, kind)
-	part.Lock()
-	defer part.Unlock()
-
-	// try to get
-	f, err := dm.loadFragmentFromPartition(part)
-	if errors.Is(err, errFragmentNotFound) {
-		// create the fragment and return
-		return dm.createFragmentOnPartition(part)
-	}
-	return f, err
 }
 
 func timeoutToTTL(timeout time.Duration) int64 {

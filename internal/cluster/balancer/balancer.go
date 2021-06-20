@@ -70,13 +70,13 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners
 
 		for _, owner := range owners {
 			b.log.V(2).Printf("[INFO] Moving %s: %s (kind: %s) on PartID: %d to %s",
-				u.Name(), name, part.Kind(), part.Id(), owner)
+				u.Name(), name, part.Kind(), part.ID(), owner)
 
-			err := u.Move(part.Id(), part.Kind(), name.(string), owner)
+			err := u.Move(part.ID(), part.Kind(), name.(string), owner)
 
 			if err != nil {
 				b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v",
-					u.Name(), name, part.Id(), owner, err)
+					u.Name(), name, part.ID(), owner, err)
 				clean = false
 			}
 		}

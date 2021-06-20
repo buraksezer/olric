@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,16 +27,19 @@ import (
 )
 
 func (dm *DMap) localExpireOnReplica(e *env) error {
-	f, err := dm.getFragment(e.hkey, partitions.BACKUP)
-	if err == errFragmentNotFound {
+	part := dm.getPartitionByHKey(e.hkey, partitions.BACKUP)
+	f, err := dm.loadFragment(part)
+	if errors.Is(err, errFragmentNotFound) {
 		return ErrKeyNotFound
 	}
 	if err != nil {
 		return err
 	}
+
 	e.fragment = f
 	f.Lock()
 	defer f.Unlock()
+
 	return dm.localExpire(e)
 }
 
@@ -107,8 +111,9 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 }
 
 func (dm *DMap) callExpireOnCluster(e *env) error {
-	f, err := dm.getFragment(e.hkey, partitions.PRIMARY)
-	if err == errFragmentNotFound {
+	part := dm.getPartitionByHKey(e.hkey, partitions.PRIMARY)
+	f, err := dm.loadFragment(part)
+	if errors.Is(err, errFragmentNotFound) {
 		return ErrKeyNotFound
 	}
 	if err != nil {

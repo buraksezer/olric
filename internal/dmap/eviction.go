@@ -48,7 +48,8 @@ func (dm *DMap) isKeyIdleOnFragment(hkey uint64, f *fragment) bool {
 }
 
 func (dm *DMap) isKeyIdle(hkey uint64) bool {
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+	f, err := dm.loadFragment(part)
 	if errors.Is(err, errFragmentNotFound) {
 		// it's no possible to know whether the key is idle or not.
 		return false

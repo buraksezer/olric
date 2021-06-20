@@ -44,7 +44,8 @@ func TestDMap_Merge_Fragments(t *testing.T) {
 		}
 	}
 	hkey := partitions.HKey("mymap", key)
-	f, err := dm.getFragment(hkey, partitions.PRIMARY)
+	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+	f, err := dm.loadFragment(part)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
