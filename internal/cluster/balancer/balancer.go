@@ -63,7 +63,7 @@ func (b *Balancer) isAlive() bool {
 	return true
 }
 
-func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners... discovery.Member) bool {
+func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners ...discovery.Member) bool {
 	var clean = true
 	part.Map().Range(func(name, tmp interface{}) bool {
 		u := tmp.(partitions.Fragment)
@@ -145,18 +145,18 @@ LOOP:
 		}
 
 		part := b.backup.PartitionByID(partID)
-		if part.Length() == 0 || part.OwnerCount() == 0{
+		if part.Length() == 0 || part.OwnerCount() == 0 {
 			continue
 		}
 
 		var (
-			counter = 1
+			counter       = 1
 			currentOwners []discovery.Member
 		)
 
 		owners := part.Owners()
 		for i := len(owners) - 1; i >= 0; i-- {
-			if counter >= b.config.ReplicaCount-1 {
+			if counter > b.config.ReplicaCount-1 {
 				break
 			}
 
@@ -171,6 +171,10 @@ LOOP:
 				continue LOOP
 			}
 			currentOwners = append(currentOwners, owner)
+		}
+
+		if len(currentOwners) == 0 {
+			continue LOOP
 		}
 
 		if b.scanPartition(sign, part, currentOwners...) {
