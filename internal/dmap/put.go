@@ -80,13 +80,16 @@ func (dm *DMap) putOnFragment(e *env) error {
 }
 
 func (dm *DMap) putOnReplicaFragment(e *env) error {
-	f, err := dm.getOrCreateFragment(e.hkey, partitions.BACKUP)
+	part := dm.getPartitionByHKey(e.hkey, partitions.BACKUP)
+	f, err := dm.loadOrCreateFragment(part)
 	if err != nil {
 		return err
 	}
+
 	e.fragment = f
 	f.Lock()
 	defer f.Unlock()
+
 	return dm.putOnFragment(e)
 }
 
@@ -214,10 +217,12 @@ func (dm *DMap) checkPutConditions(e *env) error {
 }
 
 func (dm *DMap) putOnCluster(e *env) error {
-	f, err := dm.getOrCreateFragment(e.hkey, partitions.PRIMARY)
+	part := dm.getPartitionByHKey(e.hkey, partitions.PRIMARY)
+	f, err := dm.loadOrCreateFragment(part)
 	if err != nil {
 		return err
 	}
+
 	e.fragment = f
 	f.Lock()
 	defer f.Unlock()

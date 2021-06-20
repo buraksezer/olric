@@ -35,7 +35,8 @@ var (
 
 func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error {
 	hkey := partitions.HKey(dm.name, key)
-	f, err := dm.getFragment(hkey, kind)
+	part := dm.getPartitionByHKey(hkey, kind)
+	f, err := dm.loadFragment(part)
 	if errors.Is(err, errFragmentNotFound) {
 		// key doesn't exist
 		return nil
@@ -43,6 +44,7 @@ func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error
 	if err != nil {
 		return err
 	}
+
 	f.Lock()
 	defer f.Unlock()
 
@@ -140,8 +142,12 @@ func (dm *DMap) deleteKey(key string) error {
 		return err
 	}
 
-	// notice that "delete" operation is run on the cluster.
-	f, err := dm.getOrCreateFragment(hkey, partitions.PRIMARY)
+	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+	f, err := dm.loadFragment(part)
+	if errors.Is(err, errFragmentNotFound) {
+		// notice that "delete" operation is run on the cluster.
+		err = nil
+	}
 	if err != nil {
 		return err
 	}

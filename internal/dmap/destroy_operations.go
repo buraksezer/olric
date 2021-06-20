@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"errors"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -37,8 +39,8 @@ func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
 }
 
 func (dm *DMap) destroyFragmentOnPartition(part *partitions.Partition) error {
-	f, err := dm.loadFragmentFromPartition(part)
-	if err == errFragmentNotFound {
+	f, err := dm.loadFragment(part)
+	if errors.Is(err, errFragmentNotFound) {
 		// not exists
 		return nil
 	}

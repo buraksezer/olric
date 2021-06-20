@@ -27,7 +27,7 @@ type Partition struct {
 
 	id     uint64
 	kind   Kind
-	smap   *sync.Map
+	m      *sync.Map
 	owners atomic.Value
 }
 
@@ -35,12 +35,12 @@ func (p *Partition) Kind() Kind {
 	return p.kind
 }
 
-func (p *Partition) Id() uint64 {
+func (p *Partition) ID() uint64 {
 	return p.id
 }
 
 func (p *Partition) Map() *sync.Map {
-	return p.smap
+	return p.m
 }
 
 // Owner returns partition Owner. It's not thread-safe.

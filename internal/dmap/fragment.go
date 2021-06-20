@@ -101,4 +101,49 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 	return err
 }
 
+func (dm *DMap) newFragment() (*fragment, error) {
+	str, err := dm.engine.Fork(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	return &fragment{
+		service:   dm.s,
+		accessLog: newAccessLog(),
+		storage:   str,
+		ctx:       ctx,
+		cancel:    cancel,
+	}, nil
+}
+
+func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, error) {
+	part.Lock()
+	defer part.Unlock()
+
+	// Creating a new fragment is our critical section here.
+	// It should be protected by a lock.
+
+	fg, ok := part.Map().Load(dm.name)
+	if ok {
+		return fg.(*fragment), nil
+	}
+
+	f, err := dm.newFragment()
+	if err != nil {
+		return nil, err
+	}
+
+	part.Map().Store(dm.name, f)
+	return f, nil
+}
+
+func (dm *DMap) loadFragment(part *partitions.Partition) (*fragment, error) {
+	f, ok := part.Map().Load(dm.name)
+	if !ok {
+		return nil, errFragmentNotFound
+	}
+	return f.(*fragment), nil
+}
+
 var _ partitions.Fragment = (*fragment)(nil)
