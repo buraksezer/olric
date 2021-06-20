@@ -77,7 +77,7 @@ func TestRoutingTable_distributedBackups(t *testing.T) {
 
 		for _, owner := range part.Owners() {
 			if owner.CompareByID(rt1.This()) {
-				t.Fatalf("Dead node still a backup owner: %v", rt1.This())
+				t.Fatalf("Dead node still a replica owner: %v", rt1.This())
 			}
 		}
 	}

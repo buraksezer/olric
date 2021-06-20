@@ -38,8 +38,8 @@ const (
 	OpPutIfExReplica        // 18
 	OpDeletePrev            // 19
 	OpGetPrev               // 20
-	OpGetBackup             // 21
-	OpDeleteBackup          // 22
+	OpGetReplica            // 21
+	OpDeleteReplica         // 22
 	OpDestroyDMapInternal   // 23
 	OpMoveFragment          // 24
 	OpLengthOfPart          // 25

@@ -56,7 +56,7 @@ func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	})
 }
 
-func (s *Service) deleteBackupOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) deleteReplicaOperation(w, r protocol.EncodeDecoder) {
 	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		req := r.(*protocol.DMapMessage)
 		return dm.deleteBackupFromFragment(req.Key(), partitions.BACKUP)

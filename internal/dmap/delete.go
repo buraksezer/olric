@@ -79,12 +79,12 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 		mem := owner
 		g.Go(func() error {
 			// TODO: Add retry with backoff
-			req := protocol.NewDMapMessage(protocol.OpDeleteBackup)
+			req := protocol.NewDMapMessage(protocol.OpDeleteReplica)
 			req.SetDMap(dm.name)
 			req.SetKey(key)
 			_, err := dm.s.requestTo(mem.String(), req)
 			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to delete backup key/value on %s: %s", dm.name, err)
+				dm.s.log.V(3).Printf("[ERROR] Failed to delete replica key/value on %s: %s", dm.name, err)
 			}
 			return err
 		})

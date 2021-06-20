@@ -171,7 +171,7 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 		err = msgpack.Unmarshal(res.Value(), &count)
 		if err != nil {
 			r.log.V(3).Printf("[ERROR] Failed to unmarshal key count "+
-				"while checking backup partition: %d: %v", partID, err)
+				"while checking replica partition: %d: %v", partID, err)
 			// This may be a temporary event. Pass it.
 			continue
 		}

@@ -52,7 +52,7 @@ func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
 	})
 }
 
-func (s *Service) getBackupOperation(w, r protocol.EncodeDecoder) {
+func (s *Service) getReplicaOperation(w, r protocol.EncodeDecoder) {
 	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
 		e := newEnvFromReq(r, partitions.BACKUP)
 		return dm.getOnFragment(e)

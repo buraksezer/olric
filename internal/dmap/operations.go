@@ -32,11 +32,11 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	// DMap.Get
 	s.operations[protocol.OpGet] = s.getOperation
 	s.operations[protocol.OpGetPrev] = s.getPrevOperation
-	s.operations[protocol.OpGetBackup] = s.getBackupOperation
+	s.operations[protocol.OpGetReplica] = s.getReplicaOperation
 
 	// DMap.Delete
 	s.operations[protocol.OpDelete] = s.deleteOperation
-	s.operations[protocol.OpDeleteBackup] = s.deleteBackupOperation
+	s.operations[protocol.OpDeleteReplica] = s.deleteReplicaOperation
 	s.operations[protocol.OpDeletePrev] = s.deletePrevOperation
 
 	// DMap.Atomic

@@ -201,7 +201,7 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 	backups := dm.s.backup.PartitionOwnersByHKey(hkey)
 	versions := make([]*version, 0, len(backups))
 	for _, replica := range backups {
-		req := protocol.NewDMapMessage(protocol.OpGetBackup)
+		req := protocol.NewDMapMessage(protocol.OpGetReplica)
 		req.SetDMap(dm.name)
 		req.SetKey(key)
 		host := replica
