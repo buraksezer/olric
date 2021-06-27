@@ -69,9 +69,6 @@ type Discovery struct {
 	ClusterEvents    chan *ClusterEvent
 
 	// Try to reconnect dead members
-	deadMembers      map[string]int64
-	deadMemberEvents chan *ClusterEvent
-
 	eventSubscribers []chan *ClusterEvent
 	serviceDiscovery service_discovery.ServiceDiscovery
 
@@ -86,12 +83,11 @@ func New(log *flog.Logger, c *config.Config) *Discovery {
 	member := NewMember(c)
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &Discovery{
-		member:      &member,
-		config:      c,
-		log:         log,
-		deadMembers: make(map[string]int64),
-		ctx:         ctx,
-		cancel:      cancel,
+		member: &member,
+		config: c,
+		log:    log,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	return d
 }
@@ -135,67 +131,6 @@ func (d *Discovery) loadServiceDiscoveryPlugin() error {
 	return nil
 }
 
-func (d *Discovery) dialDeadMember(member string) {
-	// Knock knock
-	// TODO: Make this parametric
-	conn, err := net.DialTimeout("tcp", member, 100*time.Millisecond)
-	if err != nil {
-		d.log.V(5).Printf("[ERROR] Failed to dial member: %s: %v", member, err)
-		return
-	}
-	err = conn.Close()
-	if err != nil {
-		d.log.V(5).Printf("[ERROR] Failed to close connection: %s: %v", member, err)
-		// network partitioning continues
-		return
-	}
-	// Everything seems fine. Try to re-join!
-	_, err = d.Rejoin([]string{member})
-	if err != nil {
-		d.log.V(5).Printf("[ERROR] Failed to re-join: %s: %v", member, err)
-	}
-}
-
-func (d *Discovery) deadMemberTracker() {
-	d.wg.Done()
-
-	timer := time.NewTimer(time.Second)
-	defer timer.Stop()
-
-	for {
-		timer.Reset(time.Second)
-
-		select {
-		case <-d.ctx.Done():
-			return
-		case e := <-d.deadMemberEvents:
-			member := e.MemberAddr()
-			switch {
-			case e.Event == memberlist.NodeJoin || e.Event == memberlist.NodeUpdate:
-				delete(d.deadMembers, member)
-			case e.Event == memberlist.NodeLeave:
-				d.deadMembers[member] = time.Now().UnixNano()
-			default:
-				d.log.V(2).Printf("[ERROR] Unknown memberlist event received for: %s: %v",
-					e.NodeName, e.Event)
-			}
-		case <-timer.C:
-			// TODO: make this parametric
-			// Try to reconnect a random dead member every second.
-			// The Go runtime selects a random item in the map
-			for member, timestamp := range d.deadMembers {
-				d.dialDeadMember(member)
-				// TODO: Make this parametric
-				if time.Now().Add(24*time.Hour).UnixNano() >= timestamp {
-					delete(d.deadMembers, member)
-				}
-				break
-			}
-			// Just try one item
-		}
-	}
-}
-
 // increaseUptimeSeconds calls UptimeSeconds.Increase function every second.
 func (d *Discovery) increaseUptimeSeconds() {
 	defer d.wg.Done()
@@ -221,7 +156,6 @@ func (d *Discovery) Start() error {
 	}
 	// ClusterEvents chan is consumed by the Olric package to maintain a consistent hash ring.
 	d.ClusterEvents = d.SubscribeNodeEvents()
-	d.deadMemberEvents = d.SubscribeNodeEvents()
 
 	// Initialize a new memberlist
 	dl, err := d.newDelegate()
@@ -248,9 +182,6 @@ func (d *Discovery) Start() error {
 
 	d.wg.Add(1)
 	go d.eventLoop(eventsCh)
-
-	d.wg.Add(1)
-	go d.deadMemberTracker()
 
 	d.wg.Add(1)
 	go d.increaseUptimeSeconds()
