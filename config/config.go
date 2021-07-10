@@ -125,6 +125,8 @@ const (
 	// DefaultStorageEngine denotes the storage engine implementation provided by
 	// Olric project.
 	DefaultStorageEngine = "kvstore"
+
+	DefaultRoutingTablePushInterval = time.Minute
 )
 
 // Config is the configuration to create a Olric instance.
@@ -165,6 +167,8 @@ type Config struct {
 	// "operable" Olric node. BootstrapTimeout sets a deadline to check
 	// bootstrapping status without blocking indefinitely.
 	BootstrapTimeout time.Duration
+
+	RoutingTablePushInterval time.Duration
 
 	// The list of host:port which are used by memberlist for discovery.
 	// Don't confuse it with Name.
@@ -380,6 +384,9 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
+	}
+	if c.RoutingTablePushInterval == 0*time.Second {
+		c.RoutingTablePushInterval = DefaultRoutingTablePushInterval
 	}
 
 	if c.Client == nil {

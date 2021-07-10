@@ -291,7 +291,7 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	var joinRetryInterval, keepAlivePeriod, bootstrapTimeout time.Duration
+	var joinRetryInterval, keepAlivePeriod, bootstrapTimeout, routingTablePushInterval time.Duration
 	if c.Olricd.KeepAlivePeriod != "" {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
@@ -314,6 +314,13 @@ func Load(filename string) (*Config, error) {
 					c.Memberlist.JoinRetryInterval))
 		}
 	}
+	if c.Olricd.RoutingTablePushInterval != "" {
+		routingTablePushInterval, err = time.ParseDuration(c.Olricd.RoutingTablePushInterval)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.routingTablePushInterval: '%s'", c.Olricd.RoutingTablePushInterval))
+		}
+	}
 
 	clientConfig := Client{}
 	err = mapYamlToConfig(&clientConfig, &c.Client)
@@ -331,34 +338,35 @@ func Load(filename string) (*Config, error) {
 	storageEngines.Config = c.StorageEngines.Config
 
 	cfg := &Config{
-		BindAddr:            c.Olricd.BindAddr,
-		BindPort:            c.Olricd.BindPort,
-		Interface:           c.Olricd.Interface,
-		ServiceDiscovery:    c.ServiceDiscovery,
-		MemberlistInterface: c.Memberlist.Interface,
-		MemberlistConfig:    memberlistConfig,
-		Client:              &clientConfig,
-		LogLevel:            c.Logging.Level,
-		JoinRetryInterval:   joinRetryInterval,
-		MaxJoinAttempts:     c.Memberlist.MaxJoinAttempts,
-		Peers:               c.Memberlist.Peers,
-		PartitionCount:      c.Olricd.PartitionCount,
-		ReplicaCount:        c.Olricd.ReplicaCount,
-		WriteQuorum:         c.Olricd.WriteQuorum,
-		ReadQuorum:          c.Olricd.ReadQuorum,
-		ReplicationMode:     c.Olricd.ReplicationMode,
-		ReadRepair:          c.Olricd.ReadRepair,
-		LoadFactor:          c.Olricd.LoadFactor,
-		MemberCountQuorum:   c.Olricd.MemberCountQuorum,
-		Logger:              log.New(logOutput, "", log.LstdFlags),
-		LogOutput:           logOutput,
-		LogVerbosity:        c.Logging.Verbosity,
-		Hasher:              hasher.NewDefaultHasher(),
-		Serializer:          sr,
-		KeepAlivePeriod:     keepAlivePeriod,
-		BootstrapTimeout:    bootstrapTimeout,
-		DMaps:               dmapConfig,
-		StorageEngines:      storageEngines,
+		BindAddr:                 c.Olricd.BindAddr,
+		BindPort:                 c.Olricd.BindPort,
+		Interface:                c.Olricd.Interface,
+		ServiceDiscovery:         c.ServiceDiscovery,
+		MemberlistInterface:      c.Memberlist.Interface,
+		MemberlistConfig:         memberlistConfig,
+		Client:                   &clientConfig,
+		LogLevel:                 c.Logging.Level,
+		JoinRetryInterval:        joinRetryInterval,
+		RoutingTablePushInterval: routingTablePushInterval,
+		MaxJoinAttempts:          c.Memberlist.MaxJoinAttempts,
+		Peers:                    c.Memberlist.Peers,
+		PartitionCount:           c.Olricd.PartitionCount,
+		ReplicaCount:             c.Olricd.ReplicaCount,
+		WriteQuorum:              c.Olricd.WriteQuorum,
+		ReadQuorum:               c.Olricd.ReadQuorum,
+		ReplicationMode:          c.Olricd.ReplicationMode,
+		ReadRepair:               c.Olricd.ReadRepair,
+		LoadFactor:               c.Olricd.LoadFactor,
+		MemberCountQuorum:        c.Olricd.MemberCountQuorum,
+		Logger:                   log.New(logOutput, "", log.LstdFlags),
+		LogOutput:                logOutput,
+		LogVerbosity:             c.Logging.Verbosity,
+		Hasher:                   hasher.NewDefaultHasher(),
+		Serializer:               sr,
+		KeepAlivePeriod:          keepAlivePeriod,
+		BootstrapTimeout:         bootstrapTimeout,
+		DMaps:                    dmapConfig,
+		StorageEngines:           storageEngines,
 	}
 
 	if err := cfg.Sanitize(); err != nil {

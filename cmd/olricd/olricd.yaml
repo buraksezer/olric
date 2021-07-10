@@ -11,6 +11,7 @@ olricd:
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
   memberCountQuorum: 1
+  routingTablePushInterval: 10s
 
 storageEngines:
   config:

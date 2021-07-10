@@ -17,21 +17,22 @@ package loader
 import "gopkg.in/yaml.v2"
 
 type olricd struct {
-	Name              string  `yaml:"name"`
-	BindAddr          string  `yaml:"bindAddr"`
-	BindPort          int     `yaml:"bindPort"`
-	Interface         string  `yaml:"interface"`
-	ReplicationMode   int     `yaml:"replicationMode"`
-	PartitionCount    uint64  `yaml:"partitionCount"`
-	LoadFactor        float64 `yaml:"loadFactor"`
-	Serializer        string  `yaml:"serializer"`
-	KeepAlivePeriod   string  `yaml:"keepAlivePeriod"`
-	BootstrapTimeout  string  `yaml:"bootstrapTimeout"`
-	ReplicaCount      int     `yaml:"replicaCount"`
-	WriteQuorum       int     `yaml:"writeQuorum"`
-	ReadQuorum        int     `yaml:"readQuorum"`
-	ReadRepair        bool    `yaml:"readRepair"`
-	MemberCountQuorum int32   `yaml:"memberCountQuorum"`
+	Name                     string  `yaml:"name"`
+	BindAddr                 string  `yaml:"bindAddr"`
+	BindPort                 int     `yaml:"bindPort"`
+	Interface                string  `yaml:"interface"`
+	ReplicationMode          int     `yaml:"replicationMode"`
+	PartitionCount           uint64  `yaml:"partitionCount"`
+	LoadFactor               float64 `yaml:"loadFactor"`
+	Serializer               string  `yaml:"serializer"`
+	KeepAlivePeriod          string  `yaml:"keepAlivePeriod"`
+	BootstrapTimeout         string  `yaml:"bootstrapTimeout"`
+	ReplicaCount             int     `yaml:"replicaCount"`
+	WriteQuorum              int     `yaml:"writeQuorum"`
+	ReadQuorum               int     `yaml:"readQuorum"`
+	ReadRepair               bool    `yaml:"readRepair"`
+	MemberCountQuorum        int32   `yaml:"memberCountQuorum"`
+	RoutingTablePushInterval string  `yaml:"routingTablePushInterval"`
 }
 
 type client struct {

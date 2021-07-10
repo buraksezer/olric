@@ -208,8 +208,8 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		v := &version{host: &host}
 		resp, err := dm.s.requestTo(replica.String(), req)
 		if err != nil {
-			if dm.s.log.V(3).Ok() {
-				dm.s.log.V(3).Printf("[ERROR] Failed to call get on"+
+			if dm.s.log.V(6).Ok() {
+				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
 					" a replica owner: %s: %v", replica, err)
 			}
 		} else {

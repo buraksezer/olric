@@ -129,7 +129,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 	var maxTotalCount = 100
 	var totalCount = 0
 
-	dm, err := s.getDMap(name)
+	dm, err := s.getOrCreateDMap(name)
 	if err != nil {
 		s.log.V(3).Printf("[ERROR] Failed to load DMap: %s: %v", name, err)
 		return

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package kvstore implements a GC friendly in-memory storage engine by using map and byte array. It also supports compaction.*/
+/*Package kvstore implements a GC friendly in-memory storage engine by using
+built-in maps and byte slices. It also supports compaction.*/
 package kvstore
 
 import (

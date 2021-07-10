@@ -25,7 +25,7 @@ import (
 
 func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.getDMap(req.DMap())
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return
@@ -55,7 +55,7 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
 		dm, err := s.getDMap(req.DMap())
-		if err == ErrDMapNotFound {
+		if errors.Is(err, ErrDMapNotFound) {
 			continue
 		}
 		if err != nil {

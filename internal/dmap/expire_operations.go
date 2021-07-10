@@ -15,8 +15,6 @@
 package dmap
 
 import (
-	"errors"
-
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
@@ -24,12 +22,7 @@ import (
 
 func (s *Service) expireOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
 	req := r.(*protocol.DMapMessage)
-	dm, err := s.getDMap(req.DMap())
-	if errors.Is(err, ErrDMapNotFound) {
-		GetMisses.Increase(1)
-		neterrors.ErrorResponse(w, ErrKeyNotFound)
-		return
-	}
+	dm, err := s.getOrCreateDMap(req.DMap())
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return

@@ -69,7 +69,7 @@ type RoutingTable struct {
 	discovery        *discovery.Discovery
 	callbacks        []func()
 	callbackMtx      sync.Mutex
-	updatePeriod     time.Duration
+	pushPeriod       time.Duration
 	ctx              context.Context
 	cancel           context.CancelFunc
 	wg               sync.WaitGroup
@@ -88,17 +88,17 @@ func New(e *environment.Environment) *RoutingTable {
 		Load:              c.LoadFactor,
 	}
 	return &RoutingTable{
-		members:      newMembers(),
-		discovery:    discovery.New(log, c),
-		config:       c,
-		log:          log,
-		consistent:   consistent.New(nil, cc),
-		primary:      e.Get("primary").(*partitions.Partitions),
-		backup:       e.Get("backup").(*partitions.Partitions),
-		client:       e.Get("client").(*transport.Client),
-		updatePeriod: time.Minute,
-		ctx:          ctx,
-		cancel:       cancel,
+		members:    newMembers(),
+		discovery:  discovery.New(log, c),
+		config:     c,
+		log:        log,
+		consistent: consistent.New(nil, cc),
+		primary:    e.Get("primary").(*partitions.Partitions),
+		backup:     e.Get("backup").(*partitions.Partitions),
+		client:     e.Get("client").(*transport.Client),
+		pushPeriod: c.RoutingTablePushInterval,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
@@ -294,10 +294,10 @@ func (r *RoutingTable) listenClusterEvents(eventCh chan *discovery.ClusterEvent)
 	}
 }
 
-func (r *RoutingTable) updatePeriodically() {
+func (r *RoutingTable) pushPeriodically() {
 	defer r.wg.Done()
 
-	ticker := time.NewTicker(r.updatePeriod)
+	ticker := time.NewTicker(r.pushPeriod)
 	defer ticker.Stop()
 	for {
 		select {
@@ -386,7 +386,7 @@ func (r *RoutingTable) Start() error {
 	}
 
 	r.wg.Add(1)
-	go r.updatePeriodically()
+	go r.pushPeriodically()
 
 	if r.config.MemberlistInterface != "" {
 		r.log.V(2).Printf("[INFO] Memberlist uses interface: %s", r.config.MemberlistInterface)
