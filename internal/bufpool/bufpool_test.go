@@ -18,20 +18,14 @@ import "testing"
 
 func TestBufPool(t *testing.T) {
 	p := New()
-
-	count := 1000
-	mebibyte := 1 << 20
-	total := 10 * mebibyte
-
-	b := make([]byte, total/count)
-
-	for i := 0; i < count; i++ {
+	b := make([]byte, 100)
+	for i := 0; i < 1000; i++ {
 		buf := p.Get()
 		nr, err := buf.Write(b)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
-		if nr != total/count {
+		if nr != 100 {
 			t.Fatalf("Expected 10. Got: %d", nr)
 		}
 		p.Put(buf)
