@@ -19,18 +19,48 @@ import (
 	"fmt"
 )
 
+// pruneStaleTables removes stale tables from the table slice and make them available
+// for garbage collection. It always keeps the latest table.
+func (kv *KVStore) pruneStaleTables() {
+	var staleTables int
+
+	// Calculate how many tables are stale and eligible to remove.
+	// Always keep the latest table.
+	for _, t := range kv.tables[:len(kv.tables)-1] {
+		if len(t.hkeys) == 0 {
+			staleTables++
+		}
+	}
+
+	for i := 0; i < staleTables; i++ {
+		for i, t := range kv.tables {
+			// See https://github.com/golang/go/wiki/SliceTricks
+			if len(t.hkeys) != 0 {
+				continue
+			}
+			copy(kv.tables[i:], kv.tables[i+1:])
+			kv.tables[len(kv.tables)-1] = nil // or the zero value of T
+			kv.tables = kv.tables[:len(kv.tables)-1]
+			fmt.Println(">> Pruned stale table", t.allocated)
+			break
+		}
+	}
+}
+
 func (kv *KVStore) Compaction() (bool, error) {
 	if len(kv.tables) == 1 {
 		return true, nil
 	}
 
+	defer kv.pruneStaleTables()
+
 	var total int
-	fresh := kv.tables[len(kv.tables)-1]
-	for _, old := range kv.tables[:len(kv.tables)-1] {
+	latest := kv.tables[len(kv.tables)-1]
+	for _, prev := range kv.tables[:len(kv.tables)-1] {
 		// Removing keys while iterating on map is totally safe in Go.
-		for hkey := range old.hkeys {
-			entry, _ := old.getRaw(hkey)
-			err := fresh.putRaw(hkey, entry)
+		for hkey := range prev.hkeys {
+			entry, _ := prev.getRaw(hkey)
+			err := latest.putRaw(hkey, entry)
 			if errors.Is(err, errNotEnoughSpace) {
 				// Create a new table and put the new k/v pair in it.
 				nt := newTable(kv.Stats().Inuse * 2)
@@ -42,25 +72,16 @@ func (kv *KVStore) Compaction() (bool, error) {
 				return false, fmt.Errorf("put command failed: HKey: %d: %w", hkey, err)
 			}
 
-			// Dont check the returned val, it'kv useless because
+			// Dont check the returned val, it's useless because
 			// we are sure that the key is already there.
-			old.delete(hkey)
+			prev.delete(hkey)
 			total++
 			if total > 1000 {
-				// It'kv enough. Don't block the instance.
+				// It's enough. Don't block the instance.
 				return false, nil
 			}
 		}
 	}
 
-	// Remove empty tables. Keep the last table.
-	tmp := []*table{kv.tables[len(kv.tables)-1]}
-	for _, t := range kv.tables[:len(kv.tables)-1] {
-		if len(t.hkeys) == 0 {
-			continue
-		}
-		tmp = append(tmp, t)
-	}
-	kv.tables = tmp
 	return true, nil
 }
