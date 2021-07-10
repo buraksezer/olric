@@ -16,7 +16,6 @@ package storage
 
 import (
 	"encoding/binary"
-
 	"github.com/pkg/errors"
 )
 
@@ -147,9 +146,9 @@ func (t *table) getRaw(hkey uint64) ([]byte, bool) {
 	end += int(vlen) // value length
 
 	// Create a copy of the requested data.
-	rawval := make([]byte, (end-start)+1)
-	copy(rawval, t.memory[start:end])
-	return rawval, false
+	raw := make([]byte, (end-start)+1)
+	copy(raw, t.memory[start:end])
+	return raw, false
 }
 
 func (t *table) getRawKey(hkey uint64) ([]byte, bool) {

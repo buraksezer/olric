@@ -15,7 +15,6 @@
 package storage
 
 import (
-	"fmt"
 	"log"
 )
 
@@ -41,7 +40,6 @@ func (s *Storage) pruneStaleTables() {
 			copy(s.tables[i:], s.tables[i+1:])
 			s.tables[len(s.tables)-1] = nil // or the zero value of T
 			s.tables = s.tables[:len(s.tables)-1]
-			fmt.Println(">> Pruned stale table", t.allocated)
 			break
 		}
 	}
@@ -49,7 +47,7 @@ func (s *Storage) pruneStaleTables() {
 
 func (s *Storage) CompactTables() bool {
 	if len(s.tables) == 1 {
-		return true
+		return true // break
 	}
 
 	defer s.pruneStaleTables()
@@ -65,7 +63,7 @@ func (s *Storage) CompactTables() bool {
 				// Create a new table and put the new k/v pair in it.
 				nt := newTable(s.Inuse() * 2)
 				s.tables = append(s.tables, nt)
-				return false
+				return false // means continue
 			}
 			if err != nil {
 				log.Printf("[ERROR] Failed to compact tables. HKey: %d: %v", hkey, err)
@@ -77,10 +75,10 @@ func (s *Storage) CompactTables() bool {
 			deleted++
 			if deleted > 1000 {
 				// It's enough. Don't block the instance.
-				return false
+				return false // means continue
 			}
 		}
 	}
 
-	return true
+	return true // means break
 }
