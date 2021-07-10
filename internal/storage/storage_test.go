@@ -38,7 +38,7 @@ func bval(i int) []byte {
 func Test_Put(t *testing.T) {
 	s := New(0)
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 2000000; i++ {
 		entry := &Entry{
 			Key:       bkey(i),
 			TTL:       int64(i),
@@ -47,9 +47,34 @@ func Test_Put(t *testing.T) {
 		}
 		hkey := xxhash.Sum64([]byte(entry.Key))
 		err := s.Put(hkey, entry)
+		if err == ErrFragmented {
+			err = nil
+		}
 		if err != nil {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
+	}
+
+	for i := 0; i < 2000000; i++ {
+		hkey := xxhash.Sum64([]byte(bkey(i)))
+		err := s.Delete(hkey)
+		if err == ErrFragmented {
+			err = nil
+		}
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+	}
+
+	for {
+		ok := s.CompactTables()
+		if ok {
+			break
+		}
+	}
+
+	for _, tb := range s.tables {
+		fmt.Println(tb.inuse, tb.offset, tb.garbage, tb.allocated, len(tb.hkeys))
 	}
 }
 

@@ -95,7 +95,7 @@ func (s *Storage) Put(hkey uint64, value *Entry) error {
 		err := t.put(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(s.Inuse() * 2)
+			nt := newTable(1<<20)
 			s.tables = append(s.tables, nt)
 			res = ErrFragmented
 			// try again
@@ -399,4 +399,10 @@ func (s *Storage) MatchOnKey(expr string, f func(hkey uint64, entry *Entry) bool
 		}
 	}
 	return nil
+}
+
+const mebibyte = 1 << 20
+
+func MiB(i uint64) float64 {
+	return float64(i) / mebibyte
 }

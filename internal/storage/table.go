@@ -16,7 +16,6 @@ package storage
 
 import (
 	"encoding/binary"
-
 	"github.com/pkg/errors"
 )
 
@@ -64,16 +63,16 @@ func newTable(size int) *table {
 	return t
 }
 
-func (t *table) putRaw(hkey uint64, value []byte) error {
+func (t *table) putRaw(hkey uint64, entry []byte) error {
 	// Check empty space on allocated memory area.
-	inuse := len(value)
-	if inuse+t.offset >= t.allocated {
+	entryLen := len(entry)
+	if entryLen+t.offset >= t.allocated {
 		return errNotEnoughSpace
 	}
 	t.hkeys[hkey] = t.offset
-	copy(t.memory[t.offset:], value)
-	t.inuse += inuse
-	t.offset += inuse
+	copy(t.memory[t.offset:], entry)
+	t.inuse += entryLen
+	t.offset += entryLen
 	return nil
 }
 
@@ -86,7 +85,7 @@ func (t *table) put(hkey uint64, value *Entry) error {
 	}
 
 	// Check empty space on allocated memory area.
-	inuse := len(value.Key) + len(value.Value) + 21 // TTL + Timestamp + value-Length + key-Length
+	inuse := len(value.Key) + len(value.Value) + 21 // TTL + Timestamp + Value-Length + Key-Length
 	if inuse+t.offset >= t.allocated {
 		return errNotEnoughSpace
 	}

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -116,15 +117,22 @@ func (l *Loader) stats(cmd string, elapsed time.Duration) {
 	l.log.Printf("\n%f requests per second\n", rps)
 }
 
+func bkey(i int) string {
+	return fmt.Sprintf("%09d", i)
+}
+
 func (l *Loader) worker(cmd string, ch chan int) {
 	defer l.wg.Done()
+
+	token := make([]byte, 10)
 
 	dm := l.client.NewDMap("olric-load-test")
 	for i := range ch {
 		now := time.Now()
 		switch {
 		case strings.ToLower(cmd) == "put":
-			if err := dm.Put(strconv.Itoa(i), i); err != nil {
+			rand.Read(token)
+			if err := dm.Put(bkey(i), token); err != nil {
 				l.log.Printf("[ERROR] Failed to call Put command for %d: %v", i, err)
 			}
 		case strings.ToLower(cmd) == "get":
@@ -181,6 +189,7 @@ func (l *Loader) Run(cmd string) error {
 	for i := 0; i < l.numRequests; i++ {
 		ch <- i
 	}
+
 	close(ch)
 	l.wg.Wait()
 

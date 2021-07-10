@@ -15,24 +15,42 @@
 package storage
 
 import (
+	"fmt"
 	"log"
 )
+
+func (s *Storage) pruneEmptyTables() {
+	var tmp []*table
+	for _, t := range s.tables {
+		if len(t.hkeys) == 0 {
+			fmt.Println("Pruned table", t.allocated, t.inuse, t.garbage, cap(t.memory))
+			t = nil
+			continue
+		}
+		tmp = append(tmp, t)
+	}
+	s.tables = tmp
+}
 
 func (s *Storage) CompactTables() bool {
 	if len(s.tables) == 1 {
 		return true
 	}
 
+	defer s.pruneEmptyTables()
+
 	var total int
-	fresh := s.tables[len(s.tables)-1]
+
+	latest := s.tables[len(s.tables)-1]
 	for _, old := range s.tables[:len(s.tables)-1] {
 		// Removing keys while iterating on map is totally safe in Go.
 		for hkey := range old.hkeys {
 			entry, _ := old.getRaw(hkey)
-			err := fresh.putRaw(hkey, entry)
+			err := latest.putRaw(hkey, entry)
 			if err == errNotEnoughSpace {
 				// Create a new table and put the new k/v pair in it.
-				nt := newTable(s.Inuse() * 2)
+				fmt.Println(">> [COMPACTION] New table size", MiB(uint64(s.Inuse() * 2)))
+				nt := newTable(1<<24)
 				s.tables = append(s.tables, nt)
 				return false
 			}
@@ -50,15 +68,5 @@ func (s *Storage) CompactTables() bool {
 			}
 		}
 	}
-
-	// Remove empty tables. Keep the last table.
-	tmp := []*table{s.tables[len(s.tables)-1]}
-	for _, t := range s.tables[:len(s.tables)-1] {
-		if len(t.hkeys) == 0 {
-			continue
-		}
-		tmp = append(tmp, t)
-	}
-	s.tables = tmp
 	return true
 }

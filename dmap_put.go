@@ -140,8 +140,8 @@ func (db *Olric) localPut(hkey uint64, dm *dmap, w *writeop) error {
 	}
 	err := dm.storage.Put(hkey, val)
 	if err == storage.ErrFragmented {
-		db.wg.Add(1)
-		go db.compactTables(dm)
+		//db.wg.Add(1)
+		//go db.compactTables(dm)
 		err = nil
 	}
 	if err == nil {
@@ -445,13 +445,13 @@ func (db *Olric) compactTables(dm *dmap) {
 		timer.Reset(50 * time.Millisecond)
 		select {
 		case <-timer.C:
-			dm.Lock()
+			/*dm.Lock()
 			if done := dm.storage.CompactTables(); done {
 				// Fragmented tables are merged. Quit.
 				dm.Unlock()
 				return
 			}
-			dm.Unlock()
+			dm.Unlock()*/
 		case <-db.ctx.Done():
 			return
 		}
