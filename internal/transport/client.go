@@ -111,7 +111,7 @@ func (c *Client) conn(addr string) (net.Conn, error) {
 	}
 
 	// TODO: Make this configurable
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	conn, err := p.Get(ctx)
