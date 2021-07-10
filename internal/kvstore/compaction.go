@@ -41,7 +41,6 @@ func (kv *KVStore) pruneStaleTables() {
 			copy(kv.tables[i:], kv.tables[i+1:])
 			kv.tables[len(kv.tables)-1] = nil // or the zero value of T
 			kv.tables = kv.tables[:len(kv.tables)-1]
-			fmt.Println(">> Pruned stale table", t.allocated)
 			break
 		}
 	}
