@@ -74,7 +74,7 @@ type EncodeDecoder interface {
 	Response(*bytes.Buffer) EncodeDecoder
 }
 
-const headerSize int64 = 6
+const HeaderLength int64 = 6
 
 // Header is a shared message header for all the message types in Olric Binary Protocol.
 type Header struct {
@@ -98,7 +98,7 @@ func readHeader(conn io.ReadWriteCloser) (*Header, error) {
 
 	// Read the header section. The first 6 bytes.
 	var header Header
-	_, err := io.CopyN(buf, conn, headerSize)
+	_, err := io.CopyN(buf, conn, HeaderLength)
 	if err != nil {
 		return nil, filterNetworkErrors(err)
 	}

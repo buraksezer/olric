@@ -108,11 +108,11 @@ func (e *Entry) Encode() []byte {
 func (e *Entry) Decode(buf []byte) {
 	var offset int
 
-	klen := int(uint8(buf[offset]))
+	keyLength := int(buf[offset])
 	offset++
 
-	e.key = string(buf[offset : offset+klen])
-	offset += klen
+	e.key = string(buf[offset : offset+keyLength])
+	offset += keyLength
 
 	e.ttl = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
 	offset += 8

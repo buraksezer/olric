@@ -68,7 +68,7 @@ func (c *Client) Close() {
 }
 
 // ClosePool closes the underlying connections in a pool,
-// deletes from Olric's pools map and frees resources.
+// deletes from the pools map and frees resources.
 func (c *Client) ClosePool(addr string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -93,7 +93,14 @@ func (c *Client) pool(addr string) (connpool.Pool, error) {
 	}
 
 	factory := func() (net.Conn, error) {
-		return c.dialer.Dial("tcp", addr)
+		conn, err := c.dialer.Dial("tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+
+		ConnectionsTotal.Increase(1)
+		CurrentConnections.Increase(1)
+		return conn, nil
 	}
 
 	p, err := connpool.NewChannelPool(c.config.MinConn, c.config.MaxConn, factory)
@@ -148,6 +155,7 @@ func (c *Client) teardownConn(rawConn net.Conn, dead bool) {
 
 	pc, _ := rawConn.(*connpool.PoolConn)
 	if dead {
+		CurrentConnections.Decrease(1)
 		pc.MarkUnusable()
 	}
 	err := pc.Close()
@@ -176,20 +184,24 @@ func (c *Client) RequestTo(addr string, req protocol.EncodeDecoder) (protocol.En
 	if err != nil {
 		return nil, err
 	}
-	_, err = req.Buffer().WriteTo(conn)
+
+	nr, err := req.Buffer().WriteTo(conn)
 	if err != nil {
 		dead = true
 		return nil, err
 	}
+	WrittenBytesTotal.Increase(nr)
 
 	// Await for the response
 	buf.Reset()
-	_, err = protocol.ReadMessage(conn, buf)
+	h, err := protocol.ReadMessage(conn, buf)
 	if err != nil {
 		// Failed to read message from the TCP socket. Close it.
 		dead = true
 		return nil, err
 	}
+
+	ReadBytesTotal.Increase(protocol.HeaderLength + int64(h.MessageLength))
 
 	// Response is a shortcut to create a response message for the request.
 	resp := req.Response(buf)

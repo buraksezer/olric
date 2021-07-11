@@ -126,6 +126,7 @@ const (
 	// Olric project.
 	DefaultStorageEngine = "kvstore"
 
+	// DefaultRoutingTablePushInterval is interval between routing table push events.
 	DefaultRoutingTablePushInterval = time.Minute
 )
 
@@ -168,6 +169,7 @@ type Config struct {
 	// bootstrapping status without blocking indefinitely.
 	BootstrapTimeout time.Duration
 
+	// RoutingTablePushInterval is interval between routing table push events.
 	RoutingTablePushInterval time.Duration
 
 	// The list of host:port which are used by memberlist for discovery.

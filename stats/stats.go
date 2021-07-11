@@ -25,15 +25,15 @@ type (
 	MemberID uint64
 )
 
-// SlabInfo denotes memory usage of the storage engine(a hash indexed append only log file).
+// SlabInfo denotes memory usage of the storage engine(a hash indexed, append only byte slice).
 type SlabInfo struct {
-	// Total allocated space by the append-only log files.
+	// Total allocated space by the append-only byte slice.
 	Allocated int
 
-	// Total inuse memory space in the append-only log files.
+	// Total inuse memory space in the append-only byte slice.
 	Inuse int
 
-	// Total garbage(deleted key/value pairs) space in the append-only log files.
+	// Total garbage(deleted key/value pairs) space in the append-only byte slice.
 	Garbage int
 }
 
