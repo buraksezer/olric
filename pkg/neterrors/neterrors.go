@@ -127,5 +127,4 @@ func ErrorResponse(w protocol.EncodeDecoder, msg interface{}) {
 	}
 	w.SetValue(toByte(msg))
 	w.SetStatus(netErr.StatusCode())
-	return
 }
