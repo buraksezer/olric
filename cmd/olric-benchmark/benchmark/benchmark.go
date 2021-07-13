@@ -20,14 +20,13 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/client"
 	"github.com/buraksezer/olric/config"
-	_serializer "github.com/buraksezer/olric/serializer"
+	"github.com/buraksezer/olric/serializer"
 )
 
 var ErrBenchmarkInterrupted = errors.New("benchmark interrupted")
@@ -39,6 +38,7 @@ type Args struct {
 	Timeout     string
 	Test        string
 	Serializer  string
+	DataSize    int
 	KeepGoing   bool
 }
 
@@ -54,14 +54,14 @@ type Benchmark struct {
 
 func New(args *Args, logger *log.Logger) (*Benchmark, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var s _serializer.Serializer
+	var s serializer.Serializer
 	switch args.Serializer {
 	case "json":
-		s = _serializer.NewJSONSerializer()
+		s = serializer.NewJSONSerializer()
 	case "msgpack":
-		s = _serializer.NewMsgpackSerializer()
+		s = serializer.NewMsgpackSerializer()
 	case "gob":
-		s = _serializer.NewGobSerializer()
+		s = serializer.NewGobSerializer()
 	default:
 		return nil, fmt.Errorf("invalid serializer: %s", args.Serializer)
 	}
@@ -132,22 +132,24 @@ func (b *Benchmark) worker(cancel context.CancelFunc, cmd string, ch chan int) {
 
 	var err error
 	dm := b.client.NewDMap("olric-benchmark-test")
-	for key := range ch {
+	value := make([]byte, b.args.DataSize)
+	for i := range ch {
+		key := fmt.Sprintf("%06d", i)
 		now := time.Now()
 		switch {
 		case strings.ToLower(cmd) == "put":
-			err = dm.Put(strconv.Itoa(key), key)
+			err = dm.Put(key, value)
 		case strings.ToLower(cmd) == "get":
-			_, err = dm.Get(strconv.Itoa(key))
+			_, err = dm.Get(key)
 		case strings.ToLower(cmd) == "delete":
-			err = dm.Delete(strconv.Itoa(key))
+			err = dm.Delete(key)
 		case strings.ToLower(cmd) == "incr":
-			_, err = dm.Incr(strconv.Itoa(key), 1)
+			_, err = dm.Incr(key, 1)
 		case strings.ToLower(cmd) == "decr":
-			_, err = dm.Decr(strconv.Itoa(key), 1)
+			_, err = dm.Decr(key, 1)
 		}
 		if err != nil {
-			b.log.Printf("[ERROR] olric-benchmark: %s: %d: %v", cmd, key, err)
+			b.log.Printf("[ERROR] olric-benchmark: %s: %s: %v", cmd, key, err)
 			if !b.args.KeepGoing {
 				cancel()
 				return
@@ -166,7 +168,7 @@ func (b *Benchmark) Run(cmd string) error {
 		return fmt.Errorf("no command given")
 	}
 	var found bool
-	for _, c := range []string{"put", "get", "delete"} {
+	for _, c := range []string{"put", "get", "delete", "incr", "decr"} {
 		if strings.EqualFold(c, cmd) {
 			found = true
 		}

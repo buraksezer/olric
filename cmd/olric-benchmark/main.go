@@ -32,6 +32,7 @@ import (
 const (
 	defaultConnections int    = 50
 	defaultRequests    int    = 100000
+	defaultDataSize    int    = 2
 	defaultSerializer  string = "gob"
 	defaultAddress     string = "127.0.0.1:3320"
 )
@@ -56,6 +57,8 @@ Options:
                     Default: 100000
   -c  --connections Number of parallel connections.
                     Default: 50
+  -d  --data-size   Data size of value in bytes.
+                    Default: 2
   -k  --keep-going  Continue as much as possible after an error.
 
 The Go runtime version %s
@@ -110,6 +113,9 @@ func main() {
 
 	f.BoolVar(&args.KeepGoing, "k", false, "")
 	f.BoolVar(&args.KeepGoing, "keep-going", false, "")
+
+	f.IntVar(&args.DataSize, "d", defaultDataSize, "")
+	f.IntVar(&args.DataSize, "data-size", defaultDataSize, "")
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
