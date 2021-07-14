@@ -93,15 +93,16 @@ type dmap struct {
 }
 
 type dmaps struct {
-	NumEvictionWorkers int64           `yaml:"numEvictionWorkers"`
-	MaxIdleDuration    string          `yaml:"maxIdleDuration"`
-	TTLDuration        string          `yaml:"ttlDuration"`
-	MaxKeys            int             `yaml:"maxKeys"`
-	MaxInuse           int             `yaml:"maxInuse"`
-	LRUSamples         int             `yaml:"lruSamples"`
-	EvictionPolicy     string          `yaml:"evictionPolicy"`
-	StorageEngine      string          `yaml:"storageEngine"`
-	Custom             map[string]dmap `yaml:"custom"`
+	NumEvictionWorkers          int64           `yaml:"numEvictionWorkers"`
+	MaxIdleDuration             string          `yaml:"maxIdleDuration"`
+	TTLDuration                 string          `yaml:"ttlDuration"`
+	MaxKeys                     int             `yaml:"maxKeys"`
+	MaxInuse                    int             `yaml:"maxInuse"`
+	LRUSamples                  int             `yaml:"lruSamples"`
+	EvictionPolicy              string          `yaml:"evictionPolicy"`
+	StorageEngine               string          `yaml:"storageEngine"`
+	CheckEmptyFragmentsInterval string          `yaml:"checkEmptyFragmentsInterval"`
+	Custom                      map[string]dmap `yaml:"custom"`
 }
 
 type serviceDiscovery map[string]interface{}

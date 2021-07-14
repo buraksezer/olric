@@ -128,6 +128,10 @@ const (
 
 	// DefaultRoutingTablePushInterval is interval between routing table push events.
 	DefaultRoutingTablePushInterval = time.Minute
+
+	// DefaultCheckEmptyFragmentsInterval is the default value of interval between
+	// two sequential call of empty fragment cleaner.
+	DefaultCheckEmptyFragmentsInterval = time.Minute
 )
 
 // Config is the configuration to create a Olric instance.

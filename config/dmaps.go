@@ -62,6 +62,10 @@ type DMaps struct {
 	// you want to use the default one.
 	StorageEngine string
 
+	// CheckEmptyFragmentsInterval is interval between two sequential call of empty
+	// fragment cleaner.
+	CheckEmptyFragmentsInterval time.Duration
+
 	// Custom is useful to set custom cache config per DMap instance.
 	Custom map[string]DMap
 }
@@ -88,6 +92,9 @@ func (dm *DMaps) Sanitize() error {
 	}
 	if dm.StorageEngine == "" {
 		dm.StorageEngine = DefaultStorageEngine
+	}
+	if dm.CheckEmptyFragmentsInterval.Microseconds() == 0 {
+		dm.CheckEmptyFragmentsInterval = DefaultCheckEmptyFragmentsInterval
 	}
 
 	for _, d := range dm.Custom {

@@ -75,16 +75,23 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 	if c.DMaps.MaxIdleDuration != "" {
 		maxIdleDuration, err := time.ParseDuration(c.DMaps.MaxIdleDuration)
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to parse cache.MaxIdleDuration")
+			return nil, errors.WithMessage(err, "failed to parse dmap.MaxIdleDuration")
 		}
 		res.MaxIdleDuration = maxIdleDuration
 	}
 	if c.DMaps.TTLDuration != "" {
 		ttlDuration, err := time.ParseDuration(c.DMaps.TTLDuration)
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to parse cache.TTLDuration")
+			return nil, errors.WithMessage(err, "failed to parse dmap.TTLDuration")
 		}
 		res.TTLDuration = ttlDuration
+	}
+	if c.DMaps.CheckEmptyFragmentsInterval != "" {
+		checkEmptyFragmentsInterval, err := time.ParseDuration(c.DMaps.CheckEmptyFragmentsInterval)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse dmap.MaxIdleDuration")
+		}
+		res.CheckEmptyFragmentsInterval = checkEmptyFragmentsInterval
 	}
 	res.NumEvictionWorkers = c.DMaps.NumEvictionWorkers
 	res.MaxKeys = c.DMaps.MaxKeys
