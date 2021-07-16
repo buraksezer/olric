@@ -32,6 +32,7 @@ import (
 const (
 	defaultConnections int    = 50
 	defaultRequests    int    = 100000
+	defaultDataSize    int    = 2
 	defaultSerializer  string = "gob"
 	defaultAddress     string = "127.0.0.1:3320"
 )
@@ -56,6 +57,9 @@ Options:
                     Default: 100000
   -c  --connections Number of parallel connections.
                     Default: 50
+  -d  --data-size   Data size of value in bytes.
+                    Default: 2
+  -k  --keep-going  Continue as much as possible after an error.
 
 The Go runtime version %s
 Report bugs to https://github.com/buraksezer/olric/issues
@@ -66,17 +70,6 @@ Report bugs to https://github.com/buraksezer/olric/issues
 	}
 }
 
-type arguments struct {
-	help        bool
-	version     bool
-	address     string
-	requests    int
-	connections int
-	timeout     string
-	test        string
-	serializer  string
-}
-
 func init() {
 	// MustInit provides guaranteed secure seeding.  If `/dev/urandom` is not
 	// available, MustInit will panic() with an error indicating why reading from
@@ -85,36 +78,44 @@ func init() {
 	seed.MustInit()
 }
 
+var version, help bool
+
 func main() {
-	args := arguments{}
+	args := &benchmark.Args{}
 
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.SetOutput(ioutil.Discard)
 
-	f.BoolVar(&args.help, "h", false, "")
-	f.BoolVar(&args.help, "help", false, "")
+	f.BoolVar(&help, "h", false, "")
+	f.BoolVar(&help, "help", false, "")
 
-	f.BoolVar(&args.version, "v", false, "")
-	f.BoolVar(&args.version, "version", false, "")
+	f.BoolVar(&version, "v", false, "")
+	f.BoolVar(&version, "version", false, "")
 
-	f.StringVar(&args.timeout, "t", "10s", "")
-	f.StringVar(&args.timeout, "timeout", "10s", "")
+	f.StringVar(&args.Timeout, "t", "10s", "")
+	f.StringVar(&args.Timeout, "timeout", "10s", "")
 
-	f.StringVar(&args.address, "a", defaultAddress, "")
-	f.StringVar(&args.address, "address", defaultAddress, "")
+	f.StringVar(&args.Address, "a", defaultAddress, "")
+	f.StringVar(&args.Address, "address", defaultAddress, "")
 
-	f.IntVar(&args.requests, "r", defaultRequests, "")
-	f.IntVar(&args.requests, "requests", defaultRequests, "")
+	f.IntVar(&args.Requests, "r", defaultRequests, "")
+	f.IntVar(&args.Requests, "requests", defaultRequests, "")
 
-	f.StringVar(&args.serializer, "s", defaultSerializer, "")
-	f.StringVar(&args.serializer, "serializer", defaultSerializer, "")
+	f.StringVar(&args.Serializer, "s", defaultSerializer, "")
+	f.StringVar(&args.Serializer, "serializer", defaultSerializer, "")
 
-	f.StringVar(&args.test, "T", "", "")
-	f.StringVar(&args.test, "test", "", "")
+	f.StringVar(&args.Test, "T", "", "")
+	f.StringVar(&args.Test, "test", "", "")
 
-	f.IntVar(&args.connections, "c", defaultConnections, "")
-	f.IntVar(&args.connections, "connections", defaultConnections, "")
+	f.IntVar(&args.Connections, "c", defaultConnections, "")
+	f.IntVar(&args.Connections, "connections", defaultConnections, "")
+
+	f.BoolVar(&args.KeepGoing, "k", false, "")
+	f.BoolVar(&args.KeepGoing, "keep-going", false, "")
+
+	f.IntVar(&args.DataSize, "d", defaultDataSize, "")
+	f.IntVar(&args.DataSize, "data-size", defaultDataSize, "")
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
 	logger.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
@@ -123,20 +124,20 @@ func main() {
 		logger.Fatalf("Failed to parse flags: %v\n", err)
 	}
 
-	if args.version {
+	if version {
 		fmt.Printf("olric-benchmark %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
 		return
-	} else if args.help {
+	} else if help {
 		usage()
 		return
 	}
 
-	l, err := benchmark.New(args.address, args.timeout, args.serializer, args.connections, args.requests, logger)
+	l, err := benchmark.New(args, logger)
 	if err != nil {
 		logger.Fatalf("olric-benchmark: %v\n", err)
 	}
 
-	err = l.Run(args.test)
+	err = l.Run(args.Test)
 	if err != nil {
 		logger.Fatalf("olric-benchmark: %v\n", err)
 	}

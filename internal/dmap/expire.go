@@ -50,7 +50,7 @@ func (dm *DMap) localExpire(e *env) error {
 	entry.SetTTL(ttl)
 	err := e.fragment.storage.UpdateTTL(e.hkey, entry)
 	if err != nil {
-		if err == storage.ErrKeyNotFound {
+		if errors.Is(err, storage.ErrKeyNotFound) {
 			err = ErrKeyNotFound
 		}
 		return err
@@ -112,10 +112,7 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 
 func (dm *DMap) callExpireOnCluster(e *env) error {
 	part := dm.getPartitionByHKey(e.hkey, partitions.PRIMARY)
-	f, err := dm.loadFragment(part)
-	if errors.Is(err, errFragmentNotFound) {
-		return ErrKeyNotFound
-	}
+	f, err := dm.loadOrCreateFragment(part)
 	if err != nil {
 		return err
 	}

@@ -143,11 +143,7 @@ func (dm *DMap) deleteKey(key string) error {
 	}
 
 	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
-	f, err := dm.loadFragment(part)
-	if errors.Is(err, errFragmentNotFound) {
-		// notice that "delete" operation is run on the cluster.
-		err = nil
-	}
+	f, err := dm.loadOrCreateFragment(part)
 	if err != nil {
 		return err
 	}

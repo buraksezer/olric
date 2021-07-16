@@ -70,12 +70,11 @@ func (s *Service) deleteEmptyFragments() {
 
 func (s *Service) janitor() {
 	defer s.wg.Done()
-	// TODO: interval should be parametric.
-	timer := time.NewTimer(50 * time.Millisecond)
+	timer := time.NewTimer(s.config.DMaps.CheckEmptyFragmentsInterval)
 	defer timer.Stop()
 
 	for {
-		timer.Reset(50 * time.Millisecond)
+		timer.Reset(s.config.DMaps.CheckEmptyFragmentsInterval)
 		select {
 		case <-timer.C:
 			s.deleteEmptyFragments()

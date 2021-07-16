@@ -54,6 +54,7 @@ memberlist:
   #udpBufferSize: 1400
 
 #dmaps:
+#  checkEmptyFragmentsInterval: 1m
 #  numEvictionWorkers: 1
 #  maxIdleDuration: ""
 #  ttlDuration: "100s"
