@@ -172,7 +172,7 @@ func (r *RoutingTable) IsBootstrapped() bool {
 	return atomic.LoadInt32(&r.bootstrapped) == 1
 }
 
-// checkBootstrap is called for every request and checks whether the node is bootstrapped.
+// CheckBootstrap is called for every request and checks whether the node is bootstrapped.
 // It has to be very fast for a smooth operation.
 func (r *RoutingTable) CheckBootstrap() error {
 	ctx, cancel := context.WithTimeout(context.Background(), r.config.BootstrapTimeout)
@@ -187,6 +187,11 @@ func (r *RoutingTable) CheckBootstrap() error {
 }
 
 func (r *RoutingTable) fillRoutingTable() {
+	if r.config.ReplicaCount > int(r.NumMembers()) {
+		r.log.V(1).Printf("[WARN] Desired replica count is %d and "+
+			"the cluster has %d members currently",
+			r.config.ReplicaCount, r.NumMembers())
+	}
 	table := make(map[uint64]*route)
 	for partID := uint64(0); partID < r.config.PartitionCount; partID++ {
 		rt := &route{

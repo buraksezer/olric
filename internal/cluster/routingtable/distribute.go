@@ -108,6 +108,15 @@ func (r *RoutingTable) getReplicaOwners(partID uint64) ([]consistent.Member, err
 	return nil, consistent.ErrInsufficientMemberCount
 }
 
+func isOwner(member discovery.Member, owners []consistent.Member) bool {
+	for _, owner := range owners {
+		if member.Name == owner.String() {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 	part := r.backup.PartitionByID(partID)
 	owners := make([]discovery.Member, part.OwnerCount())
@@ -175,11 +184,27 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 			// This may be a temporary event. Pass it.
 			continue
 		}
-		if count == 0 {
-			// Delete it.
-			owners = append(owners[:i], owners[i+1:]...)
-			i--
+
+		if count != 0 {
+			// About this scenario:
+			//
+			// * ReplicaCount = 3
+			// * Create three nodes and insert some keys
+			// * Kill one of the nodes
+			// * Now we have replicas that it's impossible to transfer its ownership
+			// * Since we cannot drop a healthy replica, we prefer to keep it until
+			//   a new node joined. Then, we transfer the ownership safely.
+			// * During this incident, a node owns a primary and backup replicas at the same time.
+			if !isOwner(backup, newOwners) {
+				r.log.V(3).Printf("[WARN] %s still hosts backup replica "+
+					"for PartID: %d", backup, partID)
+			}
+			continue
 		}
+
+		// Empty node, delete it.
+		owners = append(owners[:i], owners[i+1:]...)
+		i--
 	}
 
 	// Here add the new backup owners.
