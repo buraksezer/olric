@@ -46,15 +46,16 @@ This implementation also supports connection pooling by default.
 The client package has a simple `Config` structure.
 
 ```go
-import "github.com/buraksezer/olric/client"
+import (
+	"github.com/buraksezer/olric/client"
+	"github.com/buraksezer/olric/config"
+)
 ...
 ...
 var clientConfig = &client.Config{
-    Addrs:       []string{"localhost:3320"},
+    Servers:     []string{"localhost:3320"},
     Serializer:  serializer.NewMsgpackSerializer(),
-    DialTimeout: 10 * time.Second,
-    KeepAlive:   10 * time.Second,
-    MaxConn:     100,
+    Client:      config.NewClient(),
 }
 ```
 
