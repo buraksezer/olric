@@ -73,7 +73,7 @@ var (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.3.7"
+const ReleaseVersion string = "0.3.10"
 
 const (
 	nilTimeout                = 0 * time.Second
@@ -397,7 +397,7 @@ func (db *Olric) callStartedCallback() {
 	defer timer.Stop()
 
 	for {
-		timer.Reset(10 *  time.Millisecond)
+		timer.Reset(10 * time.Millisecond)
 		select {
 		case <-timer.C:
 			if requiredCheckpoints == atomic.LoadInt32(&db.passedCheckpoints) {
