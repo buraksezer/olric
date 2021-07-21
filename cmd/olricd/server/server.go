@@ -32,7 +32,7 @@ type Olricd struct {
 	log    *log.Logger
 	config *config.Config
 	db     *olric.Olric
-	errgr  errgroup.Group
+	errGr  errgroup.Group
 }
 
 // New creates a new Server instance
@@ -50,7 +50,7 @@ func (s *Olricd) waitForInterrupt() {
 	s.log.Printf("[olricd] Signal catched: %s", ch.String())
 
 	// Awaits for shutdown
-	s.errgr.Go(func() error {
+	s.errGr.Go(func() error {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -89,7 +89,7 @@ func (s *Olricd) Start() error {
 	}
 	s.db = db
 
-	s.errgr.Go(func() error {
+	s.errGr.Go(func() error {
 		if err = s.db.Start(); err != nil {
 			s.log.Printf("[olricd] Failed to run Olric: %v", err)
 			return err
@@ -97,5 +97,5 @@ func (s *Olricd) Start() error {
 		return nil
 	})
 
-	return s.errgr.Wait()
+	return s.errGr.Wait()
 }

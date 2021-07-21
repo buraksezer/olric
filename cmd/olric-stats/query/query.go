@@ -207,7 +207,7 @@ func (q *Query) PrintClusterMembers() error {
 
 	q.log.Printf("\n")
 
-	q.log.Printf("Members:\n\n")
+	q.log.Printf("All members:\n\n")
 
 	for _, member := range data.ClusterMembers {
 		q.log.Printf("Member: %s", member)
