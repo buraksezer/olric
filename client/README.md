@@ -46,15 +46,16 @@ This implementation also supports connection pooling by default.
 The client package has a simple `Config` structure.
 
 ```go
-import "github.com/buraksezer/olric/client"
+import (
+	"github.com/buraksezer/olric/client"
+	"github.com/buraksezer/olric/config"
+)
 ...
 ...
 var clientConfig = &client.Config{
-    Addrs:       []string{"localhost:3320"},
-    Serializer:  serializer.NewMsgpackSerializer(),
-    DialTimeout: 10 * time.Second,
-    KeepAlive:   10 * time.Second,
-    MaxConn:     100,
+	Servers:     []string{"localhost:3320"}, 
+	Serializer:  serializer.NewMsgpackSerializer(), 
+	Client:      config.NewClient(),
 }
 ```
 
@@ -496,14 +497,15 @@ import (
 	"strconv"
 
 	"github.com/buraksezer/olric/client"
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/serializer"
 )
 
 func main() {
-	cc := &client.Config{
-		Addrs:      []string{"127.0.0.1:3320"},
-		MaxConn:    10,
-		Serializer: serializer.NewMsgpackSerializer(),
+	var cc = &client.Config{
+		Servers:     []string{"localhost:3320"}, 
+		Serializer:  serializer.NewMsgpackSerializer(), 
+		Client:      config.NewClient(),
 	}
 
 	// Create a new client instance
