@@ -82,6 +82,8 @@ func convertDMapError(err error) error {
 		return ErrReadQuorum
 	case errors.Is(err, dmap.ErrWriteQuorum):
 		return ErrWriteQuorum
+	case errors.Is(err, dmap.ErrServerGone):
+		return ErrServerGone
 	default:
 		return convertClusterError(err)
 	}

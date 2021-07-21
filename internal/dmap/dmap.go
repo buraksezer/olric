@@ -35,6 +35,7 @@ var (
 	// ErrKeyNotFound is returned when a key could not be found.
 	ErrKeyNotFound  = neterrors.New(protocol.StatusErrKeyNotFound, "key not found")
 	ErrDMapNotFound = errors.New("dmap not found")
+	ErrServerGone   = errors.New("server is gone")
 )
 
 // DMap implements a single-hop distributed hash table.

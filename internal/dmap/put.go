@@ -93,24 +93,36 @@ func (dm *DMap) putOnReplicaFragment(e *env) error {
 	return dm.putOnFragment(e)
 }
 
+func (dm *DMap) asyncPutOnBackup(e *env, owner discovery.Member) {
+	defer dm.s.wg.Done()
+
+	req := e.toReq(e.replicaOpcode)
+	_, err := dm.s.requestTo(owner.String(), req)
+	if err != nil {
+		if dm.s.log.V(3).Ok() {
+			dm.s.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
+		}
+	}
+}
+
 func (dm *DMap) asyncPutOnCluster(e *env) error {
+	err := dm.putOnFragment(e)
+	if err != nil {
+		return err
+	}
+
 	// Fire and forget mode.
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
-		// TODO: Check aliveness here
+		if !dm.s.isAlive() {
+			return ErrServerGone
+		}
+
 		dm.s.wg.Add(1)
-		go func(host discovery.Member) {
-			defer dm.s.wg.Done()
-			req := e.toReq(e.replicaOpcode)
-			_, err := dm.s.requestTo(host.String(), req)
-			if err != nil {
-				if dm.s.log.V(3).Ok() {
-					dm.s.log.V(3).Printf("[ERROR] Failed to create replica in async mode: %v", err)
-				}
-			}
-		}(owner)
+		go dm.asyncPutOnBackup(e, owner)
 	}
-	return dm.putOnFragment(e)
+
+	return nil
 }
 
 func (dm *DMap) syncPutOnCluster(e *env) error {
