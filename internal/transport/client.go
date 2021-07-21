@@ -20,7 +20,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/buraksezer/connpool"
 	"github.com/buraksezer/olric/config"
@@ -117,9 +116,16 @@ func (c *Client) conn(addr string) (net.Conn, error) {
 		return nil, err
 	}
 
-	// TODO: Make this configurable
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+	if c.config.PoolTimeout > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), c.config.PoolTimeout)
+		defer cancel()
+	} else {
+		ctx = context.Background()
+	}
 
 	conn, err := p.Get(ctx)
 	if err != nil {

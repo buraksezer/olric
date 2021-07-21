@@ -23,6 +23,7 @@ const (
 	DefaultDialTimeout  = 5 * time.Second
 	DefaultReadTimeout  = 3 * time.Second
 	DefaultWriteTimeout = 3 * time.Second
+	DefaultPoolTimeout  = 3 * time.Second
 )
 
 // Client denotes configuration for TCP clients in Olric and the official Golang client.
@@ -58,6 +59,11 @@ type Client struct {
 
 	// Maximum TCP connection count in the pool for a host:port
 	MaxConn int
+
+	// Timeout for getting a new connection from the pool. If reached, commands will fail
+	// with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
+	// Default is DefaultPoolTimeout
+	PoolTimeout time.Duration
 }
 
 // NewClient returns a new configuration object for clients.
@@ -88,6 +94,13 @@ func (c *Client) Sanitize() error {
 		c.WriteTimeout = 0
 	case 0:
 		c.WriteTimeout = DefaultWriteTimeout
+	}
+
+	switch c.PoolTimeout {
+	case -1:
+		c.PoolTimeout = 0
+	case 0:
+		c.PoolTimeout = DefaultPoolTimeout
 	}
 
 	if c.MaxConn == 0 {

@@ -25,6 +25,7 @@ client:
   keepAlive: 15s
   minConn: 1
   maxConn: 100
+  poolTimeout: 3s
 
 logging:
   verbosity: 6

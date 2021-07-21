@@ -42,6 +42,7 @@ type client struct {
 	KeepAlive    string `yaml:"keepAlive"`
 	MinConn      int    `yaml:"minConn"`
 	MaxConn      int    `yaml:"maxConn"`
+	PoolTimeout  string `yaml:"poolTimeout"`
 }
 
 // logging contains configuration variables of logging section of config file.
