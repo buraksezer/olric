@@ -17,7 +17,6 @@ package dmap
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -39,13 +38,7 @@ func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
 			return 0, err
 		}
-
-		// only accept integer and increase/decrease it. if the value is not integer, return an error.
-		var ok bool
-		current, ok = value.(int)
-		if !ok {
-			return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(value).Name())
-		}
+		return valueToInt(value)
 	}
 	return current, nil
 }

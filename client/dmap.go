@@ -15,6 +15,8 @@
 package client
 
 import (
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/buraksezer/olric"
@@ -228,20 +230,38 @@ func (d *DMap) Destroy() error {
 	return checkStatusCode(resp)
 }
 
+func valueToInt(delta interface{}) (int, error) {
+	switch value := delta.(type) {
+	case int:
+		return value, nil
+	case int8:
+		return int(value), nil
+	case int16:
+		return int(value), nil
+	case int32:
+		return int(value), nil
+	case int64:
+		return int(value), nil
+	default:
+		return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(delta))
+	}
+}
+
 func (c *Client) processIncrDecrResponse(resp protocol.EncodeDecoder) (int, error) {
 	if err := checkStatusCode(resp); err != nil {
 		return 0, err
 	}
-	res, err := c.unmarshalValue(resp.Value())
+	value, err := c.unmarshalValue(resp.Value())
 	if err != nil {
 		return 0, err
 	}
-	return res.(int), nil
+	return valueToInt(value)
 }
 
 func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int, error) {
 	value, err := c.serializer.Marshal(delta)
 	if err != nil {
+		fmt.Println(delta, err)
 		return 0, err
 	}
 	req := protocol.NewDMapMessage(op)

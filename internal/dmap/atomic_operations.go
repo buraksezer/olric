@@ -15,12 +15,31 @@
 package dmap
 
 import (
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
+
+func valueToInt(delta interface{}) (int, error) {
+	switch value := delta.(type) {
+	case int:
+		return value, nil
+	case int8:
+		return int(value), nil
+	case int16:
+		return int(value), nil
+	case int32:
+		return int(value), nil
+	case int64:
+		return int(value), nil
+	default:
+		return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(delta))
+	}
+}
 
 func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DMapMessage)
@@ -43,13 +62,20 @@ func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
 		neterrors.ErrorResponse(w, err)
 		return
 	}
-	newval, err := dm.atomicIncrDecr(req.Op, e, delta.(int))
+
+	v, err := valueToInt(delta)
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return
 	}
 
-	value, err := s.serializer.Marshal(newval)
+	latest, err := dm.atomicIncrDecr(req.Op, e, v)
+	if err != nil {
+		neterrors.ErrorResponse(w, err)
+		return
+	}
+
+	value, err := s.serializer.Marshal(latest)
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return
