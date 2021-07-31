@@ -51,6 +51,13 @@ const (
 )
 
 const (
+	LogLevelDebug = "DEBUG"
+	LogLevelWarn  = "WARN"
+	LogLevelError = "ERROR"
+	LogLevelInfo  = "INFO"
+)
+
+const (
 	// DefaultPort is for Olric
 	DefaultPort = 3320
 
@@ -65,7 +72,7 @@ const (
 
 	// DefaultLogLevel determines the log level without extra configuration.
 	// It's DEBUG.
-	DefaultLogLevel = "DEBUG"
+	DefaultLogLevel = LogLevelDebug
 
 	// DefaultLogVerbosity denotes default log verbosity level.
 	//
@@ -145,7 +152,7 @@ type Config struct {
 	// is 3. Valid values are between 1 to 6.
 	LogVerbosity int32
 
-	// Default LogLevel is DEBUG. Valid ones: "DEBUG", "WARN", "ERROR", "INFO"
+	// Default LogLevel is DEBUG. Available levels: "DEBUG", "WARN", "ERROR", "INFO"
 	LogLevel string
 
 	// BindAddr denotes the address that Olric will bind to for communication
@@ -325,6 +332,13 @@ func (c *Config) Validate() error {
 	if err := c.StorageEngines.Validate(); err != nil {
 		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
 	}
+
+	switch c.LogLevel {
+	case LogLevelDebug, LogLevelWarn, LogLevelInfo, LogLevelError:
+	default:
+		return fmt.Errorf("invalid LogLevel: %s", c.LogLevel)
+	}
+
 	return nil
 }
 

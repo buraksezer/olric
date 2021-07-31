@@ -56,7 +56,7 @@ import (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.4.0-beta.8"
+const ReleaseVersion string = "0.4.0-beta.11"
 
 var (
 	// ErrOperationTimeout is returned when an operation times out.
@@ -395,6 +395,7 @@ func (db *Olric) Start() error {
 	}
 	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d",
 		db.config.BindAddr, db.config.BindPort)
+	db.log.V(2).Printf("[INFO] Replication count is %d", db.config.ReplicaCount)
 	return errGr.Wait()
 }
 

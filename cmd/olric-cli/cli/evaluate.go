@@ -97,13 +97,17 @@ func (c *CLI) evalDelete(dm *client.DMap, fields []string) error {
 }
 
 func (c *CLI) evalIncr(dm *client.DMap, fields []string) error {
-	if len(fields) <= 1 {
+	if len(fields) < 1 {
 		return errInvalidCommand
 	}
-	key, rawdelta := fields[0], strings.Join(fields[1:], " ")
-	delta, err := strconv.Atoi(rawdelta)
+	if len(fields) < 2 {
+		return fmt.Errorf("%w: missing delta", errInvalidCommand)
+	}
+
+	key, raw := fields[0], strings.Join(fields[1:], " ")
+	delta, err := strconv.Atoi(raw)
 	if err != nil {
-		return fmt.Errorf("invalid delta: %s", err)
+		return fmt.Errorf("invalid delta: %w", err)
 	}
 
 	var current int
@@ -120,13 +124,17 @@ func (c *CLI) evalDestroy(dm *client.DMap) error {
 }
 
 func (c *CLI) evalDecr(dm *client.DMap, fields []string) error {
-	if len(fields) <= 1 {
+	if len(fields) < 1 {
 		return errInvalidCommand
 	}
-	key, rawdelta := fields[0], strings.Join(fields[1:], " ")
-	delta, err := strconv.Atoi(rawdelta)
+	if len(fields) < 2 {
+		return fmt.Errorf("%w: missing delta", errInvalidCommand)
+	}
+
+	key, raw := fields[0], strings.Join(fields[1:], " ")
+	delta, err := strconv.Atoi(raw)
 	if err != nil {
-		return fmt.Errorf("invalid delta: %s", err)
+		return fmt.Errorf("invalid delta: %w", err)
 	}
 
 	var current int

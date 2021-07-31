@@ -64,13 +64,14 @@ type CLI struct {
 func New(addr, serializer, timeout string) (*CLI, error) {
 	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
 	var s _serializer.Serializer
-	if serializer == "json" {
+	switch {
+	case serializer == "json":
 		s = _serializer.NewJSONSerializer()
-	} else if serializer == "msgpack" {
+	case serializer == "msgpack":
 		s = _serializer.NewMsgpackSerializer()
-	} else if serializer == "gob" {
+	case serializer == "gob":
 		s = _serializer.NewGobSerializer()
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid serializer: %s", serializer)
 	}
 	dt, err := time.ParseDuration(timeout)
@@ -176,7 +177,7 @@ func (c *CLI) WaitForCommand(dmap string) error {
 				} else {
 					continue
 				}
-			} else if err == io.EOF {
+			} else if errors.Is(err, io.EOF) {
 				break
 			} else {
 				return err
