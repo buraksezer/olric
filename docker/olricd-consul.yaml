@@ -1,70 +1,44 @@
 olricd:
-  bindAddr: "0.0.0.0"
+  bindAddr: 0.0.0.0
   bindPort: 3320
-  serializer: "msgpack"
-  keepAlivePeriod: "300s"
-  bootstrapTimeout: "5s"
-  partitionCount:  271
-  replicaCount: 2
+  serializer: msgpack
+  keepAlivePeriod: 300s
+  bootstrapTimeout: 5s
+  partitionCount:  13
+  replicaCount: 1
   writeQuorum: 1
   readQuorum: 1
   readRepair: false
-  replicationMode: 1 # sync mode. for async, set 1
+  replicationMode: 0 # sync mode. for async, set 1
   memberCountQuorum: 1
+  routingTablePushInterval: 1m
+
+storageEngines:
+  config:
+    kvstore:
+      tableSize: 1048576
 
 client:
-  dialTimeout: "-1s"
-  readTimeout: "3s"
-  writeTimeout: "3s"
-  keepAlive: "15s"
+  dialTimeout: -1s
+  readTimeout: 3s
+  writeTimeout: 3s
+  keepAlive: 15s
   minConn: 1
   maxConn: 100
+  poolTimeout: 3s
 
 logging:
   verbosity: 6
-  level: "DEBUG"
-  output: "stderr"
+  level: DEBUG
+  output: stderr
 
 memberlist:
-  environment: "local"
-  bindAddr: "0.0.0.0"
+  environment: local
+  bindAddr: 0.0.0.0
   bindPort: 3322
   enableCompression: false
-  joinRetryInterval: "1s"
-  maxJoinAttempts: 10
-  #peers:
-  #  - "localhost:3325"
-
-  #advertiseAddr: ""
-  #advertisePort: 3322
-  #suspicionMaxTimeoutMult: 6
-  #disableTCPPings: false
-  #awarenessMaxMultiplier: 8
-  #gossipNodes: 3
-  #gossipVerifyIncoming: true
-  #gossipVerifyOutgoing: true
-  #dnsConfigPath: "/etc/resolv.conf"
-  #handoffQueueDepth: 1024
-  #udpBufferSize: 1400
-
-
-# cache:
-#  numEvictionWorkers: 1
-#  maxIdleDuration: ""
-#  ttlDuration: "100s"
-#  maxKeys: 100000
-#  maxInuse: 1000000
-#  lRUSamples: 10
-#  evictionPolicy: "LRU"
-#
-#dmaps:
-#  foobar:
-#    maxIdleDuration: "60s"
-#    ttlDuration: "300s"
-#    maxKeys: 500000
-#    lRUSamples: 20
-#    evictionPolicy: "NONE"
-
+  joinRetryInterval: 1ms
+  maxJoinAttempts: 1
 
 serviceDiscovery:
   # path is a required property and used by Olric. It has to be a full path.

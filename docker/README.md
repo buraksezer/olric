@@ -14,7 +14,7 @@ docker-compose up olric
 To create a multi-node cluster:
 
 ```
-docker-compose up --scale olric=3 olric
+docker-compose up olric --scale olric=3
 ```
 
 Sample output:
@@ -40,6 +40,37 @@ cluster health.
 ### Accessing to the cluster
 
 `nginx` service exposes port `3320` to access the cluster. 
+
+```
+$ olric-stats -a localhost:3320 -m
+This member: 172.18.0.4:3320
+ ID: 6755975864422107140
+ Birthdate: 1627807789014433806
+
+Cluster coordinator: 172.18.0.5:3320
+ ID: 17571271894830874512
+ Birthdate: 1627807787904657773
+
+All members:
+
+Member: 172.18.0.6:3320
+ ID: 1896808979412278355
+ Birthdate: 1627807788577374417
+
+Member: 172.18.0.5:3320
+ ID: 17571271894830874512
+ Birthdate: 1627807787904657773
+
+Member: 172.18.0.4:3320
+ ID: 6755975864422107140
+ Birthdate: 1627807789014433806
+```
+
+Insert some keys:
+
+```
+olric-benchmark -a 127.0.0.1:3320 -T put -r 1000 -s msgpack
+```
 
 ### Develop & Test with Docker Compose
 
@@ -87,3 +118,4 @@ Consul is easy to use and proven way to discover nodes in a clustered environmen
 Consul dials this port to control the node. `Address`, `ID` and `Check.TCP` fields is being filled by the plugin. You can still 
 give your own configuration values, if you know what you are doing.
 
+Please check out `olric-consul.yaml` to see how to create an Olric cluster with Consul.
