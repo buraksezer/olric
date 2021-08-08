@@ -16,14 +16,32 @@ package storage
 
 import "log"
 
+// Engine defines methods for a storage engine implementation.
 type Engine interface {
+	// SetConfig sets a storage engine configuration. nil can be accepted, but
+	// it depends on the implementation.
 	SetConfig(*Config)
+
+	// SetLogger sets a logger. nil can be accepted, but it depends on the implementation.
 	SetLogger(*log.Logger)
+
+	// Start can be used to run background services before starting operation.
 	Start() error
+
+	// NewEntry returns a new Entry interface implemented by the current storage
+	// engine implementation.
 	NewEntry() Entry
+
+	// Name returns name of the current storage engine implementation.
 	Name() string
+
+	// Fork creates an empty instance of an online engine by using the current
+	// configuration.
 	Fork(*Config) (Engine, error)
+
 	PutRaw(uint64, []byte) error
+
+	// Put inserts a new Entry into the storage engine.
 	Put(uint64, Entry) error
 	GetRaw(uint64) ([]byte, error)
 	Get(uint64) (Entry, error)

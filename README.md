@@ -8,7 +8,7 @@ With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 
 See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 
-The current production version is [v0.3.8](https://github.com/buraksezer/olric/tree/v0.3.8)
+The current production version is [v0.3.11](https://github.com/buraksezer/olric/tree/v0.3.11)
 
 ## At a glance
 
@@ -143,7 +143,6 @@ See [Architecture](#architecture) section to see details.
 * Eviction listeners by using Publish/Subscribe,
 * Memcached interface,
 * Client implementations for different languages: Java, Python and JavaScript,
-* Expose DMap API via HTTP.
 
 ## Support
 

@@ -19,11 +19,13 @@ import (
 	"sync"
 )
 
+// Config defines a new storage engine configuration
 type Config struct {
 	m map[string]interface{}
 	sync.RWMutex
 }
 
+// NewConfig returns a new Config
 func NewConfig(cfg map[string]interface{}) *Config {
 	if cfg == nil {
 		cfg = make(map[string]interface{})
@@ -33,12 +35,14 @@ func NewConfig(cfg map[string]interface{}) *Config {
 	}
 }
 
+// Add adds a new key/value pair to Config
 func (c *Config) Add(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.m[key] = value
 }
 
+// Get loads a configuration variable with its key, otherwise it returns an error.
 func (c *Config) Get(key string) (interface{}, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -49,12 +53,14 @@ func (c *Config) Get(key string) (interface{}, error) {
 	return value, nil
 }
 
+// Delete deletes a configuration variable with its key.
 func (c *Config) Delete(key string) {
 	c.Lock()
 	defer c.Unlock()
 	delete(c.m, key)
 }
 
+// Copy creates a thread-safe copy of the existing Config struct.
 func (c *Config) Copy() *Config {
 	c.Lock()
 	defer c.Unlock()
@@ -67,6 +73,7 @@ func (c *Config) Copy() *Config {
 	return n
 }
 
+// ToMap casts Config to map[string]interface{} type.
 func (c *Config) ToMap() map[string]interface{} {
 	return c.Copy().m
 }

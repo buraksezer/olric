@@ -14,11 +14,23 @@
 
 package storage
 
+// Stats defines metrics exposed by a storage engine implementation.
 type Stats struct {
+	// Currently allocated memory by the engine.
 	Allocated int
+
+	// Used portion of allocated memory
 	Inuse     int
+
+	// Deleted portions of allocated memory.
 	Garbage   int
+
+	// Total number of keys hosted by the engine instance.
 	Length    int
+
+	// Number of tables hosted by the engine instance.
 	NumTables int
+
+	// Any other metrics that's specific to an engine implementation.
 	Extras    map[string]interface{}
 }
