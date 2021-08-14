@@ -28,7 +28,7 @@ type dmap struct {
 	storage *storage.Storage
 }
 
-// dmap represents a distributed map instance.
+// DMap represents a distributed map instance.
 type DMap struct {
 	name string
 	db   *Olric
@@ -49,6 +49,11 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 		name: name,
 		db:   db,
 	}, nil
+}
+
+// Name exposes DMap name.
+func (dm *DMap) Name() string {
+	return dm.name
 }
 
 // createDMap creates and returns a new dmap, internal representation of a dmap. This function is not thread-safe.

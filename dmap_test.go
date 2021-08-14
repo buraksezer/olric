@@ -265,6 +265,10 @@ func TestDMap_Standalone(t *testing.T) {
 		t.Fatalf("Expected value %v. Got: %v", value, val)
 	}
 
+	if d.Name() != d.name {
+		t.Fatalf("Expected DMap name: %s. Got: %s", d.name, d.Name())
+	}
+
 	// Delete it and check again.
 	err = d.Delete(key)
 	if err != nil {
