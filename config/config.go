@@ -344,18 +344,20 @@ func (c *Config) Validate() error {
 
 // Sanitize sets default values to empty configuration variables, if it's possible.
 func (c *Config) Sanitize() error {
-	if c.Logger == nil {
-		if c.LogOutput == nil {
-			c.LogOutput = os.Stderr
-		}
-		if c.LogLevel == "" {
-			c.LogLevel = DefaultLogLevel
-		}
-		c.Logger = log.New(c.LogOutput, "", log.LstdFlags)
+	if c.LogOutput == nil {
+		c.LogOutput = os.Stderr
+	}
+
+	if c.LogLevel == "" {
+		c.LogLevel = DefaultLogLevel
 	}
 
 	if c.LogVerbosity <= 0 {
 		c.LogVerbosity = DefaultLogVerbosity
+	}
+
+	if c.Logger == nil {
+		c.Logger = log.New(c.LogOutput, "", log.LstdFlags)
 	}
 
 	if c.Hasher == nil {

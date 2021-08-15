@@ -150,7 +150,7 @@ func prepareConfig(c *config.Config) (*config.Config, error) {
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
 		MinLevel: logutils.LogLevel(strings.ToUpper(c.LogLevel)),
-		Writer:   c.LogOutput,
+		Writer:   c.Logger.Writer(),
 	}
 	c.Logger.SetOutput(filter)
 
