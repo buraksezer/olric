@@ -1,14 +1,16 @@
 # Olric [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Olric%3A+Distributed+and+in-memory+key%2Fvalue+database.+It+can+be+used+both+as+an+embedded+Go+library+and+as+a+language-independent+service.+&url=https://github.com/buraksezer/olric&hashtags=golang,distributed,database)
 
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![Discord](https://img.shields.io/discord/721708998021087273.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/ahK7Vjr8We) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Go Reference](https://pkg.go.dev/badge/github.com/buraksezer/olric.svg)](https://pkg.go.dev/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![Discord](https://img.shields.io/discord/721708998021087273.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/ahK7Vjr8We) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Distributed cache and in-memory key/value data store. It can be used both as an embedded Go library and as a language-independent service.
 
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers. 
 
-See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
+See [Docker](#docker) and [Sample Code](#sample-code) sections to get started! 
 
-The current production version is [v0.3.11](https://github.com/buraksezer/olric/tree/v0.3.11)
+Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
+
+The current production version is [v0.3.12](https://github.com/buraksezer/olric/tree/v0.3.12)
 
 ## At a glance
 
@@ -138,7 +140,7 @@ See [Architecture](#architecture) section to see details.
 ## Planned Features
 
 * Distributed queries over keys and values,
-* Database backend for persistence,
+* Persistence with AOF (Append Only File),
 * Anti-entropy system to repair inconsistencies in DMaps,
 * Eviction listeners by using Publish/Subscribe,
 * Memcached interface,
@@ -201,7 +203,7 @@ olric-cli
 [127.0.0.1:3320] »
 ```
 
-Give `help` command to see available commands. Olric has a dedicated repository for Docker related resources. Please take a look at
+Give `help` command to see available commands. Olric has a dedicated repository for Docker-related resources. Please take a look at
 [buraksezer/olric-docker](https://github.com/buraksezer/olric-docker) for more information.
 
 ### Kubernetes
@@ -258,7 +260,7 @@ Now you have a running Alpine Linux setup on Kubernetes. It includes `olric-cli`
 use users
 [olricd.default.svc.cluster.local:3320] » put buraksezer {"_id": "06054057", "name": "Burak", "surname": "Sezer", "job": "Engineer"}
 [olricd.default.svc.cluster.local:3320] » get buraksezer
-{"_id": "06054057", "name": "Burak", "surname": "Sezer", "job": "Engineer"}
+{"_id": "06054057", "name": "Burak", "surname": "Sezer", "profession": "Engineer"}
 [olricd.default.svc.cluster.local:3320] »
 ```
 
@@ -291,7 +293,7 @@ Olric server members. You can address client and server scalability concerns sep
 
 See [olricd](#olricd) section to get started.
 
-Currently we only have the official Golang client. A possible Python implementation is on the way. After stabilizing the
+Currently, we only have the official Golang client. A possible Python implementation is on the way. After stabilizing the
 Olric Binary Protocol, the others may appear quickly.
 
 ## Tooling
@@ -619,7 +621,7 @@ Lock sets a lock for the given key. Acquired lock is only for the key in this DM
 ctx, err := dm.Lock("lock.foo", time.Second)
 ```
 
-It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline. You should keep `LockContext` (as ctx) 
+It returns immediately, if it acquires the lock for the given key. Otherwise, it waits until deadline. You should keep `LockContext` (as ctx) 
 value to call **Unlock** method to release the lock.
 
 **You should know that the locks are approximate, and only to be used for non-critical purposes.**
@@ -1358,4 +1360,4 @@ The Apache License, Version 2.0 - see LICENSE for more details.
 
 ## About the name
 
-The inner voice of Turgut Özben who is the main character of [Oğuz Atay's masterpiece -The Disconnected-](https://www.bariscayli.com/single-post/2016/12/20/Tutunamayanlar---The-Disconnected).
+The inner voice of Turgut Özben who is the main character of [Oğuz Atay's masterpiece -The Disconnected-](https://www.themodernnovel.org/asia/other-asia/turkey/oguz-atay/the-disconnected/).
