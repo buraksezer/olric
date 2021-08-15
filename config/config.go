@@ -265,18 +265,20 @@ func (c *Config) Validate() error {
 // Sanitize sanitizes the given configuration.
 // It returns an error if there is something very bad in the configuration.
 func (c *Config) Sanitize() error {
-	if c.Logger == nil {
-		if c.LogOutput == nil {
-			c.LogOutput = os.Stderr
-		}
-		if c.LogLevel == "" {
-			c.LogLevel = DefaultLogLevel
-		}
-		c.Logger = log.New(c.LogOutput, "", log.LstdFlags)
+	if c.LogOutput == nil {
+		c.LogOutput = os.Stderr
+	}
+
+	if c.LogLevel == "" {
+		c.LogLevel = DefaultLogLevel
 	}
 
 	if c.LogVerbosity <= 0 {
 		c.LogVerbosity = DefaultLogVerbosity
+	}
+
+	if c.Logger == nil {
+		c.Logger = log.New(c.LogOutput, "", log.LstdFlags)
 	}
 
 	if c.Hasher == nil {

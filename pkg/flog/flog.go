@@ -97,7 +97,7 @@ func (f *Logger) V(level int32) Verbose {
 	}
 }
 
-// Enabled will return true if this log level is enabled, guarded by the value of verbosity level.
+// Ok will return true if this log level is enabled, guarded by the value of verbosity level.
 func (v Verbose) Ok() bool {
 	return v.ok
 }
@@ -116,7 +116,7 @@ func (v Verbose) Printf(format string, i ...interface{}) {
 	}
 }
 
-// Printf calls v.f.logger.Println to print to the logger.
+// Println calls v.f.logger.Println to print to the logger.
 // Arguments are handled in the manner of fmt.Println.
 func (v Verbose) Println(i ...interface{}) {
 	if !v.ok {

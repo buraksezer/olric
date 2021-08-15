@@ -184,7 +184,7 @@ func New(c *config.Config) (*Olric, error) {
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
 		MinLevel: logutils.LogLevel(strings.ToUpper(c.LogLevel)),
-		Writer:   c.LogOutput,
+		Writer:   c.Logger.Writer(),
 	}
 	c.Logger.SetOutput(filter)
 
