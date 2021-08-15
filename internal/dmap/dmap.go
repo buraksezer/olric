@@ -46,6 +46,11 @@ type DMap struct {
 	config *dmapConfig
 }
 
+// Name exposes name of the DMap.
+func (dm *DMap) Name() string {
+	return dm.name
+}
+
 // getDMap returns an initialized DMap instance, otherwise it returns ErrDMapNotFound.
 func (s *Service) getDMap(name string) (*DMap, error) {
 	s.RLock()
