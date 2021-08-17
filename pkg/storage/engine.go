@@ -39,23 +39,58 @@ type Engine interface {
 	// configuration.
 	Fork(*Config) (Engine, error)
 
+	// PutRaw inserts an encoded entry into the storage engine.
 	PutRaw(uint64, []byte) error
 
 	// Put inserts a new Entry into the storage engine.
 	Put(uint64, Entry) error
+
+	// GetRaw reads an encoded entry from the storage engine.
 	GetRaw(uint64) ([]byte, error)
+
+	// Get reads an entry from the storage engine.
 	Get(uint64) (Entry, error)
+
+	// GetTTL extracts TTL of an entry.
 	GetTTL(uint64) (int64, error)
+
+	// GetKey extracts key of an entry.
 	GetKey(uint64) (string, error)
+
+	// Delete deletes an entry from the storage engine.
 	Delete(uint64) error
+
+	// UpdateTTL updates TTL of an entry. It returns ErrKeyNotFound,
+	// if the key doesn't exists.
 	UpdateTTL(uint64, Entry) error
+
+	// Import creates a new storage engine instance from its encoded form.
 	Import([]byte) (Engine, error)
+
+	// Exports encodes a storage engine into its binary form.
 	Export() ([]byte, error)
+
+	// Stats returns metrics for an online storage engine.
 	Stats() Stats
+
+	// Check returns true, if the key exists.
 	Check(uint64) bool
+
+	// Range implements a loop over the storage engine
 	Range(func(uint64, Entry) bool)
+
+	// RegexMatchOnKeys runs a regular expression over keys and loops over the result.
 	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
+
+	// Compaction reorganizes storage tables and reclaims wasted resources.
 	Compaction() (bool, error)
+
+	// Close stops an online storage engine instance. It may free some of allocated
+	// resources. A storage engine implementation should be started again, but it
+	// depends on the implementation.
 	Close() error
+
+	// Destroy stops an online storage engine instance and frees allocated resources.
+	// It should not be possible to reuse a destroyed storage engine.
 	Destroy() error
 }
