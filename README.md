@@ -144,7 +144,7 @@ See [Architecture](#architecture) section to see details.
 * Anti-entropy system to repair inconsistencies in DMaps,
 * Eviction listeners by using Publish/Subscribe,
 * Memcached interface,
-* Client implementations for different languages: Java, Python and JavaScript,
+* Client implementations for different languages: Java, Python and JavaScript.
 
 ## Support
 
@@ -190,7 +190,7 @@ docker run -p 3320:3320 olricio/olricd:latest
 This command will pull olricd Docker image and run a new Olric Instance. You should know that the container exposes 
 `3320` and `3322` ports. 
 
-Now you should access the olricd instance by using olric-cli. So you can build olric-cli by using the following command:
+Now, you can access the instance by using `olric-cli`. You can build `olric-cli` by using the following command:
 
 ```bash
 go get -u github.com/buraksezer/olric/cmd/olric-cli
@@ -283,8 +283,8 @@ Member Mode is having a low-latency data access and locality.
 
 ### Client-Server
 
-In the Client-Server deployment, Olric data and services are centralized in one or more server members and they are 
-accessed by the application through clients. You can have a cluster of server members that can be independently created 
+In the Client-Server deployment, Olric data and services are centralized in one or more servers, and they are 
+accessed by the application through clients. You can have a cluster of servers that can be independently created 
 and scaled. Your clients communicate with these members to reach to Olric data and services on them.
 
 Client-Server deployment has advantages including more predictable and reliable performance, easier identification 
@@ -321,7 +321,7 @@ OLRICD_CONFIG=<YOUR_CONFIG_FILE_PATH> olricd
 ```
 
 Olric uses [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for failure detection and cluster membership. 
-Currently there are different ways to discover peers in a cluster. You can use a static list of nodes in your `olricd.yaml` 
+Currently, there are different ways to discover peers in a cluster. You can use a static list of nodes in your `olricd.yaml` 
 file. It's ideal for development and test environments. Olric also supports Consul, Kubernetes and well-known cloud providers
 for service discovery. Please take a look at [Service Discovery](#service-discovery) section for further information.
 
@@ -478,7 +478,7 @@ dm, err := db.NewDMap("my-dmap")
  
 ### Put
 
-Put sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
+Put sets the value for the given key. It overwrites any previous value for that key, and it's thread-safe.
 
 ```go
 err := dm.Put("my-key", "my-value")
@@ -655,7 +655,7 @@ See `stats/stats.go` for detailed info about the metrics.
 
 ### Ping 
 
-Ping sends a dummy protocol messsage to the given host. This is useful to measure RTT between hosts. It also can be used as aliveness check.
+Ping sends a dummy protocol message to the given host. This is useful to measure RTT between hosts. It also can be used as aliveness check.
 
 ```go
 err := db.Ping()
