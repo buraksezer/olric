@@ -56,7 +56,7 @@ import (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.4.0-beta.11"
+const ReleaseVersion string = "0.4.0"
 
 var (
 	// ErrOperationTimeout is returned when an operation times out.
@@ -150,7 +150,7 @@ func prepareConfig(c *config.Config) (*config.Config, error) {
 	filter := &logutils.LevelFilter{
 		Levels:   []logutils.LogLevel{"DEBUG", "WARN", "ERROR", "INFO"},
 		MinLevel: logutils.LogLevel(strings.ToUpper(c.LogLevel)),
-		Writer:   c.LogOutput,
+		Writer:   c.Logger.Writer(),
 	}
 	c.Logger.SetOutput(filter)
 

@@ -15,6 +15,7 @@
 package cli
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -88,7 +89,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"evalIncr-test",
 		}
 		err := c.evalIncr(dm, fields)
-		if err != errInvalidCommand {
+		if !errors.Is(err, errInvalidCommand) {
 			t.Fatalf("Expected errInvalidCommand, Got: %v", err)
 		}
 	})
@@ -118,7 +119,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"evalDecr-test",
 		}
 		err := c.evalDecr(dm, fields)
-		if err != errInvalidCommand {
+		if !errors.Is(err, errInvalidCommand) {
 			t.Fatalf("Expected errInvalidCommand, Got: %v", err)
 		}
 	})
@@ -155,7 +156,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"evalExpire-test",
 		}
 		err := c.evalExpire(dm, fields)
-		if err != errInvalidCommand {
+		if !errors.Is(err, errInvalidCommand) {
 			t.Fatalf("Expected errInvalidCommand, Got: %v", err)
 		}
 	})
@@ -172,7 +173,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 		}
 		<-time.After(2 * time.Millisecond)
 		_, err = dm.Get("evalExpire-test")
-		if err != olric.ErrKeyNotFound {
+		if !errors.Is(err, olric.ErrKeyNotFound) {
 			t.Fatalf("Expected olric.ErrKeyNotFound, Got: %v", err)
 		}
 	})
@@ -182,7 +183,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"evalGetPut-test",
 		}
 		err := c.evalGetPut(dm, fields)
-		if err != errInvalidCommand {
+		if !errors.Is(err, errInvalidCommand) {
 			t.Fatalf("Expected errInvalidCommand, Got: %v", err)
 		}
 	})
@@ -211,7 +212,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"evalPutIf-test",
 		}
 		err := c.evalPutIf(dm, fields)
-		if err != errInvalidCommand {
+		if !errors.Is(err, errInvalidCommand) {
 			t.Fatalf("Expected errInvalidCommand, Got: %v", err)
 		}
 	})
@@ -224,7 +225,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"ifNotFound",
 		}
 		err := c.evalPutIf(dm, fields)
-		if err != olric.ErrKeyFound {
+		if !errors.Is(err, olric.ErrKeyFound) {
 			t.Fatalf("Expected olric.ErrKeyFound, Got: %v", err)
 		}
 	})
@@ -254,7 +255,7 @@ func TestOlric_CLI_Evaluate(t *testing.T) {
 			"evalPutIfEx-test",
 		}
 		err := c.evalPutIfEx(dm, fields)
-		if err != errInvalidCommand {
+		if !errors.Is(err, errInvalidCommand) {
 			t.Fatalf("Expected errInvalidCommand, Got: %v", err)
 		}
 	})

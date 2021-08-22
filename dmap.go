@@ -124,6 +124,10 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 	}, nil
 }
 
+// Name exposes name of the DMap.
+func (dm *DMap) Name() string {
+	return dm.dm.Name()
+}
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
 // does not contains the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.

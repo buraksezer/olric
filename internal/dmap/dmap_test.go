@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package storage
+package dmap
 
-// Stats defines metrics exposed by a storage engine implementation.
-type Stats struct {
-	// Currently allocated memory by the engine.
-	Allocated int
+import (
+	"testing"
 
-	// Used portion of allocated memory
-	Inuse     int
+	"github.com/buraksezer/olric/internal/testcluster"
+)
 
-	// Deleted portions of allocated memory.
-	Garbage   int
+func TestDMap_Name(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
 
-	// Total number of keys hosted by the engine instance.
-	Length    int
+	dm, err := s.NewDMap("mymap")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
 
-	// Number of tables hosted by the engine instance.
-	NumTables int
-
-	// Any other metrics that's specific to an engine implementation.
-	Extras    map[string]interface{}
+	if dm.Name() != "mymap" {
+		t.Fatalf("Expected DMap name is mymap. Got: %s", dm.Name())
+	}
 }

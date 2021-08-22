@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -140,8 +141,16 @@ func TestDMap_Delete_Lookup(t *testing.T) {
 
 func TestDMap_Delete_StaleFragments(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
+	c1 := testutil.NewConfig()
+	c1.DMaps.CheckEmptyFragmentsInterval = time.Millisecond
+	e1 := testcluster.NewEnvironment(c1)
+	s1 := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.DMaps.CheckEmptyFragmentsInterval = time.Millisecond
+	e2 := testcluster.NewEnvironment(c2)
+	s2 := cluster.AddMember(e2).(*Service)
+
 	defer cluster.Shutdown()
 
 	dm1, err := s1.NewDMap("mymap")
@@ -167,7 +176,7 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 		}
 
 		_, err = dm2.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
+		if !errors.Is(err, ErrKeyNotFound) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
