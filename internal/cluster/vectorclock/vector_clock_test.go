@@ -78,3 +78,23 @@ func TestVectorClock_Encode_Decode(t *testing.T) {
 		t.Fatalf("Deocded VectorClock is different")
 	}
 }
+
+func TestVectorClock_Range(t *testing.T) {
+	v := New()
+
+	for i := uint64(0); i < 10; i++ {
+		v.Set(i, i*2)
+	}
+
+	var count int
+	v.Range(func(id, timestamp uint64) {
+		count++
+		if timestamp != id*2 {
+			t.Fatalf("Expected timestamp: %d. Got: %d", id*2, timestamp)
+		}
+	})
+
+	if count != 10 {
+		t.Fatalf("Expected count: 10. Got: %d", count)
+	}
+}

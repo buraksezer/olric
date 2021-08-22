@@ -104,3 +104,12 @@ func (v *VectorClock) String() string {
 	result.WriteString("}")
 	return result.String()
 }
+
+func (v *VectorClock) Range(f func(id, timestamp uint64)) {
+	v.mtx.RLock()
+	defer v.mtx.RUnlock()
+
+	for id, timestamp := range v.m {
+		f(id, timestamp)
+	}
+}
