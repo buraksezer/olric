@@ -88,6 +88,41 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
 	}
 }
 
+func TestDMap_LockLease_Standalone(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	key := "lock.test.foo"
+	dm, err := s.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	ctx, err := dm.LockWithTimeout(key, time.Second, time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	err = ctx.Lease(2 * time.Second)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	e, err := dm.GetEntry(key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if e.TTL-(time.Now().UnixNano()/1000000) <= 1900 {
+		t.Fatalf("Expected >=1900. Got: %v", e.TTL-(time.Now().UnixNano()/1000000))
+	}
+
+	<-time.After(3 * time.Second)
+	err = ctx.Lease(3 * time.Second)
+	if err != ErrNoSuchLock {
+		t.Fatalf("Expected ErrNoSuchLock. Got: %v", err)
+	}
+}
+
 func TestDMap_Lock_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
@@ -154,6 +189,35 @@ func TestDMap_LockWithTimeout_Cluster(t *testing.T) {
 		err = ctx.Unlock()
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
+		}
+	}
+}
+
+func TestDMap_LockLease_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s1.NewDMap("lock.test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	var lockContext []*LockContext
+	for i := 0; i < 100; i++ {
+		key := "lock.test.foo." + strconv.Itoa(i)
+		ctx, err := dm.LockWithTimeout(key, 5*time.Second, 10*time.Millisecond)
+		if err != nil {
+			t.Fatalf("Expected nil. Got: %v", err)
+		}
+		lockContext = append(lockContext, ctx)
+	}
+
+	cluster.AddMember(nil)
+	for i := range lockContext {
+		err = lockContext[i].Lease(10 * time.Second)
+		if err != nil {
+			t.Logf("[LOCK]Expected nil. Got: %v", err)
 		}
 	}
 }

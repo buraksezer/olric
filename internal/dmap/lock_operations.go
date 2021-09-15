@@ -69,3 +69,19 @@ func (s *Service) unlockOperation(w, r protocol.EncodeDecoder) {
 	}
 	w.SetStatus(protocol.StatusOK)
 }
+
+func (s *Service) leaseLockOperation(w, r protocol.EncodeDecoder) {
+	req := r.(*protocol.DMapMessage)
+	dm, err := s.getOrCreateDMap(req.DMap())
+	if err != nil {
+		neterrors.ErrorResponse(w, err)
+		return
+	}
+	timeout := req.Extra().(protocol.LockLeaseExtra).Timeout
+	err = dm.Lease(req.Key(), req.Value(), time.Duration(timeout))
+	if err != nil {
+		neterrors.ErrorResponse(w, err)
+		return
+	}
+	w.SetStatus(protocol.StatusOK)
+}
