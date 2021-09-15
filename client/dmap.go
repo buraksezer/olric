@@ -217,6 +217,23 @@ func (l *LockContext) Unlock() error {
 	return checkStatusCode(resp)
 }
 
+// Lease update the expiry of an acquired lock for the given key.
+// It returns olric.ErrNoSuchLock if there is no lock or already expired for the given key.
+func (l *LockContext) Lease(timeout time.Duration) error {
+	req := protocol.NewDMapMessage(protocol.OpLockLease)
+	req.SetDMap(l.name)
+	req.SetKey(l.key)
+	req.SetValue(l.token)
+	req.SetExtra(protocol.LockLeaseExtra{
+		Timeout: int64(timeout),
+	})
+	resp, err := l.dmap.request(req)
+	if err != nil {
+		return err
+	}
+	return checkStatusCode(resp)
+}
+
 // Destroy flushes the given dmap on the cluster. You should know that there is no global lock on DMaps.
 // So if you call Put/PutEx/PutIf/PutIfEx and Destroy methods concurrently on the cluster,
 // those calls may set new values to the dmap.

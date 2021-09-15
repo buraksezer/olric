@@ -128,7 +128,6 @@ func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.E
 	if status == protocol.StatusOK {
 		return resp, nil
 	}
-
 	switch resp.Status() {
 	case protocol.StatusErrInternalFailure:
 		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))

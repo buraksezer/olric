@@ -106,6 +106,10 @@ type StatsExtra struct {
 	CollectRuntime bool
 }
 
+type LockLeaseExtra struct {
+	Timeout int64
+}
+
 func loadExtras(raw []byte, op OpCode) (interface{}, error) {
 	switch op {
 	case OpPutEx, OpPutExReplica:
@@ -122,6 +126,10 @@ func loadExtras(raw []byte, op OpCode) (interface{}, error) {
 		return extra, err
 	case OpLock:
 		extra := LockExtra{}
+		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
+		return extra, err
+	case OpLockLease:
+		extra := LockLeaseExtra{}
 		err := binary.Read(bytes.NewReader(raw), binary.BigEndian, &extra)
 		return extra, err
 	case OpLengthOfPart:
