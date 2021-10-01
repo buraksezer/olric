@@ -64,6 +64,32 @@ func TestVectorClock_Tick(t *testing.T) {
 	}
 }
 
+func TestVectorClock_Only_Tick(t *testing.T) {
+	v := New()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			v.Tick(1)
+		}()
+	}
+
+	wg.Wait()
+
+	timestamp, ok := v.Get(1)
+
+	if !ok {
+		t.Fatalf("Expected true. Got false")
+	}
+
+	if timestamp != 100 {
+		t.Fatalf("Expected timestamp is 100. Got: %v", timestamp)
+	}
+}
+
 func TestVectorClock_Encode_Decode(t *testing.T) {
 	v := New()
 

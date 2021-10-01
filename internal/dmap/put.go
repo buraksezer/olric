@@ -72,6 +72,9 @@ func (dm *DMap) putOnFragment(e *env) error {
 		return err
 	}
 
+	// We successfully inserted a key into the storage engine.
+	e.fragment.vectorClock.Tick(dm.This().NameHash)
+
 	// total number of entries stored during the life of this instance.
 	EntriesTotal.Increase(1)
 
@@ -111,6 +114,8 @@ func (dm *DMap) asyncPutOnCluster(e *env) error {
 		return err
 	}
 
+	e.fragment.vectorClock.Tick(dm.This().NameHash)
+
 	// Fire and forget mode.
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
@@ -126,6 +131,8 @@ func (dm *DMap) asyncPutOnCluster(e *env) error {
 }
 
 func (dm *DMap) syncPutOnCluster(e *env) error {
+	e.fragment.vectorClock.Tick(dm.This().NameHash)
+
 	// Quorum based replication.
 	var successful int
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
@@ -349,7 +356,7 @@ func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 // IfNotFound: Only set the key if it does not already exist.
 // It returns ErrFound if the key already exist.
 //
-// IfFound: Only set the key if it already exist.
+// IfFound: Only set the key if it already exists.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
 	e, err := dm.prepareAndSerialize(protocol.OpPutIfEx, key, value, timeout, flags)

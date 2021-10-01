@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/cluster/vectorclock"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -29,11 +30,29 @@ import (
 type fragment struct {
 	sync.RWMutex
 
-	service   *Service
-	storage   storage.Engine
-	accessLog *accessLog
-	ctx       context.Context
-	cancel    context.CancelFunc
+	service     *Service
+	vectorClock *vectorclock.VectorClock
+	storage     storage.Engine
+	accessLog   *accessLog
+	ctx         context.Context
+	cancel      context.CancelFunc
+}
+
+func (dm *DMap) newFragment() (*fragment, error) {
+	str, err := dm.engine.Fork(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	return &fragment{
+		service:     dm.s,
+		vectorClock: vectorclock.New(),
+		accessLog:   newAccessLog(),
+		storage:     str,
+		ctx:         ctx,
+		cancel:      cancel,
+	}, nil
 }
 
 func (f *fragment) Stats() storage.Stats {
@@ -99,22 +118,6 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 	req.SetValue(value)
 	_, err = f.service.requestTo(owner.String(), req)
 	return err
-}
-
-func (dm *DMap) newFragment() (*fragment, error) {
-	str, err := dm.engine.Fork(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	return &fragment{
-		service:   dm.s,
-		accessLog: newAccessLog(),
-		storage:   str,
-		ctx:       ctx,
-		cancel:    cancel,
-	}, nil
 }
 
 func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, error) {

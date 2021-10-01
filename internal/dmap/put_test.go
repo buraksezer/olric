@@ -63,7 +63,7 @@ func TestDMap_Put_Cluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -75,7 +75,7 @@ func TestDMap_Put_Cluster(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		val, err := dm2.Get(testutil.ToKey(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
@@ -154,7 +154,7 @@ func TestDMap_PutEx(t *testing.T) {
 	}
 	for i := 0; i < 10; i++ {
 		_, err := dm2.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
+		if !errors.Is(err, ErrKeyNotFound) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
@@ -182,7 +182,7 @@ func TestDMap_Put_WriteQuorum(t *testing.T) {
 		host := dm.s.primary.PartitionByHKey(hkey).Owner()
 		if s1.rt.This().CompareByID(host) {
 			err = dm.Put(key, testutil.ToVal(i))
-			if err != ErrWriteQuorum {
+			if !errors.Is(err, ErrWriteQuorum) {
 				t.Fatalf("Expected ErrWriteQuorum. Got: %v", err)
 			}
 			hit = true
@@ -211,7 +211,7 @@ func TestDMap_Put_IfNotExist(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		err = dm.PutIf(testutil.ToKey(i), testutil.ToVal(i*2), IfNotFound)
-		if err == ErrKeyFound {
+		if errors.Is(err, ErrKeyFound) {
 			err = nil
 		}
 		if err != nil {

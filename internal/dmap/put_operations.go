@@ -46,6 +46,10 @@ func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
 func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
 	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		e := newEnvFromReq(r, partitions.BACKUP)
+
+		// Received a request to replica a key/value pair.
+		e.fragment.vectorClock.Tick(dm.This().NameHash)
+
 		return dm.putOnReplicaFragment(e)
 	})
 }

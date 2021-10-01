@@ -17,6 +17,7 @@ package dmap
 import (
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/discovery"
 	"time"
 
 	"github.com/buraksezer/olric/internal/bufpool"
@@ -49,6 +50,11 @@ type DMap struct {
 // Name exposes name of the DMap.
 func (dm *DMap) Name() string {
 	return dm.name
+}
+
+func (dm *DMap) This() discovery.Member {
+	// TODO: Turn this into a pointer
+	return dm.s.rt.This()
 }
 
 // getDMap returns an initialized DMap instance, otherwise it returns ErrDMapNotFound.
