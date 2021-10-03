@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kvstore
+package entry
 
 import (
 	"reflect"
@@ -21,7 +21,7 @@ import (
 )
 
 func TestEntryEncodeDecode(t *testing.T) {
-	entry := NewEntry()
+	entry := New()
 	entry.SetKey("mykey")
 	entry.SetTTL(200)
 	entry.SetTimestamp(time.Now().UnixNano())
@@ -34,7 +34,7 @@ func TestEntryEncodeDecode(t *testing.T) {
 		}
 
 		t.Run("Decode", func(t *testing.T) {
-			item := NewEntry()
+			item := New()
 			item.Decode(buf)
 			if !reflect.DeepEqual(entry, item) {
 				t.Fatal("Decoded Entry is different")

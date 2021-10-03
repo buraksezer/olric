@@ -17,6 +17,7 @@ package kvstore
 import (
 	"bytes"
 	"fmt"
+	entry2 "github.com/buraksezer/olric/internal/kvstore/entry"
 	"strconv"
 	"sync"
 	"testing"
@@ -58,7 +59,7 @@ func Test_Put(t *testing.T) {
 	}
 
 	for i := 0; i < 100; i++ {
-		entry := NewEntry()
+		entry := entry2.New()
 		entry.SetKey(bkey(i))
 		entry.SetValue(bval(i))
 		entry.SetTTL(int64(i))
@@ -78,7 +79,7 @@ func Test_Get(t *testing.T) {
 	}
 	timestamp := time.Now().UnixNano()
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     bval(i),
@@ -118,7 +119,7 @@ func Test_Delete(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     bval(i),
@@ -174,7 +175,7 @@ func Test_CompactTables(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	// Current free space is 1MB. Trigger a compaction operation.
 	for i := 0; i < 1500; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     []byte(fmt.Sprintf("%01000d", i)),
@@ -256,7 +257,7 @@ func Test_PurgeTables(t *testing.T) {
 	timestamp := time.Now().UnixNano()
 	// Current free space is 65kb. Trigger a compaction operation.
 	for i := 0; i < 2000; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     []byte(fmt.Sprintf("%01000d", i)),
@@ -315,7 +316,7 @@ func Test_ExportImport(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     bval(i),
@@ -362,7 +363,7 @@ func Test_Len(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:   bkey(i),
 			ttl:   int64(i),
 			value: bval(i),
@@ -386,7 +387,7 @@ func Test_Range(t *testing.T) {
 	}
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     bval(i),
@@ -415,7 +416,7 @@ func Test_Check(t *testing.T) {
 	}
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     bval(i),
@@ -442,7 +443,7 @@ func Test_UpdateTTL(t *testing.T) {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			value:     bval(i),
 			timestamp: time.Now().UnixNano(),
@@ -455,7 +456,7 @@ func Test_UpdateTTL(t *testing.T) {
 	}
 
 	for i := 0; i < 100; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       10,
 			timestamp: time.Now().UnixNano(),
@@ -487,7 +488,7 @@ func Test_GetKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	entry := &Entry{
+	entry := &entry2.Entry{
 		key:   bkey(1),
 		ttl:   int64(1),
 		value: bval(1),
@@ -533,7 +534,7 @@ func Test_GetTTL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	entry := &Entry{
+	entry := &entry2.Entry{
 		key:   bkey(1),
 		ttl:   int64(1),
 		value: bval(1),
@@ -568,7 +569,7 @@ func TestStorage_MatchOnKey(t *testing.T) {
 			key = "odd:" + strconv.Itoa(i)
 		}
 
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       key,
 			ttl:       int64(i),
 			value:     bval(i),
@@ -602,7 +603,7 @@ func Test_Fork(t *testing.T) {
 	}
 	timestamp := time.Now().UnixNano()
 	for i := 0; i < 10; i++ {
-		entry := &Entry{
+		entry := &entry2.Entry{
 			key:       bkey(i),
 			ttl:       int64(i),
 			value:     bval(i),

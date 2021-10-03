@@ -15,7 +15,7 @@
 package client
 
 import (
-	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
@@ -68,7 +68,7 @@ func (pr *PipelineResponse) Get() (interface{}, error) {
 	// Because, we don't know what storage engine or entry format in use for this
 	// entry. This info should be carried in the protocol. For 0.4.x, it's hard to
 	// fix. We need to fix this in a new OBP revision.
-	entry := kvstore.NewEntry()
+	entry := entry.New()
 	entry.Decode(pr.response.Value())
 	return pr.unmarshalValue(entry.Value())
 }

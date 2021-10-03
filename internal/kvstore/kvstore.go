@@ -21,8 +21,9 @@ import (
 	"log"
 	"regexp"
 
+	"github.com/buraksezer/olric/internal/kvstore/entry"
+	"github.com/buraksezer/olric/internal/kvstore/table"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/vmihailenco/msgpack"
 )
 
 const (
@@ -35,7 +36,7 @@ const (
 // keep metadata and mmap syscall for allocating memory to store values.
 // The allocated memory is not a subject of Golang's GC.
 type KVStore struct {
-	tables []*table
+	tables []*table.Table
 	config *storage.Config
 }
 
@@ -47,23 +48,46 @@ func DefaultConfig() *storage.Config {
 	return options
 }
 
-func (kv *KVStore) SetConfig(c *storage.Config) {
-	kv.config = c
+func (k *KVStore) SetConfig(c *storage.Config) {
+	k.config = c
 }
 
-func (kv *KVStore) SetLogger(l *log.Logger) {}
+func (k *KVStore) makeTable() error {
+	size, err := k.config.Get("tableSize")
+	if err != nil {
+		return err
+	}
 
-func (kv *KVStore) Start() error {
-	if kv.config == nil {
+	head := k.tables[len(k.tables)-1]
+	head.SetState(table.ReadOnlyState)
+
+	for i, t := range k.tables {
+		if t.State() == table.RecycledState {
+			k.tables = append(k.tables, t)
+			k.tables = append(k.tables[:i], k.tables[i+1:]...)
+			t.SetState(table.ReadWriteState)
+			return nil
+		}
+	}
+
+	current := table.New(size.(uint32))
+	k.tables = append(k.tables, current)
+	return nil
+}
+
+func (k *KVStore) SetLogger(_ *log.Logger) {}
+
+func (k *KVStore) Start() error {
+	if k.config == nil {
 		return errors.New("config cannot be nil")
 	}
 	return nil
 }
 
 // Fork creates a new KVStore instance.
-func (kv *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
+func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	if c == nil {
-		c = kv.config.Copy()
+		c = k.config.Copy()
 	}
 	size, err := c.Get("tableSize")
 	if err != nil {
@@ -72,35 +96,34 @@ func (kv *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	child := &KVStore{
 		config: c,
 	}
-	t := newTable(size.(int))
+	t := table.New(size.(uint32))
 	child.tables = append(child.tables, t)
 	return child, nil
 }
 
-func (kv *KVStore) Name() string {
+func (k *KVStore) Name() string {
 	return "kvstore"
 }
 
-func (kv *KVStore) NewEntry() storage.Entry {
-	return NewEntry()
+func (k *KVStore) NewEntry() storage.Entry {
+	return entry.New()
 }
 
 // PutRaw sets the raw value for the given key.
-func (kv *KVStore) PutRaw(hkey uint64, value []byte) error {
-	if len(kv.tables) == 0 {
+func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
-	var res error
 	for {
 		// Get the last value, storage only calls Put on the last created table.
-		t := kv.tables[len(kv.tables)-1]
-		err := t.putRaw(hkey, value)
-		if err == errNotEnoughSpace {
-			// Create a new table and put the new k/v pair in it.
-			nt := newTable(kv.Stats().Inuse * 2)
-			kv.tables = append(kv.tables, nt)
-			res = storage.ErrFragmented
+		t := k.tables[len(k.tables)-1]
+		err := t.PutRaw(hkey, value)
+		if errors.Is(err, table.ErrNotEnoughSpace) {
+			err := k.makeTable()
+			if err != nil {
+				return err
+			}
 			// try again
 			continue
 		}
@@ -110,53 +133,58 @@ func (kv *KVStore) PutRaw(hkey uint64, value []byte) error {
 		// everything is ok
 		break
 	}
-	return res
+
+	return nil
 }
 
 // Put sets the value for the given key. It overwrites any previous value for that key
-func (kv *KVStore) Put(hkey uint64, value storage.Entry) error {
-	if len(kv.tables) == 0 {
+func (k *KVStore) Put(hkey uint64, value storage.Entry) error {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
-	var res error
 	for {
 		// Get the last value, storage only calls Put on the last created table.
-		t := kv.tables[len(kv.tables)-1]
-		err := t.put(hkey, value)
-		if err == errNotEnoughSpace {
-			// Create a new table and put the new k/v pair in it.
-			nt := newTable(kv.Stats().Inuse * 2)
-			kv.tables = append(kv.tables, nt)
-			res = storage.ErrFragmented
+		t := k.tables[len(k.tables)-1]
+		err := t.Put(hkey, value)
+		if errors.Is(err, table.ErrNotEnoughSpace) {
+			err := k.makeTable()
+			if err != nil {
+				return err
+			}
 			// try again
 			continue
 		}
 		if err != nil {
 			return err
 		}
+
 		// everything is ok
 		break
 	}
-	return res
+
+	return nil
 }
 
 // GetRaw extracts encoded value for the given hkey. This is useful for merging tables.
-func (kv *KVStore) GetRaw(hkey uint64) ([]byte, error) {
-	if len(kv.tables) == 0 {
+func (k *KVStore) GetRaw(hkey uint64) ([]byte, error) {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		rawval, prev := t.getRaw(hkey)
-		if prev {
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		raw, err := t.GetRaw(hkey)
+		if err == table.ErrHKeyNotFound {
 			// Try out the other tables.
 			continue
 		}
+		if err != nil {
+			return nil, err
+		}
 		// Found the key, return the stored value with its metadata.
-		return rawval, nil
+		return raw, nil
 	}
 
 	// Nothing here.
@@ -166,18 +194,21 @@ func (kv *KVStore) GetRaw(hkey uint64) ([]byte, error) {
 // Get gets the value for the given key. It returns storage.ErrKeyNotFound if the DB
 // does not contains the key. The returned Entry is its own copy,
 // it is safe to modify the contents of the returned slice.
-func (kv *KVStore) Get(hkey uint64) (storage.Entry, error) {
-	if len(kv.tables) == 0 {
+func (k *KVStore) Get(hkey uint64) (storage.Entry, error) {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		res, prev := t.get(hkey)
-		if prev {
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		res, err := t.Get(hkey)
+		if err == table.ErrHKeyNotFound {
 			// Try out the other tables.
 			continue
+		}
+		if err != nil {
+			return nil, err
 		}
 		// Found the key, return the stored value with its metadata.
 		return res, nil
@@ -188,91 +219,95 @@ func (kv *KVStore) Get(hkey uint64) (storage.Entry, error) {
 
 // GetTTL gets the timeout for the given key. It returns storage.ErrKeyNotFound if the DB
 // does not contains the key.
-func (kv *KVStore) GetTTL(hkey uint64) (int64, error) {
-	if len(kv.tables) == 0 {
+func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		ttl, prev := t.getTTL(hkey)
-		if prev {
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		ttl, err := t.GetTTL(hkey)
+		if err == table.ErrHKeyNotFound {
 			// Try out the other tables.
 			continue
+		}
+		if err != nil {
+			return 0, err
 		}
 		// Found the key, return its ttl
 		return ttl, nil
 	}
+
 	// Nothing here.
 	return 0, storage.ErrKeyNotFound
 }
 
 // GetKey gets the key for the given hkey. It returns storage.ErrKeyNotFound if the DB
 // does not contains the key.
-func (kv *KVStore) GetKey(hkey uint64) (string, error) {
-	if len(kv.tables) == 0 {
+func (k *KVStore) GetKey(hkey uint64) (string, error) {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		key, prev := t.getKey(hkey)
-		if prev {
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		key, err := t.GetKey(hkey)
+		if err == table.ErrHKeyNotFound {
 			// Try out the other tables.
 			continue
+		}
+		if err != nil {
+			return "", err
 		}
 		// Found the key, return its ttl
 		return key, nil
 	}
+
 	// Nothing here.
 	return "", storage.ErrKeyNotFound
 }
 
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
-func (kv *KVStore) Delete(hkey uint64) error {
-	if len(kv.tables) == 0 {
+func (k *KVStore) Delete(hkey uint64) error {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		if prev := t.delete(hkey); prev {
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		err := t.Delete(hkey)
+		if err == table.ErrHKeyNotFound {
 			// Try out the other tables.
 			continue
+		}
+		if err != nil {
+			return err
 		}
 		break
 	}
 
-	if len(kv.tables) != 1 {
-		return nil
-	}
-
-	t := kv.tables[0]
-	if float64(t.allocated)*maxGarbageRatio <= float64(t.garbage) {
-		// Create a new table here.
-		nt := newTable(kv.Stats().Inuse * 2)
-		kv.tables = append(kv.tables, nt)
-		return storage.ErrFragmented
-	}
 	return nil
 }
 
 // UpdateTTL updates the expiry for the given key.
-func (kv *KVStore) UpdateTTL(hkey uint64, data storage.Entry) error {
-	if len(kv.tables) == 0 {
+func (k *KVStore) UpdateTTL(hkey uint64, data storage.Entry) error {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		prev := t.updateTTL(hkey, data)
-		if prev {
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		err := t.UpdateTTL(hkey, data)
+		if err == table.ErrHKeyNotFound {
 			// Try out the other tables.
 			continue
+		}
+		if err != nil {
+			return err
 		}
 		// Found the key, return the stored value with its metadata.
 		return nil
@@ -281,23 +316,14 @@ func (kv *KVStore) UpdateTTL(hkey uint64, data storage.Entry) error {
 	return storage.ErrKeyNotFound
 }
 
-type transport struct {
-	HKeys     map[uint64]int
-	Memory    []byte
-	Offset    int
-	Allocated int
-	Inuse     int
-	Garbage   int
-}
-
 // Export serializes underlying data structes into a byte slice. It may return
 // ErrFragmented if the tables are fragmented. If you get this error, you should
 // try to call Export again some time later.
-func (kv *KVStore) Export() ([]byte, error) {
-	if len(kv.tables) != 1 {
+func (k *KVStore) Export() ([]byte, error) {
+	/*if len(k.tables) != 1 {
 		return nil, storage.ErrFragmented
 	}
-	t := kv.tables[0]
+	t := k.tables[0]
 	tr := &transport{
 		HKeys:     t.hkeys,
 		Offset:    t.offset,
@@ -307,21 +333,22 @@ func (kv *KVStore) Export() ([]byte, error) {
 	}
 	tr.Memory = make([]byte, t.offset+1)
 	copy(tr.Memory, t.memory[:t.offset])
-	return msgpack.Marshal(tr)
+	return msgpack.Marshal(tr)*/
+	return nil, nil
 }
 
 // Import gets the serialized data by Export and creates a new storage instance.
-func (kv *KVStore) Import(data []byte) (storage.Engine, error) {
-	tr := transport{}
+func (k *KVStore) Import(data []byte) (storage.Engine, error) {
+	/*tr := transport{}
 	err := msgpack.Unmarshal(data, &tr)
 	if err != nil {
 		return nil, err
 	}
 
-	c := kv.config.Copy()
+	c := k.config.Copy()
 	c.Add("tableSize", tr.Allocated)
 
-	child, err := kv.Fork(c)
+	child, err := k.Fork(c)
 	if err != nil {
 		return nil, err
 	}
@@ -331,37 +358,40 @@ func (kv *KVStore) Import(data []byte) (storage.Engine, error) {
 	t.inuse = tr.Inuse
 	t.garbage = tr.Garbage
 	copy(t.memory, tr.Memory)
-	return child, nil
+	return child, nil*/
+	return nil, nil
 }
 
 // Stats is a function which provides memory allocation and garbage ratio of a storage instance.
-func (kv *KVStore) Stats() storage.Stats {
+func (k *KVStore) Stats() storage.Stats {
 	stats := storage.Stats{
-		NumTables: len(kv.tables),
+		NumTables: len(k.tables),
 	}
-	for _, t := range kv.tables {
-		stats.Allocated += t.allocated
-		stats.Inuse += t.inuse
-		stats.Garbage += t.garbage
-		stats.Length += len(t.hkeys)
+	for _, t := range k.tables {
+		s := t.Stats()
+		stats.Allocated += int(s.Allocated)
+		stats.Inuse += int(s.Inuse)
+		stats.Garbage += int(s.Garbage)
+		stats.Length += s.Length
 	}
 	return stats
 }
 
 // Check checks the key existence.
-func (kv *KVStore) Check(hkey uint64) bool {
-	if len(kv.tables) == 0 {
+func (k *KVStore) Check(hkey uint64) bool {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		_, ok := t.hkeys[hkey]
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		ok := t.Check(hkey)
 		if ok {
 			return true
 		}
 	}
+
 	// Nothing there.
 	return false
 }
@@ -370,26 +400,23 @@ func (kv *KVStore) Check(hkey uint64) bool {
 // If f returns false, range stops the iteration. Range may be O(N) with
 // the number of elements in the map even if f returns false after a constant
 // number of calls.
-func (kv *KVStore) Range(f func(hkey uint64, entry storage.Entry) bool) {
-	if len(kv.tables) == 0 {
+func (k *KVStore) Range(f func(hkey uint64, e storage.Entry) bool) {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		for hkey := range t.hkeys {
-			entry, _ := t.get(hkey)
-			if !f(hkey, entry) {
-				break
-			}
-		}
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		t.Range(func(hkey uint64, e storage.Entry) bool {
+			return f(hkey, e)
+		})
 	}
 }
 
 // RegexMatchOnKeys calls a regular expression on keys and provides an iterator.
-func (kv *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, entry storage.Entry) bool) error {
-	if len(kv.tables) == 0 {
+func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.Entry) bool) error {
+	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
 	}
 	r, err := regexp.Compile(expr)
@@ -398,26 +425,25 @@ func (kv *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, entry stora
 	}
 
 	// Scan available tables by starting the last added table.
-	for i := len(kv.tables) - 1; i >= 0; i-- {
-		t := kv.tables[i]
-		for hkey := range t.hkeys {
-			key, _ := t.getRawKey(hkey)
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		t.Range(func(hkey uint64, e storage.Entry) bool {
+			key, _ := t.GetRawKey(hkey)
 			if !r.Match(key) {
-				continue
+				return true
 			}
-			data, _ := t.get(hkey)
-			if !f(hkey, data) {
-				return nil
-			}
-		}
+			data, _ := t.Get(hkey)
+			return f(hkey, data)
+		})
 	}
+
 	return nil
 }
 
-func (kv *KVStore) Close() error {
+func (k *KVStore) Close() error {
 	return nil
 }
 
-func (kv *KVStore) Destroy() error {
+func (k *KVStore) Destroy() error {
 	return nil
 }
