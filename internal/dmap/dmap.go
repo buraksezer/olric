@@ -40,10 +40,11 @@ var (
 
 // DMap implements a single-hop distributed hash table.
 type DMap struct {
-	name   string
-	s      *Service
-	engine storage.Engine
-	config *dmapConfig
+	name         string
+	fragmentName string
+	s            *Service
+	engine       storage.Engine
+	config       *dmapConfig
 }
 
 // Name exposes name of the DMap.
@@ -63,7 +64,8 @@ func (s *Service) getDMap(name string) (*DMap, error) {
 	return dm, nil
 }
 
-// NewDMap creates and returns a new DMap instance. It checks member count quorum and bootstrapping status before creating a new DMap.
+// NewDMap creates and returns a new DMap instance. It checks member count quorum
+// and bootstrapping status before creating a new DMap.
 func (s *Service) NewDMap(name string) (*DMap, error) {
 	// Check operation status first:
 	//
@@ -88,9 +90,10 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	}
 
 	dm = &DMap{
-		config: &dmapConfig{},
-		name:   name,
-		s:      s,
+		config:       &dmapConfig{},
+		name:         name,
+		fragmentName: fmt.Sprintf("dmap.%s", name),
+		s:            s,
 	}
 	if err := dm.config.load(s.config.DMaps, name); err != nil {
 		return nil, err

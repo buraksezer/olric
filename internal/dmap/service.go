@@ -180,10 +180,14 @@ func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.E
 // Start starts the distributed map service.
 func (s *Service) Start() error {
 	s.wg.Add(1)
-	go s.janitor()
+	go s.janitorWorker()
+
+	s.wg.Add(1)
+	go s.compactionWorker()
 
 	s.wg.Add(1)
 	go s.evictKeysAtBackground()
+
 	return nil
 }
 

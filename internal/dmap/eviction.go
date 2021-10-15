@@ -185,7 +185,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 			return
 		default:
 		}
-		// Call janitor again until it returns false.
+		// Call janitorWorker again until it returns false.
 		if !janitor() {
 			return
 		}

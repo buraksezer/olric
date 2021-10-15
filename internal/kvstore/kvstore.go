@@ -218,7 +218,7 @@ func (k *KVStore) Get(hkey uint64) (storage.Entry, error) {
 }
 
 // GetTTL gets the timeout for the given key. It returns storage.ErrKeyNotFound if the DB
-// does not contains the key.
+// does not contain the key.
 func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
 	if len(k.tables) == 0 {
 		panic("tables cannot be empty")
@@ -244,7 +244,7 @@ func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
 }
 
 // GetKey gets the key for the given hkey. It returns storage.ErrKeyNotFound if the DB
-// does not contains the key.
+// does not contain the key.
 func (k *KVStore) GetKey(hkey uint64) (string, error) {
 	if len(k.tables) == 0 {
 		panic("tables cannot be empty")

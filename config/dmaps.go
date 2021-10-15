@@ -66,6 +66,9 @@ type DMaps struct {
 	// fragment cleaner.
 	CheckEmptyFragmentsInterval time.Duration
 
+	// TriggerCompactionInterval is interval between two sequential call of compaction worker.
+	TriggerCompactionInterval time.Duration
+
 	// Custom is useful to set custom cache config per DMap instance.
 	Custom map[string]DMap
 }

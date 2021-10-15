@@ -21,7 +21,6 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/stats"
-	"github.com/buraksezer/olric/pkg/storage"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -48,13 +47,7 @@ func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error
 	f.Lock()
 	defer f.Unlock()
 
-	err = f.storage.Delete(hkey)
-	if errors.Is(err, storage.ErrFragmented) {
-		dm.s.wg.Add(1)
-		go dm.s.callCompactionOnStorage(f)
-		err = nil
-	}
-	return err
+	return f.storage.Delete(hkey)
 }
 
 func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) error {
@@ -112,11 +105,6 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 	}
 
 	err = f.storage.Delete(hkey)
-	if errors.Is(err, storage.ErrFragmented) {
-		dm.s.wg.Add(1)
-		go dm.s.callCompactionOnStorage(f)
-		err = nil
-	}
 	if err != nil {
 		return err
 	}

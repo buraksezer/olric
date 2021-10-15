@@ -59,12 +59,8 @@ func (dm *DMap) putOnFragment(e *env) error {
 	entry.SetValue(e.value)
 	entry.SetTTL(timeoutToTTL(e.timeout))
 	entry.SetTimestamp(e.timestamp)
+
 	err := e.fragment.storage.Put(e.hkey, entry)
-	if errors.Is(err, storage.ErrFragmented) {
-		dm.s.wg.Add(1)
-		go dm.s.callCompactionOnStorage(e.fragment)
-		err = nil
-	}
 	if errors.Is(err, storage.ErrKeyTooLarge) {
 		err = ErrKeyTooLarge
 	}

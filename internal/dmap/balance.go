@@ -17,10 +17,10 @@ package dmap
 import (
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/pkg/neterrors"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack"
 )
@@ -88,11 +88,6 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) err
 		}
 		// TODO: Don't put the winner again if it comes from dm.storage
 		mergeErr = f.storage.Put(hkey, winner)
-		if errors.Is(mergeErr, storage.ErrFragmented) {
-			dm.s.wg.Add(1)
-			go dm.s.callCompactionOnStorage(f)
-			mergeErr = nil
-		}
 		if mergeErr != nil {
 			return false
 		}

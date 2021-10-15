@@ -124,7 +124,7 @@ func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, err
 	// Creating a new fragment is our critical section here.
 	// It should be protected by a lock.
 
-	fg, ok := part.Map().Load(dm.name)
+	fg, ok := part.Map().Load(dm.fragmentName)
 	if ok {
 		return fg.(*fragment), nil
 	}
@@ -134,12 +134,12 @@ func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, err
 		return nil, err
 	}
 
-	part.Map().Store(dm.name, f)
+	part.Map().Store(dm.fragmentName, f)
 	return f, nil
 }
 
 func (dm *DMap) loadFragment(part *partitions.Partition) (*fragment, error) {
-	f, ok := part.Map().Load(dm.name)
+	f, ok := part.Map().Load(dm.fragmentName)
 	if !ok {
 		return nil, errFragmentNotFound
 	}

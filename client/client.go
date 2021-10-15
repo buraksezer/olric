@@ -17,7 +17,6 @@ package client // import "github.com/buraksezer/olric/client"
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"log"
 	"os"
 	"sync"
@@ -25,6 +24,7 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/storage"

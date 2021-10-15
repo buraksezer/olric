@@ -15,7 +15,10 @@
 package kvstore
 
 import (
+	"errors"
+	"fmt"
 	"github.com/buraksezer/olric/internal/kvstore/table"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 // pruneStaleTables removes stale tables from the table slice and make them available
@@ -80,15 +83,60 @@ import (
 	return true, nil
 }*/
 
-func (k *KVStore) evictTable(t *table.Table) {
+func (k *KVStore) evictTable(t *table.Table) error {
+	var total int
+	var evictErr error
+	t.Range(func(hkey uint64, e storage.Entry) bool {
+		entry, _ := t.GetRaw(hkey)
+		err := k.PutRaw(hkey, entry)
+		if errors.Is(err, table.ErrNotEnoughSpace) {
+			err := k.makeTable()
+			if err != nil {
+				evictErr = err
+				return false
+			}
+			// try again
+			return false
+		}
+		if err != nil {
+			// log this error and continue
+			evictErr = fmt.Errorf("put command failed: HKey: %d: %w", hkey, err)
+			return false
+		}
 
+		// Dont check the returned val, it's useless because
+		// we are sure that the key is already there.
+		err = t.Delete(hkey)
+		if err == table.ErrHKeyNotFound {
+			err = nil
+		}
+		if err != nil {
+			evictErr = err
+			return false
+		}
+		total++
+		if total > 1000 {
+			// It's enough. Don't block the instance.
+			return false
+		}
+
+		return true
+	})
+
+	return evictErr
 }
 
 func (k *KVStore) Compaction() (bool, error) {
 	for _, t := range k.tables {
 		s := t.Stats()
 		if float64(s.Allocated)*maxGarbageRatio <= float64(s.Garbage) {
+			err := k.evictTable(t)
+			if err != nil {
+				return false, err
+			}
 
+			// Continue scanning
+			return false, nil
 		}
 	}
 

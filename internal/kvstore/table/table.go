@@ -301,7 +301,7 @@ func (t *Table) Stats() Stats {
 	}
 }
 
-func (t *Table) Range(f func(hkey uint64, entry storage.Entry) bool) {
+func (t *Table) Range(f func(hkey uint64, e storage.Entry) bool) {
 	for hkey := range t.hkeys {
 		e, err := t.Get(hkey)
 		if errors.Is(err, ErrHKeyNotFound) {

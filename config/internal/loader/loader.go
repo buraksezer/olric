@@ -103,6 +103,7 @@ type dmaps struct {
 	EvictionPolicy              string          `yaml:"evictionPolicy"`
 	StorageEngine               string          `yaml:"storageEngine"`
 	CheckEmptyFragmentsInterval string          `yaml:"checkEmptyFragmentsInterval"`
+	TriggerCompactionInterval   string          `yaml:"triggerCompactionInterval"`
 	Custom                      map[string]dmap `yaml:"custom"`
 }
 

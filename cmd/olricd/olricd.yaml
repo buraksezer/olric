@@ -162,6 +162,7 @@ memberlist:
 
 #dmaps:
 #  checkEmptyFragmentsInterval: 1m
+#  triggerCompactionInterval: 10m
 #  numEvictionWorkers: 1
 #  maxIdleDuration: ""
 #  ttlDuration: "100s"

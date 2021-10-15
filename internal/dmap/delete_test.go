@@ -182,9 +182,9 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	}
 
 	s1.wg.Add(1)
-	go s1.janitor()
+	go s1.janitorWorker()
 	s2.wg.Add(1)
-	go s2.janitor()
+	go s2.janitorWorker()
 
 	var dc int32
 	for i := 0; i < 1000; i++ {

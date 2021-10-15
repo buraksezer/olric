@@ -79,6 +79,7 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 		}
 		res.MaxIdleDuration = maxIdleDuration
 	}
+
 	if c.DMaps.TTLDuration != "" {
 		ttlDuration, err := time.ParseDuration(c.DMaps.TTLDuration)
 		if err != nil {
@@ -86,6 +87,7 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 		}
 		res.TTLDuration = ttlDuration
 	}
+
 	if c.DMaps.CheckEmptyFragmentsInterval != "" {
 		checkEmptyFragmentsInterval, err := time.ParseDuration(c.DMaps.CheckEmptyFragmentsInterval)
 		if err != nil {
@@ -93,12 +95,22 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 		}
 		res.CheckEmptyFragmentsInterval = checkEmptyFragmentsInterval
 	}
+
+	if c.DMaps.TriggerCompactionInterval != "" {
+		triggerCompactionInterval, err := time.ParseDuration(c.DMaps.TriggerCompactionInterval)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse dmap.triggerCompactionInterval")
+		}
+		res.TriggerCompactionInterval = triggerCompactionInterval
+	}
+
 	res.NumEvictionWorkers = c.DMaps.NumEvictionWorkers
 	res.MaxKeys = c.DMaps.MaxKeys
 	res.MaxInuse = c.DMaps.MaxInuse
 	res.EvictionPolicy = EvictionPolicy(c.DMaps.EvictionPolicy)
 	res.LRUSamples = c.DMaps.LRUSamples
 	res.StorageEngine = c.DMaps.StorageEngine
+
 	if c.DMaps.Custom != nil {
 		res.Custom = make(map[string]DMap)
 		for name, dc := range c.DMaps.Custom {
