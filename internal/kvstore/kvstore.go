@@ -29,12 +29,10 @@ import (
 const (
 	maxGarbageRatio = 0.40
 	// 1MB
-	defaultTableSize = 1 << 20
+	defaultTableSize = uint32(1 << 20)
 )
 
-// KVStore implements a new off-heap data store which uses built-in map to
-// keep metadata and mmap syscall for allocating memory to store values.
-// The allocated memory is not a subject of Golang's GC.
+// KVStore implements an in-memory storage engine.
 type KVStore struct {
 	tables []*table.Table
 	config *storage.Config
@@ -228,7 +226,7 @@ func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
 		ttl, err := t.GetTTL(hkey)
-		if err == table.ErrHKeyNotFound {
+		if errors.Is(err, table.ErrHKeyNotFound) {
 			// Try out the other tables.
 			continue
 		}
@@ -254,7 +252,7 @@ func (k *KVStore) GetKey(hkey uint64) (string, error) {
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
 		key, err := t.GetKey(hkey)
-		if err == table.ErrHKeyNotFound {
+		if errors.Is(err, table.ErrHKeyNotFound) {
 			// Try out the other tables.
 			continue
 		}
@@ -279,7 +277,7 @@ func (k *KVStore) Delete(hkey uint64) error {
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
 		err := t.Delete(hkey)
-		if err == table.ErrHKeyNotFound {
+		if errors.Is(err, table.ErrHKeyNotFound) {
 			// Try out the other tables.
 			continue
 		}
@@ -302,7 +300,7 @@ func (k *KVStore) UpdateTTL(hkey uint64, data storage.Entry) error {
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
 		err := t.UpdateTTL(hkey, data)
-		if err == table.ErrHKeyNotFound {
+		if errors.Is(err, table.ErrHKeyNotFound) {
 			// Try out the other tables.
 			continue
 		}

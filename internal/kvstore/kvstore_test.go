@@ -16,6 +16,7 @@ package kvstore
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -137,17 +138,18 @@ func Test_Delete(t *testing.T) {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 		_, err = s.Get(hkey)
-		if err != storage.ErrKeyNotFound {
+		if !errors.Is(err, storage.ErrKeyNotFound) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
 
-	for _, item := range s.(*KVStore).tables {
-		if item.inuse != 0 {
+	for _, tb := range s.(*KVStore).tables {
+		s := tb.Stats()
+		if s.Inuse != 0 {
 			t.Fatal("inuse is different than 0.")
 		}
-		if len(item.hkeys) != 0 {
-			t.Fatalf("Expected key count is zero. Got: %d", len(item.hkeys))
+		if s.Length != 0 {
+			t.Fatalf("Expected key count is zero. Got: %d", s.Length)
 		}
 	}
 }
@@ -157,7 +159,7 @@ func Test_CompactTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	compaction := func() {
+	/*compaction := func() {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
@@ -169,7 +171,7 @@ func Test_CompactTables(t *testing.T) {
 				return
 			}
 		}
-	}
+	}*/
 	timestamp := time.Now().UnixNano()
 	// Current free space is 1MB. Trigger a compaction operation.
 	for i := 0; i < 1500; i++ {
@@ -234,7 +236,7 @@ func Test_PurgeTables(t *testing.T) {
 	}
 	var isFragmented bool
 
-	compaction := func() {
+	/*compaction := func() {
 		storageTestLock.Lock()
 		defer storageTestLock.Unlock()
 		for {
@@ -246,7 +248,7 @@ func Test_PurgeTables(t *testing.T) {
 				return
 			}
 		}
-	}
+	}*/
 	timestamp := time.Now().UnixNano()
 	// Current free space is 65kb. Trigger a compaction operation.
 	for i := 0; i < 2000; i++ {
@@ -603,7 +605,7 @@ func Test_Fork(t *testing.T) {
 	}
 
 	stats := child.Stats()
-	if stats.Allocated != defaultTableSize {
+	if uint32(stats.Allocated) != defaultTableSize {
 		t.Fatalf("Expected Stats.Allocated: %d. Got: %d", defaultTableSize, stats.Allocated)
 	}
 
