@@ -16,6 +16,7 @@ package kvstore
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,6 +27,7 @@ import (
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/cespare/xxhash"
+	"github.com/stretchr/testify/require"
 )
 
 var storageTestLock sync.RWMutex
@@ -299,7 +301,7 @@ func Test_ExportImport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		e := entry.New()
 		e.SetKey(bkey(i))
 		e.SetTTL(int64(i))
@@ -311,15 +313,28 @@ func Test_ExportImport(t *testing.T) {
 			t.Fatalf("Expected nil. Got %v", err)
 		}
 	}
-	data, err := s.Export()
+
+	r, err := s.Export(context.Background())
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
-	fresh, err := s.Import(data)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
-	for i := 0; i < 100; i++ {
+
+	ch := make(chan storage.Engine)
+	go func() {
+		fresh, err := s.Import(r)
+		if err != nil {
+			require.NoError(t, err)
+			ch <- nil
+			return
+		}
+		ch <- fresh
+	}()
+
+	fresh := <-ch
+	_, ok := fresh.(*KVStore)
+	require.True(t, ok)
+
+	for i := 0; i < 1000; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
 		e, err := fresh.Get(hkey)
 		if err != nil {

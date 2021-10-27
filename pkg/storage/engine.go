@@ -14,7 +14,11 @@
 
 package storage
 
-import "log"
+import (
+	"context"
+	"io"
+	"log"
+)
 
 // Engine defines methods for a storage engine implementation.
 type Engine interface {
@@ -65,10 +69,10 @@ type Engine interface {
 	UpdateTTL(uint64, Entry) error
 
 	// Import creates a new storage engine instance from its encoded form.
-	Import([]byte) (Engine, error)
+	Import(io.Reader) (Engine, error)
 
-	// Exports encodes a storage engine into its binary form.
-	Export() ([]byte, error)
+	// Export encodes a storage engine into its binary form.
+	Export(context.Context) (io.Reader, error)
 
 	// Stats returns metrics for an online storage engine.
 	Stats() Stats

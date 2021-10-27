@@ -128,8 +128,9 @@ func (db *Olric) NewDMap(name string) (*DMap, error) {
 func (dm *DMap) Name() string {
 	return dm.dm.Name()
 }
+
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contains the key. It's thread-safe. It is safe to modify the contents
+// does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) Get(key string) (interface{}, error) {
 	value, err := dm.dm.Get(key)
@@ -140,7 +141,7 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 }
 
 // GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
-// does not contains the key. It's thread-safe. It is safe to modify the contents
+// does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) GetEntry(key string) (*Entry, error) {
 	e, err := dm.dm.GetEntry(key)
@@ -199,7 +200,7 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 }
 
 // Put sets the value for the given key. It overwrites any previous value
-// for that key and it's thread-safe. The key has to be string. value type
+// for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
@@ -208,7 +209,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 }
 
 // PutIf sets the value for the given key. It overwrites any previous value
-// for that key and it's thread-safe. The key has to be string. value type
+// for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 // Flag argument currently has two different options:
@@ -240,7 +241,7 @@ func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, fl
 }
 
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
-// DB does not contains the key. It's thread-safe.
+// DB does not contain the key. It's thread-safe.
 func (dm *DMap) Expire(key string, timeout time.Duration) error {
 	err := dm.dm.Expire(key, timeout)
 	return convertDMapError(err)

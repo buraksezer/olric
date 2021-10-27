@@ -99,6 +99,20 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	return child, nil
 }
 
+func (k *KVStore) EmptyInstance(c *storage.Config) (storage.Engine, error) {
+	if c == nil {
+		c = k.config.Copy()
+	}
+	child := &KVStore{
+		config: c,
+	}
+	return child, nil
+}
+
+func (k *KVStore) AppendTable(t *table.Table) {
+	k.tables = append(k.tables, t)
+}
+
 func (k *KVStore) Name() string {
 	return "kvstore"
 }
@@ -312,52 +326,6 @@ func (k *KVStore) UpdateTTL(hkey uint64, data storage.Entry) error {
 	}
 	// Nothing here.
 	return storage.ErrKeyNotFound
-}
-
-// Export serializes underlying data structes into a byte slice. It may return
-// ErrFragmented if the tables are fragmented. If you get this error, you should
-// try to call Export again some time later.
-func (k *KVStore) Export() ([]byte, error) {
-	/*if len(k.tables) != 1 {
-		return nil, storage.ErrFragmented
-	}
-	t := k.tables[0]
-	tr := &transport{
-		HKeys:     t.hkeys,
-		Offset:    t.offset,
-		Allocated: t.allocated,
-		Inuse:     t.inuse,
-		Garbage:   t.garbage,
-	}
-	tr.Memory = make([]byte, t.offset+1)
-	copy(tr.Memory, t.memory[:t.offset])
-	return msgpack.Marshal(tr)*/
-	return nil, nil
-}
-
-// Import gets the serialized data by Export and creates a new storage instance.
-func (k *KVStore) Import(data []byte) (storage.Engine, error) {
-	/*tr := transport{}
-	err := msgpack.Unmarshal(data, &tr)
-	if err != nil {
-		return nil, err
-	}
-
-	c := k.config.Copy()
-	c.Add("tableSize", tr.Allocated)
-
-	child, err := k.Fork(c)
-	if err != nil {
-		return nil, err
-	}
-	t := child.(*KVStore).tables[0]
-	t.hkeys = tr.HKeys
-	t.offset = tr.Offset
-	t.inuse = tr.Inuse
-	t.garbage = tr.Garbage
-	copy(t.memory, tr.Memory)
-	return child, nil*/
-	return nil, nil
 }
 
 // Stats is a function which provides memory allocation and garbage ratio of a storage instance.

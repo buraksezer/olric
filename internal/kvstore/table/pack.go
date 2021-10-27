@@ -27,7 +27,7 @@ type Pack struct {
 	Memory     []byte
 }
 
-func (t *Table) Encode() ([]byte, error) {
+func Encode(t *Table) ([]byte, error) {
 	p := Pack{
 		Offset:     t.offset,
 		Allocated:  t.allocated,
@@ -37,19 +37,29 @@ func (t *Table) Encode() ([]byte, error) {
 		State:      t.state,
 		HKeys:      t.hkeys,
 	}
-	p.Memory = make([]byte, t.offset+1)
+	p.Memory = make([]byte, t.offset)
 	copy(p.Memory, t.memory[:t.offset])
 
 	return msgpack.Marshal(p)
 }
 
-func (t *Table) Decode(data []byte) (*Pack, error) {
-	var p *Pack
+func Decode(data []byte, t *Table) error {
+	p := &Pack{}
 
 	err := msgpack.Unmarshal(data, p)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return p, nil
+	t.offset = p.Offset
+	t.allocated = p.Allocated
+	t.inuse = p.Inuse
+	t.garbage = p.Garbage
+	t.recycledAt = p.RecycledAt
+	t.state = p.State
+	t.hkeys = p.HKeys
+
+	copy(t.memory[:t.offset], p.Memory)
+
+	return nil
 }
