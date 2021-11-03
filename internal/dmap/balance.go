@@ -33,17 +33,23 @@ type fragmentPack struct {
 	AccessLog map[uint64]int64
 }
 
-func (dm *DMap) selectVersionForMerge(f *fragment, hkey uint64, entry storage.Entry) (storage.Entry, error) {
+func (dm *DMap) fragmentMergeFunction(f *fragment, hkey uint64, entry storage.Entry) error {
 	current, err := f.storage.Get(hkey)
 	if errors.Is(err, storage.ErrKeyNotFound) {
-		return entry, nil
+		return f.storage.Put(hkey, entry)
 	}
 	if err != nil {
-		return nil, err
+		return err
 	}
+
 	versions := []*version{{entry: current}, {entry: entry}}
 	versions = dm.sortVersions(versions)
-	return versions[0].entry, nil
+	winner := versions[0].entry
+	if winner == current {
+		// No need to insert the winner
+		return nil
+	}
+	return f.storage.Put(hkey, versions[0].entry)
 }
 
 func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) error {
@@ -56,44 +62,10 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) err
 	f.Lock()
 	defer f.Unlock()
 
-	// TODO: This may be useless. Check it.
-	defer part.Map().Store(fp.Name, f)
-
-	s, err := f.storage.Import(fp.Payload)
-	if err != nil {
-		return err
-	}
-
-	// Merge accessLog.
-	if dm.config != nil && dm.config.isAccessLogRequired() {
-		f.accessLog = &accessLog{
-			m: fp.AccessLog,
-		}
-	}
-
-	if f.storage.Stats().Length == 0 {
-		// DMap has no keys. Set the imported storage instance.
-		// The old one will be garbage collected.
-		f.storage = s
-		return nil
-	}
-
-	// DMap has some keys. Merge with the new one.
-	var mergeErr error
-	s.Range(func(hkey uint64, entry storage.Entry) bool {
-		winner, err := dm.selectVersionForMerge(f, hkey, entry)
-		if err != nil {
-			mergeErr = err
-			return false
-		}
-		// TODO: Don't put the winner again if it comes from dm.storage
-		mergeErr = f.storage.Put(hkey, winner)
-		if mergeErr != nil {
-			return false
-		}
-		return true
+	iterator := f.storage.TransferIterator()
+	return iterator.Merge(fp.Payload, func(hkey uint64, entry storage.Entry) error {
+		return dm.fragmentMergeFunction(f, hkey, entry)
 	})
-	return mergeErr
 }
 
 func (s *Service) checkOwnership(part *partitions.Partition) bool {

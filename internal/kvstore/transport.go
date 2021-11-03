@@ -15,128 +15,65 @@
 package kvstore
 
 import (
-	"bytes"
-	"context"
-	"encoding/binary"
-	"errors"
+	"fmt"
 	"io"
 
 	"github.com/buraksezer/olric/internal/kvstore/table"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
-var (
-	startTransportSignature = []byte{0x4F, 0x4C, 0x52, 0x43}
-	endTransportSignature   = []byte{0x43, 0x52, 0x4C, 0x4F}
-)
-
-// Export serializes underlying data structs into a byte slice. It may return
-// ErrFragmented if the tables are fragmented. If you get this error, you should
-// try to call Export again some time later.
-func (k *KVStore) Export(ctx context.Context) (io.Reader, error) {
-	r, w := io.Pipe()
-
-	go func() {
-		_, err := w.Write(startTransportSignature)
-		if err != nil {
-			_ = w.CloseWithError(err)
-			return
-		}
-
-		for _, t := range k.tables {
-			if t.State() == table.RecycledState {
-				continue
-			}
-
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			var tableSize [4]byte
-
-			data, err := table.Encode(t)
-			if err != nil {
-				_ = w.CloseWithError(err)
-				return
-			}
-
-			binary.BigEndian.PutUint32(tableSize[:], uint32(len(data)))
-			_, err = w.Write(tableSize[:])
-			if err != nil {
-				_ = w.CloseWithError(err)
-				return
-			}
-
-			_, err = w.Write(data)
-			if err != nil {
-				_ = w.CloseWithError(err)
-				return
-			}
-		}
-
-		_, err = w.Write(endTransportSignature)
-		if err != nil {
-			_ = w.CloseWithError(err)
-			return
-		}
-	}()
-
-	return r, nil
+type transferIterator struct {
+	kvstore *KVStore
 }
 
-// Import gets the serialized data by Export and creates a new storage instance.
-func (k *KVStore) Import(r io.Reader) (storage.Engine, error) {
-	b := make([]byte, len(startTransportSignature))
-	_, err := r.Read(b)
+func (t *transferIterator) Next() bool {
+	return len(t.kvstore.tables) != 0
+}
+
+func (t *transferIterator) Pop() error {
+	if len(t.kvstore.tables) == 0 {
+		return fmt.Errorf("there is no table to pop")
+	}
+
+	t.kvstore.tables = append(t.kvstore.tables[:0], t.kvstore.tables[1:]...)
+
+	return nil
+}
+
+func (t *transferIterator) Export() ([]byte, error) {
+	for _, t := range t.kvstore.tables {
+		if t.State() == table.RecycledState {
+			continue
+		}
+
+		return table.Encode(t)
+	}
+	return nil, io.EOF
+}
+
+func (t *transferIterator) Merge(data []byte, f func(uint64, storage.Entry) error) error {
+	tb, err := table.Decode(data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	if !bytes.Equal(b, startTransportSignature) {
-		return nil, errors.New("invalid transport signature")
+	if t.kvstore.Stats().Length == 0 {
+		// DMap has no keys. Set the imported storage instance.
+		// The old one will be garbage collected.
+		t.kvstore.AppendTable(tb)
+		return nil
 	}
 
-	c := k.config.Copy()
-	child, err := k.EmptyInstance(c)
-	if err != nil {
-		return nil, err
+	t.kvstore.Range(func(hkey uint64, entry storage.Entry) bool {
+		err = f(hkey, entry)
+		return err == nil
+	})
+
+	return err
+}
+
+func (k *KVStore) TransferIterator() storage.TransferIterator {
+	return &transferIterator{
+		kvstore: k,
 	}
-
-	for {
-		ts := make([]byte, 4)
-		_, err = r.Read(ts)
-		if err != nil {
-			return nil, err
-		}
-
-		if bytes.Equal(endTransportSignature, ts) {
-			break
-		}
-
-		tableSize := binary.BigEndian.Uint32(ts)
-		chunk := make([]byte, 4096)
-		data := make([]byte, tableSize)
-		var readBytes uint32
-		for readBytes < tableSize {
-			nr, err := r.Read(chunk)
-			if err != nil {
-				return nil, err
-			}
-			copy(data[readBytes:], chunk[:nr])
-			readBytes += uint32(nr)
-		}
-
-		t := table.New(tableSize)
-		err = table.Decode(data, t)
-		if err != nil {
-			return nil, err
-		}
-
-		c.Add("tableSize", t.Stats().Allocated)
-		child.(*KVStore).AppendTable(t)
-	}
-
-	return child, nil
 }

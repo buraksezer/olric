@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"bytes"
+	"github.com/stretchr/testify/require"
 	"strconv"
 	"testing"
 	"time"
@@ -81,18 +82,18 @@ func TestDMap_Merge_Fragments(t *testing.T) {
 		}
 	})
 
-	t.Run("selectVersionForMerge", func(t *testing.T) {
+	t.Run("fragmentMergeFunction", func(t *testing.T) {
 		currentValue := []byte("current-value")
 		e := dm.engine.NewEntry()
 		e.SetKey(key)
 		e.SetTimestamp(time.Now().UnixNano())
 		e.SetValue(currentValue)
-		winner, err := dm.selectVersionForMerge(f, hkey, e)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(winner.Value(), currentValue) {
-			t.Fatalf("Winner is different")
-		}
+		err := dm.fragmentMergeFunction(f, hkey, e)
+		require.NoError(t, err)
+
+		winner, err := f.storage.Get(hkey)
+		require.NoError(t, err)
+
+		require.Equal(t, currentValue, winner.Value())
 	})
 }

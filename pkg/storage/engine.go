@@ -15,10 +15,18 @@
 package storage
 
 import (
-	"context"
-	"io"
 	"log"
 )
+
+type TransferIterator interface {
+	Next() bool
+
+	Export() ([]byte, error)
+
+	Merge([]byte, func(uint64, Entry) error) error
+
+	Pop() error
+}
 
 // Engine defines methods for a storage engine implementation.
 type Engine interface {
@@ -65,14 +73,10 @@ type Engine interface {
 	Delete(uint64) error
 
 	// UpdateTTL updates TTL of an entry. It returns ErrKeyNotFound,
-	// if the key doesn't exists.
+	// if the key doesn't exist.
 	UpdateTTL(uint64, Entry) error
 
-	// Import creates a new storage engine instance from its encoded form.
-	Import(io.Reader) (Engine, error)
-
-	// Export encodes a storage engine into its binary form.
-	Export(context.Context) (io.Reader, error)
+	TransferIterator() TransferIterator
 
 	// Stats returns metrics for an online storage engine.
 	Stats() Stats

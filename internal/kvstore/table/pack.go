@@ -43,16 +43,16 @@ func Encode(t *Table) ([]byte, error) {
 	return msgpack.Marshal(p)
 }
 
-func Decode(data []byte, t *Table) error {
+func Decode(data []byte) (*Table, error) {
 	p := &Pack{}
 
 	err := msgpack.Unmarshal(data, p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	t := New(p.Allocated)
 	t.offset = p.Offset
-	t.allocated = p.Allocated
 	t.inuse = p.Inuse
 	t.garbage = p.Garbage
 	t.recycledAt = p.RecycledAt
@@ -61,5 +61,5 @@ func Decode(data []byte, t *Table) error {
 
 	copy(t.memory[:t.offset], p.Memory)
 
-	return nil
+	return t, nil
 }

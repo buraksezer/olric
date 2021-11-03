@@ -79,26 +79,38 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 	f.Lock()
 	defer f.Unlock()
 
-	payload, err := f.storage.Export()
-	if err != nil {
-		return err
-	}
-	fp := &fragmentPack{
-		PartID:    partID,
-		Kind:      kind,
-		Name:      name,
-		Payload:   payload,
-		AccessLog: f.accessLog.m,
-	}
-	value, err := msgpack.Marshal(fp)
-	if err != nil {
-		return err
+	i := f.storage.TransferIterator()
+	for i.Next() {
+		payload, err := i.Export()
+		if err != nil {
+			return err
+		}
+		fp := &fragmentPack{
+			PartID:    partID,
+			Kind:      kind,
+			Name:      name,
+			Payload:   payload,
+			AccessLog: f.accessLog.m,
+		}
+		value, err := msgpack.Marshal(fp)
+		if err != nil {
+			return err
+		}
+
+		req := protocol.NewSystemMessage(protocol.OpMoveFragment)
+		req.SetValue(value)
+		_, err = f.service.requestTo(owner.String(), req)
+		if err != nil {
+			return err
+		}
+
+		err = i.Pop()
+		if err != nil {
+			return err
+		}
 	}
 
-	req := protocol.NewSystemMessage(protocol.OpMoveFragment)
-	req.SetValue(value)
-	_, err = f.service.requestTo(owner.String(), req)
-	return err
+	return nil
 }
 
 func (dm *DMap) newFragment() (*fragment, error) {
