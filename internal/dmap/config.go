@@ -76,7 +76,3 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 	}
 	return nil
 }
-
-func (c *dmapConfig) isAccessLogRequired() bool {
-	return c.evictionPolicy == config.LRUEviction || c.maxIdleDuration != 0
-}

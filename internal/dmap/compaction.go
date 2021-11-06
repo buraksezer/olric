@@ -66,11 +66,9 @@ func (s *Service) doCompaction(ch chan uint64, wg *sync.WaitGroup) {
 		case <-s.ctx.Done():
 			return
 		case partID := <-ch:
-			// Clean stale DMap fragments on partition table
 			part := s.primary.PartitionByID(partID)
 			compaction(part)
 
-			// Clean stale DMap fragments on backup partition table
 			backup := s.backup.PartitionByID(partID)
 			compaction(backup)
 		}

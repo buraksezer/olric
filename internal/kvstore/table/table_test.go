@@ -271,3 +271,26 @@ func TestTable_Stats(t *testing.T) {
 	require.Equal(t, uint32(0), s.Inuse)
 	require.Equal(t, uint32(4280), s.Garbage)
 }
+
+func TestTable_Reset(t *testing.T) {
+	tb := New(1 << 20)
+	for i := 0; i < 100; i++ {
+		e := entry.New()
+		ikey := fmt.Sprintf("key-%d", i)
+		idata := []byte(fmt.Sprintf("value-%d", i))
+		ihkey := xxhash.Sum64String(ikey)
+		e.SetKey(ikey)
+		e.SetValue(idata)
+		err := tb.Put(ihkey, e)
+		require.NoError(t, err)
+	}
+
+	tb.Reset()
+
+	stats := tb.Stats()
+	require.Equal(t, RecycledState, tb.State())
+	require.Equal(t, uint32(0), stats.Garbage)
+	require.Equal(t, uint32(0), stats.Inuse)
+	require.Equal(t, tb.allocated, stats.Allocated)
+	require.Equal(t, 0, stats.Length)
+}

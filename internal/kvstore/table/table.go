@@ -40,10 +40,11 @@ var (
 )
 
 type Stats struct {
-	Allocated uint32
-	Inuse     uint32
-	Garbage   uint32
-	Length    int
+	Allocated  uint32
+	Inuse      uint32
+	Garbage    uint32
+	Length     int
+	RecycledAt int64
 }
 
 type Table struct {
@@ -333,10 +334,11 @@ func (t *Table) Check(hkey uint64) bool {
 
 func (t *Table) Stats() Stats {
 	return Stats{
-		Allocated: t.allocated,
-		Inuse:     t.inuse,
-		Garbage:   t.garbage,
-		Length:    len(t.hkeys),
+		Allocated:  t.allocated,
+		Inuse:      t.inuse,
+		Garbage:    t.garbage,
+		Length:     len(t.hkeys),
+		RecycledAt: t.recycledAt,
 	}
 }
 
@@ -353,7 +355,10 @@ func (t *Table) Range(f func(hkey uint64, e storage.Entry) bool) {
 	}
 }
 
-func (t *Table) Recycle() {
+func (t *Table) Reset() {
+	if len(t.hkeys) != 0 {
+		t.hkeys = make(map[uint64]uint32)
+	}
 	t.SetState(RecycledState)
 	t.inuse = 0
 	t.garbage = 0

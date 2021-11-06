@@ -17,6 +17,7 @@ package kvstore
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/table"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -58,15 +59,30 @@ func (k *KVStore) evictTable(t *table.Table) error {
 
 	stats := t.Stats()
 	if stats.Inuse == 0 {
-		t.Recycle()
+		t.Reset()
 	}
 
 	return evictErr
 }
 
+func isTableExpired(recycledAt int64) bool {
+	limit := ((15 * time.Minute).Nanoseconds() + recycledAt) / 1000000
+	return (limit / 1000000) >= limit
+}
+
 func (k *KVStore) Compaction() (bool, error) {
-	for _, t := range k.tables {
+	expiredTables := []int{}
+
+	for i, t := range k.tables {
 		s := t.Stats()
+
+		if t.State() == table.RecycledState {
+			if isTableExpired(s.RecycledAt) {
+				expiredTables = append(expiredTables, i)
+			}
+			continue
+		}
+
 		if float64(s.Garbage) >= float64(s.Allocated)*maxGarbageRatio {
 			err := k.evictTable(t)
 			if err != nil {
@@ -75,6 +91,10 @@ func (k *KVStore) Compaction() (bool, error) {
 			// Continue scanning
 			return false, nil
 		}
+	}
+
+	for _, i := range expiredTables {
+		k.tables = append(k.tables[:i], k.tables[i+1:]...)
 	}
 
 	return true, nil

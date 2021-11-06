@@ -308,7 +308,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 }
 
 // PutIf Put sets the value for the given key. It overwrites any previous value
-// for that key and it's thread-safe. The key has to be string. value type
+// for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 // Flag argument currently has two different options:
