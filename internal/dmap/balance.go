@@ -26,11 +26,10 @@ import (
 )
 
 type fragmentPack struct {
-	PartID    uint64
-	Kind      partitions.Kind
-	Name      string
-	Payload   []byte
-	AccessLog map[uint64]int64
+	PartID  uint64
+	Kind    partitions.Kind
+	Name    string
+	Payload []byte
 }
 
 func (dm *DMap) fragmentMergeFunction(f *fragment, hkey uint64, entry storage.Entry) error {
@@ -62,8 +61,7 @@ func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) err
 	f.Lock()
 	defer f.Unlock()
 
-	iterator := f.storage.TransferIterator()
-	return iterator.Merge(fp.Payload, func(hkey uint64, entry storage.Entry) error {
+	return f.storage.Import(fp.Payload, func(hkey uint64, entry storage.Entry) error {
 		return dm.fragmentMergeFunction(f, hkey, entry)
 	})
 }
@@ -131,6 +129,7 @@ func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
 		neterrors.ErrorResponse(w, err)
 		return
 	}
+
 	err = dm.mergeFragments(part, fp)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to merge Received DMap (kind: %s): %s on PartID: %d: %v",

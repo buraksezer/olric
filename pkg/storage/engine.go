@@ -23,8 +23,6 @@ type TransferIterator interface {
 
 	Export() ([]byte, error)
 
-	Merge([]byte, func(uint64, Entry) error) error
-
 	Pop() error
 }
 
@@ -66,6 +64,9 @@ type Engine interface {
 	// GetTTL extracts TTL of an entry.
 	GetTTL(uint64) (int64, error)
 
+	// GetLastAccess extracts LastAccess of an entry.
+	GetLastAccess(uint64) (int64, error)
+
 	// GetKey extracts key of an entry.
 	GetKey(uint64) (string, error)
 
@@ -77,6 +78,8 @@ type Engine interface {
 	UpdateTTL(uint64, Entry) error
 
 	TransferIterator() TransferIterator
+
+	Import([]byte, func(uint64, Entry) error) error
 
 	// Stats returns metrics for an online storage engine.
 	Stats() Stats

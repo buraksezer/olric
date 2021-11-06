@@ -109,10 +109,6 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 		return err
 	}
 
-	// Delete it from access log if everything is ok.
-	// If we delete the hkey when err is not nil, LRU/MaxIdleDuration may not work properly.
-	dm.deleteAccessLog(hkey, f)
-
 	// DeleteHits is the number of deletion reqs resulting in an item being removed.
 	DeleteHits.Increase(1)
 

@@ -17,6 +17,7 @@ package table
 import (
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -50,7 +51,7 @@ type Table struct {
 	allocated  uint32
 	inuse      uint32
 	garbage    uint32
-	recycledAt uint64
+	recycledAt int64
 	state      State
 	hkeys      map[uint64]uint32
 	memory     []byte
@@ -97,14 +98,16 @@ func (t *Table) PutRaw(hkey uint64, value []byte) error {
 
 // In-memory layout for entry:
 //
-// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 func (t *Table) Put(hkey uint64, value storage.Entry) error {
 	if len(value.Key()) >= maxKeyLen {
 		return storage.ErrKeyTooLarge
 	}
 
 	// Check empty space on allocated memory area.
-	inuse := uint32(len(value.Key()) + len(value.Value()) + 21) // TTL + Timestamp + value-Length + key-Length
+
+	// TTL + Timestamp + LastAccess + + value-Length + key-Length
+	inuse := uint32(len(value.Key()) + len(value.Value()) + 29)
 	if inuse+t.offset >= t.allocated {
 		return ErrNotEnoughSpace
 	}
@@ -138,6 +141,10 @@ func (t *Table) Put(hkey uint64, value storage.Entry) error {
 	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.Timestamp()))
 	t.offset += 8
 
+	// Set the last access. It's 8 bytes.
+	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(time.Now().UnixNano()))
+	t.offset += 8
+
 	// Set the value length. It's 4 bytes.
 	binary.BigEndian.PutUint32(t.memory[t.offset:], uint32(len(value.Value())))
 	t.offset += 4
@@ -156,13 +163,14 @@ func (t *Table) GetRaw(hkey uint64) ([]byte, error) {
 	start, end := offset, offset
 
 	// In-memory structure:
-	// 1                 | klen       | 8           | 8                  | 4                    | vlen
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64)  | VALUE-LENGTH(uint32) | VALUE(bytes)
+	// 1                 | klen       | 8           | 8                  | 8                  | 4                    | vlen
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64)  | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := uint32(t.memory[end])
 	end++       // One byte to keep key length
 	end += klen // key length
-	end += 8    // For bytes for TTL
-	end += 8    // For bytes for Timestamp
+	end += 8    // TTL
+	end += 8    // Timestamp
+	end += 8    // LastAccess
 
 	vlen := binary.BigEndian.Uint32(t.memory[end : end+4])
 	end += 4    // 4 bytes to keep value length
@@ -202,8 +210,23 @@ func (t *Table) GetTTL(hkey uint64) (int64, error) {
 	klen := uint32(t.memory[offset])
 	offset++
 	offset += klen
-	ttl := int64(binary.BigEndian.Uint64(t.memory[offset : offset+8]))
-	return ttl, nil
+
+	return int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])), nil
+}
+
+func (t *Table) GetLastAccess(hkey uint64) (int64, error) {
+	offset, ok := t.hkeys[hkey]
+	if !ok {
+		return 0, ErrHKeyNotFound
+	}
+
+	klen := uint32(t.memory[offset])
+	offset++       // Key length
+	offset += klen // Key's itself
+	offset += 8    // TTL
+	offset += 8    // Timestamp
+
+	return int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])), nil
 }
 
 func (t *Table) Get(hkey uint64) (storage.Entry, error) {
@@ -215,7 +238,7 @@ func (t *Table) Get(hkey uint64) (storage.Entry, error) {
 	e := &entry.Entry{}
 	// In-memory structure:
 	//
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | Timestamp(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
 	klen := uint32(t.memory[offset])
 	offset++
 
@@ -226,6 +249,12 @@ func (t *Table) Get(hkey uint64) (storage.Entry, error) {
 	offset += 8
 
 	e.SetTimestamp(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	offset += 8
+
+	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+
+	// Update the last access field
+	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(time.Now().UnixNano()))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
@@ -253,6 +282,10 @@ func (t *Table) Delete(hkey uint64) error {
 	garbage += 8
 
 	// Timestamp, skip it.
+	offset += 8
+	garbage += 8
+
+	// LastAccess, skip it.
 	offset += 8
 	garbage += 8
 
@@ -284,6 +317,12 @@ func (t *Table) UpdateTTL(hkey uint64, value storage.Entry) error {
 
 	// Set the new Timestamp. It's 8 bytes.
 	binary.BigEndian.PutUint64(t.memory[offset:], uint64(value.Timestamp()))
+
+	offset += 8
+
+	// Update the last access field
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
+
 	return nil
 }
 
@@ -312,4 +351,12 @@ func (t *Table) Range(f func(hkey uint64, e storage.Entry) bool) {
 			break
 		}
 	}
+}
+
+func (t *Table) Recycle() {
+	t.SetState(RecycledState)
+	t.inuse = 0
+	t.garbage = 0
+	t.offset = 0
+	t.recycledAt = time.Now().UnixNano()
 }

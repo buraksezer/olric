@@ -23,25 +23,25 @@ import (
 )
 
 type transferIterator struct {
-	kvstore *KVStore
+	storage *KVStore
 }
 
 func (t *transferIterator) Next() bool {
-	return len(t.kvstore.tables) != 0
+	return len(t.storage.tables) != 0
 }
 
 func (t *transferIterator) Pop() error {
-	if len(t.kvstore.tables) == 0 {
+	if len(t.storage.tables) == 0 {
 		return fmt.Errorf("there is no table to pop")
 	}
 
-	t.kvstore.tables = append(t.kvstore.tables[:0], t.kvstore.tables[1:]...)
+	t.storage.tables = append(t.storage.tables[:0], t.storage.tables[1:]...)
 
 	return nil
 }
 
 func (t *transferIterator) Export() ([]byte, error) {
-	for _, t := range t.kvstore.tables {
+	for _, t := range t.storage.tables {
 		if t.State() == table.RecycledState {
 			continue
 		}
@@ -51,22 +51,22 @@ func (t *transferIterator) Export() ([]byte, error) {
 	return nil, io.EOF
 }
 
-func (t *transferIterator) Merge(data []byte, f func(uint64, storage.Entry) error) error {
+func (k *KVStore) Import(data []byte, f func(uint64, storage.Entry) error) error {
 	tb, err := table.Decode(data)
 	if err != nil {
 		return err
 	}
 
-	if t.kvstore.Stats().Length == 0 {
+	if k.Stats().Length == 0 {
 		// DMap has no keys. Set the imported storage instance.
 		// The old one will be garbage collected.
-		t.kvstore.AppendTable(tb)
+		k.AppendTable(tb)
 		return nil
 	}
 
-	t.kvstore.Range(func(hkey uint64, entry storage.Entry) bool {
+	k.Range(func(hkey uint64, entry storage.Entry) bool {
 		err = f(hkey, entry)
-		return err == nil
+		return err == nil // return false to break the loop
 	})
 
 	return err
@@ -74,6 +74,6 @@ func (t *transferIterator) Merge(data []byte, f func(uint64, storage.Entry) erro
 
 func (k *KVStore) TransferIterator() storage.TransferIterator {
 	return &transferIterator{
-		kvstore: k,
+		storage: k,
 	}
 }

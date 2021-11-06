@@ -26,10 +26,11 @@ import (
 
 // Entry represents a value with its metadata.
 type Entry struct {
-	key       string
-	ttl       int64
-	timestamp int64
-	value     []byte
+	key        string
+	ttl        int64
+	timestamp  int64
+	lastAccess int64
+	value      []byte
 }
 
 var _ storage.Entry = (*Entry)(nil)
@@ -70,12 +71,20 @@ func (e *Entry) Timestamp() int64 {
 	return e.timestamp
 }
 
+func (e *Entry) SetLastAccess(lastAccess int64) {
+	e.lastAccess = lastAccess
+}
+
+func (e *Entry) LastAccess() int64 {
+	return e.lastAccess
+}
+
 func (e *Entry) Encode() []byte {
 	var offset int
 
 	klen := uint8(len(e.Key()))
 	vlen := len(e.Value())
-	length := 21 + len(e.Key()) + vlen
+	length := 29 + len(e.Key()) + vlen
 
 	buf := make([]byte, length)
 
@@ -95,13 +104,16 @@ func (e *Entry) Encode() []byte {
 	binary.BigEndian.PutUint64(buf[offset:], uint64(e.Timestamp()))
 	offset += 8
 
+	// Set the LastAccess. It's 8 bytes.
+	binary.BigEndian.PutUint64(buf[offset:], uint64(e.LastAccess()))
+	offset += 8
+
 	// Set the value length. It's 4 bytes.
 	binary.BigEndian.PutUint32(buf[offset:], uint32(len(e.Value())))
 	offset += 4
 
 	// Set the value.
 	copy(buf[offset:], e.Value())
-	offset += len(e.Value())
 	return buf
 }
 
@@ -118,6 +130,9 @@ func (e *Entry) Decode(buf []byte) {
 	offset += 8
 
 	e.timestamp = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
+	offset += 8
+
+	e.lastAccess = int64(binary.BigEndian.Uint64(buf[offset : offset+8]))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(buf[offset : offset+4])

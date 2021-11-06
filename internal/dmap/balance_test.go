@@ -16,7 +16,6 @@ package dmap
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"strconv"
 	"testing"
 	"time"
@@ -25,6 +24,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Merge_Fragments(t *testing.T) {
@@ -60,11 +60,10 @@ func TestDMap_Merge_Fragments(t *testing.T) {
 
 	t.Run("invalid partition id", func(t *testing.T) {
 		fp := &fragmentPack{
-			PartID:    12312,
-			Kind:      partitions.PRIMARY,
-			Name:      "foobar",
-			Payload:   nil,
-			AccessLog: f.accessLog.m,
+			PartID:  12312,
+			Kind:    partitions.PRIMARY,
+			Name:    "foobar",
+			Payload: nil,
 		}
 		err = s.validateFragmentPack(fp)
 		if err == nil {
@@ -88,6 +87,7 @@ func TestDMap_Merge_Fragments(t *testing.T) {
 		e.SetKey(key)
 		e.SetTimestamp(time.Now().UnixNano())
 		e.SetValue(currentValue)
+
 		err := dm.fragmentMergeFunction(f, hkey, e)
 		require.NoError(t, err)
 

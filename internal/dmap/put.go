@@ -43,15 +43,6 @@ var (
 	ErrKeyTooLarge = neterrors.New(protocol.StatusErrKeyTooLarge, "key too large")
 )
 
-func (dm *DMap) updateAccessLog(hkey uint64, f *fragment) {
-	if dm.config == nil || !dm.config.isAccessLogRequired() {
-		// Fail early. This's useful to avoid checking the configuration everywhere.
-		return
-	}
-	// Be careful. DMap fragment is not a thread-safe data structure.
-	f.accessLog.touch(hkey)
-}
-
 // putOnFragment calls underlying storage engine's Put method to store the key/value pair. It's not thread-safe.
 func (dm *DMap) putOnFragment(e *env) error {
 	entry := e.fragment.storage.NewEntry()
@@ -71,7 +62,6 @@ func (dm *DMap) putOnFragment(e *env) error {
 	// total number of entries stored during the life of this instance.
 	EntriesTotal.Increase(1)
 
-	dm.updateAccessLog(e.hkey, e.fragment)
 	return nil
 }
 
@@ -206,7 +196,7 @@ func (dm *DMap) checkPutConditions(e *env) error {
 		}
 	}
 
-	// Only set the key if it already exist.
+	// Only set the key if it already exists.
 	if e.flags&IfFound != 0 && !e.fragment.storage.Check(e.hkey) {
 		ttl, err := e.fragment.storage.GetTTL(e.hkey)
 		if err == nil {

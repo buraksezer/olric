@@ -16,9 +16,10 @@ package config
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/pkg/storage"
-	"os"
 )
 
 // StorageEngines contains storage engine configuration and their implementations.

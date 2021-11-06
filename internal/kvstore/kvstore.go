@@ -188,7 +188,7 @@ func (k *KVStore) GetRaw(hkey uint64) ([]byte, error) {
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
 		raw, err := t.GetRaw(hkey)
-		if err == table.ErrHKeyNotFound {
+		if errors.Is(err, table.ErrHKeyNotFound) {
 			// Try out the other tables.
 			continue
 		}
@@ -215,7 +215,7 @@ func (k *KVStore) Get(hkey uint64) (storage.Entry, error) {
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
 		res, err := t.Get(hkey)
-		if err == table.ErrHKeyNotFound {
+		if errors.Is(err, table.ErrHKeyNotFound) {
 			// Try out the other tables.
 			continue
 		}
@@ -249,6 +249,30 @@ func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
 		}
 		// Found the key, return its ttl
 		return ttl, nil
+	}
+
+	// Nothing here.
+	return 0, storage.ErrKeyNotFound
+}
+
+func (k *KVStore) GetLastAccess(hkey uint64) (int64, error) {
+	if len(k.tables) == 0 {
+		panic("tables cannot be empty")
+	}
+
+	// Scan available tables by starting the last added table.
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		lastAccess, err := t.GetLastAccess(hkey)
+		if errors.Is(err, table.ErrHKeyNotFound) {
+			// Try out the other tables.
+			continue
+		}
+		if err != nil {
+			return 0, err
+		}
+		// Found the key, return its ttl
+		return lastAccess, nil
 	}
 
 	// Nothing here.

@@ -16,12 +16,12 @@ package table
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/cespare/xxhash"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
+	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/cespare/xxhash"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +50,12 @@ func TestTable_Get(t *testing.T) {
 
 	value, err := tb.Get(hkey)
 	require.NoError(t, err)
-	require.Equal(t, e, value)
+
+	require.Equal(t, e.Key(), value.Key())
+	require.Equal(t, e.Value(), value.Value())
+	require.Equal(t, e.TTL(), value.TTL())
+	require.Equal(t, int64(0), e.LastAccess())
+	require.NotEqual(t, int64(0), value.LastAccess())
 }
 
 func TestTable_Delete(t *testing.T) {
@@ -96,9 +101,16 @@ func TestTable_GetRaw(t *testing.T) {
 	err := tb.Put(hkey, e)
 	require.NoError(t, err)
 
-	value, err := tb.GetRaw(hkey)
+	raw, err := tb.GetRaw(hkey)
 	require.NoError(t, err)
-	require.Equal(t, e.Encode(), value)
+	extracted := entry.New()
+	extracted.Decode(raw)
+
+	require.Equal(t, e.Key(), extracted.Key())
+	require.Equal(t, e.Value(), extracted.Value())
+	require.Equal(t, e.TTL(), extracted.TTL())
+	require.Equal(t, int64(0), e.LastAccess())
+	require.NotEqual(t, int64(0), extracted.LastAccess())
 }
 
 func TestTable_GetRawKey(t *testing.T) {
@@ -142,6 +154,17 @@ func TestTable_GetTTL(t *testing.T) {
 	require.Equal(t, ttl, value)
 }
 
+func TestTable_GetLastAccess(t *testing.T) {
+	tb, e := setupTable()
+
+	err := tb.Put(hkey, e)
+	require.NoError(t, err)
+
+	value, err := tb.GetLastAccess(hkey)
+	require.NoError(t, err)
+	require.NotEqual(t, 0, value)
+}
+
 func TestTable_UpdateTTL(t *testing.T) {
 	tb, e := setupTable()
 	ttl := time.Now().UnixNano()
@@ -157,6 +180,27 @@ func TestTable_UpdateTTL(t *testing.T) {
 	value, err := tb.GetTTL(hkey)
 	require.NoError(t, err)
 	require.Equal(t, ttl+1000, value)
+}
+
+func TestTable_UpdateTTL_Update_LastAccess(t *testing.T) {
+	tb, e := setupTable()
+
+	err := tb.Put(hkey, e)
+	require.NoError(t, err)
+
+	lastAccessOne, err := tb.GetLastAccess(hkey)
+	require.NoError(t, err)
+
+	ttl := time.Now().UnixNano() + 1000
+	e.SetTTL(ttl)
+
+	err = tb.UpdateTTL(hkey, e)
+	require.NoError(t, err)
+
+	lastAccessTwo, err := tb.GetLastAccess(hkey)
+	require.NoError(t, err)
+
+	require.Greater(t, lastAccessTwo, lastAccessOne)
 }
 
 func TestTable_State(t *testing.T) {
@@ -184,7 +228,12 @@ func TestTable_Range(t *testing.T) {
 	tb.Range(func(hk uint64, e storage.Entry) bool {
 		item, ok := data[hk]
 		require.True(t, ok)
-		require.Equal(t, item.Encode(), e.Encode())
+
+		require.Equal(t, item.Key(), e.Key())
+		require.Equal(t, item.Value(), e.Value())
+		require.Equal(t, item.TTL(), e.TTL())
+		require.Equal(t, int64(0), item.LastAccess())
+		require.NotEqual(t, int64(0), e.LastAccess())
 
 		return true
 	})
@@ -206,7 +255,7 @@ func TestTable_Stats(t *testing.T) {
 	s := tb.Stats()
 	require.Equal(t, uint32(1<<20), s.Allocated)
 	require.Equal(t, 100, s.Length)
-	require.Equal(t, uint32(3480), s.Inuse)
+	require.Equal(t, uint32(4280), s.Inuse)
 	require.Equal(t, uint32(0), s.Garbage)
 
 	for i := 0; i < 100; i++ {
@@ -220,5 +269,5 @@ func TestTable_Stats(t *testing.T) {
 	require.Equal(t, uint32(1<<20), s.Allocated)
 	require.Equal(t, 0, s.Length)
 	require.Equal(t, uint32(0), s.Inuse)
-	require.Equal(t, uint32(3480), s.Garbage)
+	require.Equal(t, uint32(4280), s.Garbage)
 }

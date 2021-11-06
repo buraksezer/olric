@@ -21,7 +21,7 @@ type Pack struct {
 	Allocated  uint32
 	Inuse      uint32
 	Garbage    uint32
-	RecycledAt uint64
+	RecycledAt int64
 	State      State
 	HKeys      map[uint64]uint32
 	Memory     []byte

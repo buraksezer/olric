@@ -42,6 +42,10 @@ type Entry interface {
 	// Timestamp returns the current timestamp for an entry.
 	Timestamp() int64
 
+	SetLastAccess(int64)
+
+	LastAccess() int64
+
 	// Encode encodes an entry into a binary form and returns the result.
 	Encode() []byte
 

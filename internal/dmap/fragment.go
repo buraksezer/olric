@@ -29,11 +29,10 @@ import (
 type fragment struct {
 	sync.RWMutex
 
-	service   *Service
-	storage   storage.Engine
-	accessLog *accessLog
-	ctx       context.Context
-	cancel    context.CancelFunc
+	service *Service
+	storage storage.Engine
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 func (f *fragment) Stats() storage.Stats {
@@ -86,11 +85,10 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 			return err
 		}
 		fp := &fragmentPack{
-			PartID:    partID,
-			Kind:      kind,
-			Name:      name,
-			Payload:   payload,
-			AccessLog: f.accessLog.m,
+			PartID:  partID,
+			Kind:    kind,
+			Name:    name,
+			Payload: payload,
 		}
 		value, err := msgpack.Marshal(fp)
 		if err != nil {
@@ -121,11 +119,10 @@ func (dm *DMap) newFragment() (*fragment, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &fragment{
-		service:   dm.s,
-		accessLog: newAccessLog(),
-		storage:   str,
-		ctx:       ctx,
-		cancel:    cancel,
+		service: dm.s,
+		storage: str,
+		ctx:     ctx,
+		cancel:  cancel,
 	}, nil
 }
 
