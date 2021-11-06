@@ -20,6 +20,7 @@ import (
 	"errors"
 	"log"
 	"regexp"
+	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/kvstore/table"
@@ -30,6 +31,8 @@ const (
 	maxGarbageRatio = 0.40
 	// 1MB
 	defaultTableSize = uint32(1 << 20)
+
+	defaultMaxIdleTableTimeout = 15 * time.Minute
 )
 
 // KVStore implements an in-memory storage engine.
@@ -43,6 +46,7 @@ var _ storage.Engine = (*KVStore)(nil)
 func DefaultConfig() *storage.Config {
 	options := storage.NewConfig(nil)
 	options.Add("tableSize", defaultTableSize)
+	options.Add("maxIdleTableTimeout", defaultMaxIdleTableTimeout)
 	return options
 }
 

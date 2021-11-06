@@ -65,19 +65,24 @@ func (k *KVStore) evictTable(t *table.Table) error {
 	return evictErr
 }
 
-func isTableExpired(recycledAt int64) bool {
-	limit := ((15 * time.Minute).Nanoseconds() + recycledAt) / 1000000
-	return (limit / 1000000) >= limit
+func (k *KVStore) isTableExpired(recycledAt int64) bool {
+	timeout, err := k.config.Get("maxIdleTableTimeout")
+	if err != nil {
+		// That would be impossible
+		panic(err)
+	}
+	limit := (timeout.(time.Duration).Nanoseconds() + recycledAt) / 1000000
+	return (time.Now().UnixNano() / 1000000) >= limit
 }
 
 func (k *KVStore) Compaction() (bool, error) {
-	expiredTables := []int{}
+	var expiredTables []int
 
 	for i, t := range k.tables {
 		s := t.Stats()
 
 		if t.State() == table.RecycledState {
-			if isTableExpired(s.RecycledAt) {
+			if k.isTableExpired(s.RecycledAt) {
 				expiredTables = append(expiredTables, i)
 			}
 			continue

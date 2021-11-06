@@ -38,9 +38,12 @@ func bval(i int) []byte {
 	return []byte(fmt.Sprintf("%025d", i))
 }
 
-func testKVStore() (storage.Engine, error) {
+func testKVStore(c *storage.Config) (storage.Engine, error) {
 	kv := &KVStore{}
-	kv.SetConfig(DefaultConfig())
+	if c == nil {
+		c = DefaultConfig()
+	}
+	kv.SetConfig(c)
 	child, err := kv.Fork(nil)
 	if err != nil {
 		return nil, err
@@ -54,7 +57,7 @@ func testKVStore() (storage.Engine, error) {
 }
 
 func Test_Put(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
@@ -70,7 +73,7 @@ func Test_Put(t *testing.T) {
 }
 
 func Test_Get(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	require.NoError(t, err)
 
 	timestamp := time.Now().UnixNano()
@@ -106,7 +109,7 @@ func Test_Get(t *testing.T) {
 }
 
 func Test_Delete(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
@@ -144,7 +147,7 @@ func Test_Delete(t *testing.T) {
 
 func Test_ExportImport(t *testing.T) {
 	timestamp := time.Now().UnixNano()
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -161,7 +164,7 @@ func Test_ExportImport(t *testing.T) {
 		}
 	}
 
-	fresh, err := testKVStore()
+	fresh, err := testKVStore(nil)
 	require.NoError(t, err)
 
 	ti := s.TransferIterator()
@@ -203,7 +206,7 @@ func Test_ExportImport(t *testing.T) {
 }
 
 func Test_Len(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -225,7 +228,7 @@ func Test_Len(t *testing.T) {
 }
 
 func Test_Range(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -253,7 +256,7 @@ func Test_Range(t *testing.T) {
 }
 
 func Test_Check(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -280,7 +283,7 @@ func Test_Check(t *testing.T) {
 }
 
 func Test_UpdateTTL(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -324,7 +327,7 @@ func Test_UpdateTTL(t *testing.T) {
 }
 
 func Test_GetKey(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -348,7 +351,7 @@ func Test_GetKey(t *testing.T) {
 }
 
 func Test_PutRawGetRaw(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -369,7 +372,7 @@ func Test_PutRawGetRaw(t *testing.T) {
 }
 
 func Test_GetTTL(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -395,7 +398,7 @@ func Test_GetTTL(t *testing.T) {
 }
 
 func TestStorage_MatchOnKey(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -435,7 +438,7 @@ func TestStorage_MatchOnKey(t *testing.T) {
 }
 
 func Test_Fork(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -489,7 +492,7 @@ func Test_Fork(t *testing.T) {
 }
 
 func TestKVStore_StateChange(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}

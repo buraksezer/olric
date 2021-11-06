@@ -26,7 +26,7 @@ import (
 )
 
 func TestKVStore_Compaction(t *testing.T) {
-	s, err := testKVStore()
+	s, err := testKVStore(nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got %v", err)
 	}
@@ -71,4 +71,59 @@ func TestKVStore_Compaction(t *testing.T) {
 	}
 
 	require.Truef(t, compacted, "Compaction could not work properly")
+}
+
+func TestKVStore_Compaction_MaxIdleTableDuration(t *testing.T) {
+	c := DefaultConfig()
+	c.Add("maxIdleTableTimeout", time.Millisecond)
+
+	s, err := testKVStore(c)
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+
+	timestamp := time.Now().UnixNano()
+	// Current free space is 1 MB. Trigger a compaction operation.
+	for i := 0; i < 1500; i++ {
+		e := entry.New()
+		e.SetKey(bkey(i))
+		e.SetTTL(int64(i))
+		e.SetValue([]byte(fmt.Sprintf("%01000d", i)))
+		e.SetTTL(timestamp)
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 2, len(s.(*KVStore).tables))
+
+	for i := 0; i < 800; i++ {
+		hkey := xxhash.Sum64([]byte(bkey(i)))
+		err = s.Delete(hkey)
+		require.NoError(t, err)
+	}
+
+	// It's still two because we have not triggered the compaction yet.
+	require.Equal(t, 2, len(s.(*KVStore).tables))
+
+	for {
+		done, err := s.Compaction()
+		require.NoError(t, err)
+		if done {
+			break
+		}
+	}
+
+	<-time.After(100 * time.Millisecond)
+
+	// Be sure deletion of the idle table.
+	for {
+		done, err := s.Compaction()
+		require.NoError(t, err)
+		if done {
+			break
+		}
+	}
+
+	require.Equal(t, 1, len(s.(*KVStore).tables))
 }
