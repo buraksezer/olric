@@ -475,3 +475,24 @@ func TestKVStore_StateChange(t *testing.T) {
 		}
 	}
 }
+
+func TestKVStore_NewEntry(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+	i := s.NewEntry()
+	_, ok := i.(*entry.Entry)
+	require.True(t, ok)
+}
+
+func TestKVStore_Name(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+	require.Equal(t, "kvstore", s.Name())
+}
+
+func TestKVStore_CloseDestroy(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
+	require.NoError(t, s.Destroy())
+}
