@@ -103,16 +103,6 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	return child, nil
 }
 
-func (k *KVStore) EmptyInstance(c *storage.Config) (storage.Engine, error) {
-	if c == nil {
-		c = k.config.Copy()
-	}
-	child := &KVStore{
-		config: c,
-	}
-	return child, nil
-}
-
 func (k *KVStore) AppendTable(t *table.Table) {
 	k.tables = append(k.tables, t)
 }
