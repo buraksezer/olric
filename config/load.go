@@ -109,7 +109,14 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 	res.MaxInuse = c.DMaps.MaxInuse
 	res.EvictionPolicy = EvictionPolicy(c.DMaps.EvictionPolicy)
 	res.LRUSamples = c.DMaps.LRUSamples
-	res.StorageEngine = c.DMaps.StorageEngine
+
+	if c.DMaps.Engine != nil {
+		e := NewEngine()
+		e.Plugin = c.DMaps.Engine.Plugin
+		e.Name = c.DMaps.Engine.Name
+		e.Config = c.DMaps.Engine.Config
+		res.Engine = e
+	}
 
 	if c.DMaps.Custom != nil {
 		res.Custom = make(map[string]DMap)
@@ -119,7 +126,13 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 				MaxKeys:        dc.MaxKeys,
 				EvictionPolicy: EvictionPolicy(dc.EvictionPolicy),
 				LRUSamples:     dc.LRUSamples,
-				StorageEngine:  dc.StorageEngine,
+			}
+			if dc.Engine != nil {
+				e := NewEngine()
+				e.Plugin = dc.Engine.Plugin
+				e.Name = dc.Engine.Name
+				e.Config = dc.Engine.Config
+				cc.Engine = e
 			}
 			if dc.MaxIdleDuration != "" {
 				maxIdleDuration, err := time.ParseDuration(dc.MaxIdleDuration)
@@ -352,10 +365,6 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	storageEngines := NewStorageEngine()
-	storageEngines.Plugins = c.StorageEngines.Plugins
-	storageEngines.Config = c.StorageEngines.Config
-
 	cfg := &Config{
 		BindAddr:                 c.Olricd.BindAddr,
 		BindPort:                 c.Olricd.BindPort,
@@ -385,7 +394,6 @@ func Load(filename string) (*Config, error) {
 		KeepAlivePeriod:          keepAlivePeriod,
 		BootstrapTimeout:         bootstrapTimeout,
 		DMaps:                    dmapConfig,
-		StorageEngines:           storageEngines,
 	}
 
 	if err := cfg.Sanitize(); err != nil {

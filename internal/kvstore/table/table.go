@@ -253,9 +253,8 @@ func (t *Table) Get(hkey uint64) (storage.Entry, error) {
 	offset += 8
 
 	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
-
 	// Update the last access field
-	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(time.Now().UnixNano()))
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])

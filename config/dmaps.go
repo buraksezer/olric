@@ -15,6 +15,7 @@
 package config
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 )
@@ -23,6 +24,7 @@ import (
 // setting a DMap for a particular distributed map via Custom field. Most of the
 // fields are related with distributed cache implementation.
 type DMaps struct {
+	Engine *Engine
 	// NumEvictionWorkers denotes the number of goroutines that's used to find
 	// keys for eviction.
 	NumEvictionWorkers int64
@@ -58,10 +60,6 @@ type DMaps struct {
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
 
-	// Name of the storage engine. The default one is kvstore. Leave it empty if
-	// you want to use the default one.
-	StorageEngine string
-
 	// CheckEmptyFragmentsInterval is interval between two sequential call of empty
 	// fragment cleaner.
 	CheckEmptyFragmentsInterval time.Duration
@@ -75,6 +73,10 @@ type DMaps struct {
 
 // Sanitize sets default values to empty configuration variables, if it's possible.
 func (dm *DMaps) Sanitize() error {
+	if dm.Engine == nil {
+		dm.Engine = NewEngine()
+	}
+
 	if dm.Custom == nil {
 		dm.Custom = make(map[string]DMap)
 	}
@@ -105,9 +107,19 @@ func (dm *DMaps) Sanitize() error {
 			return err
 		}
 	}
+
+	if err := dm.Engine.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
+	}
+
 	return nil
 }
 
-func (dm *DMaps) Validate() error { return nil }
+func (dm *DMaps) Validate() error {
+	if err := dm.Engine.Validate(); err != nil {
+		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
+	}
+	return nil
+}
 
 var _ IConfig = (*DMaps)(nil)

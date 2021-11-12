@@ -99,17 +99,16 @@ func (s *Service) isAlive() bool {
 }
 
 func (s *Service) initializeAndLoadStorageEngines() error {
-	s.storage.configs = s.config.StorageEngines.Config
-	s.storage.engines = s.config.StorageEngines.Impls
+	defaultName := s.config.DMaps.Engine.Name
+	s.storage.configs[defaultName] = s.config.DMaps.Engine.Config
+	s.storage.engines[defaultName] = s.config.DMaps.Engine.Implementation
 
 	// Load engines as plugin, if any.
-	for _, pluginPath := range s.config.StorageEngines.Plugins {
-		engine, err := storage.LoadAsPlugin(pluginPath)
-		if err != nil {
-			return err
-		}
-		s.storage.engines[engine.Name()] = engine
+	engine, err := storage.LoadAsPlugin(s.config.DMaps.Engine.Plugin)
+	if err != nil {
+		return err
 	}
+	s.storage.engines[engine.Name()] = engine
 
 	// Set configuration for the loaded engines.
 	for name, ec := range s.config.StorageEngines.Config {

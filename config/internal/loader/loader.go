@@ -83,17 +83,24 @@ type memberlist struct {
 	UDPBufferSize           *int     `yaml:"udpBufferSize"`
 }
 
+type engine struct {
+	Plugin string                 `yaml:"plugin"`
+	Name   string                 `yaml:"name"`
+	Config map[string]interface{} `yaml:"config"`
+}
+
 type dmap struct {
-	MaxIdleDuration string `yaml:"maxIdleDuration"`
-	TTLDuration     string `yaml:"ttlDuration"`
-	MaxKeys         int    `yaml:"maxKeys"`
-	MaxInuse        int    `yaml:"maxInuse"`
-	LRUSamples      int    `yaml:"lruSamples"`
-	EvictionPolicy  string `yaml:"evictionPolicy"`
-	StorageEngine   string `yaml:"storageEngine"`
+	Engine          *engine `yaml:"engine"`
+	MaxIdleDuration string  `yaml:"maxIdleDuration"`
+	TTLDuration     string  `yaml:"ttlDuration"`
+	MaxKeys         int     `yaml:"maxKeys"`
+	MaxInuse        int     `yaml:"maxInuse"`
+	LRUSamples      int     `yaml:"lruSamples"`
+	EvictionPolicy  string  `yaml:"evictionPolicy"`
 }
 
 type dmaps struct {
+	Engine                      *engine         `yaml:"engine"`
 	NumEvictionWorkers          int64           `yaml:"numEvictionWorkers"`
 	MaxIdleDuration             string          `yaml:"maxIdleDuration"`
 	TTLDuration                 string          `yaml:"ttlDuration"`
@@ -101,18 +108,12 @@ type dmaps struct {
 	MaxInuse                    int             `yaml:"maxInuse"`
 	LRUSamples                  int             `yaml:"lruSamples"`
 	EvictionPolicy              string          `yaml:"evictionPolicy"`
-	StorageEngine               string          `yaml:"storageEngine"`
 	CheckEmptyFragmentsInterval string          `yaml:"checkEmptyFragmentsInterval"`
 	TriggerCompactionInterval   string          `yaml:"triggerCompactionInterval"`
 	Custom                      map[string]dmap `yaml:"custom"`
 }
 
 type serviceDiscovery map[string]interface{}
-
-type storageEngines struct {
-	Plugins []string                          `yaml:"plugins"`
-	Config  map[string]map[string]interface{} `yaml:"config"`
-}
 
 // Loader is the main configuration struct
 type Loader struct {
@@ -122,7 +123,6 @@ type Loader struct {
 	Client           client           `yaml:"client"`
 	DMaps            dmaps            `yaml:"dmaps"`
 	ServiceDiscovery serviceDiscovery `yaml:"serviceDiscovery"`
-	StorageEngines   storageEngines   `yaml:"storageEngines"`
 }
 
 // New tries to read Olric configuration from a YAML file.
