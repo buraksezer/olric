@@ -40,7 +40,7 @@ type Engine struct {
 	Config map[string]interface{}
 }
 
-// NewEngine initializes StorageEngine configuration with sane defaults.
+// NewEngine initializes Engine with sane defaults.
 // Olric will set its own storage engine implementation and related configuration,
 // if there is no other engine.
 func NewEngine() *Engine {
@@ -51,19 +51,50 @@ func NewEngine() *Engine {
 
 // Validate finds errors in the current configuration.
 func (s *Engine) Validate() error {
+	if s.Config == nil {
+		s.Config = make(map[string]interface{})
+	}
+	return nil
+}
+
+func (s *Engine) LoadPlugin() error {
+	if s.Plugin == "" {
+		return nil
+	}
+
 	_, err := os.Stat(s.Plugin)
 	if os.IsNotExist(err) {
 		return fmt.Errorf("storage engine plugin could not be found on disk: %s", s.Plugin)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	engine, err := storage.LoadAsPlugin(s.Plugin)
+	if err != nil {
+		return err
+	}
+	s.Implementation = engine
+	s.Name = engine.Name()
+	return nil
 }
 
 // Sanitize sets default values to empty configuration variables, if it's possible.
 func (s *Engine) Sanitize() error {
-	if s.Implementation == nil {
-		s.Implementation = &kvstore.KVStore{}
+	if s.Name == "" {
 		s.Name = DefaultStorageEngine
-		s.Config = kvstore.DefaultConfig().ToMap()
+	}
+
+	if s.Implementation == nil {
+		switch s.Name {
+		case DefaultStorageEngine:
+			s.Implementation = &kvstore.KVStore{}
+			s.Config = kvstore.DefaultConfig().ToMap()
+		default:
+			return fmt.Errorf("unknown storage engine: %s", s.Name)
+		}
+	} else {
+		s.Name = s.Implementation.Name()
 	}
 	return nil
 }

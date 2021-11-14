@@ -67,7 +67,6 @@ func NewConfig() *config.Config {
 	c.BindAddr = "127.0.0.1"
 	c.BindPort = port
 	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
-	c.DMaps.StorageEngine = config.DefaultStorageEngine
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("failed to sanitize default config: %v", err))
 	}

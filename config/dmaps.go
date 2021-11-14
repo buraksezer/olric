@@ -95,9 +95,6 @@ func (dm *DMaps) Sanitize() error {
 	if dm.NumEvictionWorkers <= 0 {
 		dm.NumEvictionWorkers = int64(runtime.NumCPU())
 	}
-	if dm.StorageEngine == "" {
-		dm.StorageEngine = DefaultStorageEngine
-	}
 	if dm.CheckEmptyFragmentsInterval.Microseconds() == 0 {
 		dm.CheckEmptyFragmentsInterval = DefaultCheckEmptyFragmentsInterval
 	}
@@ -106,6 +103,10 @@ func (dm *DMaps) Sanitize() error {
 		if err := d.Sanitize(); err != nil {
 			return err
 		}
+	}
+
+	if err := dm.Engine.LoadPlugin(); err != nil {
+		return fmt.Errorf("failed to load storage engine plugin: %w", err)
 	}
 
 	if err := dm.Engine.Sanitize(); err != nil {

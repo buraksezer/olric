@@ -112,7 +112,14 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 }
 
 func (dm *DMap) newFragment() (*fragment, error) {
-	str, err := dm.engine.Fork(nil)
+	c := storage.NewConfig(dm.config.engine.Config)
+	engine, err := dm.engine.Fork(c)
+	if err != nil {
+		return nil, err
+	}
+
+	engine.SetLogger(dm.s.config.Logger)
+	err = engine.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +127,7 @@ func (dm *DMap) newFragment() (*fragment, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &fragment{
 		service: dm.s,
-		storage: str,
+		storage: engine,
 		ctx:     ctx,
 		cancel:  cancel,
 	}, nil

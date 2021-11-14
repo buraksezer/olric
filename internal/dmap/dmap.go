@@ -99,12 +99,8 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 		return nil, err
 	}
 
-	engine, ok := dm.s.storage.engines[dm.config.storageEngine]
-	if !ok {
-		return nil, fmt.Errorf("storage engine could not be found: %s", dm.config.storageEngine)
-	}
-	dm.engine = engine
-
+	// It's a shortcut.
+	dm.engine = dm.config.engine.Implementation
 	s.dmaps[name] = dm
 	return dm, nil
 }
