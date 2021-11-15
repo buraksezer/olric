@@ -24,6 +24,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
@@ -324,8 +325,10 @@ func TestDMap_Delete_Compaction(t *testing.T) {
 	c.ReadRepair = true
 	c.ReplicaCount = 2
 	e := testcluster.NewEnvironment(c)
-	c.StorageEngines.Config[config.DefaultStorageEngine] = map[string]interface{}{
-		"tableSize": 100, // overwrite tableSize to trigger compaction.
+	c.DMaps.Engine.Name = config.DefaultStorageEngine
+	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
+	c.DMaps.Engine.Config = map[string]interface{}{
+		"tableSize": uint32(100), // overwrite tableSize to trigger compaction.
 	}
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()

@@ -17,6 +17,7 @@ package dmap
 import (
 	"bytes"
 	"errors"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"testing"
 	"time"
 
@@ -261,8 +262,10 @@ func TestDMap_Put_IfFound(t *testing.T) {
 func TestDMap_Put_compactTables(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
-	c.StorageEngines.Config[config.DefaultStorageEngine] = map[string]interface{}{
-		"tableSize": 100, // overwrite tableSize to trigger compaction.
+	c.DMaps.Engine.Name = config.DefaultStorageEngine
+	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
+	c.DMaps.Engine.Config = map[string]interface{}{
+		"tableSize": uint32(100), // overwrite tableSize to trigger compaction.
 	}
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)

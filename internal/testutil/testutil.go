@@ -16,8 +16,10 @@ package testutil
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"net"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -50,6 +52,13 @@ func NewFlogger(c *config.Config) *flog.Logger {
 		flogger.ShowLineNumber(1)
 	}
 	return flogger
+}
+
+func NewEngineConfig(t *testing.T) *config.Engine {
+	e := config.NewEngine()
+	require.NoError(t, e.Sanitize())
+	require.NoError(t, e.Validate())
+	return e
 }
 
 func NewConfig() *config.Config {
