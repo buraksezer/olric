@@ -24,7 +24,10 @@ import (
 // setting a DMap for a particular distributed map via Custom field. Most of the
 // fields are related with distributed cache implementation.
 type DMaps struct {
+	// Engine contains configuration for a storage engine implementation. It may contain the implementation.
+	// See Engine itself.
 	Engine *Engine
+
 	// NumEvictionWorkers denotes the number of goroutines that's used to find
 	// keys for eviction.
 	NumEvictionWorkers int64

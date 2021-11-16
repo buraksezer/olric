@@ -17,7 +17,7 @@ package environment
 import (
 	"testing"
 
-	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type envTest struct {
@@ -36,16 +36,16 @@ func TestEnvironment(t *testing.T) {
 	e.Set("my-uint64", uint64(4576))
 
 	structVal := e.Get("my-struct")
-	assert.Equal(t, uint64(1988), structVal.(*envTest).number)
+	require.Equal(t, uint64(1988), structVal.(*envTest).number)
 
 	stringVal := e.Get("my-string")
-	assert.Equal(t, "value", stringVal)
+	require.Equal(t, "value", stringVal)
 
 	stringUint64 := e.Get("my-uint64")
-	assert.Equal(t, uint64(4576), stringUint64.(uint64))
+	require.Equal(t, uint64(4576), stringUint64.(uint64))
 
 	t.Run("Clone", func(t *testing.T) {
 		clone := e.Clone()
-		assert.Equal(t, e, clone)
+		require.Equal(t, e, clone)
 	})
 }

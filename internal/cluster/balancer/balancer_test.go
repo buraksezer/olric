@@ -32,6 +32,7 @@ import (
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/mockfragment"
 	"github.com/buraksezer/olric/internal/transport"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -180,24 +181,20 @@ func checkBackupOwnership(e *environment.Environment) error {
 func TestBalance_Move(t *testing.T) {
 	cluster := newTestCluster()
 	defer func() {
-		if err := cluster.shutdown(); err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, cluster.shutdown())
 	}()
 
 	e1 := newTestEnvironment(nil)
 	b1, err := cluster.addNode(e1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	defer b1.Shutdown()
 	keyCountOnNode1 := insertRandomData(e1, partitions.PRIMARY)
 
 	e2 := newTestEnvironment(nil)
 	b2, err := cluster.addNode(e2)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	defer b2.Shutdown()
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
@@ -206,55 +203,44 @@ func TestBalance_Move(t *testing.T) {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	keyCountOnNode2 := insertRandomData(e1, partitions.PRIMARY)
 
 	b1.Balance()
 	b2.Balance()
 
 	err = checkKeyCountAfterBalance(e1, partitions.PRIMARY, keyCountOnNode1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	err = checkKeyCountAfterBalance(e2, partitions.PRIMARY, keyCountOnNode2)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestBalance_Backup_Move(t *testing.T) {
 	cluster := newTestCluster()
 	defer func() {
-		if err := cluster.shutdown(); err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, cluster.shutdown())
 	}()
 
 	c1 := testutil.NewConfig()
 	c1.ReplicaCount = 2
 	e1 := newTestEnvironment(c1)
 	b1, err := cluster.addNode(e1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	defer b1.Shutdown()
 	b1.rt.UpdateEagerly()
 
 	err = checkBackupOwnership(e1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	c2 := testutil.NewConfig()
 	c2.ReplicaCount = 2
 	e2 := newTestEnvironment(c2)
 	b2, err := cluster.addNode(e2)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	defer b2.Shutdown()
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
@@ -263,26 +249,21 @@ func TestBalance_Backup_Move(t *testing.T) {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	b1.rt.UpdateEagerly()
 
 	insertRandomData(e1, partitions.BACKUP)
 
 	err = checkBackupOwnership(e2)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	c3 := testutil.NewConfig()
 	c3.ReplicaCount = 2
 	e3 := newTestEnvironment(c3)
 	b3, err := cluster.addNode(e3)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	defer b3.Shutdown()
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
@@ -291,16 +272,12 @@ func TestBalance_Backup_Move(t *testing.T) {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	b1.rt.UpdateEagerly()
 	// Call second time to clear the table.
 	b1.rt.UpdateEagerly()
 
 	err = checkBackupOwnership(e3)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 }

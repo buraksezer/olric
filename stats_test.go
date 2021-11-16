@@ -20,32 +20,31 @@ import (
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/internal/testutil/assert"
 	"github.com/buraksezer/olric/stats"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOlric_Stats(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mymap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	s, err := db.Stats()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	if s.ClusterCoordinator.ID != db.rt.This().ID {
 		t.Fatalf("Expected cluster coordinator: %v. Got: %v", db.rt.This(), s.ClusterCoordinator)
 	}
 
-	assert.Equal(t, s.Member.Name, db.rt.This().Name)
-	assert.Equal(t, s.Member.ID, db.rt.This().ID)
-	assert.Equal(t, s.Member.Birthdate, db.rt.This().Birthdate)
+	require.Equal(t, s.Member.Name, db.rt.This().Name)
+	require.Equal(t, s.Member.ID, db.rt.This().ID)
+	require.Equal(t, s.Member.Birthdate, db.rt.This().Birthdate)
 	if s.Runtime != nil {
 		t.Error("Runtime stats must not be collected by default:", s.Runtime)
 	}
@@ -74,11 +73,10 @@ func TestOlric_Stats(t *testing.T) {
 }
 
 func TestOlric_Stats_CollectRuntime(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	s, err := db.Stats(CollectRuntime())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	if s.Runtime == nil {
 		t.Fatal("Runtime stats must be collected by default:", s.Runtime)
@@ -86,16 +84,16 @@ func TestOlric_Stats_CollectRuntime(t *testing.T) {
 }
 
 func TestOlric_Stats_Operation(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	buf := new(bytes.Buffer)
 	req := protocol.NewSystemMessage(protocol.OpStats)
 	req.SetExtra(protocol.StatsExtra{})
 	req.SetBuffer(buf)
-	err = req.Encode()
-	assert.NoError(t, err)
+	err := req.Encode()
+	require.NoError(t, err)
+
 	resp := req.Response(nil)
 	db.statsOperation(resp, req)
-	assert.Equal(t, protocol.StatusOK, resp.Status())
+	require.Equal(t, protocol.StatusOK, resp.Status())
 }

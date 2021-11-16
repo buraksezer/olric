@@ -22,14 +22,14 @@ import (
 
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/hashicorp/memberlist"
+	"github.com/stretchr/testify/require"
 )
 
-func newTestOlric(t *testing.T) (*Olric, error) {
+func newTestOlric(t *testing.T) *Olric {
 	c := testutil.NewConfig()
 	port, err := testutil.GetFreePort()
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
+
 	if c.MemberlistConfig == nil {
 		c.MemberlistConfig = memberlist.DefaultLocalConfig()
 	}
@@ -39,22 +39,18 @@ func newTestOlric(t *testing.T) (*Olric, error) {
 	c.BindPort = port
 
 	err = c.Sanitize()
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
+
 	err = c.Validate()
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	c.Started = func() {
 		cancel()
 	}
 
 	db, err := New(c)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 
 	go func() {
 		if err := db.Start(); err != nil {
@@ -68,21 +64,17 @@ func newTestOlric(t *testing.T) (*Olric, error) {
 	case <-ctx.Done():
 		// everything is fine
 	}
+
 	t.Cleanup(func() {
-		if err := db.Shutdown(context.Background()); err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-		}
+		serr := db.Shutdown(context.Background())
+		require.NoError(t, serr)
 	})
-	return db, nil
+
+	return db
 }
 
 func TestOlric_StartAndShutdown(t *testing.T) {
-	db, err := newTestOlric(t)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	err = db.Shutdown(context.Background())
-	if err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to shutdown Olric: %v", err)
-	}
+	db := newTestOlric(t)
+	err := db.Shutdown(context.Background())
+	require.NoError(t, err)
 }

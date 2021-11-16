@@ -18,12 +18,11 @@ import (
 	"testing"
 
 	"github.com/buraksezer/olric/hasher"
+	"github.com/stretchr/testify/require"
 )
 
-func TestHKey(t *testing.T) {
+func TestPartitions_HKey(t *testing.T) {
 	SetHashFunc(hasher.NewDefaultHasher())
 	hkey := HKey("storage-unit-name", "some-key")
-	if hkey == 0 {
-		t.Fatalf("HKey is zero. This shouldn't be normal")
-	}
+	require.NotEqualf(t, 0, hkey, "HKey is zero. This shouldn't be normal")
 }
