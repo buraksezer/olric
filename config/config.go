@@ -137,8 +137,13 @@ const (
 	DefaultRoutingTablePushInterval = time.Minute
 
 	// DefaultCheckEmptyFragmentsInterval is the default value of interval between
-	// two sequential call of empty fragment cleaner.
+	// two sequential call of empty fragment cleaner. It's one minute by default.
 	DefaultCheckEmptyFragmentsInterval = time.Minute
+
+	// DefaultTriggerCompactionInterval is the default value of interval between
+	// two sequential call of compaction workers. The compaction worker works until
+	// its work is done. It's 10 minutes by default.
+	DefaultTriggerCompactionInterval = 10 * time.Minute
 )
 
 // Config is the configuration to create a Olric instance.

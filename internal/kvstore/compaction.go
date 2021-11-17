@@ -75,20 +75,14 @@ func (k *KVStore) isTableExpired(recycledAt int64) bool {
 	return (time.Now().UnixNano() / 1000000) >= limit
 }
 
+func (k *KVStore) isCompactionOK(t *table.Table) bool {
+	s := t.Stats()
+	return float64(s.Garbage) >= float64(s.Allocated)*maxGarbageRatio
+}
+
 func (k *KVStore) Compaction() (bool, error) {
-	var expiredTables []int
-
-	for i, t := range k.tables {
-		s := t.Stats()
-
-		if t.State() == table.RecycledState {
-			if k.isTableExpired(s.RecycledAt) {
-				expiredTables = append(expiredTables, i)
-			}
-			continue
-		}
-
-		if float64(s.Garbage) >= float64(s.Allocated)*maxGarbageRatio {
+	for _, t := range k.tables {
+		if k.isCompactionOK(t) {
 			err := k.evictTable(t)
 			if err != nil {
 				return false, err
@@ -98,8 +92,15 @@ func (k *KVStore) Compaction() (bool, error) {
 		}
 	}
 
-	for _, i := range expiredTables {
-		k.tables = append(k.tables[:i], k.tables[i+1:]...)
+	for i := 0; i < len(k.tables); i++ {
+		t := k.tables[i]
+		s := t.Stats()
+		if t.State() == table.RecycledState {
+			if k.isTableExpired(s.RecycledAt) {
+				k.tables = append(k.tables[:i], k.tables[i+1:]...)
+				i--
+			}
+		}
 	}
 
 	return true, nil

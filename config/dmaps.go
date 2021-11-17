@@ -83,23 +83,33 @@ func (dm *DMaps) Sanitize() error {
 	if dm.Custom == nil {
 		dm.Custom = make(map[string]DMap)
 	}
+
 	if dm.EvictionPolicy == "" {
 		dm.EvictionPolicy = "NONE"
 	}
+
 	if dm.LRUSamples <= 0 {
 		dm.LRUSamples = DefaultLRUSamples
 	}
+
 	if dm.MaxInuse < 0 {
 		dm.MaxInuse = 0
 	}
+
 	if dm.MaxKeys < 0 {
 		dm.MaxKeys = 0
 	}
+
 	if dm.NumEvictionWorkers <= 0 {
 		dm.NumEvictionWorkers = int64(runtime.NumCPU())
 	}
+
 	if dm.CheckEmptyFragmentsInterval.Microseconds() == 0 {
 		dm.CheckEmptyFragmentsInterval = DefaultCheckEmptyFragmentsInterval
+	}
+
+	if dm.TriggerCompactionInterval.Microseconds() == 0 {
+		dm.TriggerCompactionInterval = DefaultTriggerCompactionInterval
 	}
 
 	for _, d := range dm.Custom {

@@ -324,12 +324,13 @@ func TestDMap_Delete_Compaction(t *testing.T) {
 	c := testutil.NewConfig()
 	c.ReadRepair = true
 	c.ReplicaCount = 2
-	e := testcluster.NewEnvironment(c)
 	c.DMaps.Engine.Name = config.DefaultStorageEngine
 	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
 	c.DMaps.Engine.Config = map[string]interface{}{
 		"tableSize": uint32(100), // overwrite tableSize to trigger compaction.
 	}
+	e := testcluster.NewEnvironment(c)
+
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 

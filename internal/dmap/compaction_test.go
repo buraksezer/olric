@@ -15,36 +15,73 @@
 package dmap
 
 import (
-	"bytes"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Compaction(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
+	c := testutil.NewConfig()
+	c.DMaps.TriggerCompactionInterval = time.Millisecond
+	c.DMaps.Engine.Name = config.DefaultStorageEngine
+	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
+	c.DMaps.Engine.Config = map[string]interface{}{
+		"tableSize":           uint32(2048), // overwrite tableSize to trigger compaction.
+		"maxIdleTableTimeout": time.Millisecond,
+	}
+	e := testcluster.NewEnvironment(c)
+	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 1000000; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+	checkStorageStats := func() (allocated int) {
+		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
+			part := s.primary.PartitionByID(partID)
+			tmp, ok := part.Map().Load(s.fragmentName("mymap"))
+			if !ok {
+				continue
+			}
+
+			f := tmp.(*fragment)
+			f.RLock()
+			s := f.storage.Stats()
+			allocated += s.Allocated
+			f.RUnlock()
 		}
+		return
 	}
 
-	for i := 0; i < 1000000; i++ {
-		val, err := dm.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+	dm, err := s.NewDMap("mymap")
+	require.NoError(t, err)
+
+	for i := 0; i < 10000; i++ {
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		require.NoError(t, err)
 	}
+
+	initialAllocated := checkStorageStats()
+
+	for i := 0; i < 10000; i++ {
+		if i%2 != 0 {
+			continue
+		}
+
+		err = dm.Delete(testutil.ToKey(i))
+		require.NoError(t, err)
+	}
+
+	err = testutil.TryWithInterval(50, 100*time.Millisecond, func() error {
+		allocated := checkStorageStats()
+		if initialAllocated <= allocated {
+			return fmt.Errorf("initial allocation is still greater than or equal the current allocation")
+		}
+		return nil
+	})
+	require.NoError(t, err)
 }

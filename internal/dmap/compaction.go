@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"golang.org/x/sync/semaphore"
 )
 
 func (s *Service) callCompactionOnFragment(f *fragment) bool {
@@ -41,14 +42,12 @@ func (s *Service) callCompactionOnFragment(f *fragment) bool {
 		case <-s.ctx.Done():
 			// Break
 			return false
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(time.Millisecond):
 		}
 	}
 }
 
-func (s *Service) doCompaction(ch chan uint64, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func (s *Service) doCompaction(partID uint64) {
 	compaction := func(part *partitions.Partition) {
 		part.Map().Range(func(name, tmp interface{}) bool {
 			if !strings.HasPrefix(name.(string), "dmap.") {
@@ -61,36 +60,35 @@ func (s *Service) doCompaction(ch chan uint64, wg *sync.WaitGroup) {
 		})
 	}
 
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case partID := <-ch:
-			part := s.primary.PartitionByID(partID)
-			compaction(part)
+	part := s.primary.PartitionByID(partID)
+	compaction(part)
 
-			backup := s.backup.PartitionByID(partID)
-			compaction(backup)
-		}
-	}
+	backup := s.backup.PartitionByID(partID)
+	compaction(backup)
 }
 
 func (s *Service) triggerCompaction() {
 	var wg sync.WaitGroup
 
-	ch := make(chan uint64, 10)
-
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go s.doCompaction(ch, &wg)
-	}
-
+	sem := semaphore.NewWeighted(10)
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
 		select {
 		case <-s.ctx.Done():
 			break
-		case ch <- partID:
+		default:
 		}
+
+		if err := sem.Acquire(s.ctx, 1); err != nil {
+			s.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
+			continue
+		}
+
+		wg.Add(1)
+		go func(id uint64) {
+			defer wg.Done()
+			defer sem.Release(1)
+			s.doCompaction(id)
+		}(partID)
 	}
 
 	wg.Wait()

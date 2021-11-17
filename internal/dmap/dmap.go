@@ -64,6 +64,10 @@ func (s *Service) getDMap(name string) (*DMap, error) {
 	return dm, nil
 }
 
+func (s *Service) fragmentName(name string) string {
+	return fmt.Sprintf("dmap.%s", name)
+}
+
 // NewDMap creates and returns a new DMap instance. It checks member count quorum
 // and bootstrapping status before creating a new DMap.
 func (s *Service) NewDMap(name string) (*DMap, error) {
@@ -92,7 +96,7 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 	dm = &DMap{
 		config:       &dmapConfig{},
 		name:         name,
-		fragmentName: fmt.Sprintf("dmap.%s", name),
+		fragmentName: s.fragmentName(name),
 		s:            s,
 	}
 	if err := dm.config.load(s.config.DMaps, name); err != nil {
