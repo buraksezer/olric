@@ -97,6 +97,9 @@ func (k *KVStore) Compaction() (bool, error) {
 		s := t.Stats()
 		if t.State() == table.RecycledState {
 			if k.isTableExpired(s.RecycledAt) {
+				if len(k.tables) == 1 {
+					break
+				}
 				k.tables = append(k.tables[:i], k.tables[i+1:]...)
 				i--
 			}

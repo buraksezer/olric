@@ -17,7 +17,6 @@ package dmap
 import (
 	"bytes"
 	"errors"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"testing"
 	"time"
 
@@ -257,32 +256,4 @@ func TestDMap_Put_IfFound(t *testing.T) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
-}
-
-func TestDMap_Put_compactTables(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	c := testutil.NewConfig()
-	c.DMaps.Engine.Name = config.DefaultStorageEngine
-	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
-	c.DMaps.Engine.Config = map[string]interface{}{
-		"tableSize": uint32(100), // overwrite tableSize to trigger compaction.
-	}
-	e := testcluster.NewEnvironment(c)
-	s := cluster.AddMember(e).(*Service)
-	defer cluster.Shutdown()
-
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	for i := 0; i < 1000; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	// Compacting tables is an async task. Here we check the number of tables periodically.
-	checkCompactionForTest(t, s)
 }
