@@ -14,7 +14,11 @@
 
 package bufpool
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestBufPool(t *testing.T) {
 	p := New()
@@ -22,12 +26,8 @@ func TestBufPool(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		buf := p.Get()
 		nr, err := buf.Write(b)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if nr != 100 {
-			t.Fatalf("Expected 10. Got: %d", nr)
-		}
+		require.NoError(t, err)
+		require.Equal(t, 100, nr)
 		p.Put(buf)
 	}
 }

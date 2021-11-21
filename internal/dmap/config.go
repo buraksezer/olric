@@ -9,13 +9,13 @@ import (
 
 // dmapConfig keeps DMap config control parameters and access-log for keys in a dmap.
 type dmapConfig struct {
+	engine          *config.Engine
 	maxIdleDuration time.Duration
 	ttlDuration     time.Duration
 	maxKeys         int
 	maxInuse        int
 	lruSamples      int
 	evictionPolicy  config.EvictionPolicy
-	storageEngine   string
 }
 
 func (c *dmapConfig) load(dc *config.DMaps, name string) error {
@@ -26,9 +26,7 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 	c.maxInuse = dc.MaxInuse
 	c.lruSamples = dc.LRUSamples
 	c.evictionPolicy = dc.EvictionPolicy
-	if dc.StorageEngine != "" {
-		c.storageEngine = dc.StorageEngine
-	}
+	c.engine = dc.Engine
 
 	if dc.Custom != nil {
 		// config.DMap struct can be used for fine-grained control.
@@ -55,8 +53,8 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 			if c.evictionPolicy != cs.EvictionPolicy {
 				c.evictionPolicy = cs.EvictionPolicy
 			}
-			if cs.StorageEngine != "" && c.storageEngine != cs.StorageEngine {
-				c.storageEngine = cs.StorageEngine
+			if c.engine == nil {
+				c.engine = cs.Engine
 			}
 		}
 	}
@@ -71,12 +69,5 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 			c.lruSamples = config.DefaultLRUSamples
 		}
 	}
-	if c.storageEngine == "" {
-		c.storageEngine = config.DefaultStorageEngine
-	}
 	return nil
-}
-
-func (c *dmapConfig) isAccessLogRequired() bool {
-	return c.evictionPolicy == config.LRUEviction || c.maxIdleDuration != 0
 }

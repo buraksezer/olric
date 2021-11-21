@@ -74,7 +74,7 @@ func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r pr
 	// Internals
 	s.operations[protocol.OpMoveFragment] = s.moveFragmentOperation
 
-	// Merge
+	// Import
 	for code, f := range s.operations {
 		operations[code] = f
 	}

@@ -115,7 +115,8 @@ func (dt *DTopic) listen(l *listener, f func(olric.DTopicMessage)) {
 	}
 }
 
-// AddListener adds a new listener for the topic. Returns a listener ID or a non-nil error. The callback functions for this DTopic are run by parallel.
+// AddListener adds a new listener for the topic. Returns a listener ID or a non-nil error.
+// The callback functions for this DTopic are run by parallel.
 func (dt *DTopic) AddListener(f func(olric.DTopicMessage)) (uint64, error) {
 	l := newListener()
 	streamID, listenerID, err := dt.addStreamListener(l)
@@ -196,7 +197,7 @@ func (dt *DTopic) Destroy() error {
 	// Remove local listeners
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
-	for listenerID, _ := range dt.listeners {
+	for listenerID := range dt.listeners {
 		err = dt.removeStreamListener(listenerID)
 		if err != nil {
 			logger.Printf("[ERROR] Failed to remove listener: %d: %v\n", listenerID, err)
@@ -204,7 +205,7 @@ func (dt *DTopic) Destroy() error {
 		}
 	}
 	// I don't know that it's good to remove the map items while iterating over the same map.
-	for listenerID, _ := range dt.listeners {
+	for listenerID := range dt.listeners {
 		delete(dt.listeners, listenerID)
 	}
 	return nil

@@ -1,7 +1,7 @@
 olricd:
   # BindAddr denotes the address that Olric will bind to for communication
   # with other Olric nodes.
-  bindAddr: 0.0.0.0
+  bindAddr: localhost
 
   # BindPort denotes the address that Olric will bind to for communication
   # with other Olric nodes.
@@ -48,7 +48,7 @@ olricd:
 storageEngines:
   config:
     kvstore:
-      tableSize: 1048576
+      tableSize: 4096
 
 client:
   # Timeout for TCP dial.
@@ -128,7 +128,7 @@ memberlist:
   # listen on. The port is used for both UDP and TCP gossip. It is
   # assumed other nodes are running on this port, but they do not need
   # to.
-  bindAddr: 0.0.0.0
+  bindAddr: localhost
   bindPort: 3322
 
   # EnableCompression is used to control message compression. This can
@@ -160,8 +160,13 @@ memberlist:
   #handoffQueueDepth: 1024
   #udpBufferSize: 1400
 
-#dmaps:
+dmaps:
+  engine:
+    name: kvstore
+    config:
+      tableSize: 4096
 #  checkEmptyFragmentsInterval: 1m
+#  triggerCompactionInterval: 10m
 #  numEvictionWorkers: 1
 #  maxIdleDuration: ""
 #  ttlDuration: "100s"

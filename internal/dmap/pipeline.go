@@ -16,10 +16,11 @@ package dmap
 
 import (
 	"bytes"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"errors"
 	"io"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 func (s *Service) extractPipelineMessage(conn io.ReadWriteCloser, response *bytes.Buffer) error {
@@ -60,7 +61,7 @@ func (s *Service) pipelineOperation(w, r protocol.EncodeDecoder) {
 	// Decode the pipelined messages into an in-memory buffer.
 	for {
 		err := s.extractPipelineMessage(conn, response)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// It's done. The last message has been read.
 			break
 		}

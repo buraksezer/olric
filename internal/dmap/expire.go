@@ -55,7 +55,6 @@ func (dm *DMap) localExpire(e *env) error {
 		}
 		return err
 	}
-	dm.updateAccessLog(e.hkey, e.fragment)
 	return nil
 }
 
@@ -150,7 +149,7 @@ func (dm *DMap) expire(e *env) error {
 }
 
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
-// DB does not contains the key. It's thread-safe.
+// DB does not contain the key. It's thread-safe.
 func (dm *DMap) Expire(key string, timeout time.Duration) error {
 	e := &env{
 		dmap:      dm.name,

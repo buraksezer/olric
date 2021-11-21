@@ -24,7 +24,7 @@ import (
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
-	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -104,7 +104,7 @@ func (c *Client) getEntryFormat(name string) storage.Entry {
 	e, ok := c.entryFormats[name]
 	if !ok {
 		// Use the default one.
-		e = &kvstore.Entry{}
+		e = &entry.Entry{}
 	}
 	return e
 }

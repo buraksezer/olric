@@ -123,6 +123,7 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, key string) *version {
 	}
 	f.RLock()
 	defer f.RUnlock()
+
 	value, err := f.storage.Get(hkey)
 	if err != nil {
 		if !errors.Is(err, storage.ErrKeyNotFound) {
@@ -138,7 +139,6 @@ func (dm *DMap) lookupOnThisNode(hkey uint64, key string) *version {
 	// from the backup or the previous owners. When the fsck merge
 	// a fragmented partition or recover keys from a backup, Olric
 	// continue maintaining a reliable access log.
-	dm.updateAccessLog(hkey, f)
 	return dm.valueToVersion(value)
 }
 
@@ -369,7 +369,7 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 }
 
 // GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
-// does not contains the key. It's thread-safe. It is safe to modify the contents
+// does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) GetEntry(key string) (*Entry, error) {
 	entry, err := dm.get(key)

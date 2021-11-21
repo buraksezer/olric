@@ -18,7 +18,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckpoint(t *testing.T) {
@@ -42,5 +42,5 @@ func TestCheckpoint(t *testing.T) {
 	}
 
 	wg.Wait()
-	assert.Equal(t, true, AllPassed())
+	require.Equal(t, true, AllPassed())
 }

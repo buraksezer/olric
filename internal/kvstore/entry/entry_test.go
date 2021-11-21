@@ -12,33 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kvstore
+package entry
 
 import (
-	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEntryEncodeDecode(t *testing.T) {
-	entry := NewEntry()
-	entry.SetKey("mykey")
-	entry.SetTTL(200)
-	entry.SetTimestamp(time.Now().UnixNano())
-	entry.SetValue([]byte("mydata"))
+	e := New()
+	e.SetKey("mykey")
+	e.SetTTL(200)
+	e.SetTimestamp(time.Now().UnixNano())
+	e.SetLastAccess(time.Now().UnixNano())
+	e.SetValue([]byte("mydata"))
 
 	t.Run("Encode", func(t *testing.T) {
-		buf := entry.Encode()
-		if buf == nil {
-			t.Fatal("Expected some data. Got nil")
-		}
+		buf := e.Encode()
+		require.NotNilf(t, buf, "Expected some data. Got nil")
 
 		t.Run("Decode", func(t *testing.T) {
-			item := NewEntry()
+			item := New()
 			item.Decode(buf)
-			if !reflect.DeepEqual(entry, item) {
-				t.Fatal("Decoded Entry is different")
-			}
+			require.Equalf(t, e, item, "Decoded Entry is different")
 		})
 	})
 }

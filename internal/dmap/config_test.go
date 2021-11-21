@@ -15,9 +15,12 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/config"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Config(t *testing.T) {
@@ -29,7 +32,7 @@ func TestDMap_Config(t *testing.T) {
 	c.DMaps.MaxInuse = 1000000
 	c.DMaps.LRUSamples = 10
 	c.DMaps.EvictionPolicy = config.LRUEviction
-	c.DMaps.StorageEngine = config.DefaultStorageEngine
+	c.DMaps.Engine = testutil.NewEngineConfig(t)
 
 	// Config for specified DMaps
 	c.DMaps.Custom = map[string]config.DMap{"foobar": {
@@ -38,7 +41,10 @@ func TestDMap_Config(t *testing.T) {
 		MaxKeys:         500000,
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
-		StorageEngine:   "olric.document-store",
+		Engine: &config.Engine{
+			Name:   "olric.document-store",
+			Config: make(map[string]interface{}),
+		},
 	}}
 
 	dc := dmapConfig{}
@@ -63,9 +69,7 @@ func TestDMap_Config(t *testing.T) {
 	if dc.evictionPolicy != c.DMaps.EvictionPolicy {
 		t.Fatalf("Expected EvictionPolicy: %v. Got: %v", c.DMaps.EvictionPolicy, dc.evictionPolicy)
 	}
-	if dc.storageEngine != c.DMaps.StorageEngine {
-		t.Fatalf("Expected StorageEngine: %v. Got: %v", c.DMaps.StorageEngine, dc.storageEngine)
-	}
+	require.Equal(t, c.DMaps.Engine.Name, dc.engine.Name)
 
 	t.Run("Custom config", func(t *testing.T) {
 		dcc := dmapConfig{}
@@ -89,9 +93,8 @@ func TestDMap_Config(t *testing.T) {
 		if dcc.evictionPolicy != c.DMaps.Custom["foobar"].EvictionPolicy {
 			t.Fatalf("Expected EvictionPolicy: %v. Got: %v", c.DMaps.Custom["foobar"].EvictionPolicy, dcc.evictionPolicy)
 		}
-		if dcc.storageEngine != c.DMaps.Custom["foobar"].StorageEngine {
-			t.Fatalf("Expected StorageEngine: %v. Got: %v", c.DMaps.Custom["foobar"].StorageEngine, dcc.storageEngine)
-		}
+
+		require.Equal(t, c.DMaps.Custom["foobar"].Engine, dcc.engine)
 
 	})
 }

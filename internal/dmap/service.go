@@ -17,7 +17,6 @@ package dmap
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -63,7 +62,7 @@ type Service struct {
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Service{
+	return &Service{
 		config:     e.Get("config").(*config.Config),
 		serializer: e.Get("config").(*config.Config).Serializer,
 		client:     e.Get("client").(*transport.Client),
@@ -80,12 +79,7 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		ctx:        ctx,
 		cancel:     cancel,
-	}
-	err := s.initializeAndLoadStorageEngines()
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
+	}, nil
 }
 
 func (s *Service) isAlive() bool {
@@ -96,39 +90,6 @@ func (s *Service) isAlive() bool {
 	default:
 	}
 	return true
-}
-
-func (s *Service) initializeAndLoadStorageEngines() error {
-	s.storage.configs = s.config.StorageEngines.Config
-	s.storage.engines = s.config.StorageEngines.Impls
-
-	// Load engines as plugin, if any.
-	for _, pluginPath := range s.config.StorageEngines.Plugins {
-		engine, err := storage.LoadAsPlugin(pluginPath)
-		if err != nil {
-			return err
-		}
-		s.storage.engines[engine.Name()] = engine
-	}
-
-	// Set configuration for the loaded engines.
-	for name, ec := range s.config.StorageEngines.Config {
-		engine, ok := s.storage.engines[name]
-		if !ok {
-			return fmt.Errorf("storage engine implementation is missing: %s", name)
-		}
-		engine.SetConfig(storage.NewConfig(ec))
-	}
-
-	// Start the engines.
-	for _, engine := range s.storage.engines {
-		engine.SetLogger(s.config.Logger)
-		if err := engine.Start(); err != nil {
-			return err
-		}
-		s.log.V(2).Printf("[INFO] Storage engine has been loaded: %s", engine.Name())
-	}
-	return nil
 }
 
 func (s *Service) callCompactionOnStorage(f *fragment) {
@@ -180,10 +141,14 @@ func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.E
 // Start starts the distributed map service.
 func (s *Service) Start() error {
 	s.wg.Add(1)
-	go s.janitor()
+	go s.janitorWorker()
+
+	s.wg.Add(1)
+	go s.compactionWorker()
 
 	s.wg.Add(1)
 	go s.evictKeysAtBackground()
+
 	return nil
 }
 

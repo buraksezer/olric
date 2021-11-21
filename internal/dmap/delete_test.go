@@ -24,17 +24,19 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
-func checkCompactionForTest(t *testing.T, s *Service) {
+func checkEmptyStorageEngine(t *testing.T, s *Service) {
 	maximum := 50
 	check := func(current int) (bool, error) {
 		for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
 			part := s.primary.PartitionByID(partID)
-			tmp, ok := part.Map().Load("mymap")
+			tmp, ok := part.Map().Load("dmap.mymap")
 			if !ok {
 				continue
 			}
@@ -74,31 +76,22 @@ func TestDMap_Delete_Cluster(t *testing.T) {
 	defer cluster.Shutdown()
 
 	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
 		err = dm2.Delete(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 
 		_, err = dm2.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 }
 
@@ -109,33 +102,24 @@ func TestDMap_Delete_Lookup(t *testing.T) {
 	defer cluster.Shutdown()
 
 	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	s3 := cluster.AddMember(nil).(*Service)
 
 	dm2, err := s3.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
 		err = dm2.Delete(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 
 		_, err = dm2.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 }
 
@@ -182,9 +166,9 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	}
 
 	s1.wg.Add(1)
-	go s1.janitor()
+	go s1.janitorWorker()
 	s2.wg.Add(1)
-	go s2.janitor()
+	go s2.janitorWorker()
 
 	var dc int32
 	for i := 0; i < 1000; i++ {
@@ -323,37 +307,32 @@ func TestDMap_Delete_Compaction(t *testing.T) {
 	c := testutil.NewConfig()
 	c.ReadRepair = true
 	c.ReplicaCount = 2
-	e := testcluster.NewEnvironment(c)
-	c.StorageEngines.Config[config.DefaultStorageEngine] = map[string]interface{}{
-		"tableSize": 100, // overwrite tableSize to trigger compaction.
+	c.DMaps.TriggerCompactionInterval = time.Millisecond
+	c.DMaps.Engine.Name = config.DefaultStorageEngine
+	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
+	c.DMaps.Engine.Config = map[string]interface{}{
+		"tableSize":           uint32(100), // overwrite tableSize to trigger compaction.
+		"maxIdleTableTimeout": time.Millisecond,
 	}
+	e := testcluster.NewEnvironment(c)
+
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
 	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
-
-	// Compacting tables is an async task. Here we check the number of tables periodically.
-	checkCompactionForTest(t, s)
 
 	for i := 0; i < 100; i++ {
 		err = dm.Delete(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 
 		_, err = dm.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
-	checkCompactionForTest(t, s)
+	checkEmptyStorageEngine(t, s)
 }

@@ -16,9 +16,51 @@ package dtopic
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/vmihailenco/msgpack"
 )
+
+func (s *Service) processDTopicMessage(msg Message, name string, streamID, listenerID uint64) {
+	ss, err := s.streams.GetStreamByID(streamID)
+	if err != nil {
+		s.log.V(4).Printf("[ERROR] Stream could not be found with the given StreamID: %d", streamID)
+		err := s.dispatcher.removeListener(name, listenerID)
+		if err != nil {
+			s.log.V(4).Printf("[ERROR] Listener could not be removed with ListenerID: %d: %v", listenerID, err)
+		}
+		return
+	}
+
+	value, err := msgpack.Marshal(msg)
+	if err != nil {
+		s.log.V(4).Printf("[ERROR] Failed to serialize DTopicMessage: %v", err)
+		return
+	}
+
+	m := protocol.NewDTopicMessage(protocol.OpStreamMessage)
+	m.SetDTopic(name)
+	m.SetValue(value)
+	m.SetExtra(protocol.StreamMessageExtra{
+		ListenerID: listenerID,
+	})
+	ss.Write(m)
+}
+
+func (s *Service) waitAndTeardownListener(ss *streams.Stream, name string, listenerID uint64) {
+	defer s.wg.Done()
+
+	select {
+	case <-ss.Done():
+	case <-s.ctx.Done():
+	}
+
+	err := s.dispatcher.removeListener(name, listenerID)
+	if err != nil {
+		s.log.V(4).Printf("[ERROR] ListenerID: %d could not be removed: %v", listenerID, err)
+	}
+	s.log.V(4).Printf("[INFO] ListenerID: %d has been removed", listenerID)
+}
 
 func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
@@ -34,42 +76,9 @@ func (s *Service) addListenerOperation(w, r protocol.EncodeDecoder) {
 	listenerID := req.Extra().(protocol.DTopicAddListenerExtra).ListenerID
 
 	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		select {
-		case <-ss.Done():
-		case <-s.ctx.Done():
-		}
-		err := s.dispatcher.removeListener(name, listenerID)
-		if err != nil {
-			s.log.V(4).Printf("[ERROR] ListenerID: %d could not be removed: %v", listenerID, err)
-		}
-		s.log.V(4).Printf("[INFO] ListenerID: %d has been removed", listenerID)
-	}()
+	go s.waitAndTeardownListener(ss, name, listenerID)
 
-	f := func(msg Message) {
-		ss, err := s.streams.GetStreamByID(streamID)
-		if err != nil {
-			s.log.V(4).Printf("[ERROR] Stream could not be found with the given StreamID: %d", streamID)
-			err := s.dispatcher.removeListener(name, listenerID)
-			if err != nil {
-				s.log.V(4).Printf("[ERROR] Listener could not be removed with ListenerID: %d: %v", listenerID, err)
-			}
-			return
-		}
-		value, err := msgpack.Marshal(msg)
-		if err != nil {
-			s.log.V(4).Printf("[ERROR] Failed to serialize DTopicMessage: %v", err)
-			return
-		}
-		m := protocol.NewDTopicMessage(protocol.OpStreamMessage)
-		m.SetDTopic(name)
-		m.SetValue(value)
-		m.SetExtra(protocol.StreamMessageExtra{
-			ListenerID: listenerID,
-		})
-		ss.Write(m)
-	}
+	f := func(msg Message) { s.processDTopicMessage(msg, name, streamID, listenerID) }
 	// set concurrency parameter as 0. the registered listener will only make network i/o. NumCPU is good for this.
 	err = s.dispatcher.addRemoteListener(listenerID, name, 0, f)
 	if err != nil {

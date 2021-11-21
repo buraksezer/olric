@@ -29,11 +29,10 @@ import (
 type fragment struct {
 	sync.RWMutex
 
-	service   *Service
-	storage   storage.Engine
-	accessLog *accessLog
-	ctx       context.Context
-	cancel    context.CancelFunc
+	service *Service
+	storage storage.Engine
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 func (f *fragment) Stats() storage.Stats {
@@ -79,41 +78,58 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 	f.Lock()
 	defer f.Unlock()
 
-	payload, err := f.storage.Export()
-	if err != nil {
-		return err
-	}
-	fp := &fragmentPack{
-		PartID:    partID,
-		Kind:      kind,
-		Name:      name,
-		Payload:   payload,
-		AccessLog: f.accessLog.m,
-	}
-	value, err := msgpack.Marshal(fp)
-	if err != nil {
-		return err
+	i := f.storage.TransferIterator()
+	for i.Next() {
+		payload, err := i.Export()
+		if err != nil {
+			return err
+		}
+		fp := &fragmentPack{
+			PartID:  partID,
+			Kind:    kind,
+			Name:    name,
+			Payload: payload,
+		}
+		value, err := msgpack.Marshal(fp)
+		if err != nil {
+			return err
+		}
+
+		req := protocol.NewSystemMessage(protocol.OpMoveFragment)
+		req.SetValue(value)
+		_, err = f.service.requestTo(owner.String(), req)
+		if err != nil {
+			return err
+		}
+
+		err = i.Pop()
+		if err != nil {
+			return err
+		}
 	}
 
-	req := protocol.NewSystemMessage(protocol.OpMoveFragment)
-	req.SetValue(value)
-	_, err = f.service.requestTo(owner.String(), req)
-	return err
+	return nil
 }
 
 func (dm *DMap) newFragment() (*fragment, error) {
-	str, err := dm.engine.Fork(nil)
+	c := storage.NewConfig(dm.config.engine.Config)
+	engine, err := dm.engine.Fork(c)
+	if err != nil {
+		return nil, err
+	}
+
+	engine.SetLogger(dm.s.config.Logger)
+	err = engine.Start()
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &fragment{
-		service:   dm.s,
-		accessLog: newAccessLog(),
-		storage:   str,
-		ctx:       ctx,
-		cancel:    cancel,
+		service: dm.s,
+		storage: engine,
+		ctx:     ctx,
+		cancel:  cancel,
 	}, nil
 }
 
@@ -124,7 +140,7 @@ func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, err
 	// Creating a new fragment is our critical section here.
 	// It should be protected by a lock.
 
-	fg, ok := part.Map().Load(dm.name)
+	fg, ok := part.Map().Load(dm.fragmentName)
 	if ok {
 		return fg.(*fragment), nil
 	}
@@ -134,12 +150,12 @@ func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, err
 		return nil, err
 	}
 
-	part.Map().Store(dm.name, f)
+	part.Map().Store(dm.fragmentName, f)
 	return f, nil
 }
 
 func (dm *DMap) loadFragment(part *partitions.Partition) (*fragment, error) {
-	f, ok := part.Map().Load(dm.name)
+	f, ok := part.Map().Load(dm.fragmentName)
 	if !ok {
 		return nil, errFragmentNotFound
 	}

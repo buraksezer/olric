@@ -47,7 +47,7 @@ func (dm *DMap) destroyFragmentOnPartition(part *partitions.Partition) error {
 	if err != nil {
 		return err
 	}
-	return wipeOutFragment(part, dm.name, f)
+	return wipeOutFragment(part, dm.fragmentName, f)
 }
 
 func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {

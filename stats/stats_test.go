@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMember_String(t *testing.T) {
@@ -27,5 +27,5 @@ func TestMember_String(t *testing.T) {
 		ID:        123345645678,
 		Birthdate: time.Now().UnixNano(),
 	}
-	assert.Equal(t, "foobar", m.String())
+	require.Equal(t, "foobar", m.String())
 }

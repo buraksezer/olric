@@ -66,8 +66,8 @@ func TestDMap_Eviction_Config_TTLDuration(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
-		TTLDuration:   10 * time.Millisecond,
-		StorageEngine: config.DefaultStorageEngine,
+		TTLDuration: 10 * time.Millisecond,
+		Engine:      config.NewEngine(),
 	}
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
@@ -109,7 +109,7 @@ func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
 		MaxIdleDuration: 10 * time.Millisecond,
-		StorageEngine:   config.DefaultStorageEngine,
+		Engine:          config.NewEngine(),
 	}
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
@@ -153,7 +153,7 @@ func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 	c.DMaps = &config.DMaps{
 		MaxKeys:        70,
 		EvictionPolicy: config.LRUEviction,
-		StorageEngine:  config.DefaultStorageEngine,
+		Engine:         config.NewEngine(),
 	}
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
@@ -191,8 +191,9 @@ func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 	c.DMaps = &config.DMaps{
 		MaxInuse:       2048,
 		EvictionPolicy: config.LRUEviction,
-		StorageEngine:  config.DefaultStorageEngine,
+		Engine:         testutil.NewEngineConfig(t),
 	}
+
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()

@@ -138,7 +138,7 @@ func (d *DMapMessage) SetDMap(dmap string) {
 	d.dmap = dmap
 }
 
-// Returns the DMap name.
+// DMap returns the DMap name.
 func (d *DMapMessage) DMap() string {
 	return d.dmap
 }

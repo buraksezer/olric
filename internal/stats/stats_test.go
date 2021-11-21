@@ -18,7 +18,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUint64Counter(t *testing.T) {
@@ -35,7 +35,7 @@ func TestUint64Counter(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(100), c.Read())
+	require.Equal(t, int64(100), c.Read())
 }
 
 func TestUint64Gauge(t *testing.T) {
@@ -60,5 +60,5 @@ func TestUint64Gauge(t *testing.T) {
 
 	wg.Wait()
 
-	assert.Equal(t, int64(80), g.Read())
+	require.Equal(t, int64(80), g.Read())
 }

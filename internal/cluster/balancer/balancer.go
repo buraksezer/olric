@@ -73,7 +73,6 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners
 				u.Name(), name, part.Kind(), part.ID(), owner)
 
 			err := u.Move(part.ID(), part.Kind(), name.(string), owner)
-
 			if err != nil {
 				b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v",
 					u.Name(), name, part.ID(), owner, err)

@@ -20,160 +20,151 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/internal/testutil/assert"
 	"github.com/buraksezer/olric/query"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOlric_DMap_Get(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Run("ErrKeyNotFound", func(t *testing.T) {
 		_, err = dm.Get("mykey")
-		assert.Error(t, ErrKeyNotFound, err)
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	})
 
 	t.Run("Put and Get", func(t *testing.T) {
 		value := "myvalue"
 		err = dm.Put("mykey-2", value)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		retrieved, err := dm.Get("mykey-2")
-		assert.NoError(t, err)
-		assert.Equal(t, value, retrieved)
+		require.NoError(t, err)
+		require.Equal(t, value, retrieved)
 	})
 }
 
 func TestOlric_DMap_GetEntry(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	key := "mykey"
 	value := "myvalue"
 	err = dm.Put(key, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	retrieved, err := dm.GetEntry(key)
-	assert.NoError(t, err)
-	assert.Equal(t, key, retrieved.Key)
-	assert.Equal(t, value, retrieved.Value)
-	assert.NotEqual(t, 0, retrieved.Timestamp)
-	assert.Equal(t, int64(0), retrieved.TTL)
+	require.NoError(t, err)
+	require.Equal(t, key, retrieved.Key)
+	require.Equal(t, value, retrieved.Value)
+	require.NotEqual(t, 0, retrieved.Timestamp)
+	require.Equal(t, int64(0), retrieved.TTL)
 }
 
 func TestOlric_DMap_Put(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Put("mykey", "myvalue")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DMap_PutIf_IfNotFound(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.PutIf("mykey", "myvalue", IfNotFound)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	value, err := dm.Get("mykey")
-	assert.NoError(t, err)
-	assert.Equal(t, "myvalue", value)
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
 
 	err = dm.PutIf("mykey", "myvalue", IfNotFound)
-	assert.Error(t, ErrKeyFound, err)
+	require.ErrorIs(t, err, ErrKeyFound)
 }
 
 func TestOlric_DMap_PutIf_IfFound(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.PutIf("mykey", "myvalue", IfFound)
-	assert.Error(t, ErrKeyNotFound, err)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestOlric_DMap_PutIfEx_IfFound(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.PutIfEx("mykey", "myvalue", time.Second, IfFound)
-	assert.Error(t, err, ErrKeyNotFound)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 
 	err = dm.Put("mykey", "myvalue")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.PutIfEx("mykey", "myvalue-2", 100*time.Millisecond, IfFound)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	value, err := dm.Get("mykey")
-	assert.NoError(t, err)
-	assert.Equal(t, "myvalue-2", value)
+	require.NoError(t, err)
+	require.Equal(t, "myvalue-2", value)
 
 	<-time.After(100 * time.Millisecond)
 	_, err = dm.Get("mykey")
-	assert.Error(t, err, ErrKeyNotFound)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestOlric_DMap_PutIfEx_IfNotFound(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.PutIfEx("mykey", "myvalue", 100*time.Millisecond, IfNotFound)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	value, err := dm.Get("mykey")
-	assert.NoError(t, err)
-	assert.Equal(t, "myvalue", value)
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
 
 	<-time.After(100 * time.Millisecond)
 	err = dm.PutIfEx("mykey", "myvalue", 100*time.Millisecond, IfNotFound)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DMap_Expire(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Put("mykey", "myvalue")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Expire("mykey", 100*time.Millisecond)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = dm.Get("mykey")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DMap_Query(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
 		var key string
@@ -183,7 +174,7 @@ func TestOlric_DMap_Query(t *testing.T) {
 			key = fmt.Sprintf("odd:%d", i)
 		}
 		err = dm.Put(key, "myvalue")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	c, err := dm.Query(query.M{
@@ -191,7 +182,7 @@ func TestOlric_DMap_Query(t *testing.T) {
 			"$regexMatch": "^even:",
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer c.Close()
 	expected := map[string]string{
@@ -204,175 +195,165 @@ func TestOlric_DMap_Query(t *testing.T) {
 	var count int
 	err = c.Range(func(key string, value interface{}) bool {
 		val, ok := expected[key]
-		assert.Equal(t, true, ok)
-		assert.Equal(t, val, value)
+		require.Equal(t, true, ok)
+		require.Equal(t, val, value)
 		count++
 		return true
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, len(expected), count)
+	require.NoError(t, err)
+	require.Equal(t, len(expected), count)
 }
 
 func TestOlric_DMap_PutEx(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.PutEx("mykey", "myvalue", 100*time.Millisecond)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	value, err := dm.Get("mykey")
-	assert.NoError(t, err)
-	assert.Equal(t, "myvalue", value)
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
 
 	<-time.After(100 * time.Millisecond)
 	_, err = dm.Get("mykey")
-	assert.Error(t, ErrKeyNotFound, err)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestOlric_DMap_Delete(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Put("mykey", "myvalue")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Delete("mykey")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = dm.Get("mykey")
-	assert.Error(t, ErrKeyNotFound, err)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestOlric_DMap_Incr(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	value, err := dm.Incr("mykey", 10)
-	assert.NoError(t, err)
-	assert.Equal(t, 10, value)
+	require.NoError(t, err)
+	require.Equal(t, 10, value)
 }
 
 func TestOlric_DMap_Decr(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	value, err := dm.Decr("mykey", 10)
-	assert.NoError(t, err)
-	assert.Equal(t, -10, value)
+	require.NoError(t, err)
+	require.Equal(t, -10, value)
 }
 
 func TestOlric_DMap_GetPut(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	key := "mykey"
 	value := "myvalue"
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Put(key, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	oldval, err := dm.GetPut(key, "new-value")
-	assert.NoError(t, err)
-	assert.Equal(t, value, oldval)
+	require.NoError(t, err)
+	require.Equal(t, value, oldval)
 
 	current, err := dm.Get(key)
-	assert.NoError(t, err)
-	assert.Equal(t, "new-value", current)
+	require.NoError(t, err)
+	require.Equal(t, "new-value", current)
 }
 
 func TestOlric_DMap_Destroy(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	key := "mykey"
 	value := "myvalue"
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Put(key, value)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dm.Destroy()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = dm.Get(key)
-	assert.Error(t, ErrKeyNotFound, err)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestOlric_DMap_LockWithTimeout(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx, err := dm.LockWithTimeout("mykey", time.Second, time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = ctx.Unlock()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DMap_LockWithTimeout_Timeout(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = dm.LockWithTimeout("mykey", 100*time.Millisecond, time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = testutil.TryWithInterval(10, time.Millisecond, func() error {
 		_, err = dm.LockWithTimeout("mykey", 100*time.Millisecond, time.Millisecond)
 		return err
 	})
-	assert.Error(t, ErrLockNotAcquired, err)
+	require.ErrorIs(t, err, ErrLockNotAcquired)
 }
 
 func TestOlric_DMap_Lock(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx, err := dm.Lock("mykey", time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = ctx.Unlock()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DMap_Lock_Deadline(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx, err := dm.Lock("mykey", time.Second)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	defer func() {
 		err = ctx.Unlock()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}()
 
 	_, errTwo := dm.Lock("mykey", time.Millisecond)
-	assert.Error(t, ErrLockNotAcquired, errTwo)
+	require.ErrorIs(t, ErrLockNotAcquired, errTwo)
 }

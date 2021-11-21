@@ -19,73 +19,67 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/testutil/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOlric_DTopic_OrderedDelivery(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
-
-	_, err = db.NewDTopic("mydtopic", 0, OrderedDelivery)
-	assert.Error(t, ErrNotImplemented, err)
+	db := newTestOlric(t)
+	_, err := db.NewDTopic("mydtopic", 0, OrderedDelivery)
+	require.ErrorIs(t, err, ErrNotImplemented)
 }
 
 func TestOlric_DTopic_Publish(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dt, err := db.NewDTopic("mydtopic", 0, UnorderedDelivery)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = dt.Publish("my-message")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DTopic_AddListener(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dt, err := db.NewDTopic("mydtopic", 0, UnorderedDelivery)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	listenerID, err := dt.AddListener(func(msg DTopicMessage) {
 		defer cancel()
-		assert.Equal(t, "my-message", msg.Message)
-		assert.NotEqual(t, 0, msg.PublishedAt)
-		assert.NotEqual(t, "", msg.PublisherAddr)
+		require.Equal(t, "my-message", msg.Message)
+		require.NotEqual(t, 0, msg.PublishedAt)
+		require.NotEqual(t, "", msg.PublisherAddr)
 	})
-	assert.NoError(t, err)
-	assert.NotEqual(t, 0, listenerID)
+	require.NoError(t, err)
+	require.NotEqual(t, 0, listenerID)
 
 	err = dt.Publish("my-message")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	<-ctx.Done()
-	assert.Error(t, context.Canceled, ctx.Err())
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
 }
 
 func TestOlric_DTopic_RemoveListener(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dt, err := db.NewDTopic("mydtopic", 0, UnorderedDelivery)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	listenerID, err := dt.AddListener(func(_ DTopicMessage) {})
-	assert.NoError(t, err)
-	assert.NotEqual(t, 0, listenerID)
+	require.NoError(t, err)
+	require.NotEqual(t, 0, listenerID)
 
 	err = dt.RemoveListener(listenerID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestOlric_DTopic_Destroy(t *testing.T) {
-	db, err := newTestOlric(t)
-	assert.NoError(t, err)
+	db := newTestOlric(t)
 
 	dt, err := db.NewDTopic("mydtopic", 0, UnorderedDelivery)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = dt.Destroy()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }

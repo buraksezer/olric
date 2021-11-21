@@ -137,8 +137,13 @@ const (
 	DefaultRoutingTablePushInterval = time.Minute
 
 	// DefaultCheckEmptyFragmentsInterval is the default value of interval between
-	// two sequential call of empty fragment cleaner.
+	// two sequential call of empty fragment cleaner. It's one minute by default.
 	DefaultCheckEmptyFragmentsInterval = time.Minute
+
+	// DefaultTriggerCompactionInterval is the default value of interval between
+	// two sequential call of compaction workers. The compaction worker works until
+	// its work is done. It's 10 minutes by default.
+	DefaultTriggerCompactionInterval = 10 * time.Minute
 )
 
 // Config is the configuration to create a Olric instance.
@@ -271,9 +276,6 @@ type Config struct {
 	// You have to use NewMemberlistConfig to create a new one.
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
-
-	// StorageEngines contains storage engine configuration and their implementations.
-	StorageEngines *StorageEngines
 }
 
 // Validate finds errors in the current configuration.
@@ -327,10 +329,6 @@ func (c *Config) Validate() error {
 
 	if err := c.DMaps.Validate(); err != nil {
 		return err
-	}
-
-	if err := c.StorageEngines.Validate(); err != nil {
-		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
 	}
 
 	switch c.LogLevel {
@@ -423,9 +421,6 @@ func (c *Config) Sanitize() error {
 		return fmt.Errorf("failed to sanitize DMap configuration: %w", err)
 	}
 
-	if err := c.StorageEngines.Sanitize(); err != nil {
-		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
-	}
 	return nil
 }
 
@@ -463,7 +458,6 @@ func New(env string) *Config {
 		MemberCountQuorum: 1,
 		Peers:             []string{},
 		DMaps:             &DMaps{},
-		StorageEngines:    NewStorageEngine(),
 	}
 
 	m, err := NewMemberlistConfig(env)

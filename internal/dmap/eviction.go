@@ -32,18 +32,20 @@ func (dm *DMap) isKeyIdleOnFragment(hkey uint64, f *fragment) bool {
 	if dm.config == nil {
 		return false
 	}
-	if !dm.config.isAccessLogRequired() || dm.config.maxIdleDuration.Nanoseconds() == 0 {
+
+	if dm.config.maxIdleDuration.Nanoseconds() == 0 {
 		return false
 	}
 	// Maximum time in seconds for each entry to stay idle in the map.
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period
 	// exceeds this limit are expired and evicted automatically.
-	t, ok := f.accessLog.get(hkey)
-	if !ok {
+	lastAccess, err := f.storage.GetLastAccess(hkey)
+	if errors.Is(err, storage.ErrKeyNotFound) {
 		return false
 	}
-	ttl := (dm.config.maxIdleDuration.Nanoseconds() + t) / 1000000
+	// TODO: Handle other errors.
+	ttl := (dm.config.maxIdleDuration.Nanoseconds() + lastAccess) / 1000000
 	return isKeyExpired(ttl)
 }
 
@@ -61,14 +63,6 @@ func (dm *DMap) isKeyIdle(hkey uint64) bool {
 	f.Lock()
 	defer f.Unlock()
 	return dm.isKeyIdleOnFragment(hkey, f)
-}
-
-func (dm *DMap) deleteAccessLog(hkey uint64, f *fragment) {
-	if dm.config == nil || !dm.config.isAccessLogRequired() {
-		// Fail early. This's useful to avoid checking the configuration everywhere.
-		return
-	}
-	f.accessLog.delete(hkey)
 }
 
 func (s *Service) evictKeysAtBackground() {
@@ -185,7 +179,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 			return
 		default:
 		}
-		// Call janitor again until it returns false.
+		// Call janitorWorker again until it returns false.
 		if !janitor() {
 			return
 		}
@@ -194,7 +188,7 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 
 type lruItem struct {
 	HKey       uint64
-	AccessedAt int64
+	LastAccess int64
 }
 
 func (dm *DMap) evictKeyWithLRU(e *env) error {
@@ -204,14 +198,14 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 	// Warning: fragment is already locked by DMap.Put. Be sure about that before editing this function.
 
 	// Pick random items from the distributed map and sort them by accessedAt.
-	e.fragment.accessLog.iterator(func(hkey uint64, timestamp int64) bool {
+	e.fragment.storage.Range(func(hkey uint64, e storage.Entry) bool {
 		if idx >= dm.config.lruSamples {
 			return false
 		}
 		idx++
 		i := lruItem{
 			HKey:       hkey,
-			AccessedAt: timestamp,
+			LastAccess: e.LastAccess(),
 		}
 		items = append(items, i)
 		return true
@@ -221,7 +215,7 @@ func (dm *DMap) evictKeyWithLRU(e *env) error {
 		return fmt.Errorf("nothing found to expire with LRU")
 	}
 
-	sort.Slice(items, func(i, j int) bool { return items[i].AccessedAt < items[j].AccessedAt })
+	sort.Slice(items, func(i, j int) bool { return items[i].LastAccess < items[j].LastAccess })
 	// Pick the first item to delete. It's the least recently used item in the sample.
 	item := items[0]
 	key, err := e.fragment.storage.GetKey(item.HKey)

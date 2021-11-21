@@ -14,7 +14,17 @@
 
 package storage
 
-import "log"
+import (
+	"log"
+)
+
+type TransferIterator interface {
+	Next() bool
+
+	Export() ([]byte, error)
+
+	Pop() error
+}
 
 // Engine defines methods for a storage engine implementation.
 type Engine interface {
@@ -54,6 +64,9 @@ type Engine interface {
 	// GetTTL extracts TTL of an entry.
 	GetTTL(uint64) (int64, error)
 
+	// GetLastAccess extracts LastAccess of an entry.
+	GetLastAccess(uint64) (int64, error)
+
 	// GetKey extracts key of an entry.
 	GetKey(uint64) (string, error)
 
@@ -61,14 +74,12 @@ type Engine interface {
 	Delete(uint64) error
 
 	// UpdateTTL updates TTL of an entry. It returns ErrKeyNotFound,
-	// if the key doesn't exists.
+	// if the key doesn't exist.
 	UpdateTTL(uint64, Entry) error
 
-	// Import creates a new storage engine instance from its encoded form.
-	Import([]byte) (Engine, error)
+	TransferIterator() TransferIterator
 
-	// Exports encodes a storage engine into its binary form.
-	Export() ([]byte, error)
+	Import([]byte, func(uint64, Entry) error) error
 
 	// Stats returns metrics for an online storage engine.
 	Stats() Stats

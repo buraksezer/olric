@@ -18,12 +18,11 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"testing"
-	"text/template"
 	"time"
 
 	"github.com/buraksezer/olric/serializer"
+	"github.com/stretchr/testify/require"
 )
 
 var testConfig = `olricd:
@@ -39,13 +38,6 @@ var testConfig = `olricd:
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
   memberCountQuorum: 1
-
-storageEngines:
-  plugins:
-    - {{.TmpPluginPath}}
-  config:
-    kvstore:
-      tableSize: 102134
 
 client:
   dialTimeout: "10s"
@@ -83,6 +75,10 @@ memberlist:
   udpBufferSize: 1400
 
 dmaps:
+  engine:
+    name: kvstore
+    config:
+      tableSize: 102134
   numEvictionWorkers: 1
   maxIdleDuration: ""
   ttlDuration: "100s"
@@ -90,7 +86,6 @@ dmaps:
   maxInuse: 1000000
   lruSamples: 10
   evictionPolicy: "LRU"
-  storageEngine: "kvstore"
   custom:
     foobar:
       maxIdleDuration: "60s"
@@ -98,8 +93,6 @@ dmaps:
       maxKeys: 500000
       lruSamples: 20
       evictionPolicy: "NONE"
-      storageEngine: "kvstore"
-
 
 serviceDiscovery:
   path: "/usr/lib/olric-consul-plugin.so"
@@ -129,30 +122,14 @@ func createTmpFile(t *testing.T, pattern string) *os.File {
 }
 
 func TestConfig(t *testing.T) {
-	fakePlugin := createTmpFile(t, "olric-fake-test-plugin.*.so")
-	type ConfigTemplate struct {
-		TmpPluginPath string
-	}
-	tmpl := ConfigTemplate{
-		TmpPluginPath: fakePlugin.Name(),
-	}
-	w := bytes.NewBuffer(nil)
-	tp := template.Must(template.New("testConfig").Parse(testConfig))
-	err := tp.Execute(w, tmpl)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
+	w := bytes.NewBuffer([]byte(testConfig))
 	f := createTmpFile(t, "olric-yaml-config-test")
-	_, err = f.Write(w.Bytes())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	_, err := f.Write(w.Bytes())
+	require.NoError(t, err)
 
 	lc, err := Load(f.Name())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	c := New("local")
 	c.BindAddr = "0.0.0.0"
 	c.BindPort = 3320
@@ -167,8 +144,7 @@ func TestConfig(t *testing.T) {
 	c.ReplicationMode = SyncReplicationMode
 	c.MemberCountQuorum = 1
 
-	c.StorageEngines = NewStorageEngine()
-	c.StorageEngines.Plugins = []string{fakePlugin.Name()}
+	c.DMaps.Engine = NewEngine()
 
 	c.Client.DialTimeout = 10 * time.Second
 	c.Client.ReadTimeout = 3 * time.Second
@@ -203,7 +179,7 @@ func TestConfig(t *testing.T) {
 	c.DMaps.MaxInuse = 1000000
 	c.DMaps.LRUSamples = 10
 	c.DMaps.EvictionPolicy = LRUEviction
-	c.DMaps.StorageEngine = DefaultStorageEngine
+	c.DMaps.Engine.Name = DefaultStorageEngine
 
 	c.DMaps.Custom = map[string]DMap{"foobar": {
 		MaxIdleDuration: 60 * time.Second,
@@ -211,7 +187,6 @@ func TestConfig(t *testing.T) {
 		MaxKeys:         500000,
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
-		StorageEngine:   "kvstore",
 	}}
 
 	c.ServiceDiscovery = make(map[string]interface{})
@@ -224,15 +199,12 @@ func TestConfig(t *testing.T) {
 	c.ServiceDiscovery["payload"] = "SAMPLE-PAYLOAD"
 
 	err = c.Sanitize()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	// Disable the following fields. They include unexported fields, pointers and mutexes.
 	c.LogOutput = nil
 	lc.LogOutput = nil
 	c.Logger = nil
 	lc.Logger = nil
-	if !reflect.DeepEqual(lc, c) {
-		t.Fatalf("Expected true. Got: false")
-	}
+	require.Equal(t, c, lc)
 }

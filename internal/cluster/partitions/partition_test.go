@@ -15,12 +15,12 @@
 package partitions
 
 import (
-	"reflect"
 	"sync"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/stretchr/testify/require"
 )
 
 type testFragment struct {
@@ -69,23 +69,17 @@ func TestPartition(t *testing.T) {
 
 	t.Run("Owners", func(t *testing.T) {
 		owners := p.Owners()
-		if !reflect.DeepEqual(owners, tmp) {
-			t.Fatalf("Partition owners slice is different")
-		}
+		require.Equal(t, tmp, owners, "Partition owners slice is different")
 	})
 
 	t.Run("Owner", func(t *testing.T) {
 		owner := p.Owner()
-		if !reflect.DeepEqual(owner, tmp[0]) {
-			t.Fatalf("Partition owners slice is different")
-		}
+		require.Equal(t, tmp[0], owner, "Partition owners slice is different")
 	})
 
 	t.Run("OwnerCount", func(t *testing.T) {
 		count := p.OwnerCount()
-		if count != 1 {
-			t.Fatalf("Expected owner count is 1. Got: %d", count)
-		}
+		require.Equal(t, 1, count)
 	})
 
 	t.Run("Length", func(t *testing.T) {
@@ -94,8 +88,6 @@ func TestPartition(t *testing.T) {
 		p.Map().Store("s1", s1)
 		p.Map().Store("s2", s2)
 		length := p.Length()
-		if length != 30 {
-			t.Fatalf("Expected length: 30. Got: %d", length)
-		}
+		require.Equal(t, 30, length)
 	})
 }

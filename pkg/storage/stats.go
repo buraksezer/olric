@@ -20,17 +20,17 @@ type Stats struct {
 	Allocated int
 
 	// Used portion of allocated memory
-	Inuse     int
+	Inuse int
 
 	// Deleted portions of allocated memory.
-	Garbage   int
+	Garbage int
 
 	// Total number of keys hosted by the engine instance.
-	Length    int
+	Length int
 
 	// Number of tables hosted by the engine instance.
 	NumTables int
 
 	// Any other metrics that's specific to an engine implementation.
-	Extras    map[string]interface{}
+	Extras map[string]interface{}
 }

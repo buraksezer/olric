@@ -15,6 +15,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -28,6 +29,8 @@ type EvictionPolicy string
 // DMap denotes configuration for a particular distributed map. Most of the
 // fields are related with distributed cache implementation.
 type DMap struct {
+	Engine *Engine
+
 	// MaxIdleDuration denotes maximum time for each entry to stay idle in the
 	// DMap. It limits the lifetime of the entries relative to the time of the
 	// last read or write access performed on them. The entries whose idle period
@@ -58,10 +61,6 @@ type DMap struct {
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
-
-	// Name of the storage engine. The default one is kvstore. Leave it empty if
-	// you want to use the default one.
-	StorageEngine string
 }
 
 // Sanitize sets default values to empty configuration variables, if it's possible.
@@ -78,13 +77,29 @@ func (dm *DMap) Sanitize() error {
 	if dm.MaxKeys < 0 {
 		dm.MaxKeys = 0
 	}
-	if dm.StorageEngine == "" {
-		dm.StorageEngine = DefaultStorageEngine
+
+	if dm.Engine == nil {
+		dm.Engine = NewEngine()
 	}
+
+	if err := dm.Engine.LoadPlugin(); err != nil {
+		return fmt.Errorf("failed to load storage engine plugin: %w", err)
+	}
+
+	if err := dm.Engine.Sanitize(); err != nil {
+		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
+	}
+
 	return nil
 }
 
 // Validate finds errors in the current configuration.
-func (dm *DMap) Validate() error { return nil }
+func (dm *DMap) Validate() error {
+	if err := dm.Engine.Validate(); err != nil {
+		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
+	}
+
+	return nil
+}
 
 var _ IConfig = (*DMap)(nil)

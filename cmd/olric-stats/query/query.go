@@ -88,6 +88,7 @@ func (q *Query) prettyPrint(partID uint64, part *stats.Partition) {
 			q.log.Printf("    Allocated: %d", dm.SlabInfo.Allocated)
 			q.log.Printf("    Inuse: %d", dm.SlabInfo.Inuse)
 			q.log.Printf("    Garbage: %d", dm.SlabInfo.Garbage)
+			q.log.Printf("    Number of tables: %d", dm.NumTables)
 			q.log.Printf("\n")
 		}
 	} else {

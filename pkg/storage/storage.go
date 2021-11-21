@@ -20,10 +20,6 @@ import (
 	"plugin"
 )
 
-// ErrFragmented is an error that indicates this storage instance is currently
-// fragmented and it cannot be serialized.
-var ErrFragmented = errors.New("storage fragmented")
-
 // ErrKeyTooLarge is an error that indicates the given key is large than the determined key size.
 // The current maximum key length is 256.
 var ErrKeyTooLarge = errors.New("key too large")
@@ -31,7 +27,8 @@ var ErrKeyTooLarge = errors.New("key too large")
 // ErrKeyNotFound is an error that indicates that the requested key could not be found in the DB.
 var ErrKeyNotFound = errors.New("key not found")
 
-// ErrNotImplemented means that the interface implementation does not support the functionality required to fulfill the request.
+// ErrNotImplemented means that the interface implementation does not support
+// the functionality required to fulfill the request.
 var ErrNotImplemented = errors.New("not implemented yet")
 
 func LoadAsPlugin(pluginPath string) (Engine, error) {

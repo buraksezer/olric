@@ -16,16 +16,13 @@ package olric
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestOlric_Ping(t *testing.T) {
-	db, err := newTestOlric(t)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	db := newTestOlric(t)
 
-	err = db.Ping(db.rt.This().String())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	err := db.Ping(db.rt.This().String())
+	require.NoError(t, err)
 }

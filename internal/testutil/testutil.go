@@ -16,8 +16,10 @@ package testutil
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"net"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -52,6 +54,13 @@ func NewFlogger(c *config.Config) *flog.Logger {
 	return flogger
 }
 
+func NewEngineConfig(t *testing.T) *config.Engine {
+	e := config.NewEngine()
+	require.NoError(t, e.Sanitize())
+	require.NoError(t, e.Validate())
+	return e
+}
+
 func NewConfig() *config.Config {
 	c := config.New("local")
 	c.PartitionCount = 7
@@ -67,7 +76,6 @@ func NewConfig() *config.Config {
 	c.BindAddr = "127.0.0.1"
 	c.BindPort = port
 	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
-	c.DMaps.StorageEngine = config.DefaultStorageEngine
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("failed to sanitize default config: %v", err))
 	}
