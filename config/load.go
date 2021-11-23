@@ -323,7 +323,14 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	var joinRetryInterval, keepAlivePeriod, bootstrapTimeout, routingTablePushInterval time.Duration
+	var (
+		joinRetryInterval,
+		keepAlivePeriod,
+		bootstrapTimeout,
+		triggerBalancerInterval,
+		routingTablePushInterval time.Duration
+	)
+
 	if c.Olricd.KeepAlivePeriod != "" {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
@@ -354,6 +361,14 @@ func Load(filename string) (*Config, error) {
 		}
 	}
 
+	if c.Olricd.TriggerBalancerInterval != "" {
+		triggerBalancerInterval, err = time.ParseDuration(c.Olricd.TriggerBalancerInterval)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.triggerBalancerInterval: '%s'", c.Olricd.TriggerBalancerInterval))
+		}
+	}
+
 	clientConfig := Client{}
 	err = mapYamlToConfig(&clientConfig, &c.Client)
 	if err != nil {
@@ -376,6 +391,7 @@ func Load(filename string) (*Config, error) {
 		LogLevel:                 c.Logging.Level,
 		JoinRetryInterval:        joinRetryInterval,
 		RoutingTablePushInterval: routingTablePushInterval,
+		TriggerBalancerInterval:  triggerBalancerInterval,
 		MaxJoinAttempts:          c.Memberlist.MaxJoinAttempts,
 		Peers:                    c.Memberlist.Peers,
 		PartitionCount:           c.Olricd.PartitionCount,

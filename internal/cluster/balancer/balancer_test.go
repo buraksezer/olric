@@ -71,67 +71,81 @@ func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Bala
 	}
 	e.Set("routingtable", rt)
 	b := New(e)
-	rt.AddCallback(b.Balance)
 	return b
 }
 
-type testCluster struct {
+type mockCluster struct {
+	t *testing.T
 	peerPorts []int
 	errGr     errgroup.Group
 	ctx       context.Context
 	cancel    context.CancelFunc
 }
 
-func newTestCluster() *testCluster {
+func newMockCluster(t *testing.T) *mockCluster {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &testCluster{
+	return &mockCluster{
+		t: t,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 }
 
-func (t *testCluster) addNode(e *environment.Environment) (*Balancer, error) {
+func (mc *mockCluster) addNode(e *environment.Environment) *Balancer {
 	if e == nil {
 		e = newTestEnvironment(nil)
 	}
 	c := e.Get("config").(*config.Config)
+	c.TriggerBalancerInterval = time.Millisecond
+	c.DMaps.CheckEmptyFragmentsInterval = time.Millisecond
 
 	port, err := testutil.GetFreePort()
 	if err != nil {
-		return nil, err
+		require.NoError(mc.t, err)
 	}
 	c.MemberlistConfig.BindPort = port
 
 	var peers []string
-	for _, peerPort := range t.peerPorts {
+	for _, peerPort := range mc.peerPorts {
 		peers = append(peers, net.JoinHostPort("127.0.0.1", strconv.Itoa(peerPort)))
 	}
 	c.Peers = peers
 
 	srv := testutil.NewTransportServer(c)
 	b := newBalancerForTest(e, srv)
-	err = b.rt.Start()
+
+	err = b.Start()
 	if err != nil {
-		return nil, err
+		require.NoError(mc.t, err)
 	}
 
-	t.errGr.Go(func() error {
-		<-t.ctx.Done()
+	err = b.rt.Start()
+	if err != nil {
+		require.NoError(mc.t, err)
+	}
+
+	mc.errGr.Go(func() error {
+		<-mc.ctx.Done()
 		return srv.Shutdown(context.Background())
 	})
 
-	t.errGr.Go(func() error {
-		<-t.ctx.Done()
+	mc.errGr.Go(func() error {
+		<-mc.ctx.Done()
 		return b.rt.Shutdown(context.Background())
 	})
 
-	t.peerPorts = append(t.peerPorts, port)
-	return b, err
+	mc.peerPorts = append(mc.peerPorts, port)
+
+	mc.t.Cleanup(func() {
+		require.NoError(mc.t, b.Shutdown(context.Background()))
+	})
+
+	return b
 }
 
-func (t *testCluster) shutdown() error {
-	t.cancel()
-	return t.errGr.Wait()
+func (mc *mockCluster) shutdown() {
+	mc.cancel()
+	require.NoError(mc.t, mc.errGr.Wait())
 }
 
 func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
@@ -142,7 +156,7 @@ func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
 		part := part.PartitionByID(partID)
 		s := mockfragment.New()
 		s.Fill()
-		part.Map().Store("test-data", s)
+		part.Map().Store("dmap.test-data", s)
 		total += part.Length()
 	}
 	return total
@@ -179,25 +193,18 @@ func checkBackupOwnership(e *environment.Environment) error {
 }
 
 func TestBalance_Move(t *testing.T) {
-	cluster := newTestCluster()
-	defer func() {
-		require.NoError(t, cluster.shutdown())
-	}()
+	cluster := newMockCluster(t)
+	defer cluster.shutdown()
 
 	e1 := newTestEnvironment(nil)
-	b1, err := cluster.addNode(e1)
-	require.NoError(t, err)
+	cluster.addNode(e1)
 
-	defer b1.Shutdown()
 	keyCountOnNode1 := insertRandomData(e1, partitions.PRIMARY)
 
 	e2 := newTestEnvironment(nil)
-	b2, err := cluster.addNode(e2)
-	require.NoError(t, err)
+	b2 := cluster.addNode(e2)
 
-	defer b2.Shutdown()
-
-	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+	err := testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
 		if !b2.rt.IsBootstrapped() {
 			return errors.New("the second node cannot be bootstrapped")
 		}
@@ -207,9 +214,6 @@ func TestBalance_Move(t *testing.T) {
 
 	keyCountOnNode2 := insertRandomData(e1, partitions.PRIMARY)
 
-	b1.Balance()
-	b2.Balance()
-
 	err = checkKeyCountAfterBalance(e1, partitions.PRIMARY, keyCountOnNode1)
 	require.NoError(t, err)
 
@@ -218,30 +222,23 @@ func TestBalance_Move(t *testing.T) {
 }
 
 func TestBalance_Backup_Move(t *testing.T) {
-	cluster := newTestCluster()
-	defer func() {
-		require.NoError(t, cluster.shutdown())
-	}()
+	cluster := newMockCluster(t)
+	defer cluster.shutdown()
 
 	c1 := testutil.NewConfig()
 	c1.ReplicaCount = 2
 	e1 := newTestEnvironment(c1)
-	b1, err := cluster.addNode(e1)
-	require.NoError(t, err)
+	b1 := cluster.addNode(e1)
 
-	defer b1.Shutdown()
 	b1.rt.UpdateEagerly()
 
-	err = checkBackupOwnership(e1)
+	err := checkBackupOwnership(e1)
 	require.NoError(t, err)
 
 	c2 := testutil.NewConfig()
 	c2.ReplicaCount = 2
 	e2 := newTestEnvironment(c2)
-	b2, err := cluster.addNode(e2)
-	require.NoError(t, err)
-
-	defer b2.Shutdown()
+	b2 := cluster.addNode(e2)
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
 		if !b2.rt.IsBootstrapped() {
@@ -261,10 +258,7 @@ func TestBalance_Backup_Move(t *testing.T) {
 	c3 := testutil.NewConfig()
 	c3.ReplicaCount = 2
 	e3 := newTestEnvironment(c3)
-	b3, err := cluster.addNode(e3)
-	require.NoError(t, err)
-
-	defer b3.Shutdown()
+	b3 := cluster.addNode(e3)
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
 		if !b3.rt.IsBootstrapped() {

@@ -30,7 +30,7 @@ const (
 	MagicDMapRes MagicCode = 0xE3
 )
 
-// Header defines a message header for both request and response.
+// DMapMessageHeader defines a message header for both request and response.
 type DMapMessageHeader struct {
 	Op         OpCode     // 1
 	DMapLen    uint16     // 2
