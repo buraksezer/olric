@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/discovery"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
@@ -75,7 +77,7 @@ func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Bala
 }
 
 type mockCluster struct {
-	t *testing.T
+	t         *testing.T
 	peerPorts []int
 	errGr     errgroup.Group
 	ctx       context.Context
@@ -85,7 +87,7 @@ type mockCluster struct {
 func newMockCluster(t *testing.T) *mockCluster {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &mockCluster{
-		t: t,
+		t:      t,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -148,58 +150,25 @@ func (mc *mockCluster) shutdown() {
 	require.NoError(mc.t, mc.errGr.Wait())
 }
 
-func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
-	var total int
-	c := e.Get("config").(*config.Config)
-	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
-	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		part := part.PartitionByID(partID)
-		s := mockfragment.New()
-		s.Fill()
-		part.Map().Store("dmap.test-data", s)
-		total += part.Length()
-	}
-	return total
-}
-
-func checkKeyCountAfterBalance(e *environment.Environment, kind partitions.Kind, total int) error {
-	c := e.Get("config").(*config.Config)
-	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
-	var afterBalance int
-	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		part := part.PartitionByID(partID)
-		afterBalance += part.Length()
-	}
-	if afterBalance == total {
-		return fmt.Errorf("node still has the same data set")
-	}
-	return nil
-}
-
-func checkBackupOwnership(e *environment.Environment) error {
-	c := e.Get("config").(*config.Config)
-	primary := e.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
-	backup := e.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
-	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		primaryOwner := primary.PartitionByID(partID).Owner()
-		part := backup.PartitionByID(partID)
-		for _, owner := range part.Owners() {
-			if primaryOwner.CompareByID(owner) {
-				return fmt.Errorf("%s is the primary and backup owner of partID: %d at the same time", primaryOwner, partID)
-			}
-		}
-	}
-	return nil
-}
-
-func TestBalance_Move(t *testing.T) {
+func TestBalance_Primary_Move(t *testing.T) {
 	cluster := newMockCluster(t)
 	defer cluster.shutdown()
 
 	e1 := newTestEnvironment(nil)
 	cluster.addNode(e1)
 
-	keyCountOnNode1 := insertRandomData(e1, partitions.PRIMARY)
+	fragments := make(map[uint64]*mockfragment.MockFragment)
+
+	// Create a MockFragment and insert some fake data
+	c := e1.Get("config").(*config.Config)
+	part := e1.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		part := part.PartitionByID(partID)
+		s := mockfragment.New()
+		s.Fill()
+		part.Map().Store("dmap.test-data", s)
+		fragments[partID] = s
+	}
 
 	e2 := newTestEnvironment(nil)
 	b2 := cluster.addNode(e2)
@@ -212,16 +181,40 @@ func TestBalance_Move(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	keyCountOnNode2 := insertRandomData(e1, partitions.PRIMARY)
+	for partID, f := range fragments {
+		result := f.Result()
+		if len(result) == 0 {
+			continue
+		}
 
-	err = checkKeyCountAfterBalance(e1, partitions.PRIMARY, keyCountOnNode1)
-	require.NoError(t, err)
-
-	err = checkKeyCountAfterBalance(e2, partitions.PRIMARY, keyCountOnNode2)
-	require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.NotNil(t, result[partitions.PRIMARY])
+		r := result[partitions.PRIMARY]
+		require.NotNil(t, r[partID])
+		require.Equal(t, "dmap.test-data", r[partID].Name)
+		require.Equal(t, []discovery.Member{b2.rt.This()}, r[partID].Owners)
+	}
 }
 
-func TestBalance_Backup_Move(t *testing.T) {
+func checkBackupOwnership(e *environment.Environment) error {
+	c := e.Get("config").(*config.Config)
+	primary := e.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
+	backup := e.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
+
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		primaryOwner := primary.PartitionByID(partID).Owner()
+		part := backup.PartitionByID(partID)
+		for _, owner := range part.Owners() {
+			if primaryOwner.CompareByID(owner) {
+				return fmt.Errorf("%s is the primary and backup owner of partID: %d at the same time", primaryOwner, partID)
+			}
+		}
+	}
+
+	return nil
+}
+
+func TestBalance_Empty_Backup_Move(t *testing.T) {
 	cluster := newMockCluster(t)
 	defer cluster.shutdown()
 
@@ -250,28 +243,61 @@ func TestBalance_Backup_Move(t *testing.T) {
 
 	b1.rt.UpdateEagerly()
 
-	insertRandomData(e1, partitions.BACKUP)
-
 	err = checkBackupOwnership(e2)
 	require.NoError(t, err)
+}
 
-	c3 := testutil.NewConfig()
-	c3.ReplicaCount = 2
-	e3 := newTestEnvironment(c3)
-	b3 := cluster.addNode(e3)
+func TestBalance_Backup_Move(t *testing.T) {
+	cluster := newMockCluster(t)
+	defer cluster.shutdown()
 
-	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
-		if !b3.rt.IsBootstrapped() {
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	e1 := newTestEnvironment(c1)
+	b1 := cluster.addNode(e1)
+
+	fragments := make(map[uint64]*mockfragment.MockFragment)
+
+	c := e1.Get("config").(*config.Config)
+	part := e1.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		part := part.PartitionByID(partID)
+		s := mockfragment.New()
+		s.Fill()
+		part.Map().Store("dmap.test-data", s)
+		fragments[partID] = s
+	}
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	e2 := newTestEnvironment(c2)
+	b2 := cluster.addNode(e2)
+
+	err := testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		if !b2.rt.IsBootstrapped() {
 			return errors.New("the second node cannot be bootstrapped")
 		}
 		return nil
 	})
 	require.NoError(t, err)
 
-	b1.rt.UpdateEagerly()
-	// Call second time to clear the table.
-	b1.rt.UpdateEagerly()
+	for i := 0; i < 5; i++ {
+		b1.rt.UpdateEagerly()
+		err = checkBackupOwnership(e2)
+		require.NoError(t, err)
+	}
 
-	err = checkBackupOwnership(e3)
-	require.NoError(t, err)
+	for partID, f := range fragments {
+		result := f.Result()
+		if len(result) == 0 {
+			continue
+		}
+
+		require.Len(t, result, 1)
+		require.NotNil(t, result[partitions.BACKUP])
+		r := result[partitions.BACKUP]
+		require.NotNil(t, r[partID])
+		require.Equal(t, "dmap.test-data", r[partID].Name)
+		require.Equal(t, []discovery.Member{b2.rt.This()}, r[partID].Owners)
+	}
 }

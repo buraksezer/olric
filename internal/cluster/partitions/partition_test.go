@@ -39,7 +39,7 @@ func (tf *testFragment) Length() int {
 	return tf.length
 }
 
-func (tf *testFragment) Move(_ uint64, _ Kind, _ string, _ discovery.Member) error {
+func (tf *testFragment) Move(_ *Partition, _ string, _ []discovery.Member) error {
 	return nil
 }
 

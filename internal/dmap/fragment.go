@@ -74,7 +74,7 @@ func (f *fragment) Length() int {
 	return f.storage.Stats().Length
 }
 
-func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner discovery.Member) error {
+func (f *fragment) Move(part *partitions.Partition, name string, owners []discovery.Member) error {
 	f.Lock()
 	defer f.Unlock()
 
@@ -88,8 +88,8 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 		return err
 	}
 	fp := &fragmentPack{
-		PartID:  partID,
-		Kind:    kind,
+		PartID:  part.ID(),
+		Kind:    part.Kind(),
 		Name:    name,
 		Payload: payload,
 	}
@@ -100,10 +100,13 @@ func (f *fragment) Move(partID uint64, kind partitions.Kind, name string, owner 
 
 	req := protocol.NewSystemMessage(protocol.OpMoveFragment)
 	req.SetValue(value)
-	_, err = f.service.requestTo(owner.String(), req)
-	if err != nil {
-		return err
+	for _, owner := range owners {
+		_, err = f.service.requestTo(owner.String(), req)
+		if err != nil {
+			return err
+		}
 	}
+
 	return i.Pop()
 }
 

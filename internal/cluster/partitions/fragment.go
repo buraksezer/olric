@@ -23,7 +23,7 @@ type Fragment interface {
 	Name() string
 	Stats() storage.Stats
 	Length() int
-	Move(partID uint64, kind Kind, name string, owner discovery.Member) error
+	Move(*Partition, string, []discovery.Member) error
 	Compaction() (bool, error)
 	Destroy() error
 	Close() error

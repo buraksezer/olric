@@ -25,14 +25,21 @@ import (
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
+type Result struct {
+	Name   string
+	Owners []discovery.Member
+}
+
 type MockFragment struct {
 	sync.RWMutex
-	m map[string]interface{}
+	m      map[string]interface{}
+	result map[partitions.Kind]map[uint64]Result
 }
 
 func New() *MockFragment {
 	return &MockFragment{
-		m: make(map[string]interface{}),
+		m:      make(map[string]interface{}),
+		result: make(map[partitions.Kind]map[uint64]Result),
 	}
 }
 
@@ -83,7 +90,25 @@ func (f *MockFragment) Fill() {
 	}
 }
 
-func (f *MockFragment) Move(_ uint64, _ partitions.Kind, _ string, _ discovery.Member) error {
+func (f *MockFragment) Result() map[partitions.Kind]map[uint64]Result {
+	return f.result
+}
+
+func (f *MockFragment) Move(part *partitions.Partition, name string, owners []discovery.Member) error {
+	f.Lock()
+	defer f.Unlock()
+
+	f.result[part.Kind()] = map[uint64]Result{
+		part.ID(): {
+			Name:   name,
+			Owners: owners,
+		},
+	}
+
+	for key := range f.m {
+		delete(f.m, key)
+	}
+
 	return nil
 }
 

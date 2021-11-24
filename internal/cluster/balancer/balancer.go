@@ -16,6 +16,7 @@ package balancer
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,18 +69,27 @@ func (b *Balancer) isAlive() bool {
 }
 
 func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners ...discovery.Member) {
+	ownersStr := func() string {
+		var names []string
+		for _, owner := range owners {
+			names = append(names, owner.String())
+		}
+		return strings.Join(names, ",")
+	}()
+
 	part.Map().Range(func(name, tmp interface{}) bool {
 		f := tmp.(partitions.Fragment)
+		if f.Length() == 0 {
+			return false
+		}
 
-		for _, owner := range owners {
-			b.log.V(2).Printf("[INFO] Moving %s: %s (kind: %s) on PartID: %d to %s",
-				f.Name(), name, part.Kind(), part.ID(), owner)
+		b.log.V(2).Printf("[INFO] Moving %s fragment: %s (kind: %s) on PartID: %d to %s",
+			f.Name(), name, part.Kind(), part.ID(), ownersStr)
 
-			err := f.Move(part.ID(), part.Kind(), name.(string), owner)
-			if err != nil {
-				b.log.V(2).Printf("[ERROR] Failed to move %s: %s on PartID: %d to %s: %v",
-					f.Name(), name, part.ID(), owner, err)
-			}
+		err := f.Move(part, name.(string), owners)
+		if err != nil {
+			b.log.V(2).Printf("[ERROR] Failed to move %s fragment: %s on PartID: %d to %s: %v",
+				f.Name(), name, part.ID(), ownersStr, err)
 		}
 
 		// if this returns true, the iteration continues
@@ -188,6 +198,10 @@ func (b *Balancer) triggerBalancer() {
 	if b.config.ReplicaCount > config.MinimumReplicaCount {
 		b.backupCopies()
 	}
+}
+
+func (b *Balancer) BalanceEagerly() {
+	b.triggerBalancer()
 }
 
 func (b *Balancer) balance() {

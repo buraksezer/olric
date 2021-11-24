@@ -75,8 +75,7 @@ func (t *TestCluster) newService(e *environment.Environment) service.Service {
 	e.Set("balancer", b)
 	t.errGr.Go(func() error {
 		<-t.ctx.Done()
-		b.Shutdown()
-		return nil
+		return b.Shutdown(context.Background())
 	})
 
 	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
@@ -130,7 +129,7 @@ func (t *TestCluster) syncCluster() {
 	// Normally, balancer is triggered by routing table after a successful update, but we don't want to
 	// balance the test cluster asynchronously. So we balance the partitions here explicitly.
 	for _, e := range t.environments {
-		e.Get("balancer").(*balancer.Balancer).Balance()
+		e.Get("balancer").(*balancer.Balancer).BalanceEagerly()
 	}
 }
 
