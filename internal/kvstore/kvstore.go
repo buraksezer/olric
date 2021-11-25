@@ -118,7 +118,9 @@ func (k *KVStore) NewEntry() storage.Entry {
 // PutRaw sets the raw value for the given key.
 func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
 	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
+		if err := k.makeTable(); err != nil {
+			return err
+		}
 	}
 
 	for {
@@ -146,7 +148,9 @@ func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
 // Put sets the value for the given key. It overwrites any previous value for that key
 func (k *KVStore) Put(hkey uint64, value storage.Entry) error {
 	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
+		if err := k.makeTable(); err != nil {
+			return err
+		}
 	}
 
 	for {
@@ -174,10 +178,6 @@ func (k *KVStore) Put(hkey uint64, value storage.Entry) error {
 
 // GetRaw extracts encoded value for the given hkey. This is useful for merging tables.
 func (k *KVStore) GetRaw(hkey uint64) ([]byte, error) {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -198,13 +198,9 @@ func (k *KVStore) GetRaw(hkey uint64) ([]byte, error) {
 }
 
 // Get gets the value for the given key. It returns storage.ErrKeyNotFound if the DB
-// does not contains the key. The returned Entry is its own copy,
+// does not contain the key. The returned Entry is its own copy,
 // it is safe to modify the contents of the returned slice.
 func (k *KVStore) Get(hkey uint64) (storage.Entry, error) {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -226,10 +222,6 @@ func (k *KVStore) Get(hkey uint64) (storage.Entry, error) {
 // GetTTL gets the timeout for the given key. It returns storage.ErrKeyNotFound if the DB
 // does not contain the key.
 func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -250,10 +242,6 @@ func (k *KVStore) GetTTL(hkey uint64) (int64, error) {
 }
 
 func (k *KVStore) GetLastAccess(hkey uint64) (int64, error) {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -276,10 +264,6 @@ func (k *KVStore) GetLastAccess(hkey uint64) (int64, error) {
 // GetKey gets the key for the given hkey. It returns storage.ErrKeyNotFound if the DB
 // does not contain the key.
 func (k *KVStore) GetKey(hkey uint64) (string, error) {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -301,10 +285,6 @@ func (k *KVStore) GetKey(hkey uint64) (string, error) {
 
 // Delete deletes the value for the given key. Delete will not returns error if key doesn't exist.
 func (k *KVStore) Delete(hkey uint64) error {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -324,10 +304,6 @@ func (k *KVStore) Delete(hkey uint64) error {
 
 // UpdateTTL updates the expiry for the given key.
 func (k *KVStore) UpdateTTL(hkey uint64, data storage.Entry) error {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -363,10 +339,6 @@ func (k *KVStore) Stats() storage.Stats {
 
 // Check checks the key existence.
 func (k *KVStore) Check(hkey uint64) bool {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -385,10 +357,6 @@ func (k *KVStore) Check(hkey uint64) bool {
 // the number of elements in the map even if f returns false after a constant
 // number of calls.
 func (k *KVStore) Range(f func(hkey uint64, e storage.Entry) bool) {
-	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
-	}
-
 	// Scan available tables by starting the last added table.
 	for i := len(k.tables) - 1; i >= 0; i-- {
 		t := k.tables[i]
@@ -401,8 +369,10 @@ func (k *KVStore) Range(f func(hkey uint64, e storage.Entry) bool) {
 // RegexMatchOnKeys calls a regular expression on keys and provides an iterator.
 func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.Entry) bool) error {
 	if len(k.tables) == 0 {
-		panic("tables cannot be empty")
+		// There is nothing to do
+		return nil
 	}
+
 	r, err := regexp.Compile(expr)
 	if err != nil {
 		return err

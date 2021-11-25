@@ -33,6 +33,7 @@ type olricd struct {
 	ReadRepair               bool    `yaml:"readRepair"`
 	MemberCountQuorum        int32   `yaml:"memberCountQuorum"`
 	RoutingTablePushInterval string  `yaml:"routingTablePushInterval"`
+	TriggerBalancerInterval  string  `yaml:"triggerBalancerInterval"`
 }
 
 type client struct {

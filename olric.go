@@ -239,8 +239,6 @@ func New(c *config.Config) (*Olric, error) {
 		return nil, err
 	}
 
-	// Add callback functions to routing table.
-	db.rt.AddCallback(db.balancer.Balance)
 	db.registerOperations()
 	db.server.SetDispatcher(db.requestDispatcher)
 	return db, nil
@@ -360,6 +358,11 @@ func (db *Olric) Start() error {
 		return errGr.Wait()
 	}
 
+	// Balancer works periodically to balance partition data across the cluster.
+	if err := db.balancer.Start(); err != nil {
+		return err
+	}
+
 	// Start routing table service and member discovery subsystem.
 	if err := db.rt.Start(); err != nil {
 		return err
@@ -420,7 +423,10 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
-	db.balancer.Shutdown()
+	if err := db.balancer.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown balancer service: %v", err)
+		latestError = err
+	}
 
 	if err := db.rt.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown routing table service: %v", err)

@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/discovery"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
@@ -71,101 +73,134 @@ func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Bala
 	}
 	e.Set("routingtable", rt)
 	b := New(e)
-	rt.AddCallback(b.Balance)
 	return b
 }
 
-type testCluster struct {
+type mockCluster struct {
+	t         *testing.T
 	peerPorts []int
 	errGr     errgroup.Group
 	ctx       context.Context
 	cancel    context.CancelFunc
 }
 
-func newTestCluster() *testCluster {
+func newMockCluster(t *testing.T) *mockCluster {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &testCluster{
+	return &mockCluster{
+		t:      t,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 }
 
-func (t *testCluster) addNode(e *environment.Environment) (*Balancer, error) {
+func (mc *mockCluster) addNode(e *environment.Environment) *Balancer {
 	if e == nil {
 		e = newTestEnvironment(nil)
 	}
 	c := e.Get("config").(*config.Config)
+	c.TriggerBalancerInterval = time.Millisecond
+	c.DMaps.CheckEmptyFragmentsInterval = time.Millisecond
 
 	port, err := testutil.GetFreePort()
 	if err != nil {
-		return nil, err
+		require.NoError(mc.t, err)
 	}
 	c.MemberlistConfig.BindPort = port
 
 	var peers []string
-	for _, peerPort := range t.peerPorts {
+	for _, peerPort := range mc.peerPorts {
 		peers = append(peers, net.JoinHostPort("127.0.0.1", strconv.Itoa(peerPort)))
 	}
 	c.Peers = peers
 
 	srv := testutil.NewTransportServer(c)
 	b := newBalancerForTest(e, srv)
-	err = b.rt.Start()
+
+	err = b.Start()
 	if err != nil {
-		return nil, err
+		require.NoError(mc.t, err)
 	}
 
-	t.errGr.Go(func() error {
-		<-t.ctx.Done()
+	err = b.rt.Start()
+	if err != nil {
+		require.NoError(mc.t, err)
+	}
+
+	mc.errGr.Go(func() error {
+		<-mc.ctx.Done()
 		return srv.Shutdown(context.Background())
 	})
 
-	t.errGr.Go(func() error {
-		<-t.ctx.Done()
+	mc.errGr.Go(func() error {
+		<-mc.ctx.Done()
 		return b.rt.Shutdown(context.Background())
 	})
 
-	t.peerPorts = append(t.peerPorts, port)
-	return b, err
+	mc.peerPorts = append(mc.peerPorts, port)
+
+	mc.t.Cleanup(func() {
+		require.NoError(mc.t, b.Shutdown(context.Background()))
+	})
+
+	return b
 }
 
-func (t *testCluster) shutdown() error {
-	t.cancel()
-	return t.errGr.Wait()
+func (mc *mockCluster) shutdown() {
+	mc.cancel()
+	require.NoError(mc.t, mc.errGr.Wait())
 }
 
-func insertRandomData(e *environment.Environment, kind partitions.Kind) int {
-	var total int
-	c := e.Get("config").(*config.Config)
-	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
+func TestBalance_Primary_Move(t *testing.T) {
+	cluster := newMockCluster(t)
+	defer cluster.shutdown()
+
+	e1 := newTestEnvironment(nil)
+	cluster.addNode(e1)
+
+	fragments := make(map[uint64]*mockfragment.MockFragment)
+
+	// Create a MockFragment and insert some fake data
+	c := e1.Get("config").(*config.Config)
+	part := e1.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
 		part := part.PartitionByID(partID)
 		s := mockfragment.New()
 		s.Fill()
-		part.Map().Store("test-data", s)
-		total += part.Length()
+		part.Map().Store("dmap.test-data", s)
+		fragments[partID] = s
 	}
-	return total
-}
 
-func checkKeyCountAfterBalance(e *environment.Environment, kind partitions.Kind, total int) error {
-	c := e.Get("config").(*config.Config)
-	part := e.Get(strings.ToLower(kind.String())).(*partitions.Partitions)
-	var afterBalance int
-	for partID := uint64(0); partID < c.PartitionCount; partID++ {
-		part := part.PartitionByID(partID)
-		afterBalance += part.Length()
+	e2 := newTestEnvironment(nil)
+	b2 := cluster.addNode(e2)
+
+	err := testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		if !b2.rt.IsBootstrapped() {
+			return errors.New("the second node cannot be bootstrapped")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	for partID, f := range fragments {
+		result := f.Result()
+		if len(result) == 0 {
+			continue
+		}
+
+		require.Len(t, result, 1)
+		require.NotNil(t, result[partitions.PRIMARY])
+		r := result[partitions.PRIMARY]
+		require.NotNil(t, r[partID])
+		require.Equal(t, "dmap.test-data", r[partID].Name)
+		require.Equal(t, []discovery.Member{b2.rt.This()}, r[partID].Owners)
 	}
-	if afterBalance == total {
-		return fmt.Errorf("node still has the same data set")
-	}
-	return nil
 }
 
 func checkBackupOwnership(e *environment.Environment) error {
 	c := e.Get("config").(*config.Config)
 	primary := e.Get(strings.ToLower(partitions.PRIMARY.String())).(*partitions.Partitions)
 	backup := e.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
+
 	for partID := uint64(0); partID < c.PartitionCount; partID++ {
 		primaryOwner := primary.PartitionByID(partID).Owner()
 		part := backup.PartitionByID(partID)
@@ -175,73 +210,28 @@ func checkBackupOwnership(e *environment.Environment) error {
 			}
 		}
 	}
+
 	return nil
 }
 
-func TestBalance_Move(t *testing.T) {
-	cluster := newTestCluster()
-	defer func() {
-		require.NoError(t, cluster.shutdown())
-	}()
-
-	e1 := newTestEnvironment(nil)
-	b1, err := cluster.addNode(e1)
-	require.NoError(t, err)
-
-	defer b1.Shutdown()
-	keyCountOnNode1 := insertRandomData(e1, partitions.PRIMARY)
-
-	e2 := newTestEnvironment(nil)
-	b2, err := cluster.addNode(e2)
-	require.NoError(t, err)
-
-	defer b2.Shutdown()
-
-	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
-		if !b2.rt.IsBootstrapped() {
-			return errors.New("the second node cannot be bootstrapped")
-		}
-		return nil
-	})
-	require.NoError(t, err)
-
-	keyCountOnNode2 := insertRandomData(e1, partitions.PRIMARY)
-
-	b1.Balance()
-	b2.Balance()
-
-	err = checkKeyCountAfterBalance(e1, partitions.PRIMARY, keyCountOnNode1)
-	require.NoError(t, err)
-
-	err = checkKeyCountAfterBalance(e2, partitions.PRIMARY, keyCountOnNode2)
-	require.NoError(t, err)
-}
-
-func TestBalance_Backup_Move(t *testing.T) {
-	cluster := newTestCluster()
-	defer func() {
-		require.NoError(t, cluster.shutdown())
-	}()
+func TestBalance_Empty_Backup_Move(t *testing.T) {
+	cluster := newMockCluster(t)
+	defer cluster.shutdown()
 
 	c1 := testutil.NewConfig()
 	c1.ReplicaCount = 2
 	e1 := newTestEnvironment(c1)
-	b1, err := cluster.addNode(e1)
-	require.NoError(t, err)
+	b1 := cluster.addNode(e1)
 
-	defer b1.Shutdown()
 	b1.rt.UpdateEagerly()
 
-	err = checkBackupOwnership(e1)
+	err := checkBackupOwnership(e1)
 	require.NoError(t, err)
 
 	c2 := testutil.NewConfig()
 	c2.ReplicaCount = 2
 	e2 := newTestEnvironment(c2)
-	b2, err := cluster.addNode(e2)
-	require.NoError(t, err)
-
-	defer b2.Shutdown()
+	b2 := cluster.addNode(e2)
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
 		if !b2.rt.IsBootstrapped() {
@@ -253,31 +243,61 @@ func TestBalance_Backup_Move(t *testing.T) {
 
 	b1.rt.UpdateEagerly()
 
-	insertRandomData(e1, partitions.BACKUP)
-
 	err = checkBackupOwnership(e2)
 	require.NoError(t, err)
+}
 
-	c3 := testutil.NewConfig()
-	c3.ReplicaCount = 2
-	e3 := newTestEnvironment(c3)
-	b3, err := cluster.addNode(e3)
-	require.NoError(t, err)
+func TestBalance_Backup_Move(t *testing.T) {
+	cluster := newMockCluster(t)
+	defer cluster.shutdown()
 
-	defer b3.Shutdown()
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	e1 := newTestEnvironment(c1)
+	b1 := cluster.addNode(e1)
 
-	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
-		if !b3.rt.IsBootstrapped() {
+	fragments := make(map[uint64]*mockfragment.MockFragment)
+
+	c := e1.Get("config").(*config.Config)
+	part := e1.Get(strings.ToLower(partitions.BACKUP.String())).(*partitions.Partitions)
+	for partID := uint64(0); partID < c.PartitionCount; partID++ {
+		part := part.PartitionByID(partID)
+		s := mockfragment.New()
+		s.Fill()
+		part.Map().Store("dmap.test-data", s)
+		fragments[partID] = s
+	}
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	e2 := newTestEnvironment(c2)
+	b2 := cluster.addNode(e2)
+
+	err := testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		if !b2.rt.IsBootstrapped() {
 			return errors.New("the second node cannot be bootstrapped")
 		}
 		return nil
 	})
 	require.NoError(t, err)
 
-	b1.rt.UpdateEagerly()
-	// Call second time to clear the table.
-	b1.rt.UpdateEagerly()
+	for i := 0; i < 5; i++ {
+		b1.rt.UpdateEagerly()
+		err = checkBackupOwnership(e2)
+		require.NoError(t, err)
+	}
 
-	err = checkBackupOwnership(e3)
-	require.NoError(t, err)
+	for partID, f := range fragments {
+		result := f.Result()
+		if len(result) == 0 {
+			continue
+		}
+
+		require.Len(t, result, 1)
+		require.NotNil(t, result[partitions.BACKUP])
+		r := result[partitions.BACKUP]
+		require.NotNil(t, r[partID])
+		require.Equal(t, "dmap.test-data", r[partID].Name)
+		require.Equal(t, []discovery.Member{b2.rt.This()}, r[partID].Owners)
+	}
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/neterrors"
@@ -430,3 +431,5 @@ func (r *RoutingTable) Shutdown(ctx context.Context) error {
 	}
 	return nil
 }
+
+var _ service.Service = (*RoutingTable)(nil)

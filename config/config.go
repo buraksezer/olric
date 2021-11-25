@@ -136,6 +136,9 @@ const (
 	// DefaultRoutingTablePushInterval is interval between routing table push events.
 	DefaultRoutingTablePushInterval = time.Minute
 
+	// DefaultTriggerBalancerInterval is interval between two sequential call of balancer worker.
+	DefaultTriggerBalancerInterval = 15 * time.Second
+
 	// DefaultCheckEmptyFragmentsInterval is the default value of interval between
 	// two sequential call of empty fragment cleaner. It's one minute by default.
 	DefaultCheckEmptyFragmentsInterval = time.Minute
@@ -187,6 +190,9 @@ type Config struct {
 
 	// RoutingTablePushInterval is interval between routing table push events.
 	RoutingTablePushInterval time.Duration
+
+	// TriggerBalancerInterval is interval between two sequential call of balancer worker.
+	TriggerBalancerInterval time.Duration
 
 	// The list of host:port which are used by memberlist for discovery.
 	// Don't confuse it with Name.
@@ -405,8 +411,13 @@ func (c *Config) Sanitize() error {
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
 	}
-	if c.RoutingTablePushInterval == 0*time.Second {
+
+	if c.RoutingTablePushInterval.Microseconds() == 0 {
 		c.RoutingTablePushInterval = DefaultRoutingTablePushInterval
+	}
+
+	if c.TriggerBalancerInterval.Microseconds() == 0 {
+		c.TriggerBalancerInterval = DefaultTriggerBalancerInterval
 	}
 
 	if c.Client == nil {
