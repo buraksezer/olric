@@ -198,7 +198,7 @@ func (k *KVStore) GetRaw(hkey uint64) ([]byte, error) {
 }
 
 // Get gets the value for the given key. It returns storage.ErrKeyNotFound if the DB
-// does not contains the key. The returned Entry is its own copy,
+// does not contain the key. The returned Entry is its own copy,
 // it is safe to modify the contents of the returned slice.
 func (k *KVStore) Get(hkey uint64) (storage.Entry, error) {
 	if len(k.tables) == 0 {
