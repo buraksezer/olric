@@ -17,6 +17,7 @@ package dmap
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -90,7 +91,7 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 	fp := &fragmentPack{
 		PartID:  part.ID(),
 		Kind:    part.Kind(),
-		Name:    name,
+		Name:    strings.TrimPrefix(name, "dmap."),
 		Payload: payload,
 	}
 	value, err := msgpack.Marshal(fp)

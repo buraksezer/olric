@@ -17,6 +17,7 @@ package dmap
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func TestDMap_Get_Cluster(t *testing.T) {
 func TestDMap_Get_Lookup(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
-	_ = cluster.AddMember(nil).(*Service)
+	cluster.AddMember(nil)
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
@@ -86,6 +87,7 @@ func TestDMap_Get_Lookup(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		val, err := dm3.Get(testutil.ToKey(i))
 		if err != nil {
+			fmt.Println(testutil.ToKey(i))
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
@@ -251,7 +253,7 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 func TestDMap_GetEntry_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
-	cluster.AddMember(nil)
+	cluster.AddMember(nil) // second member
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
