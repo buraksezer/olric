@@ -34,6 +34,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buraksezer/olric/internal/server"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/checkpoint"
@@ -105,6 +107,9 @@ type Olric struct {
 	// Internal TCP server and its client for peer-to-peer communication.
 	client *transport.Client
 	server *transport.Server
+
+	// RESP experiment
+	respServer *server.Server
 
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
@@ -234,6 +239,14 @@ func New(c *config.Config) (*Olric, error) {
 		cancel:     cancel,
 	}
 
+	// RESP experiment
+	rc := &server.Config{
+		BindAddr: "127.0.0.1",
+		BindPort: 6379,
+	}
+	respServer := server.New(rc, flogger)
+	db.respServer = respServer
+
 	err = initializeServices(db)
 	if err != nil {
 		return nil, err
@@ -347,6 +360,11 @@ func (db *Olric) Start() error {
 		return db.server.ListenAndServe()
 	})
 
+	// RESP experiment
+	errGr.Go(func() error {
+		return db.respServer.ListenAndServe()
+	})
+
 	select {
 	case <-db.server.StartedCtx.Done():
 		// TCP server is started
@@ -435,6 +453,12 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	if err := db.server.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown TCP server: %v", err)
+		latestError = err
+	}
+
+	// RESP experiment
+	if err := db.respServer.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestError = err
 	}
 
