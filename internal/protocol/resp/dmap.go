@@ -20,9 +20,9 @@ import (
 )
 
 func Get(ctx context.Context, dmap, key string) *redis.StringCmd {
-	return redis.NewStringCmd(ctx, GET, dmap, key)
+	return redis.NewStringCmd(ctx, GetCmd, dmap, key)
 }
 
 func Put(ctx context.Context, dmap, key string, value interface{}) *redis.StatusCmd {
-	return redis.NewStatusCmd(ctx, PUT, dmap, key, value)
+	return redis.NewStatusCmd(ctx, PutCmd, dmap, key, value)
 }

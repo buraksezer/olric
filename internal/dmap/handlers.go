@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resp
+package dmap
 
-const (
-	GetCmd        = "dm.get"
-	PutCmd        = "dm.put"
-	PutReplicaCmd = "dm.put replica"
-	PING          = "olric.ping"
-)
+import "github.com/buraksezer/olric/internal/protocol/resp"
 
-const StatusOK = "OK"
+func (s *Service) RegisterHandlers() {
+	s.respServer.ServeMux().HandleFunc(resp.PutCmd, s.putCommandHandler)
+	s.respServer.ServeMux().HandleFunc(resp.GetCmd, s.getCommandHandler)
+}

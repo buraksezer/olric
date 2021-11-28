@@ -17,8 +17,10 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/tidwall/redcon"
 )
 
 func (s *Service) getOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error)) {
@@ -43,6 +45,26 @@ func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
 		req := r.(*protocol.DMapMessage)
 		return dm.get(req.Key())
 	})
+}
+
+func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	getCmd, err := resp.ParseGetCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(getCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	raw, err := dm.get(getCmd.Key)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteBulk(raw.Value())
 }
 
 func (s *Service) getReplicaOperation(w, r protocol.EncodeDecoder) {

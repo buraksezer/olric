@@ -14,11 +14,27 @@
 
 package resp
 
-const (
-	GetCmd        = "dm.get"
-	PutCmd        = "dm.put"
-	PutReplicaCmd = "dm.put replica"
-	PING          = "olric.ping"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/tidwall/redcon"
 )
 
-const StatusOK = "OK"
+func WriteError(conn redcon.Conn, err error) {
+	conn.WriteError(fmt.Sprintf("ERR %s", err.Error()))
+}
+
+func errWrongNumber(args [][]byte) error {
+	sb := strings.Builder{}
+	for {
+		arg := args[0]
+		sb.Write(arg)
+		args = args[1:]
+		if len(args) == 0 {
+			break
+		}
+		sb.WriteByte(0x20)
+	}
+	return fmt.Errorf("ERR wrong number of arguments for '%s' command", strings.ToLower(sb.String()))
+}

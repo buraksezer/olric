@@ -12,13 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resp
+//go:build !appengine
+// +build !appengine
 
-const (
-	GetCmd        = "dm.get"
-	PutCmd        = "dm.put"
-	PutReplicaCmd = "dm.put replica"
-	PING          = "olric.ping"
+package util
+
+import (
+	"unsafe"
 )
 
-const StatusOK = "OK"
+// BytesToString converts byte slice to string.
+func BytesToString(b []byte) string {
+	return *(*string)(unsafe.Pointer(&b))
+}
+
+// StringToBytes converts string to byte slice.
+func StringToBytes(s string) []byte {
+	return *(*[]byte)(unsafe.Pointer(
+		&struct {
+			string
+			Cap int
+		}{s, len(s)},
+	))
+}

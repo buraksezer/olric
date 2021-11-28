@@ -17,6 +17,7 @@ package dmap
 import (
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -269,9 +270,14 @@ func (dm *DMap) put(e *env) error {
 	}
 
 	// Redirect to the partition owner.
-	req := e.toReq(e.opcode)
-	_, err := dm.s.requestTo(member.String(), req)
-	return err
+	rc := dm.s.respClient.Get(member.String())
+	cmd := resp.Put(dm.s.ctx, e.dmap, e.key, e.value)
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return err
+	}
+
+	return cmd.Err()
 }
 
 func (dm *DMap) prepareAndSerialize(opcode protocol.OpCode, key string, value interface{},
@@ -296,7 +302,7 @@ func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) erro
 }
 
 // Put sets the value for the given key. It overwrites any previous value
-// for that key and it's thread-safe. The key has to be string. value type
+// for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {

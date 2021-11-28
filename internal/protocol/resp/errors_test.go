@@ -14,11 +14,16 @@
 
 package resp
 
-const (
-	GetCmd        = "dm.get"
-	PutCmd        = "dm.put"
-	PutReplicaCmd = "dm.put replica"
-	PING          = "olric.ping"
+import (
+	"context"
+	"github.com/stretchr/testify/require"
+	"testing"
 )
 
-const StatusOK = "OK"
+func TestProtocol_errWrongNumber(t *testing.T) {
+	getCmd := Get(context.Background(), "my-dmap", "my-key")
+	cmd := stringToCommand(getCmd.String())
+
+	err := errWrongNumber(cmd.Args)
+	require.Equal(t, "ERR wrong number of arguments for 'dm.get my-dmap my-key' command", err.Error())
+}

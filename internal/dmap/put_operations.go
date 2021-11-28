@@ -17,7 +17,9 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
 func (s *Service) putOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
@@ -41,6 +43,27 @@ func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
 		e := newEnvFromReq(r, partitions.PRIMARY)
 		return dm.put(e)
 	})
+}
+
+func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	putCmd, err := resp.ParsePutCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(putCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	e := newEnvResp(resp.PutCmd, putCmd.DMap, putCmd.Key, putCmd.Value, nilTimeout, 0, partitions.PRIMARY)
+	err = dm.put(e)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(resp.StatusOK)
 }
 
 func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {

@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -22,17 +23,19 @@ import (
 )
 
 type env struct {
-	hkey          uint64
-	timestamp     int64
-	flags         int16
-	opcode        protocol.OpCode
-	replicaOpcode protocol.OpCode
-	dmap          string
-	key           string
-	value         []byte
-	timeout       time.Duration
-	kind          partitions.Kind
-	fragment      *fragment
+	hkey           uint64
+	timestamp      int64
+	flags          int16
+	opcode         protocol.OpCode
+	replicaOpcode  protocol.OpCode
+	command        string
+	replicaCommand string
+	dmap           string
+	key            string
+	value          []byte
+	timeout        time.Duration
+	kind           partitions.Kind
+	fragment       *fragment
 }
 
 func newEnv(opcode protocol.OpCode, name, key string, value []byte, timeout time.Duration, flags int16, kind partitions.Kind) *env {
@@ -48,6 +51,8 @@ func newEnv(opcode protocol.OpCode, name, key string, value []byte, timeout time
 	}
 	switch {
 	case opcode == protocol.OpPut:
+		e.command = resp.PutCmd
+		e.replicaCommand = resp.PutReplicaCmd
 		e.replicaOpcode = protocol.OpPutReplica
 	case opcode == protocol.OpPutEx:
 		e.replicaOpcode = protocol.OpPutExReplica
@@ -55,6 +60,20 @@ func newEnv(opcode protocol.OpCode, name, key string, value []byte, timeout time
 		e.replicaOpcode = protocol.OpPutIfReplica
 	case opcode == protocol.OpPutIfEx:
 		e.replicaOpcode = protocol.OpPutIfExReplica
+	}
+	return e
+}
+
+func newEnvResp(command, name, key string, value []byte, timeout time.Duration, flags int16, kind partitions.Kind) *env {
+	e := &env{
+		command:   command,
+		dmap:      name,
+		key:       key,
+		value:     value,
+		timestamp: time.Now().UnixNano(),
+		timeout:   timeout,
+		flags:     flags,
+		kind:      kind,
 	}
 	return e
 }

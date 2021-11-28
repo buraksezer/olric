@@ -99,7 +99,7 @@ func TestServer_RESP(t *testing.T) {
 	_, err := rand.Read(data)
 	require.NoError(t, err)
 
-	s.ServeMux().HandleFunc(resp.GET, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(resp.GetCmd, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulk(data)
 	})
 

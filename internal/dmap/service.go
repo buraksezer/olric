@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/buraksezer/olric/internal/server"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
@@ -47,6 +49,8 @@ type Service struct {
 	log        *flog.Logger
 	config     *config.Config
 	client     *transport.Client
+	respClient *server.Client
+	respServer *server.Server
 	rt         *routingtable.RoutingTable
 	serializer serializer.Serializer
 	primary    *partitions.Partitions
@@ -66,6 +70,8 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		config:     e.Get("config").(*config.Config),
 		serializer: e.Get("config").(*config.Config).Serializer,
 		client:     e.Get("client").(*transport.Client),
+		respClient: e.Get("respClient").(*server.Client),
+		respServer: e.Get("respServer").(*server.Server),
 		log:        e.Get("logger").(*flog.Logger),
 		rt:         e.Get("routingtable").(*routingtable.RoutingTable),
 		primary:    e.Get("primary").(*partitions.Partitions),

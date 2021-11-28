@@ -28,6 +28,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/go-redis/redis/v8"
 	"net"
 	"strconv"
 	"strings"
@@ -110,6 +111,7 @@ type Olric struct {
 
 	// RESP experiment
 	respServer *server.Server
+	respClient *server.Client
 
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
@@ -213,7 +215,9 @@ func New(c *config.Config) (*Olric, error) {
 		GracefulPeriod:  10 * time.Second,
 	}
 	client := transport.NewClient(c.Client)
+	respClient := server.NewClient(&redis.Options{}) // TODO: Add redis options
 
+	e.Set("respClient", respClient)
 	e.Set("client", client)
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
@@ -246,6 +250,7 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	respServer := server.New(rc, flogger)
 	db.respServer = respServer
+	e.Set("respServer", respServer)
 
 	err = initializeServices(db)
 	if err != nil {
@@ -253,8 +258,16 @@ func New(c *config.Config) (*Olric, error) {
 	}
 
 	db.registerOperations()
+	db.registerCommandHandlers()
+
 	db.server.SetDispatcher(db.requestDispatcher)
 	return db, nil
+}
+
+func (db *Olric) registerCommandHandlers() {
+	// Commands on DMap data structure
+	//
+	db.dmap.RegisterHandlers()
 }
 
 func (db *Olric) registerOperations() {

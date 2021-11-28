@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resp
+//go:build appengine
+// +build appengine
 
-const (
-	GetCmd        = "dm.get"
-	PutCmd        = "dm.put"
-	PutReplicaCmd = "dm.put replica"
-	PING          = "olric.ping"
-)
+package util
 
-const StatusOK = "OK"
+func BytesToString(b []byte) string {
+	return string(b)
+}
+
+func StringToBytes(s string) []byte {
+	return []byte(s)
+}

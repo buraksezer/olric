@@ -217,7 +217,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 // IfNotFound: Only set the key if it does not already exist.
 // It returns ErrFound if the key already exist.
 //
-// IfFound: Only set the key if it already exist.
+// IfFound: Only set the key if it already exists.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 	err := dm.dm.PutIf(key, value, flags)

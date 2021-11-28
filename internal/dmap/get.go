@@ -358,7 +358,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contains the key. It's thread-safe. It is safe to modify the contents
+// does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) Get(key string) (interface{}, error) {
 	raw, err := dm.get(key)
