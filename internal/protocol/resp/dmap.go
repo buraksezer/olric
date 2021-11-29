@@ -174,3 +174,45 @@ func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
 	cmd.Args()[0] = GetEntryCmd
 	return cmd
 }
+
+type Del struct {
+	DMap string
+	Key  string
+}
+
+func NewDel(dmap, key string) *Del {
+	return &Del{
+		DMap: dmap,
+		Key:  key,
+	}
+}
+
+func (d *Del) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, DelCmd)
+	args = append(args, d.DMap)
+	args = append(args, d.Key)
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type DelEntry struct {
+	Del     *Del
+	Replica bool
+}
+
+func NewDelEntry(dmap, key string) *DelEntry {
+	return &DelEntry{
+		Del: NewDel(dmap, key),
+	}
+}
+
+func (d *DelEntry) SetReplica() *DelEntry {
+	d.Replica = true
+	return d
+}
+
+func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
+	cmd := d.Del.Command(ctx)
+	cmd.Args()[0] = DelEntryCmd
+	return cmd
+}

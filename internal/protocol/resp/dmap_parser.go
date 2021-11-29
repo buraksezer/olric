@@ -132,3 +132,36 @@ func ParsePutReplicaCommand(cmd redcon.Command) (*PutReplica, error) {
 		cmd.Args[3],
 	), nil
 }
+
+func ParseDelCommand(cmd redcon.Command) (*Del, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewDel(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	), nil
+}
+
+func ParseDelEntryCommand(cmd redcon.Command) (*DelEntry, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	d := NewDelEntry(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RC" {
+			d.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return d, nil
+}

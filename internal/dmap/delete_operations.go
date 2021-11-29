@@ -17,7 +17,9 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
 func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
@@ -42,16 +44,63 @@ func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
 	})
 }
 
+func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	delCmd, err := resp.ParseDelCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(delCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	err = dm.deleteKey(delCmd.Key)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	// TODO: Write zero?
+	conn.WriteInt(1)
+}
+
+func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	delCmd, err := resp.ParseDelEntryCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(delCmd.Del.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	var kind = partitions.PRIMARY
+	if delCmd.Replica {
+		kind = partitions.BACKUP
+	}
+	err = dm.deleteFromFragment(delCmd.Del.Key, kind)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	// TODO: Write zero?
+	conn.WriteInt(1)
+}
+
 func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
 	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		req := r.(*protocol.DMapMessage)
-		return dm.deleteBackupFromFragment(req.Key(), partitions.PRIMARY)
+		return dm.deleteFromFragment(req.Key(), partitions.PRIMARY)
 	})
 }
 
 func (s *Service) deleteReplicaOperation(w, r protocol.EncodeDecoder) {
 	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
 		req := r.(*protocol.DMapMessage)
-		return dm.deleteBackupFromFragment(req.Key(), partitions.BACKUP)
+		return dm.deleteFromFragment(req.Key(), partitions.BACKUP)
 	})
 }

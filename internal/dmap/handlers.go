@@ -19,6 +19,8 @@ import "github.com/buraksezer/olric/internal/protocol/resp"
 func (s *Service) RegisterHandlers() {
 	s.respServer.ServeMux().HandleFunc(resp.PutCmd, s.putCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.GetCmd, s.getCommandHandler)
+	s.respServer.ServeMux().HandleFunc(resp.DelCmd, s.delCommandHandler)
+	s.respServer.ServeMux().HandleFunc(resp.DelEntryCmd, s.delEntryCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.GetEntryCmd, s.getEntryCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.PutReplicaCmd, s.putReplicaCommandHandler)
 }
