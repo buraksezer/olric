@@ -42,7 +42,7 @@ func NewPut(dmap, key string, value []byte) *Put {
 	}
 }
 
-func (p *Put) SetEx(ex float64) *Put {
+func (p *Put) SetEX(ex float64) *Put {
 	p.EX = ex
 	return p
 }
@@ -111,17 +111,66 @@ func (p *Put) Command(ctx context.Context) *redis.StatusCmd {
 }
 
 type PutReplica struct {
-	*Put
+	DMap  string
+	Key   string
+	Value []byte
 }
 
 func NewPutReplica(dmap, key string, value []byte) *PutReplica {
 	return &PutReplica{
-		NewPut(dmap, key, value),
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
 	}
 }
 
 func (p *PutReplica) Command(ctx context.Context) *redis.StatusCmd {
-	cmd := p.Put.Command(ctx)
-	cmd.Args()[0] = PutReplicaCmd
+	var args []interface{}
+	args = append(args, PutReplicaCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Value)
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type Get struct {
+	DMap string
+	Key  string
+}
+
+func NewGet(dmap, key string) *Get {
+	return &Get{
+		DMap: dmap,
+		Key:  key,
+	}
+}
+
+func (g *Get) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, GetCmd)
+	args = append(args, g.DMap)
+	args = append(args, g.Key)
+	return redis.NewStringCmd(ctx, args...)
+}
+
+type GetEntry struct {
+	Get     *Get
+	Replica bool
+}
+
+func NewGetEntry(dmap, key string) *GetEntry {
+	return &GetEntry{
+		Get: NewGet(dmap, key),
+	}
+}
+
+func (g *GetEntry) SetReplica() *GetEntry {
+	g.Replica = true
+	return g
+}
+
+func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
+	cmd := g.Get.Command(ctx)
+	cmd.Args()[0] = GetEntryCmd
 	return cmd
 }

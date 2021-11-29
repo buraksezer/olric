@@ -17,12 +17,12 @@ package dmap
 import (
 	"errors"
 	"sort"
-	"time"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -88,18 +88,21 @@ func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 }
 
 func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*version, error) {
-	req := protocol.NewDMapMessage(protocol.OpGetPrev)
-	req.SetDMap(dm.name)
-	req.SetKey(key)
-
-	v := &version{host: owner}
-	resp, err := dm.s.requestTo(owner.String(), req)
+	cmd := resp.NewGetEntry(dm.name, key).Command(dm.s.ctx)
+	rc := dm.s.respClient.Get(owner.String())
+	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return nil, err
 	}
-	data := dm.engine.NewEntry()
-	data.Decode(resp.Value())
-	v.entry = data
+	value, err := cmd.Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	v := &version{host: owner}
+	e := dm.engine.NewEntry()
+	e.Decode(value)
+	v.entry = e
 	return v, nil
 }
 
@@ -201,22 +204,31 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 	backups := dm.s.backup.PartitionOwnersByHKey(hkey)
 	versions := make([]*version, 0, len(backups))
 	for _, replica := range backups {
-		req := protocol.NewDMapMessage(protocol.OpGetReplica)
-		req.SetDMap(dm.name)
-		req.SetKey(key)
 		host := replica
-		v := &version{host: &host}
-		resp, err := dm.s.requestTo(replica.String(), req)
+		cmd := resp.NewGetEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
+		rc := dm.s.respClient.Get(host.String())
+		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
 			if dm.s.log.V(6).Ok() {
 				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
 					" a replica owner: %s: %v", replica, err)
 			}
-		} else {
-			data := dm.engine.NewEntry()
-			data.Decode(resp.Value())
-			v.entry = data
+			continue
 		}
+
+		value, err := cmd.Bytes()
+		if err != nil {
+			// TODO: Improve logging
+			if dm.s.log.V(6).Ok() {
+				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
+					" a replica owner: %s: %v", replica, err)
+			}
+		}
+
+		v := &version{host: &host}
+		e := dm.engine.NewEntry()
+		e.Decode(value)
+		v.entry = e
 		versions = append(versions, v)
 	}
 	return versions
@@ -242,39 +254,24 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 
 			f.Lock()
 			e := &env{
-				dmap:      dm.name,
-				key:       winner.entry.Key(),
-				value:     winner.entry.Value(),
-				timestamp: winner.entry.Timestamp(),
-				timeout:   time.Duration(winner.entry.TTL()),
-				hkey:      hkey,
-				fragment:  f,
+				hkey:     hkey,
+				fragment: f,
 			}
-			err = dm.putOnFragment(e)
+			err = dm.putEntryOnFragment(e, winner.entry)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
 			f.Unlock()
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
-			var req *protocol.DMapMessage
-			if winner.entry.TTL() == 0 {
-				req = protocol.NewDMapMessage(protocol.OpPutReplica)
-				req.SetDMap(dm.name)
-				req.SetKey(winner.entry.Key())
-				req.SetValue(winner.entry.Value())
-				req.SetExtra(protocol.PutExtra{Timestamp: winner.entry.Timestamp()})
-			} else {
-				req = protocol.NewDMapMessage(protocol.OpPutExReplica)
-				req.SetDMap(dm.name)
-				req.SetKey(winner.entry.Key())
-				req.SetValue(winner.entry.Value())
-				req.SetExtra(protocol.PutExExtra{
-					Timestamp: winner.entry.Timestamp(),
-					TTL:       winner.entry.TTL(),
-				})
+			cmd := resp.NewPutReplica(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
+			rc := dm.s.respClient.Get(version.host.String())
+			err := rc.Process(dm.s.ctx, cmd)
+			if err != nil {
+				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", version.host, err)
+				continue
 			}
-			_, err := dm.s.requestTo(version.host.String(), req)
+			err = cmd.Err()
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", version.host, err)
 			}
@@ -337,14 +334,14 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	}
 
 	// Redirect to the partition owner
-	req := protocol.NewDMapMessage(protocol.OpGet)
-	req.SetDMap(dm.name)
-	req.SetKey(key)
-
-	resp, err := dm.s.requestTo(member.String(), req)
-	if errors.Is(err, ErrKeyNotFound) {
-		GetMisses.Increase(1)
+	rc := dm.s.respClient.Get(member.String())
+	cmd := resp.NewGetEntry(dm.name, key).Command(dm.s.ctx)
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return nil, err
 	}
+
+	value, err := cmd.Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +350,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	GetHits.Increase(1)
 
 	entry := dm.engine.NewEntry()
-	entry.Decode(resp.Value())
+	entry.Decode(value)
 	return entry, nil
 }
 

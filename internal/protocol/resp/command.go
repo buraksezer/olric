@@ -16,6 +16,7 @@ package resp
 
 const (
 	GetCmd        = "dm.get"
+	GetEntryCmd   = "dm.getentry"
 	PutCmd        = "dm.put"
 	PutReplicaCmd = "dm.putreplica"
 	PingCmd       = "olric.ping"

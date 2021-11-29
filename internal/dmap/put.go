@@ -61,14 +61,8 @@ func prepareTTL(c *putConfig) int64 {
 }
 
 // putOnFragment calls underlying storage engine's Put method to store the key/value pair. It's not thread-safe.
-func (dm *DMap) putOnFragment(e *env) error {
-	entry := e.fragment.storage.NewEntry()
-	entry.SetKey(e.key)
-	entry.SetValue(e.value)
-	entry.SetTTL(prepareTTL(e.putConfig))
-	entry.SetTimestamp(e.timestamp)
-
-	err := e.fragment.storage.Put(e.hkey, entry)
+func (dm *DMap) putEntryOnFragment(e *env, nt storage.Entry) error {
+	err := e.fragment.storage.Put(e.hkey, nt)
 	if errors.Is(err, storage.ErrKeyTooLarge) {
 		err = ErrKeyTooLarge
 	}
@@ -82,6 +76,20 @@ func (dm *DMap) putOnFragment(e *env) error {
 	return nil
 }
 
+func (dm *DMap) prepareEntry(e *env) storage.Entry {
+	nt := e.fragment.storage.NewEntry()
+	nt.SetKey(e.key)
+	nt.SetValue(e.value)
+	nt.SetTTL(prepareTTL(e.putConfig))
+	nt.SetTimestamp(e.timestamp)
+	return nt
+}
+
+// TODO: putOnFragment is deprecated
+func (dm *DMap) putOnFragment(e *env) error {
+	return dm.putEntryOnFragment(e, dm.prepareEntry(e))
+}
+
 func (dm *DMap) putOnReplicaFragment(e *env) error {
 	part := dm.getPartitionByHKey(e.hkey, partitions.BACKUP)
 	f, err := dm.loadOrCreateFragment(part)
@@ -93,14 +101,14 @@ func (dm *DMap) putOnReplicaFragment(e *env) error {
 	f.Lock()
 	defer f.Unlock()
 
-	return dm.putOnFragment(e)
+	return dm.putEntryOnFragment(e, dm.prepareEntry(e))
 }
 
-func (dm *DMap) asyncPutOnBackup(e *env, owner discovery.Member) {
+func (dm *DMap) asyncPutOnBackup(e *env, data []byte, owner discovery.Member) {
 	defer dm.s.wg.Done()
 
-	cmd := dm.writePutReplicaCommand(e)
 	rc := dm.s.respClient.Get(owner.String())
+	cmd := resp.NewPutReplica(e.dmap, e.key, data).Command(dm.s.ctx)
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		if dm.s.log.V(3).Ok() {
@@ -117,11 +125,13 @@ func (dm *DMap) asyncPutOnBackup(e *env, owner discovery.Member) {
 }
 
 func (dm *DMap) asyncPutOnCluster(e *env) error {
-	err := dm.putOnFragment(e)
+	nt := dm.prepareEntry(e)
+	err := dm.putEntryOnFragment(e, nt)
 	if err != nil {
 		return err
 	}
 
+	encodedEntry := nt.Encode()
 	// Fire and forget mode.
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
@@ -130,7 +140,7 @@ func (dm *DMap) asyncPutOnCluster(e *env) error {
 		}
 
 		dm.s.wg.Add(1)
-		go dm.asyncPutOnBackup(e, owner)
+		go dm.asyncPutOnBackup(e, encodedEntry, owner)
 	}
 
 	return nil
@@ -140,10 +150,13 @@ func (dm *DMap) syncPutOnCluster(e *env) error {
 	// Quorum based replication.
 	var successful int
 
+	nt := dm.prepareEntry(e)
+	encodedEntry := nt.Encode()
+
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
 		rc := dm.s.respClient.Get(owner.String())
-		cmd := dm.writePutReplicaCommand(e)
+		cmd := resp.NewPutReplica(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
 			return err
@@ -157,7 +170,7 @@ func (dm *DMap) syncPutOnCluster(e *env) error {
 		}
 		successful++
 	}
-	err := dm.putOnFragment(e)
+	err := dm.putEntryOnFragment(e, nt)
 	if err != nil {
 		if dm.s.log.V(3).Ok() {
 			dm.s.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", dm.s.rt.This(), e.dmap, err)
@@ -286,14 +299,14 @@ func (dm *DMap) putOnCluster(e *env) error {
 	}
 
 	// single replica
-	return dm.putOnFragment(e)
+	return dm.putEntryOnFragment(e, dm.prepareEntry(e))
 }
 
 func (dm *DMap) writePutCommand(e *env) (*redis.StatusCmd, error) {
 	cmd := resp.NewPut(e.dmap, e.key, e.value)
 	switch {
 	case e.putConfig.HasEX:
-		cmd.SetEx(e.putConfig.EX.Seconds())
+		cmd.SetEX(e.putConfig.EX.Seconds())
 	case e.putConfig.HasPX:
 		cmd.SetPX(e.putConfig.PX.Milliseconds())
 	case e.putConfig.HasEXAT:
@@ -310,29 +323,6 @@ func (dm *DMap) writePutCommand(e *env) (*redis.StatusCmd, error) {
 	}
 
 	return cmd.Command(dm.s.ctx), nil
-}
-
-func (dm *DMap) writePutReplicaCommand(e *env) *redis.StatusCmd {
-	cmd := resp.NewPutReplica(e.dmap, e.key, e.value)
-	switch {
-	case e.putConfig.HasEX:
-		cmd.SetEx(e.putConfig.EX.Seconds())
-	case e.putConfig.HasPX:
-		cmd.SetPX(e.putConfig.PX.Milliseconds())
-	case e.putConfig.HasEXAT:
-		cmd.SetEXAT(e.putConfig.EXAT.Seconds())
-	case e.putConfig.HasPXAT:
-		cmd.SetPXAT(e.putConfig.PXAT.Milliseconds())
-	}
-
-	switch {
-	case e.putConfig.HasNX:
-		cmd.SetNX()
-	case e.putConfig.HasXX:
-		cmd.SetXX()
-	}
-
-	return cmd.Command(dm.s.ctx)
 }
 
 // put controls every write operation in Olric. It redirects the requests to its owner,
@@ -427,14 +417,6 @@ func XX() PutOption {
 	}
 }
 
-// PutEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	return dm.Put(key, value, PX(timeout))
-}
-
 // Put sets the value for the given key. It overwrites any previous value
 // for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
@@ -456,6 +438,14 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 		value:     val,
 	}
 	return dm.put(e)
+}
+
+// PutEx sets the value for the given key with TTL. It overwrites any previous
+// value for that key. It's thread-safe. The key has to be string. value type
+// is arbitrary. It is safe to modify the contents of the arguments after
+// Put returns but not before.
+func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
+	return dm.Put(key, value, PX(timeout))
 }
 
 // PutIf Put sets the value for the given key. It overwrites any previous value

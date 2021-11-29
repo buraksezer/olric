@@ -67,6 +67,39 @@ func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	conn.WriteBulk(raw.Value())
 }
 
+func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	getEntryCmd, err := resp.ParseGetEntryCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(getEntryCmd.Get.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	var kind = partitions.PRIMARY
+	if getEntryCmd.Replica {
+		kind = partitions.BACKUP
+	}
+	e := &env{
+		kind: kind,
+		dmap: getEntryCmd.Get.DMap,
+		key:  getEntryCmd.Get.Key,
+	}
+
+	nt, err := dm.getOnFragment(e)
+	// TODO: errFragmentNotFound??
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	// We found it.
+	conn.WriteBulk(nt.Encode())
+}
+
 func (s *Service) getReplicaOperation(w, r protocol.EncodeDecoder) {
 	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
 		e := newEnvFromReq(r, partitions.BACKUP)

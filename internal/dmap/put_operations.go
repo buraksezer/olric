@@ -101,21 +101,18 @@ func (s *Service) putReplicaCommandHandler(conn redcon.Conn, cmd redcon.Command)
 		resp.WriteError(conn, err)
 		return
 	}
+
 	dm, err := s.getOrCreateDMap(putReplicaCmd.DMap)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
 
-	e := newEnvResp(
-		resp.PutReplicaCmd,
-		putReplicaCmd.DMap,
-		putReplicaCmd.Key,
-		putReplicaCmd.Value,
-		nilTimeout,
-		0,
-		partitions.BACKUP,
-	)
+	e := &env{
+		dmap:  putReplicaCmd.DMap,
+		key:   putReplicaCmd.Key,
+		value: putReplicaCmd.Value,
+	}
 	err = dm.putOnReplicaFragment(e)
 	if err != nil {
 		resp.WriteError(conn, err)

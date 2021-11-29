@@ -16,12 +16,15 @@ package resp
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
 )
+
+var ErrInvalidArgument = errors.New("invalid argument")
 
 func ParsePutCommand(cmd redcon.Command) (*Put, error) {
 	if len(cmd.Args) < 4 {
@@ -50,15 +53,15 @@ func ParsePutCommand(cmd redcon.Command) (*Put, error) {
 			if err != nil {
 				return nil, err
 			}
-			p.SetPX(int64(px))
+			p.SetPX(px)
 			args = args[2:]
 			continue
 		case "EX":
-			px, err := strconv.ParseFloat(util.BytesToString(args[1]), 64)
+			ex, err := strconv.ParseFloat(util.BytesToString(args[1]), 64)
 			if err != nil {
 				return nil, err
 			}
-			p.SetEx(px)
+			p.SetEX(ex)
 			args = args[2:]
 			continue
 		case "EXAT":
@@ -85,36 +88,47 @@ func ParsePutCommand(cmd redcon.Command) (*Put, error) {
 	return p, nil
 }
 
-type GetCommand struct {
-	DMap string
-	Key  string
+func ParseGetEntryCommand(cmd redcon.Command) (*GetEntry, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	g := NewGetEntry(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RC" {
+			g.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return g, nil
 }
 
-func ParseGetCommand(cmd redcon.Command) (*GetCommand, error) {
+func ParseGetCommand(cmd redcon.Command) (*Get, error) {
 	if len(cmd.Args) < 3 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return &GetCommand{
-		DMap: util.BytesToString(cmd.Args[1]),
-		Key:  util.BytesToString(cmd.Args[2]),
-	}, nil
+	return NewGet(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	), nil
 }
 
-type PutReplicaCommand struct {
-	DMap  string
-	Key   string
-	Value []byte
-}
-
-func ParsePutReplicaCommand(cmd redcon.Command) (*PutReplicaCommand, error) {
+func ParsePutReplicaCommand(cmd redcon.Command) (*PutReplica, error) {
 	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return &PutReplicaCommand{
-		DMap:  util.BytesToString(cmd.Args[1]),
-		Key:   util.BytesToString(cmd.Args[2]),
-		Value: cmd.Args[3],
-	}, nil
+	return NewPutReplica(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		cmd.Args[3],
+	), nil
 }

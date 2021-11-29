@@ -39,7 +39,7 @@ func stringToCommand(s string) redcon.Command {
 
 func TestProtocol_ParsePutCommand_EX(t *testing.T) {
 	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
-	putCmd.SetEx((10 * time.Second).Seconds())
+	putCmd.SetEX((10 * time.Second).Seconds())
 
 	cmd := stringToCommand(putCmd.Command(context.Background()).String())
 	parsed, err := ParsePutCommand(cmd)
