@@ -15,25 +15,74 @@
 package resp
 
 import (
+	"errors"
+	"strconv"
+	"strings"
+
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
 )
 
-type PutCommand struct {
-	DMap  string
-	Key   string
-	Value []byte
-}
-
-func ParsePutCommand(cmd redcon.Command) (*PutCommand, error) {
+func ParsePutCommand(cmd redcon.Command) (*Put, error) {
 	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)
 	}
-	return &PutCommand{
-		DMap:  util.BytesToString(cmd.Args[1]),
-		Key:   util.BytesToString(cmd.Args[2]),
-		Value: cmd.Args[3],
-	}, nil
+
+	p := NewPut(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		cmd.Args[3],                     // Value
+	)
+
+	args := cmd.Args[4:]
+	for len(args) > 0 {
+		switch arg := strings.ToUpper(util.BytesToString(args[0])); arg {
+		case "NX":
+			p.SetNX()
+			args = args[1:]
+			continue
+		case "XX":
+			p.SetXX()
+			args = args[1:]
+			continue
+		case "PX":
+			px, err := strconv.ParseInt(util.BytesToString(args[1]), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetPX(int64(px))
+			args = args[2:]
+			continue
+		case "EX":
+			px, err := strconv.ParseFloat(util.BytesToString(args[1]), 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetEx(px)
+			args = args[2:]
+			continue
+		case "EXAT":
+			exat, err := strconv.ParseFloat(util.BytesToString(args[1]), 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetEXAT(exat)
+			args = args[2:]
+			continue
+		case "PXAT":
+			pxat, err := strconv.ParseInt(util.BytesToString(args[1]), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetPXAT(pxat)
+			args = args[2:]
+			continue
+		default:
+			return nil, errors.New("syntax error")
+		}
+	}
+
+	return p, nil
 }
 
 type GetCommand struct {
@@ -45,8 +94,27 @@ func ParseGetCommand(cmd redcon.Command) (*GetCommand, error) {
 	if len(cmd.Args) < 3 {
 		return nil, errWrongNumber(cmd.Args)
 	}
+
 	return &GetCommand{
 		DMap: util.BytesToString(cmd.Args[1]),
 		Key:  util.BytesToString(cmd.Args[2]),
+	}, nil
+}
+
+type PutReplicaCommand struct {
+	DMap  string
+	Key   string
+	Value []byte
+}
+
+func ParsePutReplicaCommand(cmd redcon.Command) (*PutReplicaCommand, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return &PutReplicaCommand{
+		DMap:  util.BytesToString(cmd.Args[1]),
+		Key:   util.BytesToString(cmd.Args[2]),
+		Value: cmd.Args[3],
 	}, nil
 }

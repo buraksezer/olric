@@ -31,7 +31,7 @@ func TestServer_Client_Get(t *testing.T) {
 		require.NoError(t, s.Shutdown(context.Background()))
 	}()
 
-	s.ServeMux().HandleFunc(resp.PING, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(resp.PingCmd, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulkString("pong")
 	})
 

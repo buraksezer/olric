@@ -16,13 +16,112 @@ package resp
 
 import (
 	"context"
+
 	"github.com/go-redis/redis/v8"
 )
 
-func Get(ctx context.Context, dmap, key string) *redis.StringCmd {
-	return redis.NewStringCmd(ctx, GetCmd, dmap, key)
+// DM.PUT mydmap mykey "Hello" EX 60 NX
+
+type Put struct {
+	DMap  string
+	Key   string
+	Value []byte
+	EX    float64
+	PX    int64
+	EXAT  float64
+	PXAT  int64
+	NX    bool
+	XX    bool
 }
 
-func Put(ctx context.Context, dmap, key string, value interface{}) *redis.StatusCmd {
-	return redis.NewStatusCmd(ctx, PutCmd, dmap, key, value)
+func NewPut(dmap, key string, value []byte) *Put {
+	return &Put{
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
+	}
+}
+
+func (p *Put) SetEx(ex float64) *Put {
+	p.EX = ex
+	return p
+}
+
+func (p *Put) SetPX(px int64) *Put {
+	p.PX = px
+	return p
+}
+
+func (p *Put) SetEXAT(exat float64) *Put {
+	p.EXAT = exat
+	return p
+}
+
+func (p *Put) SetPXAT(pxat int64) *Put {
+	p.PXAT = pxat
+	return p
+}
+
+func (p *Put) SetNX() *Put {
+	p.NX = true
+	return p
+}
+
+func (p *Put) SetXX() *Put {
+	p.XX = true
+	return p
+}
+
+func (p *Put) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PutCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Value)
+
+	if p.EX != 0 {
+		args = append(args, "EX")
+		args = append(args, p.EX)
+	}
+
+	if p.PX != 0 {
+		args = append(args, "PX")
+		args = append(args, p.PX)
+	}
+
+	if p.EXAT != 0 {
+		args = append(args, "EXAT")
+		args = append(args, p.EXAT)
+	}
+
+	if p.PXAT != 0 {
+		args = append(args, "PXAT")
+		args = append(args, p.PXAT)
+	}
+
+	if p.NX {
+		args = append(args, "NX")
+	}
+
+	if p.XX {
+		args = append(args, "XX")
+	}
+
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type PutReplica struct {
+	*Put
+}
+
+func NewPutReplica(dmap, key string, value []byte) *PutReplica {
+	return &PutReplica{
+		NewPut(dmap, key, value),
+	}
+}
+
+func (p *PutReplica) Command(ctx context.Context) *redis.StatusCmd {
+	cmd := p.Put.Command(ctx)
+	cmd.Args()[0] = PutReplicaCmd
+	return cmd
 }

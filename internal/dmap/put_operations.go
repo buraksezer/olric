@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"time"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
@@ -57,8 +59,64 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	e := newEnvResp(resp.PutCmd, putCmd.DMap, putCmd.Key, putCmd.Value, nilTimeout, 0, partitions.PRIMARY)
+	var options []PutOption
+	switch {
+	case putCmd.NX:
+		options = append(options, NX())
+	case putCmd.XX:
+		options = append(options, XX())
+	case putCmd.EX != 0:
+		options = append(options, EX(time.Duration(putCmd.EX*float64(time.Second))))
+	case putCmd.PX != 0:
+		options = append(options, PX(time.Duration(putCmd.PX*int64(time.Millisecond))))
+	case putCmd.EXAT != 0:
+		options = append(options, EXAT(time.Duration(putCmd.EXAT*float64(time.Second))))
+	case putCmd.PXAT != 0:
+		options = append(options, PXAT(time.Duration(putCmd.PXAT*int64(time.Millisecond))))
+	}
+
+	var pc putConfig
+	for _, opt := range options {
+		opt(&pc)
+	}
+	e := &env{
+		putConfig: &pc,
+		putCmd:    putCmd, // this is good if we want to reconstruct the protocol message
+		kind:      partitions.PRIMARY,
+		dmap:      dm.name,
+		key:       putCmd.Key,
+		value:     putCmd.Value,
+	}
 	err = dm.put(e)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(resp.StatusOK)
+}
+
+func (s *Service) putReplicaCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	putReplicaCmd, err := resp.ParsePutReplicaCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(putReplicaCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	e := newEnvResp(
+		resp.PutReplicaCmd,
+		putReplicaCmd.DMap,
+		putReplicaCmd.Key,
+		putReplicaCmd.Value,
+		nilTimeout,
+		0,
+		partitions.BACKUP,
+	)
+	err = dm.putOnReplicaFragment(e)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return

@@ -13,23 +13,3 @@
 // limitations under the License.
 
 package resp
-
-import (
-	"context"
-	"fmt"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestProtocol_Get(t *testing.T) {
-	cmd := Get(context.Background(), "mymap", "mykey")
-	require.Len(t, cmd.Args(), 3)
-	require.Equal(t, fmt.Sprintf("%s mymap mykey: ", GetCmd), cmd.String())
-}
-
-func TestProtocol_Put(t *testing.T) {
-	cmd := Put(context.Background(), "mymap", "mykey", "value")
-	require.Len(t, cmd.Args(), 4)
-	require.Equal(t, fmt.Sprintf("%s mymap mykey value: ", PutCmd), cmd.String())
-}

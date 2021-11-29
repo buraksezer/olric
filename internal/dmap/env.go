@@ -15,14 +15,16 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 )
 
 type env struct {
+	putCmd         *resp.Put
+	putConfig      *putConfig
 	hkey           uint64
 	timestamp      int64
 	flags          int16
@@ -51,8 +53,6 @@ func newEnv(opcode protocol.OpCode, name, key string, value []byte, timeout time
 	}
 	switch {
 	case opcode == protocol.OpPut:
-		e.command = resp.PutCmd
-		e.replicaCommand = resp.PutReplicaCmd
 		e.replicaOpcode = protocol.OpPutReplica
 	case opcode == protocol.OpPutEx:
 		e.replicaOpcode = protocol.OpPutExReplica
@@ -66,7 +66,6 @@ func newEnv(opcode protocol.OpCode, name, key string, value []byte, timeout time
 
 func newEnvResp(command, name, key string, value []byte, timeout time.Duration, flags int16, kind partitions.Kind) *env {
 	e := &env{
-		command:   command,
 		dmap:      name,
 		key:       key,
 		value:     value,

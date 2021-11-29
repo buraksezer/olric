@@ -20,5 +20,5 @@ import (
 )
 
 func Ping(ctx context.Context) *redis.StatusCmd {
-	return redis.NewStatusCmd(ctx, PING)
+	return redis.NewStatusCmd(ctx, PingCmd)
 }

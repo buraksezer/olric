@@ -18,6 +18,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"
@@ -36,23 +37,90 @@ func stringToCommand(s string) redcon.Command {
 	return cmd
 }
 
-func TestProtocol_ParsePutCommand(t *testing.T) {
-	putCmd := Put(context.Background(), "my-dmap", "my-key", "my-value")
-	cmd := stringToCommand(putCmd.String())
+func TestProtocol_ParsePutCommand_EX(t *testing.T) {
+	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
+	putCmd.SetEx((10 * time.Second).Seconds())
+
+	cmd := stringToCommand(putCmd.Command(context.Background()).String())
 	parsed, err := ParsePutCommand(cmd)
 	require.NoError(t, err)
 
 	require.Equal(t, "my-dmap", parsed.DMap)
 	require.Equal(t, "my-key", parsed.Key)
 	require.Equal(t, []byte("my-value"), parsed.Value)
+	require.Equal(t, float64(10), parsed.EX)
 }
 
-func TestProtocol_ParseGetCommand(t *testing.T) {
-	getCmd := Get(context.Background(), "my-dmap", "my-key")
-	cmd := stringToCommand(getCmd.String())
-	parsed, err := ParseGetCommand(cmd)
+func TestProtocol_ParsePutCommand_PX(t *testing.T) {
+	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
+	putCmd.SetPX((100 * time.Millisecond).Milliseconds())
+
+	cmd := stringToCommand(putCmd.Command(context.Background()).String())
+	parsed, err := ParsePutCommand(cmd)
 	require.NoError(t, err)
 
 	require.Equal(t, "my-dmap", parsed.DMap)
 	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, []byte("my-value"), parsed.Value)
+	require.Equal(t, int64(100), parsed.PX)
+}
+
+func TestProtocol_ParsePutCommand_NX(t *testing.T) {
+	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
+	putCmd.SetNX()
+
+	cmd := stringToCommand(putCmd.Command(context.Background()).String())
+	parsed, err := ParsePutCommand(cmd)
+	require.NoError(t, err)
+
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, []byte("my-value"), parsed.Value)
+	require.True(t, parsed.NX)
+	require.False(t, parsed.XX)
+}
+
+func TestProtocol_ParsePutCommand_XX(t *testing.T) {
+	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
+	putCmd.SetXX()
+
+	cmd := stringToCommand(putCmd.Command(context.Background()).String())
+	parsed, err := ParsePutCommand(cmd)
+	require.NoError(t, err)
+
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, []byte("my-value"), parsed.Value)
+	require.True(t, parsed.XX)
+	require.False(t, parsed.NX)
+}
+
+func TestProtocol_ParsePutCommand_EXAT(t *testing.T) {
+	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
+	exat := float64(time.Now().Unix()) + 10
+	putCmd.SetEXAT(exat)
+
+	cmd := stringToCommand(putCmd.Command(context.Background()).String())
+	parsed, err := ParsePutCommand(cmd)
+	require.NoError(t, err)
+
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, []byte("my-value"), parsed.Value)
+	require.Equal(t, exat, parsed.EXAT)
+}
+
+func TestProtocol_ParsePutCommand_PXAT(t *testing.T) {
+	putCmd := NewPut("my-dmap", "my-key", []byte("my-value"))
+	pxat := (time.Now().UnixNano() / 1000000) + 10
+	putCmd.SetPXAT(pxat)
+
+	cmd := stringToCommand(putCmd.Command(context.Background()).String())
+	parsed, err := ParsePutCommand(cmd)
+	require.NoError(t, err)
+
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, []byte("my-value"), parsed.Value)
+	require.Equal(t, pxat, parsed.PXAT)
 }

@@ -17,8 +17,8 @@ package resp
 const (
 	GetCmd        = "dm.get"
 	PutCmd        = "dm.put"
-	PutReplicaCmd = "dm.put replica"
-	PING          = "olric.ping"
+	PutReplicaCmd = "dm.putreplica"
+	PingCmd       = "olric.ping"
 )
 
 const StatusOK = "OK"
