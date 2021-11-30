@@ -46,7 +46,7 @@ func (dm *DMap) localExpireOnReplica(e *env) error {
 func (dm *DMap) localExpire(e *env) error {
 	ttl := timeoutToTTL(e.timeout)
 	entry := e.fragment.storage.NewEntry()
-	entry.SetTimestamp(e.timestamp)
+	entry.SetTimestamp(time.Now().UnixNano()) // TODO: Get timestamp from protocol message or user-level API.
 	entry.SetTTL(ttl)
 	err := e.fragment.storage.UpdateTTL(e.hkey, entry)
 	if err != nil {
@@ -67,7 +67,7 @@ func (dm *DMap) asyncExpireOnCluster(e *env) error {
 			defer dm.s.wg.Done()
 
 			// TODO: Improve logging
-			cmd := resp.NewExpire(dm.name, e.key).SetReplica().Command(dm.s.ctx)
+			cmd := resp.NewExpire(dm.name, e.key, e.timeout.Seconds()).SetReplica().Command(dm.s.ctx)
 			rc := dm.s.respClient.Get(host.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
@@ -91,7 +91,7 @@ func (dm *DMap) syncExpireOnCluster(e *env) error {
 	var successful int
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
-		cmd := resp.NewExpire(dm.name, e.key).SetReplica().Command(dm.s.ctx)
+		cmd := resp.NewExpire(dm.name, e.key, e.timeout.Seconds()).SetReplica().Command(dm.s.ctx)
 		rc := dm.s.respClient.Get(owner.String())
 		err := rc.Process(dm.s.ctx, cmd)
 		// TODO: Improve logging
@@ -157,7 +157,7 @@ func (dm *DMap) expire(e *env) error {
 	}
 
 	// Redirect to the partition owner
-	cmd := resp.NewExpire(dm.name, e.key).Command(dm.s.ctx)
+	cmd := resp.NewExpire(dm.name, e.key, e.timeout.Seconds()).Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {

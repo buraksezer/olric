@@ -17,11 +17,10 @@ package resp
 import (
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
+	"strconv"
+	"strings"
 )
 
 var ErrInvalidArgument = errors.New("invalid argument")
@@ -167,17 +166,23 @@ func ParseDelEntryCommand(cmd redcon.Command) (*DelEntry, error) {
 }
 
 func ParseExpireCommand(cmd redcon.Command) (*Expire, error) {
-	if len(cmd.Args) < 3 {
+	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
+	rawSeconds := util.BytesToString(cmd.Args[3])
+	seconds, err := strconv.ParseFloat(rawSeconds, 64)
+	if err != nil {
+		return nil, err
+	}
 	e := NewExpire(
 		util.BytesToString(cmd.Args[1]),
 		util.BytesToString(cmd.Args[2]),
+		seconds,
 	)
 
-	if len(cmd.Args) == 4 {
-		arg := util.BytesToString(cmd.Args[3])
+	if len(cmd.Args) == 5 {
+		arg := util.BytesToString(cmd.Args[4])
 		if arg == "RC" {
 			e.SetReplica()
 		} else {

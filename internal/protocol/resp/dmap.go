@@ -16,7 +16,6 @@ package resp
 
 import (
 	"context"
-
 	"github.com/go-redis/redis/v8"
 )
 
@@ -227,13 +226,15 @@ func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
 type Expire struct {
 	DMap    string
 	Key     string
+	Timeout float64
 	Replica bool
 }
 
-func NewExpire(dmap, key string) *Expire {
+func NewExpire(dmap, key string, timeout float64) *Expire {
 	return &Expire{
-		DMap: dmap,
-		Key:  key,
+		DMap:    dmap,
+		Key:     key,
+		Timeout: timeout,
 	}
 }
 
@@ -247,6 +248,7 @@ func (e *Expire) Command(ctx context.Context) *redis.BoolCmd {
 	args = append(args, ExpireCmd)
 	args = append(args, e.DMap)
 	args = append(args, e.Key)
+	args = append(args, e.Timeout)
 	if e.Replica {
 		args = append(args, "RC")
 	}

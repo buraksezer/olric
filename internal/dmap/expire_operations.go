@@ -20,6 +20,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/tidwall/redcon"
+	"time"
 )
 
 func (s *Service) expireOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
@@ -63,9 +64,10 @@ func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	e := &env{
-		dmap: expireCmd.DMap,
-		key:  expireCmd.Key,
-		kind: kind,
+		dmap:    expireCmd.DMap,
+		key:     expireCmd.Key,
+		timeout: time.Duration(expireCmd.Timeout * float64(time.Second)),
+		kind:    kind,
 	}
 
 	if expireCmd.Replica {
