@@ -254,3 +254,29 @@ func (e *Expire) Command(ctx context.Context) *redis.BoolCmd {
 	}
 	return redis.NewBoolCmd(ctx, args...)
 }
+
+type Destroy struct {
+	DMap  string
+	Local bool
+}
+
+func NewDestroy(dmap string) *Destroy {
+	return &Destroy{
+		DMap: dmap,
+	}
+}
+
+func (d *Destroy) SetLocal() *Destroy {
+	d.Local = true
+	return d
+}
+
+func (d *Destroy) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, DestroyCmd)
+	args = append(args, d.DMap)
+	if d.Local {
+		args = append(args, "LC")
+	}
+	return redis.NewStatusCmd(ctx, args...)
+}

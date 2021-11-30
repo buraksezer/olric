@@ -192,3 +192,24 @@ func ParseExpireCommand(cmd redcon.Command) (*Expire, error) {
 
 	return e, nil
 }
+
+func ParseDestroyCommand(cmd redcon.Command) (*Destroy, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	d := NewDestroy(
+		util.BytesToString(cmd.Args[1]),
+	)
+
+	if len(cmd.Args) == 3 {
+		arg := util.BytesToString(cmd.Args[2])
+		if arg == "LC" {
+			d.SetLocal()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return d, nil
+}

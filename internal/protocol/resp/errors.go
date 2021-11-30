@@ -36,5 +36,5 @@ func errWrongNumber(args [][]byte) error {
 		}
 		sb.WriteByte(0x20)
 	}
-	return fmt.Errorf("ERR wrong number of arguments for '%s' command", strings.ToLower(sb.String()))
+	return fmt.Errorf("wrong number of arguments for '%s' command", strings.ToLower(sb.String()))
 }

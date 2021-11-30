@@ -20,7 +20,9 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
 func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
@@ -50,24 +52,21 @@ func (dm *DMap) destroyFragmentOnPartition(part *partitions.Partition) error {
 	return wipeOutFragment(part, dm.fragmentName, f)
 }
 
-func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
+func (s *Service) destroyLocalDMap(name string) error {
 	// This is very similar with rm -rf. Destroys given dmap on the cluster
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
-		dm, err := s.getDMap(req.DMap())
+		dm, err := s.getDMap(name)
 		if errors.Is(err, ErrDMapNotFound) {
 			continue
 		}
 		if err != nil {
-			neterrors.ErrorResponse(w, err)
-			return
+			return err
 		}
 
 		part := dm.s.primary.PartitionByID(partID)
 		err = dm.destroyFragmentOnPartition(part)
 		if err != nil {
-			neterrors.ErrorResponse(w, err)
-			return
+			return err
 		}
 
 		// Destroy on replicas
@@ -75,14 +74,40 @@ func (s *Service) destroyDMapOperation(w, r protocol.EncodeDecoder) {
 			backup := dm.s.backup.PartitionByID(partID)
 			err = dm.destroyFragmentOnPartition(backup)
 			if err != nil {
-				neterrors.ErrorResponse(w, err)
-				return
+				return err
 			}
 		}
 	}
 
 	s.Lock()
-	delete(s.dmaps, req.DMap())
+	delete(s.dmaps, name)
 	s.Unlock()
-	w.SetStatus(protocol.StatusOK)
+
+	return nil
+}
+
+func (s *Service) destroyCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	destroyCmd, err := resp.ParseDestroyCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(destroyCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	if destroyCmd.Local {
+		err = s.destroyLocalDMap(destroyCmd.DMap)
+	} else {
+		err = dm.destroyOnCluster()
+	}
+
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(resp.StatusOK)
 }
