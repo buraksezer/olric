@@ -16,8 +16,10 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/query"
+	"github.com/tidwall/redcon"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -89,4 +91,69 @@ func (s *Service) queryOperation(w, r protocol.EncodeDecoder) {
 			}
 			return data, nil
 		})
+}
+
+func (s *Service) queryOnCluster(dm *DMap, q query.M, partID uint64) (interface{}, error) {
+	c, err := dm.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	if partID >= s.config.PartitionCount {
+		return nil, ErrEndOfQuery
+	}
+	responses, err := c.runQueryOnOwners(partID)
+	if err != nil {
+		return nil, ErrEndOfQuery
+	}
+
+	data := make(QueryResponse)
+	for _, response := range responses {
+		data[response.Key()] = response.Value()
+	}
+	return data, nil
+}
+
+func (s *Service) queryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	queryCmd, err := resp.ParseQueryCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(queryCmd.DMap)
+	if err == ErrDMapNotFound {
+		// No need to create a new DMap here.
+		conn.WriteString(resp.StatusOK)
+	}
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	q, err := query.FromByte(queryCmd.Query)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	var result interface{}
+	if queryCmd.Local {
+		result, err = dm.runLocalQuery(queryCmd.PartID, q)
+	} else {
+		result, err = s.queryOnCluster(dm, q, queryCmd.PartID)
+	}
+
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	value, err := msgpack.Marshal(&result)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteBulk(value)
 }

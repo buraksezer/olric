@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/query"
@@ -151,19 +152,18 @@ func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
 			responses = append(responses, response)
 			continue
 		}
-		req := protocol.NewDMapMessage(protocol.OpLocalQuery)
-		req.SetDMap(c.dm.name)
-		req.SetValue(value)
-		req.SetExtra(protocol.LocalQueryExtra{
-			PartID: partID,
-		})
-		response, err := c.dm.s.requestTo(owner.String(), req)
+		cmd := resp.NewQuery(c.dm.name, partID, value).SetLocal().Command(c.dm.s.ctx)
+		rc := c.dm.s.respClient.Get(owner.String())
+		err := rc.Process(c.dm.s.ctx, cmd)
 		if err != nil {
 			return nil, fmt.Errorf("query call is failed: %w", err)
 		}
-
+		value, err := cmd.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("query call is failed: %w", err)
+		}
 		tmp := make(queryResponse)
-		err = msgpack.Unmarshal(response.Value(), &tmp)
+		err = msgpack.Unmarshal(value, &tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -234,7 +234,7 @@ func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan erro
 func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 	defer c.Close()
 
-	// Currently we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
+	// Currently, we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
 	results := make(chan []storage.Entry, NumConcurrentWorkers)
 	errCh := make(chan error, 1)
 

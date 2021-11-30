@@ -16,6 +16,7 @@ package resp
 
 import (
 	"context"
+
 	"github.com/go-redis/redis/v8"
 )
 
@@ -279,4 +280,36 @@ func (d *Destroy) Command(ctx context.Context) *redis.StatusCmd {
 		args = append(args, "LC")
 	}
 	return redis.NewStatusCmd(ctx, args...)
+}
+
+type Query struct {
+	DMap   string
+	PartID uint64
+	Query  []byte
+	Local  bool
+}
+
+func NewQuery(dmap string, partID uint64, query []byte) *Query {
+	return &Query{
+		DMap:   dmap,
+		PartID: partID,
+		Query:  query,
+	}
+}
+
+func (q *Query) SetLocal() *Query {
+	q.Local = true
+	return q
+}
+
+func (q *Query) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, QueryCmd)
+	args = append(args, q.DMap)
+	args = append(args, q.PartID)
+	args = append(args, q.Query)
+	if q.Local {
+		args = append(args, "LC")
+	}
+	return redis.NewStringCmd(ctx, args...)
 }

@@ -23,6 +23,7 @@ const (
 	DelEntryCmd   = "dm.delentry"
 	ExpireCmd     = "dm.expire"
 	DestroyCmd    = "dm.destroy"
+	QueryCmd      = "dm.query"
 	PingCmd       = "olric.ping"
 )
 
