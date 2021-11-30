@@ -20,8 +20,6 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-// DM.PUT mydmap mykey "Hello" EX 60 NX
-
 type Put struct {
 	DMap  string
 	Key   string
@@ -170,9 +168,14 @@ func (g *GetEntry) SetReplica() *GetEntry {
 }
 
 func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
-	cmd := g.Get.Command(ctx)
-	cmd.Args()[0] = GetEntryCmd
-	return cmd
+	var args []interface{}
+	args = append(args, GetCmd)
+	args = append(args, g.Get.DMap)
+	args = append(args, g.Get.Key)
+	if g.Replica {
+		args = append(args, "RC")
+	}
+	return redis.NewStringCmd(ctx, args...)
 }
 
 type Del struct {
@@ -213,6 +216,39 @@ func (d *DelEntry) SetReplica() *DelEntry {
 
 func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
 	cmd := d.Del.Command(ctx)
-	cmd.Args()[0] = DelEntryCmd
-	return cmd
+	args := cmd.Args()
+	args[0] = DelEntryCmd
+	if d.Replica {
+		args = append(args, "RC")
+	}
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type Expire struct {
+	DMap    string
+	Key     string
+	Replica bool
+}
+
+func NewExpire(dmap, key string) *Expire {
+	return &Expire{
+		DMap: dmap,
+		Key:  key,
+	}
+}
+
+func (e *Expire) SetReplica() *Expire {
+	e.Replica = true
+	return e
+}
+
+func (e *Expire) Command(ctx context.Context) *redis.BoolCmd {
+	var args []interface{}
+	args = append(args, ExpireCmd)
+	args = append(args, e.DMap)
+	args = append(args, e.Key)
+	if e.Replica {
+		args = append(args, "RC")
+	}
+	return redis.NewBoolCmd(ctx, args...)
 }

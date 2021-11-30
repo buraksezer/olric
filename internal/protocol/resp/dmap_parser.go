@@ -165,3 +165,25 @@ func ParseDelEntryCommand(cmd redcon.Command) (*DelEntry, error) {
 
 	return d, nil
 }
+
+func ParseExpireCommand(cmd redcon.Command) (*Expire, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	e := NewExpire(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RC" {
+			e.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return e, nil
+}

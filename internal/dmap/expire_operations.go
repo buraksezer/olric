@@ -17,7 +17,9 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
 func (s *Service) expireOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
@@ -40,6 +42,43 @@ func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
 		e := newEnvFromReq(r, partitions.BACKUP)
 		return dm.localExpireOnReplica(e)
 	})
+}
+
+func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	expireCmd, err := resp.ParseExpireCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(expireCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	var kind = partitions.PRIMARY
+	if expireCmd.Replica {
+		kind = partitions.BACKUP
+	}
+
+	e := &env{
+		dmap: expireCmd.DMap,
+		key:  expireCmd.Key,
+		kind: kind,
+	}
+
+	if expireCmd.Replica {
+		err = dm.localExpireOnReplica(e)
+	} else {
+		err = dm.expire(e)
+	}
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteInt(1)
 }
 
 func (s *Service) expireOperation(w, r protocol.EncodeDecoder) {

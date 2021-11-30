@@ -21,6 +21,7 @@ const (
 	PutReplicaCmd = "dm.putreplica"
 	DelCmd        = "dm.del"
 	DelEntryCmd   = "dm.delentry"
+	ExpireCmd     = "dm.expire"
 	PingCmd       = "olric.ping"
 )
 
