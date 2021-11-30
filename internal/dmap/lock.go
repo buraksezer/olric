@@ -190,3 +190,61 @@ func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*L
 func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
 	return dm.lockKey(protocol.OpPutIf, key, nilTimeout, deadline)
 }
+
+// leaseKey tries to update the expiry of the key by verifying token.
+func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error {
+	// get the key to check its value
+	entry, err := dm.get(key)
+	if errors.Is(err, ErrKeyNotFound) {
+		return ErrNoSuchLock
+	}
+	if err != nil {
+		return err
+	}
+
+	val, err := dm.unmarshalValue(entry.Value())
+	if err != nil {
+		return err
+	}
+	// the locks is released by the node(timeout) or the user
+	if !bytes.Equal(val.([]byte), token) {
+		return ErrNoSuchLock
+	}
+
+	// already expired
+	if (time.Now().UnixNano() / 1000000) >= entry.TTL() {
+		return ErrNoSuchLock
+	}
+
+	// update
+	err = dm.Expire(key, timeout)
+	if err != nil {
+		return fmt.Errorf("lease failed: %w", err)
+	}
+	return nil
+}
+
+// lease takes key and token and tries to update the expiry with duration.
+// It redirects the request to the partition owner, if required.
+func (dm *DMap) Lease(key string, token []byte, duration time.Duration) error {
+	hkey := partitions.HKey(dm.name, key)
+	member := dm.s.primary.PartitionByHKey(hkey).Owner()
+	if member.CompareByName(dm.s.rt.This()) {
+		return dm.leaseKey(key, token, duration)
+	}
+
+	req := protocol.NewDMapMessage(protocol.OpLockLease)
+	req.SetDMap(dm.name)
+	req.SetKey(key)
+	req.SetValue(token)
+	req.SetExtra(protocol.LockLeaseExtra{
+		Timeout: int64(duration),
+	})
+	_, err := dm.s.requestTo(member.String(), req)
+	return err
+}
+
+// Lease takes the duration to update the expiry for the given Lock.
+func (l *LockContext) Lease(duration time.Duration) error {
+	return l.dm.Lease(l.key, l.token, duration)
+}
