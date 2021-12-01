@@ -224,7 +224,7 @@ func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error 
 	return nil
 }
 
-// lease takes key and token and tries to update the expiry with duration.
+// Lease takes key and token and tries to update the expiry with duration.
 // It redirects the request to the partition owner, if required.
 func (dm *DMap) Lease(key string, token []byte, duration time.Duration) error {
 	hkey := partitions.HKey(dm.name, key)

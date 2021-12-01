@@ -21,7 +21,9 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
 func valueToInt(delta interface{}) (int, error) {
@@ -69,7 +71,7 @@ func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 
-	latest, err := dm.atomicIncrDecr(req.Op, e, v)
+	latest, err := dm.atomicIncrDecr("req.Op", e, v)
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return
@@ -110,4 +112,79 @@ func (s *Service) getPutOperation(w, r protocol.EncodeDecoder) {
 		w.SetValue(old)
 	}
 	w.SetStatus(protocol.StatusOK)
+}
+
+func (s *Service) incrDecrCommon(cmd, dmap, key string, delta int) (int, error) {
+	dm, err := s.getOrCreateDMap(dmap)
+	if err != nil {
+		return 0, err
+	}
+
+	e := &env{
+		putConfig: &putConfig{},
+		dmap:      dmap,
+		key:       key,
+		timestamp: time.Now().UnixNano(),
+		kind:      partitions.PRIMARY,
+	}
+
+	return dm.atomicIncrDecr(cmd, e, delta)
+}
+
+func (s *Service) incrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	incrCmd, err := resp.ParseIncrCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	latest, err := s.incrDecrCommon(resp.IncrCmd, incrCmd.DMap, incrCmd.Key, incrCmd.Delta)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteInt(latest)
+}
+
+func (s *Service) decrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	decrCmd, err := resp.ParseDecrCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	latest, err := s.incrDecrCommon(resp.DecrCmd, decrCmd.DMap, decrCmd.Key, decrCmd.Delta)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteInt(latest)
+}
+
+func (s *Service) getputCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	getPutCmd, err := resp.ParseGetPutCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(getPutCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	e := &env{
+		putConfig: &putConfig{},
+		dmap:      getPutCmd.DMap,
+		key:       getPutCmd.Key,
+		value:     getPutCmd.Value,
+		timestamp: time.Now().UnixNano(),
+		kind:      partitions.PRIMARY,
+	}
+
+	old, err := dm.getPut(e)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteBulk(old)
 }

@@ -15,35 +15,27 @@
 package dmap
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 )
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	entry, err := dm.get(e.key)
 	if errors.Is(err, ErrKeyNotFound) {
-		err = nil
+		return 0, nil
 	}
 	if err != nil {
 		return 0, err
 	}
-
-	var current int
-	if entry != nil {
-		var value interface{}
-		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
-			return 0, err
-		}
-		return valueToInt(value)
-	}
-	return current, nil
+	return int(binary.BigEndian.Uint64(entry.Value())), nil
 }
 
-func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
+func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 	atomicKey := e.dmap + e.key
 	dm.s.locker.Lock(atomicKey)
 	defer func() {
@@ -59,19 +51,17 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 	}
 
 	var updated int
-	switch {
-	case opcode == protocol.OpIncr:
+	switch cmd {
+	case resp.IncrCmd:
 		updated = current + delta
-	case opcode == protocol.OpDecr:
+	case resp.DecrCmd:
 		updated = current - delta
 	default:
 		return 0, fmt.Errorf("invalid operation")
 	}
 
-	val, err := dm.s.serializer.Marshal(updated)
-	if err != nil {
-		return 0, err
-	}
+	val := make([]byte, 8)
+	binary.BigEndian.PutUint64(val, uint64(updated))
 
 	e.value = val
 	err = dm.put(e)
@@ -85,27 +75,25 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (dm *DMap) Incr(key string, delta int) (int, error) {
 	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          dm.name,
-		key:           key,
-		timestamp:     time.Now().UnixNano(),
-		kind:          partitions.PRIMARY,
+		putConfig: &putConfig{},
+		dmap:      dm.name,
+		key:       key,
+		timestamp: time.Now().UnixNano(),
+		kind:      partitions.PRIMARY,
 	}
-	return dm.atomicIncrDecr(protocol.OpIncr, e, delta)
+	return dm.atomicIncrDecr(resp.IncrCmd, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (dm *DMap) Decr(key string, delta int) (int, error) {
 	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          dm.name,
-		key:           key,
-		timestamp:     time.Now().UnixNano(),
-		kind:          partitions.PRIMARY,
+		putConfig: &putConfig{},
+		dmap:      dm.name,
+		key:       key,
+		timestamp: time.Now().UnixNano(),
+		kind:      partitions.PRIMARY,
 	}
-	return dm.atomicIncrDecr(protocol.OpDecr, e, delta)
+	return dm.atomicIncrDecr(resp.DecrCmd, e, delta)
 }
 
 func (dm *DMap) getPut(e *env) ([]byte, error) {
@@ -146,12 +134,10 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 		return nil, err
 	}
 	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          dm.name,
-		key:           key,
-		value:         val,
-		timestamp:     time.Now().UnixNano(),
+		dmap:      dm.name,
+		key:       key,
+		value:     val,
+		timestamp: time.Now().UnixNano(),
 	}
 	raw, err := dm.getPut(e)
 	if err != nil {

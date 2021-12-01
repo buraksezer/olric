@@ -24,6 +24,9 @@ const (
 	ExpireCmd     = "dm.expire"
 	DestroyCmd    = "dm.destroy"
 	QueryCmd      = "dm.query"
+	IncrCmd       = "dm.incr"
+	DecrCmd       = "dm.decr"
+	GetPutCmd     = "dm.getput"
 	PingCmd       = "olric.ping"
 )
 

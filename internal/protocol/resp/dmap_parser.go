@@ -242,3 +242,49 @@ func ParseQueryCommand(cmd redcon.Command) (*Query, error) {
 
 	return q, nil
 }
+
+func ParseIncrCommand(cmd redcon.Command) (*Incr, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	delta, err := strconv.Atoi(util.BytesToString(cmd.Args[3]))
+	if err != nil {
+		return nil, err
+	}
+
+	return NewIncr(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		delta,
+	), nil
+}
+
+func ParseDecrCommand(cmd redcon.Command) (*Decr, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	delta, err := strconv.Atoi(util.BytesToString(cmd.Args[3]))
+	if err != nil {
+		return nil, err
+	}
+
+	return NewDecr(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		delta,
+	), nil
+}
+
+func ParseGetPutCommand(cmd redcon.Command) (*GetPut, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewGetPut(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		cmd.Args[3],                     // Value
+	), nil
+}

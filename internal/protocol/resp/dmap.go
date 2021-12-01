@@ -313,3 +313,65 @@ func (q *Query) Command(ctx context.Context) *redis.StringCmd {
 	}
 	return redis.NewStringCmd(ctx, args...)
 }
+
+type Incr struct {
+	DMap  string
+	Key   string
+	Delta int
+}
+
+func NewIncr(dmap, key string, delta int) *Incr {
+	return &Incr{
+		DMap:  dmap,
+		Key:   key,
+		Delta: delta,
+	}
+}
+
+func (i *Incr) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, IncrCmd)
+	args = append(args, i.DMap)
+	args = append(args, i.Key)
+	args = append(args, i.Delta)
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type Decr struct {
+	*Incr
+}
+
+func NewDecr(dmap, key string, delta int) *Decr {
+	return &Decr{
+		NewIncr(dmap, key, delta),
+	}
+}
+
+func (d *Decr) Command(ctx context.Context) *redis.IntCmd {
+	cmd := d.Incr.Command(ctx)
+	cmd.Args()[0] = DecrCmd
+	return cmd
+}
+
+type GetPut struct {
+	DMap  string
+	Key   string
+	Value []byte
+}
+
+func NewGetPut(dmap, key string, value []byte) *GetPut {
+	return &GetPut{
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
+	}
+}
+
+func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, IncrCmd)
+	args = append(args, g.DMap)
+	args = append(args, g.Key)
+	args = append(args, g.Value)
+	return redis.NewStringCmd(ctx, args...)
+}
