@@ -57,6 +57,8 @@ func prepareTTL(c *putConfig) int64 {
 	case c.HasPXAT:
 		ttl = c.PXAT.Nanoseconds() / 1000000
 	}
+	fmt.Println(c)
+	fmt.Println(ttl)
 	return ttl
 }
 
@@ -278,6 +280,7 @@ func (dm *DMap) putOnCluster(e *env) error {
 			e.timeout = dm.config.ttlDuration
 		}
 		if dm.config.evictionPolicy == config.LRUEviction {
+			// TODO: What about lock?
 			if err = dm.setLRUEvictionStats(e); err != nil {
 				return err
 			}

@@ -27,7 +27,10 @@ const (
 	IncrCmd       = "dm.incr"
 	DecrCmd       = "dm.decr"
 	GetPutCmd     = "dm.getput"
-	PingCmd       = "olric.ping"
+	LockCmd       = "dm.lock"
+	UnlockCmd     = "dm.unlock"
+	LockLeaseCmd  = "dm.locklease"
+	PingCmd       = "ping"
 )
 
 const StatusOK = "OK"

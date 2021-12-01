@@ -16,23 +16,36 @@ package olric
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/tidwall/redcon"
 )
 
 func (db *Olric) pingOperation(w, _ protocol.EncodeDecoder) {
 	w.SetStatus(protocol.StatusOK)
 }
 
-// Ping sends a dummy protocol messsage to the given host. This is useful to
+// Ping sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
 func (db *Olric) Ping(addr string) error {
-	req := protocol.NewSystemMessage(protocol.OpPing)
-	resp, err := db.client.RequestTo(addr, req)
+	cmd := resp.NewPing().Command(db.ctx)
+	rc := db.respClient.Get(addr)
+	err := rc.Process(db.ctx, cmd)
 	if err != nil {
 		return err
 	}
-	if resp.Status() != protocol.StatusOK {
-		return neterrors.New(resp.Status(), string(resp.Value()))
+	return cmd.Err()
+}
+
+func (db *Olric) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	pingCmd, err := resp.ParsePingCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
 	}
-	return nil
+
+	if pingCmd.Message != "" {
+		conn.WriteString(pingCmd.Message)
+		return
+	}
+	conn.WriteString("PONG")
 }

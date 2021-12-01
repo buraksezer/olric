@@ -288,3 +288,76 @@ func ParseGetPutCommand(cmd redcon.Command) (*GetPut, error) {
 		cmd.Args[3],                     // Value
 	), nil
 }
+
+func ParseLockCommand(cmd redcon.Command) (*Lock, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	deadline, err := strconv.ParseFloat(util.BytesToString(cmd.Args[3]), 64)
+	if err != nil {
+		return nil, err
+	}
+
+	l := NewLock(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		deadline,                        // Deadline
+	)
+
+	// EX or PX are optional.
+	if len(cmd.Args) > 4 {
+		if len(cmd.Args) == 5 {
+			return nil, fmt.Errorf("%w: %s needs a numerical argument", ErrInvalidArgument, util.BytesToString(cmd.Args[5]))
+		}
+
+		switch arg := strings.ToUpper(util.BytesToString(cmd.Args[4])); arg {
+		case "PX":
+			px, err := strconv.ParseInt(util.BytesToString(cmd.Args[5]), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			l.PX = px
+		case "EX":
+			ex, err := strconv.ParseFloat(util.BytesToString(cmd.Args[5]), 64)
+			if err != nil {
+				return nil, err
+			}
+			l.EX = ex
+		default:
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return l, nil
+}
+
+func ParseUnlockCommand(cmd redcon.Command) (*Unlock, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewUnlock(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		util.BytesToString(cmd.Args[3]), // Token
+	), nil
+}
+
+func ParseLockLeaseCommand(cmd redcon.Command) (*LockLease, error) {
+	if len(cmd.Args) < 5 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	timeout, err := strconv.ParseFloat(util.BytesToString(cmd.Args[4]), 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewLockLease(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		util.BytesToString(cmd.Args[3]), // Token
+		timeout,                         // Timeout
+	), nil
+}

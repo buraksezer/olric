@@ -15,10 +15,13 @@
 package dmap
 
 import (
+	"encoding/hex"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
 func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
@@ -40,18 +43,13 @@ func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
 
 func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
 	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
-		req := r.(*protocol.DMapMessage)
-		timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
-		deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
-		return dm.lockKey(protocol.OpPutIfEx, req.Key(), time.Duration(timeout), time.Duration(deadline))
+		return nil, nil
 	})
 }
 
 func (s *Service) lockOperation(w, r protocol.EncodeDecoder) {
 	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
-		req := r.(*protocol.DMapMessage)
-		deadline := req.Extra().(protocol.LockExtra).Deadline
-		return dm.lockKey(protocol.OpPutIf, req.Key(), nilTimeout, time.Duration(deadline))
+		return nil, nil
 	})
 }
 
@@ -78,10 +76,96 @@ func (s *Service) leaseLockOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 	timeout := req.Extra().(protocol.LockLeaseExtra).Timeout
-	err = dm.Lease(req.Key(), req.Value(), time.Duration(timeout))
+	err = dm.lease(req.Key(), req.Value(), time.Duration(timeout))
 	if err != nil {
 		neterrors.ErrorResponse(w, err)
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
+}
+
+func (s *Service) unlockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	unlockCmd, err := resp.ParseUnlockCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(unlockCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	token, err := hex.DecodeString(unlockCmd.Token)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	err = dm.unlock(unlockCmd.Key, token)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteString(resp.StatusOK)
+}
+
+func (s *Service) lockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	lockCmd, err := resp.ParseLockCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(lockCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	var timeout = nilTimeout
+	switch {
+	case lockCmd.EX != 0:
+		timeout = time.Duration(lockCmd.EX * float64(time.Second))
+	case lockCmd.PX != 0:
+		timeout = time.Duration(lockCmd.PX * int64(time.Millisecond))
+	}
+
+	var deadline = time.Duration(lockCmd.Deadline * float64(time.Second))
+	lctx, err := dm.lockKey(lockCmd.Key, timeout, deadline)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteString(hex.EncodeToString(lctx.token))
+}
+
+func (s *Service) lockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	lockLeaseCmd, err := resp.ParseLockLeaseCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(lockLeaseCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	timeout := time.Duration(lockLeaseCmd.Timeout * float64(time.Second))
+	token, err := hex.DecodeString(lockLeaseCmd.Token)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	err = dm.lease(lockLeaseCmd.Key, token, timeout)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(resp.StatusOK)
 }

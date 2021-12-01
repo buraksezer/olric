@@ -15,28 +15,18 @@
 package resp
 
 import (
-	"context"
-	"github.com/go-redis/redis/v8"
+	"github.com/buraksezer/olric/internal/util"
+	"github.com/tidwall/redcon"
 )
 
-type Ping struct {
-	Message string
-}
-
-func NewPing() *Ping {
-	return &Ping{}
-}
-
-func (p *Ping) SetMessage(m string) *Ping {
-	p.Message = m
-	return p
-}
-
-func (p *Ping) Command(ctx context.Context) *redis.StringCmd {
-	var args []interface{}
-	args = append(args, PingCmd)
-	if p.Message != "" {
-		args = append(args, p.Message)
+func ParsePingCommand(cmd redcon.Command) (*Ping, error) {
+	if len(cmd.Args) < 1 {
+		return nil, errWrongNumber(cmd.Args)
 	}
-	return redis.NewStringCmd(ctx, args...)
+
+	p := NewPing()
+	if len(cmd.Args) == 2 {
+		p.SetMessage(util.BytesToString(cmd.Args[1]))
+	}
+	return p, nil
 }

@@ -28,6 +28,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/go-redis/redis/v8"
 	"net"
 	"strconv"
@@ -268,6 +269,7 @@ func (db *Olric) registerCommandHandlers() {
 	// Commands on DMap data structure
 	//
 	db.dmap.RegisterHandlers()
+	db.respServer.ServeMux().HandleFunc(resp.PingCmd, db.pingCommandHandler)
 }
 
 func (db *Olric) registerOperations() {

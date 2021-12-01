@@ -18,12 +18,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
@@ -63,13 +65,9 @@ func (dm *DMap) unlockKey(key string, token []byte) error {
 	if err != nil {
 		return err
 	}
-	val, err := dm.unmarshalValue(entry.Value())
-	if err != nil {
-		return err
-	}
 
-	// the locks is released by the node(timeout) or the user
-	if !bytes.Equal(val.([]byte), token) {
+	// the lock is released by the node(timeout) or the user
+	if !bytes.Equal(entry.Value(), token) {
 		return ErrNoSuchLock
 	}
 
@@ -90,12 +88,13 @@ func (dm *DMap) unlock(key string, token []byte) error {
 		return dm.unlockKey(key, token)
 	}
 
-	req := protocol.NewDMapMessage(protocol.OpUnlock)
-	req.SetDMap(dm.name)
-	req.SetKey(key)
-	req.SetValue(token)
-	_, err := dm.s.requestTo(member.String(), req)
-	return err
+	cmd := resp.NewUnlock(dm.name, key, hex.EncodeToString(token)).Command(dm.s.ctx)
+	rc := dm.s.respClient.Get(member.String())
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return err
+	}
+	return cmd.Err()
 }
 
 // Unlock releases the lock.
@@ -150,16 +149,30 @@ LOOP:
 	return nil
 }
 
-// lockKey prepares a token and env calls tryLock
-func (dm *DMap) lockKey(opcode protocol.OpCode, key string, timeout, deadline time.Duration) (*LockContext, error) {
+// lockKey prepares a token and env, then calls tryLock
+func (dm *DMap) lockKey(key string, timeout, deadline time.Duration) (*LockContext, error) {
 	token := make([]byte, 16)
 	_, err := rand.Read(token)
 	if err != nil {
 		return nil, err
 	}
-	e, err := dm.prepareAndSerialize(opcode, key, token, timeout, IfNotFound)
-	if err != nil {
-		return nil, err
+
+	var options []PutOption
+	options = append(options, NX())
+	if timeout.Milliseconds() != 0 {
+		options = append(options, PX(timeout))
+	}
+
+	var pc putConfig
+	for _, opt := range options {
+		opt(&pc)
+	}
+
+	e := &env{
+		putConfig: &pc,
+		dmap:      dm.name,
+		key:       key,
+		value:     token,
 	}
 	err = dm.tryLock(e, deadline)
 	if err != nil {
@@ -179,7 +192,7 @@ func (dm *DMap) lockKey(opcode protocol.OpCode, key string, timeout, deadline ti
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
-	return dm.lockKey(protocol.OpPutIfEx, key, timeout, deadline)
+	return dm.lockKey(key, timeout, deadline)
 }
 
 // Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
@@ -188,7 +201,7 @@ func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*L
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
 func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
-	return dm.lockKey(protocol.OpPutIf, key, nilTimeout, deadline)
+	return dm.lockKey(key, nilTimeout, deadline)
 }
 
 // leaseKey tries to update the expiry of the key by verifying token.
@@ -202,12 +215,8 @@ func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error 
 		return err
 	}
 
-	val, err := dm.unmarshalValue(entry.Value())
-	if err != nil {
-		return err
-	}
-	// the locks is released by the node(timeout) or the user
-	if !bytes.Equal(val.([]byte), token) {
+	// the lock is released by the node(timeout) or the user
+	if !bytes.Equal(entry.Value(), token) {
 		return ErrNoSuchLock
 	}
 
@@ -226,25 +235,23 @@ func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error 
 
 // Lease takes key and token and tries to update the expiry with duration.
 // It redirects the request to the partition owner, if required.
-func (dm *DMap) Lease(key string, token []byte, duration time.Duration) error {
+func (dm *DMap) lease(key string, token []byte, timeout time.Duration) error {
 	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
-		return dm.leaseKey(key, token, duration)
+		return dm.leaseKey(key, token, timeout)
 	}
 
-	req := protocol.NewDMapMessage(protocol.OpLockLease)
-	req.SetDMap(dm.name)
-	req.SetKey(key)
-	req.SetValue(token)
-	req.SetExtra(protocol.LockLeaseExtra{
-		Timeout: int64(duration),
-	})
-	_, err := dm.s.requestTo(member.String(), req)
-	return err
+	cmd := resp.NewLockLease(dm.name, key, hex.EncodeToString(token), timeout.Seconds()).Command(dm.s.ctx)
+	rc := dm.s.respClient.Get(member.String())
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return err
+	}
+	return cmd.Err()
 }
 
 // Lease takes the duration to update the expiry for the given Lock.
 func (l *LockContext) Lease(duration time.Duration) error {
-	return l.dm.Lease(l.key, l.token, duration)
+	return l.dm.lease(l.key, l.token, duration)
 }

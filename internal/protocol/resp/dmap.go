@@ -375,3 +375,103 @@ func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
 	args = append(args, g.Value)
 	return redis.NewStringCmd(ctx, args...)
 }
+
+// TODO: Add PLock
+
+type Lock struct {
+	DMap     string
+	Key      string
+	Deadline float64
+	EX       float64
+	PX       int64
+}
+
+func NewLock(dmap, key string, deadline float64) *Lock {
+	return &Lock{
+		DMap:     dmap,
+		Key:      key,
+		Deadline: deadline,
+	}
+}
+
+func (l *Lock) SetEX(ex float64) *Lock {
+	l.EX = ex
+	return l
+}
+
+func (l *Lock) SetPX(px int64) *Lock {
+	l.PX = px
+	return l
+}
+
+func (l *Lock) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, LockCmd)
+	args = append(args, l.DMap)
+	args = append(args, l.Key)
+	args = append(args, l.Deadline)
+
+	// Options
+	if l.EX != 0 {
+		args = append(args, "EX")
+		args = append(args, l.EX)
+	}
+
+	if l.PX != 0 {
+		args = append(args, "PX")
+		args = append(args, l.PX)
+	}
+
+	return redis.NewStringCmd(ctx, args...)
+}
+
+type Unlock struct {
+	DMap  string
+	Key   string
+	Token string
+}
+
+func NewUnlock(dmap, key, token string) *Unlock {
+	return &Unlock{
+		DMap:  dmap,
+		Key:   key,
+		Token: token,
+	}
+}
+
+func (u *Unlock) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, UnlockCmd)
+	args = append(args, u.DMap)
+	args = append(args, u.Key)
+	args = append(args, u.Token)
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+// TODO: Add PLockLease
+
+type LockLease struct {
+	DMap    string
+	Key     string
+	Token   string
+	Timeout float64
+}
+
+func NewLockLease(dmap, key, token string, timeout float64) *LockLease {
+	return &LockLease{
+		DMap:    dmap,
+		Key:     key,
+		Token:   token,
+		Timeout: timeout,
+	}
+}
+
+func (l *LockLease) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, LockLeaseCmd)
+	args = append(args, l.DMap)
+	args = append(args, l.Key)
+	args = append(args, l.Token)
+	args = append(args, l.Timeout)
+	return redis.NewStatusCmd(ctx, args...)
+}
