@@ -64,19 +64,6 @@ func newEnv(opcode protocol.OpCode, name, key string, value []byte, timeout time
 	return e
 }
 
-func newEnvResp(command, name, key string, value []byte, timeout time.Duration, flags int16, kind partitions.Kind) *env {
-	e := &env{
-		dmap:      name,
-		key:       key,
-		value:     value,
-		timestamp: time.Now().UnixNano(),
-		timeout:   timeout,
-		flags:     flags,
-		kind:      kind,
-	}
-	return e
-}
-
 // newEnvFromReq generates a new protocol message from writeop instance.
 func newEnvFromReq(r protocol.EncodeDecoder, kind partitions.Kind) *env {
 	e := &env{}
@@ -119,42 +106,4 @@ func newEnvFromReq(r protocol.EncodeDecoder, kind partitions.Kind) *env {
 		e.timeout = time.Duration(req.Extra().(protocol.ExpireExtra).TTL)
 	}
 	return e
-}
-
-// toReq generates a new protocol message from a writeop.
-func (e *env) toReq(opcode protocol.OpCode) *protocol.DMapMessage {
-	req := protocol.NewDMapMessage(opcode)
-	req.SetDMap(e.dmap)
-	req.SetKey(e.key)
-	req.SetValue(e.value)
-
-	// Prepare extras
-	switch opcode {
-	case protocol.OpPut, protocol.OpPutReplica:
-		req.SetExtra(protocol.PutExtra{
-			Timestamp: e.timestamp,
-		})
-	case protocol.OpPutEx, protocol.OpPutExReplica:
-		req.SetExtra(protocol.PutExExtra{
-			TTL:       e.timeout.Nanoseconds(),
-			Timestamp: e.timestamp,
-		})
-	case protocol.OpPutIf, protocol.OpPutIfReplica:
-		req.SetExtra(protocol.PutIfExtra{
-			Flags:     e.flags,
-			Timestamp: e.timestamp,
-		})
-	case protocol.OpPutIfEx, protocol.OpPutIfExReplica:
-		req.SetExtra(protocol.PutIfExExtra{
-			Flags:     e.flags,
-			Timestamp: e.timestamp,
-			TTL:       e.timeout.Nanoseconds(),
-		})
-	case protocol.OpExpire:
-		req.SetExtra(protocol.ExpireExtra{
-			Timestamp: e.timestamp,
-			TTL:       e.timeout.Nanoseconds(),
-		})
-	}
-	return req
 }

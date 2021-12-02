@@ -16,6 +16,7 @@ package resp
 
 import (
 	"context"
+
 	"github.com/go-redis/redis/v8"
 )
 
@@ -39,4 +40,21 @@ func (p *Ping) Command(ctx context.Context) *redis.StringCmd {
 		args = append(args, p.Message)
 	}
 	return redis.NewStringCmd(ctx, args...)
+}
+
+type MoveFragment struct {
+	Payload []byte
+}
+
+func NewMoveFragment(payload []byte) *MoveFragment {
+	return &MoveFragment{
+		Payload: payload,
+	}
+}
+
+func (m *MoveFragment) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, MoveFragmentCmd)
+	args = append(args, m.Payload)
+	return redis.NewStringCmd(ctx, args)
 }

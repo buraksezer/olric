@@ -17,6 +17,8 @@ package dmap
 import (
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/tidwall/redcon"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -138,4 +140,48 @@ func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
+}
+
+func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	moveFragmentCmd, err := resp.ParseMoveFragmentCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	fp := &fragmentPack{}
+	err = msgpack.Unmarshal(moveFragmentCmd.Payload, fp)
+	if err != nil {
+		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
+		resp.WriteError(conn, err)
+		return
+	}
+
+	if err = s.validateFragmentPack(fp); err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	var part *partitions.Partition
+	if fp.Kind == partitions.PRIMARY {
+		part = s.primary.PartitionByID(fp.PartID)
+	} else {
+		part = s.backup.PartitionByID(fp.PartID)
+	}
+	s.log.V(2).Printf("[INFO] Received DMap (kind: %s): %s on PartID: %d", fp.Kind, fp.Name, fp.PartID)
+
+	dm, err := s.NewDMap(fp.Name)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	err = dm.mergeFragments(part, fp)
+	if err != nil {
+		s.log.V(2).Printf("[ERROR] Failed to merge Received DMap (kind: %s): %s on PartID: %d: %v",
+			fp.Kind, fp.Name, fp.PartID, err)
+		resp.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteString(resp.StatusOK)
 }

@@ -14,13 +14,7 @@
 
 package olric
 
-import (
-	"errors"
-
-	"github.com/buraksezer/olric/internal/dtopic"
-	"github.com/buraksezer/olric/pkg/neterrors"
-)
-
+/*
 const (
 	// UnorderedDelivery means that messages are delivered in random order.
 	// It's good to distribute independent events in a distributed system.
@@ -111,4 +105,4 @@ func (dt *DTopic) RemoveListener(listenerID uint64) error {
 func (dt *DTopic) Destroy() error {
 	err := dt.dt.Destroy()
 	return convertDTopicError(err)
-}
+}*/

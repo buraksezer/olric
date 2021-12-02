@@ -18,71 +18,9 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/tidwall/redcon"
 )
-
-func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
-	f func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error)) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	ctx, err := f(dm, r)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(ctx.token)
-}
-
-func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
-	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
-		return nil, nil
-	})
-}
-
-func (s *Service) lockOperation(w, r protocol.EncodeDecoder) {
-	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
-		return nil, nil
-	})
-}
-
-func (s *Service) unlockOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	err = dm.unlock(req.Key(), req.Value())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
-
-func (s *Service) leaseLockOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	timeout := req.Extra().(protocol.LockLeaseExtra).Timeout
-	err = dm.lease(req.Key(), req.Value(), time.Duration(timeout))
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
 
 func (s *Service) unlockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	unlockCmd, err := resp.ParseUnlockCommand(cmd)

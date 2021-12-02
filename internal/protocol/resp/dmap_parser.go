@@ -361,3 +361,11 @@ func ParseLockLeaseCommand(cmd redcon.Command) (*LockLease, error) {
 		timeout,                         // Timeout
 	), nil
 }
+
+func ParseMoveFragmentCommand(cmd redcon.Command) (*MoveFragment, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewMoveFragment(cmd.Args[1]), nil
+}

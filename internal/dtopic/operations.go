@@ -14,6 +14,7 @@
 
 package dtopic
 
+/*
 import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/streams"
@@ -109,4 +110,4 @@ func (s *Service) removeListenerOperation(w, r protocol.EncodeDecoder) {
 	}
 	CurrentListeners.Decrease(1)
 	w.SetStatus(protocol.StatusOK)
-}
+}*/

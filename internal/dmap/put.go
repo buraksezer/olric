@@ -57,8 +57,6 @@ func prepareTTL(c *putConfig) int64 {
 	case c.HasPXAT:
 		ttl = c.PXAT.Nanoseconds() / 1000000
 	}
-	fmt.Println(c)
-	fmt.Println(ttl)
 	return ttl
 }
 

@@ -14,6 +14,7 @@
 
 package dtopic
 
+/*
 import (
 	"context"
 	"errors"
@@ -147,4 +148,4 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-var _ service.Service = (*Service)(nil)
+var _ service.Service = (*Service)(nil)*/

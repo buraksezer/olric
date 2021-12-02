@@ -14,6 +14,7 @@
 
 package dtopic
 
+/*
 import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -62,3 +63,4 @@ func (s *Service) dtopicDestroyOperation(w, r protocol.EncodeDecoder) {
 	}
 	w.SetStatus(protocol.StatusOK)
 }
+*/

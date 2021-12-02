@@ -18,34 +18,9 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/tidwall/redcon"
 )
-
-func (s *Service) putOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-
-	err = f(dm, r)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
-
-func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
-	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		e := newEnvFromReq(r, partitions.PRIMARY)
-		return dm.put(e)
-	})
-}
 
 func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	putCmd, err := resp.ParsePutCommand(cmd)
@@ -119,11 +94,4 @@ func (s *Service) putReplicaCommandHandler(conn redcon.Conn, cmd redcon.Command)
 		return
 	}
 	conn.WriteString(resp.StatusOK)
-}
-
-func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		e := newEnvFromReq(r, partitions.BACKUP)
-		return dm.putOnReplicaFragment(e)
-	})
 }

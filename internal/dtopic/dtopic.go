@@ -15,12 +15,7 @@
 package dtopic
 
 import (
-	"errors"
-	"fmt"
-	"time"
-
 	"github.com/buraksezer/olric/internal/stats"
-	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 var (
@@ -34,6 +29,7 @@ var (
 	ListenersTotal = stats.NewInt64Counter()
 )
 
+/*
 const (
 	// UnorderedDelivery means that messages are delivered in random order. It's good to distribute independent events in a distributed system.
 	UnorderedDelivery = int16(1) << iota
@@ -142,4 +138,4 @@ func (d *DTopic) RemoveListener(listenerID uint64) error {
 // recreated.
 func (d *DTopic) Destroy() error {
 	return d.s.destroyDTopicOnCluster(d.name)
-}
+}*/

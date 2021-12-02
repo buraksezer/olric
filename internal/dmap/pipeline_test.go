@@ -14,15 +14,7 @@
 
 package dmap
 
-import (
-	"bytes"
-	"testing"
-	"time"
-
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/testcluster"
-)
-
+/*
 func TestDMap_Pipeline(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
@@ -69,4 +61,4 @@ func TestDMap_Pipeline(t *testing.T) {
 	if val.(string) != rawval {
 		t.Fatalf("Expected value: %v. Got: %v", rawval, val)
 	}
-}
+}*/

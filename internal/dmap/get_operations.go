@@ -16,36 +16,9 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 )
-
-func (s *Service) getOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error)) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-
-	entry, err := f(dm, r)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
-}
-
-func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
-	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
-		req := r.(*protocol.DMapMessage)
-		return dm.get(req.Key())
-	})
-}
 
 func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	getCmd, err := resp.ParseGetCommand(cmd)
@@ -98,18 +71,4 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 
 	// We found it.
 	conn.WriteBulk(nt.Encode())
-}
-
-func (s *Service) getReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
-		e := newEnvFromReq(r, partitions.BACKUP)
-		return dm.getOnFragment(e)
-	})
-}
-
-func (s *Service) getPrevOperation(w, r protocol.EncodeDecoder) {
-	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
-		e := newEnvFromReq(r, partitions.PRIMARY)
-		return dm.getOnFragment(e)
-	})
 }

@@ -16,33 +16,9 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/tidwall/redcon"
 )
-
-func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	err = f(dm, r)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
-
-func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		req := r.(*protocol.DMapMessage)
-		return dm.deleteKey(req.Key())
-	})
-}
 
 func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	delCmd, err := resp.ParseDelCommand(cmd)
@@ -89,18 +65,4 @@ func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 
 	// TODO: Write zero?
 	conn.WriteInt(1)
-}
-
-func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		req := r.(*protocol.DMapMessage)
-		return dm.deleteFromFragment(req.Key(), partitions.PRIMARY)
-	})
-}
-
-func (s *Service) deleteReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		req := r.(*protocol.DMapMessage)
-		return dm.deleteFromFragment(req.Key(), partitions.BACKUP)
-	})
 }

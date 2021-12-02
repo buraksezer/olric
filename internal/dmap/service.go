@@ -64,6 +64,10 @@ type Service struct {
 	cancel     context.CancelFunc
 }
 
+func (s *Service) RegisterOperations(_ map[protocol.OpCode]func(w protocol.EncodeDecoder, r protocol.EncodeDecoder)) {
+	// TODO: DELETE THIS
+}
+
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Service{

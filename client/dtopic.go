@@ -14,6 +14,7 @@
 
 package client
 
+/*
 import (
 	"fmt"
 	"runtime"
@@ -209,4 +210,4 @@ func (dt *DTopic) Destroy() error {
 		delete(dt.listeners, listenerID)
 	}
 	return nil
-}
+}*/

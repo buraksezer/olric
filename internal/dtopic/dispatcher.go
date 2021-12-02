@@ -14,6 +14,7 @@
 
 package dtopic
 
+/*
 import (
 	"context"
 	"fmt"
@@ -144,3 +145,4 @@ func (d *Dispatcher) destroy(topic string) {
 	defer d.Unlock()
 	delete(d.m, topic)
 }
+*/

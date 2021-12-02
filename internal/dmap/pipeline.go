@@ -14,15 +14,7 @@
 
 package dmap
 
-import (
-	"bytes"
-	"errors"
-	"io"
-
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
-)
-
+/*
 func (s *Service) extractPipelineMessage(conn io.ReadWriteCloser, response *bytes.Buffer) error {
 	buf := bufferPool.Get()
 	defer bufferPool.Put(buf)
@@ -74,4 +66,4 @@ func (s *Service) pipelineOperation(w, r protocol.EncodeDecoder) {
 	// Create a success response and assign pipelined responses as value.
 	w.SetStatus(protocol.StatusOK)
 	w.SetValue(response.Bytes())
-}
+}*/

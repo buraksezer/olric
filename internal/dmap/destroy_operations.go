@@ -19,26 +19,9 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/tidwall/redcon"
 )
-
-func (s *Service) destroyOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	err = dm.destroyOnCluster()
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
 
 func (dm *DMap) destroyFragmentOnPartition(part *partitions.Partition) error {
 	f, err := dm.loadFragment(part)

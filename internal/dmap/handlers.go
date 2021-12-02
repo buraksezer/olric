@@ -32,4 +32,5 @@ func (s *Service) RegisterHandlers() {
 	s.respServer.ServeMux().HandleFunc(resp.LockCmd, s.lockCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.UnlockCmd, s.unlockCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.LockLeaseCmd, s.lockLeaseCommandHandler)
+	s.respServer.ServeMux().HandleFunc(resp.MoveFragmentCmd, s.moveFragmentCommandHandler)
 }

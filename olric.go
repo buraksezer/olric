@@ -28,15 +28,11 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/go-redis/redis/v8"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/buraksezer/olric/internal/server"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
@@ -45,15 +41,16 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/streams"
+	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/serializer"
+	"github.com/go-redis/redis/v8"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -117,11 +114,8 @@ type Olric struct {
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
 
-	dtopic *dtopic.Service
-	dmap   *dmap.Service
-
-	// Bidirectional stream sockets for Olric clients and nodes.
-	streams *streams.Streams
+	//dtopic *dtopic.Service
+	dmap *dmap.Service
 
 	// Structures for flow control
 	ctx    context.Context
@@ -172,11 +166,11 @@ func initializeServices(db *Olric) error {
 	db.balancer = balancer.New(db.env)
 
 	// Add Services
-	dt, err := dtopic.NewService(db.env)
+	/*dt, err := dtopic.NewService(db.env)
 	if err != nil {
 		return err
 	}
-	db.dtopic = dt.(*dtopic.Service)
+	db.dtopic = dt.(*dtopic.Service)*/
 
 	dm, err := dmap.NewService(db.env)
 	if err != nil {
@@ -223,7 +217,6 @@ func New(c *config.Config) (*Olric, error) {
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("locker", locker.New())
-	e.Set("streams", streams.New(e))
 	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
@@ -236,7 +229,6 @@ func New(c *config.Config) (*Olric, error) {
 		client:     e.Get("client").(*transport.Client),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
-		streams:    e.Get("streams").(*streams.Streams),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		server:     srv,
 		started:    c.Started,
@@ -287,16 +279,7 @@ func (db *Olric) registerOperations() {
 
 	// Operations on DTopic data structure
 	//
-	db.dtopic.RegisterOperations(db.operations)
-
-	// Operations on DMap data structure
-	//
-	db.dmap.RegisterOperations(db.operations)
-
-	// Operations on message streams
-	//
-	// Bidirectional communication channel for clients and cluster members.
-	db.streams.RegisterOperations(db.operations)
+	//db.dtopic.RegisterOperations(db.operations)
 }
 
 func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
@@ -402,9 +385,9 @@ func (db *Olric) Start() error {
 	}
 
 	// Start distributed topic service
-	if err := db.dtopic.Start(); err != nil {
+	/*if err := db.dtopic.Start(); err != nil {
 		return err
-	}
+	}*/
 
 	// Start distributed map service
 	if err := db.dmap.Start(); err != nil {
@@ -441,18 +424,13 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	var latestError error
 
-	if err := db.dtopic.Shutdown(ctx); err != nil {
+	/*if err := db.dtopic.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown DTopic service: %v", err)
 		latestError = err
-	}
+	}*/
 
 	if err := db.dmap.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown DMap service: %v", err)
-		latestError = err
-	}
-
-	if err := db.streams.Shutdown(ctx); err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to shutdown stream service: %v", err)
 		latestError = err
 	}
 

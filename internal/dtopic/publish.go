@@ -14,6 +14,7 @@
 
 package dtopic
 
+/*
 import (
 	"errors"
 	"runtime"
@@ -131,4 +132,4 @@ func (s *Service) exPublishOperation(w, r protocol.EncodeDecoder) {
 		return
 	}
 	w.SetStatus(protocol.StatusOK)
-}
+}*/

@@ -102,7 +102,6 @@ func (t *TestCluster) newService(e *environment.Environment) service.Service {
 	if err != nil {
 		panic(fmt.Sprintf("failed to start DMap service: %v", err))
 	}
-	s.RegisterOperations(ops)
 	return s
 }
 
