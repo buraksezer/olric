@@ -349,20 +349,6 @@ func (dm *DMap) put(e *env) error {
 	return cmd.Err()
 }
 
-func (dm *DMap) prepareAndSerialize(
-	opcode protocol.OpCode,
-	key string,
-	value interface{},
-	timeout time.Duration,
-	flags int16) (*env, error) {
-	// Value is arbitrary Go type. Serialize it.
-	val, err := dm.s.serializer.Marshal(value)
-	if err != nil {
-		return nil, err
-	}
-	return newEnv(opcode, dm.name, key, val, timeout, flags, partitions.PRIMARY), nil
-}
-
 type putConfig struct {
 	HasEX   bool
 	EX      time.Duration
