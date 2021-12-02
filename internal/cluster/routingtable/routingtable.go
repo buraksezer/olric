@@ -21,8 +21,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/buraksezer/olric/internal/server"
-
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/checkpoint"
@@ -30,8 +28,8 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
-	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/hashicorp/memberlist"
@@ -68,7 +66,6 @@ type RoutingTable struct {
 	log              *flog.Logger
 	primary          *partitions.Partitions
 	backup           *partitions.Partitions
-	client           *transport.Client
 	respClient       *server.Client
 	respServer       *server.Server
 	discovery        *discovery.Discovery
@@ -100,7 +97,6 @@ func New(e *environment.Environment) *RoutingTable {
 		consistent: consistent.New(nil, cc),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
-		client:     e.Get("client").(*transport.Client),
 		respClient: e.Get("respClient").(*server.Client),
 		respServer: e.Get("respServer").(*server.Server),
 		pushPeriod: c.RoutingTablePushInterval,
@@ -266,8 +262,10 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 		r.Members().Delete(member.ID)
 		r.consistent.Remove(event.NodeName)
 		// Don't try to used closed sockets again.
-		r.client.ClosePool(event.NodeName)
 		r.log.V(2).Printf("[INFO] Node left: %s", event.NodeName)
+		if err := r.respClient.Close(event.NodeName); err != nil {
+			r.log.V(2).Printf("[ERROR] Failed to remove the node from pool %s: %v", event.NodeName, err)
+		}
 	case memberlist.NodeUpdate:
 		// Node's birthdate may be changed. Close the pool and re-add to the hash ring.
 		// This takes linear time, but member count should be too small for a decent computer!
@@ -275,7 +273,9 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 			if member.CompareByName(item) {
 				r.Members().Delete(id)
 				r.consistent.Remove(event.NodeName)
-				r.client.ClosePool(event.NodeName)
+				if err := r.respClient.Close(event.NodeName); err != nil {
+					r.log.V(2).Printf("[ERROR] Failed to remove the node from pool %s: %v", event.NodeName, err)
+				}
 			}
 			return true
 		})
@@ -318,21 +318,6 @@ func (r *RoutingTable) pushPeriodically() {
 			r.updateRouting()
 		}
 	}
-}
-
-func (r *RoutingTable) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	resp, err := r.client.RequestTo(addr, req)
-	if err != nil {
-		return nil, err
-	}
-	status := resp.Status()
-	if status == protocol.StatusOK {
-		return resp, nil
-	}
-	if status == protocol.StatusErrInternalFailure {
-		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
-	}
-	return nil, neterrors.GetByCode(status)
 }
 
 func (r *RoutingTable) Start() error {

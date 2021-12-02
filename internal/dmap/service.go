@@ -29,9 +29,7 @@ import (
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
-	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/serializer"
 )
@@ -48,7 +46,6 @@ type Service struct {
 
 	log        *flog.Logger
 	config     *config.Config
-	client     *transport.Client
 	respClient *server.Client
 	respServer *server.Server
 	rt         *routingtable.RoutingTable
@@ -73,7 +70,6 @@ func NewService(e *environment.Environment) (service.Service, error) {
 	return &Service{
 		config:     e.Get("config").(*config.Config),
 		serializer: e.Get("config").(*config.Config).Serializer,
-		client:     e.Get("client").(*transport.Client),
 		respClient: e.Get("respClient").(*server.Client),
 		respServer: e.Get("respServer").(*server.Server),
 		log:        e.Get("logger").(*flog.Logger),
@@ -127,24 +123,6 @@ func (s *Service) callCompactionOnStorage(f *fragment) {
 			return
 		}
 	}
-}
-
-func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	resp, err := s.client.RequestTo(addr, req)
-	if err != nil {
-		return nil, err
-	}
-	status := resp.Status()
-	if status == protocol.StatusOK {
-		return resp, nil
-	}
-	switch resp.Status() {
-	case protocol.StatusErrInternalFailure:
-		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
-	case protocol.StatusErrInvalidArgument:
-		return nil, neterrors.Wrap(neterrors.ErrInvalidArgument, string(resp.Value()))
-	}
-	return nil, neterrors.GetByCode(status)
 }
 
 // Start starts the distributed map service.

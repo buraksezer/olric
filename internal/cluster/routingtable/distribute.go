@@ -18,8 +18,7 @@ import (
 	"errors"
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/vmihailenco/msgpack"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 )
 
 func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member {
@@ -58,22 +57,25 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 	// Prune empty nodes
 	for i := 0; i < len(owners); i++ {
 		owner := owners[i]
-		req := protocol.NewSystemMessage(protocol.OpLengthOfPart)
-		req.SetExtra(protocol.LengthOfPartExtra{PartID: partID})
-		res, err := r.requestTo(owner.String(), req)
+		cmd := resp.NewLengthOfPart(partID).Command(r.ctx)
+		rc := r.respClient.Get(owner.String())
+		err := rc.Process(r.ctx, cmd)
+		// TODO: improve logging
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to check key count on partition: %d: %v", partID, err)
-			// Pass it. If the node is gone, memberlist package will notify us.
+			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+				"partition: %d: %v", partID, err)
+			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
 		}
 
-		var count int32
-		err = msgpack.Unmarshal(res.Value(), &count)
+		count, err := cmd.Result()
 		if err != nil {
-			// This may be a temporary issue.
-			// Pass it. If the node is gone, memberlist package will notify us.
+			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+				"partition: %d: %v", partID, err)
+			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
 		}
+
 		if count == 0 {
 			// Empty partition. Delete it from ownership list.
 			owners = append(owners[:i], owners[i+1:]...)
@@ -163,25 +165,21 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 	// Prune empty nodes
 	for i := 0; i < len(owners); i++ {
 		backup := owners[i]
-		req := protocol.NewSystemMessage(protocol.OpLengthOfPart)
-		req.SetExtra(protocol.LengthOfPartExtra{
-			PartID: partID,
-			Backup: true,
-		})
-		res, err := r.requestTo(backup.String(), req)
+		cmd := resp.NewLengthOfPart(partID).SetReplica().Command(r.ctx)
+		rc := r.respClient.Get(backup.String())
+		err := rc.Process(r.ctx, cmd)
+		// TODO: improve logging
 		if err != nil {
 			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
 			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
 		}
-
-		var count int32
-		err = msgpack.Unmarshal(res.Value(), &count)
+		count, err := cmd.Result()
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to unmarshal key count "+
-				"while checking replica partition: %d: %v", partID, err)
-			// This may be a temporary event. Pass it.
+			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+				"partition: %d: %v", partID, err)
+			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
 		}
 

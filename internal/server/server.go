@@ -26,6 +26,25 @@ import (
 	"github.com/tidwall/redcon"
 )
 
+/*
+var (
+	// CommandsTotal is total number of all requests broken down by command (get, put, etc.) and status.
+	CommandsTotal = stats.NewInt64Counter()
+
+	// ConnectionsTotal is total number of connections opened since the server started running.
+	ConnectionsTotal = stats.NewInt64Counter()
+
+	// CurrentConnections is current number of open connections.
+	CurrentConnections = stats.NewInt64Gauge()
+
+	// WrittenBytesTotal is total number of bytes sent by this server to network.
+	WrittenBytesTotal = stats.NewInt64Counter()
+
+	// ReadBytesTotal is total number of bytes read by this server from network.
+	ReadBytesTotal = stats.NewInt64Counter()
+)
+*/
+
 // Config is a composite type to bundle configuration parameters.
 type Config struct {
 	BindAddr        string

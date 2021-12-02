@@ -56,7 +56,7 @@ func (m *MoveFragment) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
 	args = append(args, MoveFragmentCmd)
 	args = append(args, m.Payload)
-	return redis.NewStatusCmd(ctx, args)
+	return redis.NewStatusCmd(ctx, args...)
 }
 
 type UpdateRouting struct {
@@ -76,7 +76,7 @@ func (u *UpdateRouting) Command(ctx context.Context) *redis.StringCmd {
 	args = append(args, UpdateRoutingCmd)
 	args = append(args, u.Payload)
 	args = append(args, u.CoordinatorID)
-	return redis.NewStringCmd(ctx, args)
+	return redis.NewStringCmd(ctx, args...)
 }
 
 type LengthOfPart struct {
@@ -102,5 +102,5 @@ func (l *LengthOfPart) Command(ctx context.Context) *redis.IntCmd {
 	if l.Replica {
 		args = append(args, "RC")
 	}
-	return redis.NewIntCmd(ctx, args)
+	return redis.NewIntCmd(ctx, args...)
 }

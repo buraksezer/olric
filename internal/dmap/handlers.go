@@ -17,6 +17,17 @@ package dmap
 import "github.com/buraksezer/olric/internal/protocol/resp"
 
 func (s *Service) RegisterHandlers() {
+	/*
+		// Check bootstrapping status
+			// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this
+			// operation.
+			if r.OpCode() != protocol.OpUpdateRouting {
+				if err := db.isOperable(); err != nil {
+					neterrors.ErrorResponse(w, err)
+					return
+				}
+			}
+	*/
 	s.respServer.ServeMux().HandleFunc(resp.PutCmd, s.putCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.GetCmd, s.getCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.DelCmd, s.delCommandHandler)
