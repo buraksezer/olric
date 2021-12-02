@@ -52,9 +52,55 @@ func NewMoveFragment(payload []byte) *MoveFragment {
 	}
 }
 
-func (m *MoveFragment) Command(ctx context.Context) *redis.StringCmd {
+func (m *MoveFragment) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
 	args = append(args, MoveFragmentCmd)
 	args = append(args, m.Payload)
+	return redis.NewStatusCmd(ctx, args)
+}
+
+type UpdateRouting struct {
+	Payload       []byte
+	CoordinatorID uint64
+}
+
+func NewUpdateRouting(payload []byte, coordinatorID uint64) *UpdateRouting {
+	return &UpdateRouting{
+		Payload:       payload,
+		CoordinatorID: coordinatorID,
+	}
+}
+
+func (u *UpdateRouting) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, UpdateRoutingCmd)
+	args = append(args, u.Payload)
+	args = append(args, u.CoordinatorID)
 	return redis.NewStringCmd(ctx, args)
+}
+
+type LengthOfPart struct {
+	PartID  uint64
+	Replica bool
+}
+
+func NewLengthOfPart(partID uint64) *LengthOfPart {
+	return &LengthOfPart{
+		PartID: partID,
+	}
+}
+
+func (l *LengthOfPart) SetReplica() *LengthOfPart {
+	l.Replica = true
+	return l
+}
+
+func (l *LengthOfPart) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, LengthOfPartCmd)
+	args = append(args, l.PartID)
+	if l.Replica {
+		args = append(args, "RC")
+	}
+	return redis.NewIntCmd(ctx, args)
 }

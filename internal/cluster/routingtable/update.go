@@ -19,7 +19,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/vmihailenco/msgpack"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -47,20 +47,20 @@ func (r *RoutingTable) prepareLeftOverDataReport() ([]byte, error) {
 }
 
 func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.Member) (*leftOverDataReport, error) {
-	req := protocol.NewSystemMessage(protocol.OpUpdateRouting)
-	req.SetValue(data)
-	req.SetExtra(protocol.UpdateRoutingExtra{
-		CoordinatorID: r.this.ID,
-	})
-	// TODO: This blocks whole flow. Use timeout for smooth operation.
-	resp, err := r.requestTo(member.String(), req)
+	cmd := resp.NewUpdateRouting(data, r.this.ID).Command(r.ctx)
+	rc := r.respClient.Get(member.String())
+	err := rc.Process(r.ctx, cmd)
 	if err != nil {
-		r.log.V(3).Printf("[ERROR] Failed to update routing table on %s: %v", member, err)
+		return nil, err
+	}
+
+	result, err := cmd.Bytes()
+	if err != nil {
 		return nil, err
 	}
 
 	report := leftOverDataReport{}
-	err = msgpack.Unmarshal(resp.Value(), &report)
+	err = msgpack.Unmarshal(result, &report)
 	if err != nil {
 		r.log.V(3).Printf("[ERROR] Failed to call decode ownership report from %s: %v", member, err)
 		return nil, err

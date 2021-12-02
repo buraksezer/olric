@@ -21,6 +21,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/buraksezer/olric/internal/server"
+
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/checkpoint"
@@ -67,6 +69,8 @@ type RoutingTable struct {
 	primary          *partitions.Partitions
 	backup           *partitions.Partitions
 	client           *transport.Client
+	respClient       *server.Client
+	respServer       *server.Server
 	discovery        *discovery.Discovery
 	callbacks        []func()
 	callbackMtx      sync.Mutex
@@ -97,6 +101,8 @@ func New(e *environment.Environment) *RoutingTable {
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
 		client:     e.Get("client").(*transport.Client),
+		respClient: e.Get("respClient").(*server.Client),
+		respServer: e.Get("respServer").(*server.Server),
 		pushPeriod: c.RoutingTablePushInterval,
 		ctx:        ctx,
 		cancel:     cancel,
@@ -211,8 +217,7 @@ func (r *RoutingTable) UpdateEagerly() {
 }
 
 func (r *RoutingTable) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
-	operations[protocol.OpUpdateRouting] = r.updateRoutingOperation
-	operations[protocol.OpLengthOfPart] = r.lengthOfPartOperation
+	// TODO: DELETE THIS!
 }
 
 func (r *RoutingTable) updateRouting() {

@@ -15,8 +15,10 @@
 package resp
 
 import (
+	"fmt"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
+	"strconv"
 )
 
 func ParsePingCommand(cmd redcon.Command) (*Ping, error) {
@@ -29,4 +31,46 @@ func ParsePingCommand(cmd redcon.Command) (*Ping, error) {
 		p.SetMessage(util.BytesToString(cmd.Args[1]))
 	}
 	return p, nil
+}
+
+func ParseMoveFragmentCommand(cmd redcon.Command) (*MoveFragment, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewMoveFragment(cmd.Args[1]), nil
+}
+
+func ParseUpdateRoutingCommand(cmd redcon.Command) (*UpdateRouting, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+	coordinatorID, err := strconv.ParseUint(util.BytesToString(cmd.Args[2]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewUpdateRouting(cmd.Args[1], coordinatorID), nil
+}
+
+func ParseLengthOfPartCommand(cmd redcon.Command) (*LengthOfPart, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+	partID, err := strconv.ParseUint(util.BytesToString(cmd.Args[1]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	l := NewLengthOfPart(partID)
+	if len(cmd.Args) == 3 {
+		arg := util.BytesToString(cmd.Args[2])
+		if arg == "RC" {
+			l.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return l, nil
 }
