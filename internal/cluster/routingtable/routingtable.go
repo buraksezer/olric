@@ -89,7 +89,8 @@ func New(e *environment.Environment) *RoutingTable {
 		ReplicationFactor: 20, // TODO: This also may be a configuration param.
 		Load:              c.LoadFactor,
 	}
-	return &RoutingTable{
+
+	rt := &RoutingTable{
 		members:    newMembers(),
 		discovery:  discovery.New(log, c),
 		config:     c,
@@ -103,6 +104,9 @@ func New(e *environment.Environment) *RoutingTable {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+
+	rt.RegisterHandlers()
+	return rt
 }
 
 func (r *RoutingTable) Discovery() *discovery.Discovery {

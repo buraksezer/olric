@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/server"
 	"net"
 	"strconv"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/mockfragment"
 	"github.com/buraksezer/olric/internal/transport"
@@ -52,25 +52,17 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 	return e
 }
 
-func newBalancerForTest(e *environment.Environment, srv *transport.Server) *Balancer {
+func newBalancerForTest(e *environment.Environment) *Balancer {
 	rt := routingtable.New(e)
-	if srv != nil {
-		ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
-		rt.RegisterOperations(ops)
-
-		requestDispatcher := func(w, r protocol.EncodeDecoder) {
-			f := ops[r.OpCode()]
-			f(w, r)
+	srv := e.Get("respServer").(*server.Server)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil {
+			panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
 		}
-		srv.SetDispatcher(requestDispatcher)
-		go func() {
-			err := srv.ListenAndServe()
-			if err != nil {
-				panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
-			}
-		}()
-		<-srv.StartedCtx.Done()
-	}
+	}()
+	<-srv.StartedCtx.Done()
+
 	e.Set("routingtable", rt)
 	b := New(e)
 	return b
@@ -113,8 +105,9 @@ func (mc *mockCluster) addNode(e *environment.Environment) *Balancer {
 	}
 	c.Peers = peers
 
-	srv := testutil.NewTransportServer(c)
-	b := newBalancerForTest(e, srv)
+	srv := testutil.NewServer(c)
+	e.Set("respServer", srv)
+	b := newBalancerForTest(e)
 
 	err = b.Start()
 	if err != nil {

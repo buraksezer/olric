@@ -27,11 +27,10 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
-	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
-	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/internal/transport"
+	"github.com/go-redis/redis/v8"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -54,22 +53,17 @@ func NewEnvironment(c *config.Config) *environment.Environment {
 	e := environment.New()
 	e.Set("config", c)
 	e.Set("logger", testutil.NewFlogger(c))
-	e.Set("client", transport.NewClient(c.Client))
+	e.Set("respClient", server.NewClient(&redis.Options{})) // TODO: Add redis options
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("locker", locker.New())
+	e.Set("respServer", testutil.NewServer(c))
 	return e
 }
 
 func (t *TestCluster) newService(e *environment.Environment) service.Service {
-	c := e.Get("config").(*config.Config)
-	srv := testutil.NewTransportServer(c)
-
 	rt := routingtable.New(e)
 	e.Set("routingtable", rt)
-
-	ss := streams.New(e)
-	e.Set("streams", ss)
 
 	b := balancer.New(e)
 	e.Set("balancer", b)
@@ -78,14 +72,7 @@ func (t *TestCluster) newService(e *environment.Environment) service.Service {
 		return b.Shutdown(context.Background())
 	})
 
-	ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
-	rt.RegisterOperations(ops)
-
-	requestDispatcher := func(w, r protocol.EncodeDecoder) {
-		f := ops[r.OpCode()]
-		f(w, r)
-	}
-	srv.SetDispatcher(requestDispatcher)
+	srv := e.Get("respServer").(*server.Server)
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil {
@@ -173,12 +160,6 @@ func (t *TestCluster) AddMember(e *environment.Environment) service.Service {
 	t.errGr.Go(func() error {
 		<-t.ctx.Done()
 		return s.Shutdown(context.Background())
-	})
-
-	t.errGr.Go(func() error {
-		<-t.ctx.Done()
-		ss, _ := e.Get("streams").(*streams.Streams)
-		return ss.Shutdown(context.Background())
 	})
 
 	t.environments = append(t.environments, e)

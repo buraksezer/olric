@@ -241,8 +241,6 @@ func (db *Olric) registerCommandHandlers() {
 	//
 	db.dmap.RegisterHandlers()
 
-	db.rt.RegisterHandlers()
-
 	db.respServer.ServeMux().HandleFunc(resp.PingCmd, db.pingCommandHandler)
 }
 
