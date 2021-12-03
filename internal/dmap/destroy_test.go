@@ -15,8 +15,6 @@
 package dmap
 
 import (
-	"bytes"
-	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testcluster"
@@ -91,7 +89,7 @@ func TestDMap_Destroy_Cluster(t *testing.T) {
 	}
 }
 
-func TestDMap_Destroy_destroyOperation(t *testing.T) {
+/*func TestDMap_Destroy_destroyOperation(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
@@ -120,4 +118,4 @@ func TestDMap_Destroy_destroyOperation(t *testing.T) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
 	}
-}
+}*/

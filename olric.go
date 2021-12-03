@@ -237,10 +237,6 @@ func New(c *config.Config) (*Olric, error) {
 }
 
 func (db *Olric) registerCommandHandlers() {
-	// Commands on DMap data structure
-	//
-	db.dmap.RegisterHandlers()
-
 	db.respServer.ServeMux().HandleFunc(resp.PingCmd, db.pingCommandHandler)
 }
 

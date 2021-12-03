@@ -67,7 +67,7 @@ func (s *Service) RegisterOperations(_ map[protocol.OpCode]func(w protocol.Encod
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{
+	s := &Service{
 		config:     e.Get("config").(*config.Config),
 		serializer: e.Get("config").(*config.Config).Serializer,
 		respClient: e.Get("respClient").(*server.Client),
@@ -85,7 +85,9 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		ctx:        ctx,
 		cancel:     cancel,
-	}, nil
+	}
+	s.RegisterHandlers()
+	return s, nil
 }
 
 func (s *Service) isAlive() bool {

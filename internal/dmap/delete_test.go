@@ -15,7 +15,6 @@
 package dmap
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -25,7 +24,6 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/kvstore"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -192,7 +190,7 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	}
 }
 
-func TestDMap_Delete_PreviousOwner(t *testing.T) {
+/*func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -219,7 +217,7 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	if err != ErrKeyNotFound {
 		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 	}
-}
+}*/
 
 func TestDMap_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	cluster := testcluster.New(NewService)

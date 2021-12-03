@@ -25,7 +25,6 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/pkg/flog"
 )
@@ -227,7 +226,7 @@ func (b *Balancer) Start() error {
 	return nil
 }
 
-func (b *Balancer) RegisterOperations(_ map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {}
+func (b *Balancer) RegisterHandlers() {}
 
 func (b *Balancer) Shutdown(ctx context.Context) error {
 	select {
