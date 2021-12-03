@@ -121,12 +121,12 @@ func ParseGetCommand(cmd redcon.Command) (*Get, error) {
 	), nil
 }
 
-func ParsePutReplicaCommand(cmd redcon.Command) (*PutReplica, error) {
+func ParsePutReplicaCommand(cmd redcon.Command) (*PutEntry, error) {
 	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return NewPutReplica(
+	return NewPutEntry(
 		util.BytesToString(cmd.Args[1]),
 		util.BytesToString(cmd.Args[2]),
 		cmd.Args[3],

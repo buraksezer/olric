@@ -264,7 +264,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			f.Unlock()
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
-			cmd := resp.NewPutReplica(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
+			cmd := resp.NewPutEntry(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
 			rc := dm.s.respClient.Get(version.host.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {

@@ -108,7 +108,7 @@ func (dm *DMap) asyncPutOnBackup(e *env, data []byte, owner discovery.Member) {
 	defer dm.s.wg.Done()
 
 	rc := dm.s.respClient.Get(owner.String())
-	cmd := resp.NewPutReplica(e.dmap, e.key, data).Command(dm.s.ctx)
+	cmd := resp.NewPutEntry(e.dmap, e.key, data).Command(dm.s.ctx)
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		if dm.s.log.V(3).Ok() {
@@ -156,7 +156,7 @@ func (dm *DMap) syncPutOnCluster(e *env) error {
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
 		rc := dm.s.respClient.Get(owner.String())
-		cmd := resp.NewPutReplica(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
+		cmd := resp.NewPutEntry(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
 			return err

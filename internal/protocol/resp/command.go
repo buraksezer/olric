@@ -18,7 +18,7 @@ const (
 	GetCmd           = "dm.get"
 	GetEntryCmd      = "dm.getentry"
 	PutCmd           = "dm.put"
-	PutReplicaCmd    = "dm.putreplica"
+	PutEntryCmd      = "dm.putentry"
 	DelCmd           = "dm.del"
 	DelEntryCmd      = "dm.delentry"
 	ExpireCmd        = "dm.expire"

@@ -46,7 +46,7 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		resp.WriteError(conn, err)
 		return
 	}
-	dm, err := s.getOrCreateDMap(getEntryCmd.Get.DMap)
+	dm, err := s.getOrCreateDMap(getEntryCmd.DMap)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
@@ -58,8 +58,9 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 	e := &env{
 		kind: kind,
-		dmap: getEntryCmd.Get.DMap,
-		key:  getEntryCmd.Get.Key,
+		hkey: partitions.HKey(getEntryCmd.DMap, getEntryCmd.Key),
+		dmap: getEntryCmd.DMap,
+		key:  getEntryCmd.Key,
 	}
 
 	nt, err := dm.getOnFragment(e)

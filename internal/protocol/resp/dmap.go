@@ -108,23 +108,23 @@ func (p *Put) Command(ctx context.Context) *redis.StatusCmd {
 	return redis.NewStatusCmd(ctx, args...)
 }
 
-type PutReplica struct {
+type PutEntry struct {
 	DMap  string
 	Key   string
 	Value []byte
 }
 
-func NewPutReplica(dmap, key string, value []byte) *PutReplica {
-	return &PutReplica{
+func NewPutEntry(dmap, key string, value []byte) *PutEntry {
+	return &PutEntry{
 		DMap:  dmap,
 		Key:   key,
 		Value: value,
 	}
 }
 
-func (p *PutReplica) Command(ctx context.Context) *redis.StatusCmd {
+func (p *PutEntry) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, PutReplicaCmd)
+	args = append(args, PutEntryCmd)
 	args = append(args, p.DMap)
 	args = append(args, p.Key)
 	args = append(args, p.Value)
@@ -152,13 +152,15 @@ func (g *Get) Command(ctx context.Context) *redis.StringCmd {
 }
 
 type GetEntry struct {
-	Get     *Get
+	DMap    string
+	Key     string
 	Replica bool
 }
 
 func NewGetEntry(dmap, key string) *GetEntry {
 	return &GetEntry{
-		Get: NewGet(dmap, key),
+		DMap: dmap,
+		Key:  key,
 	}
 }
 
@@ -169,9 +171,9 @@ func (g *GetEntry) SetReplica() *GetEntry {
 
 func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, GetCmd)
-	args = append(args, g.Get.DMap)
-	args = append(args, g.Get.Key)
+	args = append(args, GetEntryCmd)
+	args = append(args, g.DMap)
+	args = append(args, g.Key)
 	if g.Replica {
 		args = append(args, "RC")
 	}
@@ -369,7 +371,7 @@ func NewGetPut(dmap, key string, value []byte) *GetPut {
 
 func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, IncrCmd)
+	args = append(args, GetPutCmd)
 	args = append(args, g.DMap)
 	args = append(args, g.Key)
 	args = append(args, g.Value)
