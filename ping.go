@@ -15,14 +15,9 @@
 package olric
 
 import (
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/tidwall/redcon"
 )
-
-func (db *Olric) pingOperation(w, _ protocol.EncodeDecoder) {
-	w.SetStatus(protocol.StatusOK)
-}
 
 // Ping sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.

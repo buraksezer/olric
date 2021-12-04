@@ -15,14 +15,39 @@
 package resp
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
+var errSomethingWentWrong = errors.New("something went wrong")
+
 func TestProtocol_errWrongNumber(t *testing.T) {
-	/*getCmd := Get(context.Background(), "my-dmap", "my-key")
+	getCmd := NewGet("my-dmap", "my-key").Command(context.Background())
 	cmd := stringToCommand(getCmd.String())
 
 	err := errWrongNumber(cmd.Args)
-	require.Equal(t, "ERR wrong number of arguments for 'dm.get my-dmap my-key' command", err.Error())
-	*/
+	require.Equal(t, "wrong number of arguments for 'dm.get my-dmap my-key' command", err.Error())
+}
+
+func TestProtocol_GetPrefix(t *testing.T) {
+	SetError("WRONG", errSomethingWentWrong)
+	prefix := GetPrefix(errSomethingWentWrong)
+	require.Equal(t, "WRONG", prefix)
+}
+
+func TestProtocol_GetError(t *testing.T) {
+	SetError("WRONG", errSomethingWentWrong)
+	err := GetError("WRONG")
+	require.ErrorIs(t, err, errSomethingWentWrong)
+}
+
+func TestProtocol_ConvertError(t *testing.T) {
+	SetError("WRONG", errSomethingWentWrong)
+	err := fmt.Errorf("WRONG %s", errSomethingWentWrong.Error())
+	cerr := ConvertError(err)
+	require.ErrorIs(t, cerr, errSomethingWentWrong)
 }

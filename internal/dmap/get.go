@@ -334,16 +334,16 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	}
 
 	// Redirect to the partition owner
-	rc := dm.s.respClient.Get(member.String())
 	cmd := resp.NewGetEntry(dm.name, key).Command(dm.s.ctx)
+	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return nil, err
+		return nil, resp.ConvertError(err)
 	}
 
 	value, err := cmd.Bytes()
 	if err != nil {
-		return nil, err
+		return nil, resp.ConvertError(err)
 	}
 
 	// number of keys that have been requested and found present

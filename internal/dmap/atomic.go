@@ -15,14 +15,31 @@
 package dmap
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 )
+
+func valueToInt(delta interface{}) (int, error) {
+	switch value := delta.(type) {
+	case int:
+		return value, nil
+	case int8:
+		return int(value), nil
+	case int16:
+		return int(value), nil
+	case int32:
+		return int(value), nil
+	case int64:
+		return int(value), nil
+	default:
+		return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(delta))
+	}
+}
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	entry, err := dm.get(e.key)
@@ -32,7 +49,16 @@ func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(binary.BigEndian.Uint64(entry.Value())), nil
+
+	var current int
+	if entry != nil {
+		var value interface{}
+		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
+			return 0, err
+		}
+		return valueToInt(value)
+	}
+	return current, nil
 }
 
 func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
@@ -60,8 +86,10 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 		return 0, fmt.Errorf("invalid operation")
 	}
 
-	val := make([]byte, 8)
-	binary.BigEndian.PutUint64(val, uint64(updated))
+	val, err := dm.s.serializer.Marshal(updated)
+	if err != nil {
+		return 0, err
+	}
 
 	e.value = val
 	err = dm.put(e)
@@ -134,6 +162,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 		return nil, err
 	}
 	e := &env{
+		putConfig: &putConfig{},
 		dmap:      dm.name,
 		key:       key,
 		value:     val,

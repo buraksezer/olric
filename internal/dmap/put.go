@@ -159,9 +159,9 @@ func (dm *DMap) syncPutOnCluster(e *env) error {
 		cmd := resp.NewPutEntry(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
-			return err
+			return resp.ConvertError(err)
 		}
-		err = cmd.Err()
+		err = resp.ConvertError(cmd.Err())
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
 				dm.s.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, e.dmap, err)

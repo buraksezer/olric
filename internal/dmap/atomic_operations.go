@@ -67,7 +67,7 @@ func (s *Service) decrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	conn.WriteInt(latest)
 }
 
-func (s *Service) getputCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	getPutCmd, err := resp.ParseGetPutCommand(cmd)
 	if err != nil {
 		resp.WriteError(conn, err)

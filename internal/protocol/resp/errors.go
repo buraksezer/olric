@@ -15,14 +15,83 @@
 package resp
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/tidwall/redcon"
 )
 
+var GenericError = "ERR"
+
+var errorWithPrefix = struct {
+	mtx    sync.RWMutex
+	prefix map[string]error
+	err    map[error]string
+}{
+	prefix: make(map[string]error),
+	err:    make(map[error]string),
+}
+
+func init() {
+	SetError("INVALIDARGUMENT", ErrInvalidArgument)
+}
+
+func SetError(prefix string, err error) {
+	errorWithPrefix.mtx.Lock()
+	defer errorWithPrefix.mtx.Unlock()
+
+	e, ok := errorWithPrefix.prefix[prefix]
+	if ok && e != err {
+		panic(fmt.Sprintf("prefix collision: %s: %v != %v", prefix, err, e))
+	}
+	errorWithPrefix.err[err] = prefix
+	errorWithPrefix.prefix[prefix] = err
+}
+
+func GetError(prefix string) error {
+	errorWithPrefix.mtx.RLock()
+	defer errorWithPrefix.mtx.RUnlock()
+
+	return errorWithPrefix.prefix[prefix]
+}
+
+func getPrefix(err error) string {
+	prefix, ok := errorWithPrefix.err[err]
+	if !ok {
+		return GenericError
+	}
+	return prefix
+}
+
+func GetPrefix(err error) string {
+	errorWithPrefix.mtx.RLock()
+	defer errorWithPrefix.mtx.RUnlock()
+
+	prefix := getPrefix(err)
+	if prefix == GenericError {
+		return getPrefix(errors.Unwrap(err))
+	}
+	return prefix
+}
+
+func ConvertError(err error) error {
+	parsed := strings.SplitN(err.Error(), " ", 2)
+	if perr := GetError(parsed[0]); perr != nil {
+		return perr
+	}
+
+	if len(parsed) > 1 {
+		return fmt.Errorf("%s", parsed[1])
+	}
+
+	return err
+}
+
 func WriteError(conn redcon.Conn, err error) {
-	conn.WriteError(fmt.Sprintf("ERR %s", err.Error()))
+	prefix := GetPrefix(err)
+	conn.WriteError(fmt.Sprintf("%s %s", prefix, err.Error()))
 }
 
 func errWrongNumber(args [][]byte) error {

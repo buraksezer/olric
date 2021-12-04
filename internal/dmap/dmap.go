@@ -19,15 +19,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
-
-// pool is good for recycling memory while reading messages from the socket.
-var bufferPool = bufpool.New()
 
 const nilTimeout = 0 * time.Second
 

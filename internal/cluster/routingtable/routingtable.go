@@ -17,6 +17,7 @@ package routingtable
 import (
 	"context"
 	"errors"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -77,6 +78,13 @@ type RoutingTable struct {
 	wg               sync.WaitGroup
 }
 
+func registerErrors() {
+	resp.SetError("CLUSTERQUORUM", ErrClusterQuorum)
+	resp.SetError("CLUSTERJOIN", ErrClusterJoin)
+	resp.SetError("SERVERGONE", ErrServerGone)
+	resp.SetError("OPERATIONTIMEOUT", ErrOperationTimeout)
+}
+
 func New(e *environment.Environment) *RoutingTable {
 	checkpoint.Add()
 	c := e.Get("config").(*config.Config)
@@ -104,7 +112,7 @@ func New(e *environment.Environment) *RoutingTable {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
-
+	registerErrors()
 	rt.RegisterHandlers()
 	return rt
 }
@@ -214,10 +222,6 @@ func (r *RoutingTable) fillRoutingTable() {
 
 func (r *RoutingTable) UpdateEagerly() {
 	r.updateRouting()
-}
-
-func (r *RoutingTable) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
-	// TODO: DELETE THIS!
 }
 
 func (r *RoutingTable) updateRouting() {

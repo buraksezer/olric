@@ -16,11 +16,11 @@ package routingtable
 
 import (
 	"fmt"
-	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/tidwall/redcon"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/cespare/xxhash"
+	"github.com/tidwall/redcon"
 	"github.com/vmihailenco/msgpack"
 )
 

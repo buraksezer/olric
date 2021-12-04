@@ -39,7 +39,7 @@ func (s *Service) RegisterHandlers() {
 	s.respServer.ServeMux().HandleFunc(resp.QueryCmd, s.queryCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.IncrCmd, s.incrCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.DecrCmd, s.decrCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.GetPutCmd, s.getputCommandHandler)
+	s.respServer.ServeMux().HandleFunc(resp.GetPutCmd, s.getPutCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.LockCmd, s.lockCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.UnlockCmd, s.unlockCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.LockLeaseCmd, s.lockLeaseCommandHandler)

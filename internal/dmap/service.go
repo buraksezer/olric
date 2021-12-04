@@ -17,10 +17,9 @@ package dmap
 import (
 	"context"
 	"errors"
-	"sync"
-	"time"
-
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/server"
+	"sync"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -61,8 +60,16 @@ type Service struct {
 	cancel     context.CancelFunc
 }
 
-func (s *Service) RegisterOperations(_ map[protocol.OpCode]func(w protocol.EncodeDecoder, r protocol.EncodeDecoder)) {
-	// TODO: DELETE THIS
+func registerErrors() {
+	resp.SetError("NOSUCHLOCK", ErrNoSuchLock)
+	resp.SetError("LOCKNOTACQUIRED", ErrLockNotAcquired)
+	resp.SetError("READQUORUM", ErrReadQuorum)
+	resp.SetError("WRITEQUORUM", ErrWriteQuorum)
+	resp.SetError("ENDOFQUERY", ErrEndOfQuery)
+	resp.SetError("DMAPNOTFOUND", ErrDMapNotFound)
+	resp.SetError("KEYTOOLARGE", ErrKeyTooLarge)
+	resp.SetError("KEYNOTFOUND", ErrKeyNotFound)
+	resp.SetError("KEYFOUND", ErrKeyFound)
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {
@@ -86,6 +93,7 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+	registerErrors()
 	s.RegisterHandlers()
 	return s, nil
 }
@@ -98,33 +106,6 @@ func (s *Service) isAlive() bool {
 	default:
 	}
 	return true
-}
-
-func (s *Service) callCompactionOnStorage(f *fragment) {
-	defer s.wg.Done()
-	timer := time.NewTimer(50 * time.Millisecond)
-	defer timer.Stop()
-
-	for {
-		timer.Reset(50 * time.Millisecond)
-		select {
-		case <-timer.C:
-			f.Lock()
-			// Compaction returns false if the fragment is closed.
-			done, err := f.Compaction()
-			if err != nil {
-				s.log.V(3).Printf("[ERROR] Failed to run compaction on fragment: %v", err)
-			}
-			if done {
-				// Fragmented tables are merged. Quit.
-				f.Unlock()
-				return
-			}
-			f.Unlock()
-		case <-s.ctx.Done():
-			return
-		}
-	}
 }
 
 // Start starts the distributed map service.
