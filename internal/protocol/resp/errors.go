@@ -77,6 +77,10 @@ func GetPrefix(err error) string {
 }
 
 func ConvertError(err error) error {
+	if err == nil {
+		return nil
+	}
+
 	parsed := strings.SplitN(err.Error(), " ", 2)
 	if perr := GetError(parsed[0]); perr != nil {
 		return perr

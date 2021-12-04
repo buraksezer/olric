@@ -22,10 +22,8 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/stats"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/go-redis/redis/v8"
 )
@@ -40,9 +38,9 @@ const (
 var EntriesTotal = stats.NewInt64Counter()
 
 var (
-	ErrKeyFound    = neterrors.New(protocol.StatusErrKeyFound, "key found")
-	ErrWriteQuorum = neterrors.New(protocol.StatusErrWriteQuorum, "write quorum cannot be reached")
-	ErrKeyTooLarge = neterrors.New(protocol.StatusErrKeyTooLarge, "key too large")
+	ErrKeyFound    = errors.New("key found")
+	ErrWriteQuorum = errors.New("write quorum cannot be reached")
+	ErrKeyTooLarge = errors.New("key too large")
 )
 
 func prepareTTL(c *putConfig) int64 {

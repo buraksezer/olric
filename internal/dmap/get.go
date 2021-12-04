@@ -21,10 +21,8 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/stats"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -47,7 +45,7 @@ var (
 	EvictedTotal = stats.NewInt64Counter()
 )
 
-var ErrReadQuorum = neterrors.New(protocol.StatusErrReadQuorum, "read quorum cannot be reached")
+var ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 type version struct {
 	host  *discovery.Member
@@ -69,6 +67,9 @@ func (dm *DMap) unmarshalValue(raw []byte) (interface{}, error) {
 func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 	part := dm.getPartitionByHKey(e.hkey, e.kind)
 	f, err := dm.loadFragment(part)
+	if err == errFragmentNotFound {
+		err = ErrKeyNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +78,12 @@ func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 	defer f.RUnlock()
 
 	entry, err := f.storage.Get(e.hkey)
+	switch err {
+	case storage.ErrKeyNotFound:
+		err = ErrKeyNotFound
+	case storage.ErrKeyTooLarge:
+		err = ErrKeyTooLarge
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +99,11 @@ func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*ver
 	rc := dm.s.respClient.Get(owner.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return nil, err
+		return nil, resp.ConvertError(err)
 	}
 	value, err := cmd.Bytes()
 	if err != nil {
-		return nil, err
+		return nil, resp.ConvertError(err)
 	}
 
 	v := &version{host: owner}

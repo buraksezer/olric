@@ -84,9 +84,10 @@ func (s *Service) putReplicaCommandHandler(conn redcon.Conn, cmd redcon.Command)
 	}
 
 	e := &env{
-		dmap:  putReplicaCmd.DMap,
-		key:   putReplicaCmd.Key,
-		value: putReplicaCmd.Value,
+		putConfig: &putConfig{},
+		dmap:      putReplicaCmd.DMap,
+		key:       putReplicaCmd.Key,
+		value:     putReplicaCmd.Value,
 	}
 	err = dm.putOnReplicaFragment(e)
 	if err != nil {

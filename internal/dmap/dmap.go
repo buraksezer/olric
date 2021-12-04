@@ -20,8 +20,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -29,7 +27,7 @@ const nilTimeout = 0 * time.Second
 
 var (
 	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound  = neterrors.New(protocol.StatusErrKeyNotFound, "key not found")
+	ErrKeyNotFound  = errors.New("key not found")
 	ErrDMapNotFound = errors.New("dmap not found")
 	ErrServerGone   = errors.New("server is gone")
 )

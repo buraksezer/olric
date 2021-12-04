@@ -42,7 +42,7 @@ func TestServer_Client_Get(t *testing.T) {
 	rc := cs.Get(addr)
 
 	ctx := context.Background()
-	cmd := resp.Ping(ctx)
+	cmd := resp.NewPing().Command(ctx)
 	err := rc.Process(ctx, cmd)
 	require.NoError(t, err)
 
