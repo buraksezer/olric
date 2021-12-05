@@ -15,8 +15,10 @@
 package dmap
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"testing"
 	"time"
 
@@ -190,7 +192,7 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	}
 }
 
-/*func TestDMap_Delete_PreviousOwner(t *testing.T) {
+func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -203,21 +205,15 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	req := protocol.NewDMapMessage(protocol.OpDelete)
-	req.SetBuffer(new(bytes.Buffer))
-	req.SetDMap("mydmap")
-	req.SetKey("mykey")
-	resp := req.Response(nil)
-	s.deletePrevOperation(resp, req)
-	if resp.Status() != protocol.StatusOK {
-		t.Fatalf("Expected StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status())
-	}
+	cmd := resp.NewDelEntry("mydmap", "mykey").Command(context.Background())
+	rc := s.respClient.Get(s.rt.This().String())
+	err = rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+	require.NoError(t, cmd.Err())
 
 	_, err = dm.Get("mykey")
-	if err != ErrKeyNotFound {
-		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-	}
-}*/
+	require.Equal(t, err, ErrKeyNotFound)
+}
 
 func TestDMap_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	cluster := testcluster.New(NewService)
