@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testcluster"
@@ -89,13 +91,13 @@ func TestDMap_Destroy_Cluster(t *testing.T) {
 	}
 }
 
-/*func TestDMap_Destroy_destroyOperation(t *testing.T) {
+func TestDMap_Destroy_destroyOperation(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	cluster.AddMember(nil)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
+	dm, err := s.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -105,17 +107,14 @@ func TestDMap_Destroy_Cluster(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-
-	r := protocol.NewDMapMessage(protocol.OpDestroy)
-	r.SetBuffer(bytes.NewBuffer(nil))
-	r.SetDMap("mymap")
-	w := r.Response(nil)
-	s.destroyOperation(w, r)
+	cmd := resp.NewDestroy("mydmap").Command(s.ctx)
+	rc := s.respClient.Get(s.rt.This().String())
+	err = rc.Process(s.ctx, cmd)
+	require.NoError(t, err)
+	require.NoError(t, cmd.Err())
 
 	for i := 0; i < 100; i++ {
 		_, err = dm.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
-}*/
+}

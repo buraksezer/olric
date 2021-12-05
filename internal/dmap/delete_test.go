@@ -212,7 +212,7 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	require.NoError(t, cmd.Err())
 
 	_, err = dm.Get("mykey")
-	require.Equal(t, err, ErrKeyNotFound)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestDMap_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {

@@ -43,17 +43,19 @@ var (
 	ErrKeyTooLarge = errors.New("key too large")
 )
 
-func prepareTTL(c *putConfig) int64 {
+func prepareTTL(e *env) int64 {
 	var ttl int64
 	switch {
-	case c.HasEX:
-		ttl = (c.EX.Nanoseconds() + time.Now().UnixNano()) / 1000000
-	case c.HasPX:
-		ttl = (c.PX.Nanoseconds() + time.Now().UnixNano()) / 1000000
-	case c.HasEXAT:
-		ttl = c.EXAT.Nanoseconds() / 1000000
-	case c.HasPXAT:
-		ttl = c.PXAT.Nanoseconds() / 1000000
+	case e.putConfig.HasEX:
+		ttl = (e.putConfig.EX.Nanoseconds() + time.Now().UnixNano()) / 1000000
+	case e.putConfig.HasPX:
+		ttl = (e.putConfig.PX.Nanoseconds() + time.Now().UnixNano()) / 1000000
+	case e.putConfig.HasEXAT:
+		ttl = e.putConfig.EXAT.Nanoseconds() / 1000000
+	case e.putConfig.HasPXAT:
+		ttl = e.putConfig.PXAT.Nanoseconds() / 1000000
+	default:
+		ttl = (e.timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
 	}
 	return ttl
 }
@@ -78,7 +80,7 @@ func (dm *DMap) prepareEntry(e *env) storage.Entry {
 	nt := e.fragment.storage.NewEntry()
 	nt.SetKey(e.key)
 	nt.SetValue(e.value)
-	nt.SetTTL(prepareTTL(e.putConfig))
+	nt.SetTTL(prepareTTL(e))
 	nt.SetTimestamp(e.timestamp)
 	return nt
 }

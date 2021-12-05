@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testcluster"
@@ -25,12 +26,7 @@ func TestDMap_Name(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	if dm.Name() != "mymap" {
-		t.Fatalf("Expected DMap name is mymap. Got: %s", dm.Name())
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+	require.Equal(t, "mydmap", dm.Name())
 }
