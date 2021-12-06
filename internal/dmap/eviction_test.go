@@ -100,7 +100,7 @@ func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
-		MaxIdleDuration: time.Duration(0.1 * float64(time.Second)),
+		MaxIdleDuration: 100 * time.Millisecond,
 		Engine:          config.NewEngine(),
 	}
 	require.NoError(t, c.DMaps.Engine.Sanitize())
@@ -117,7 +117,7 @@ func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	<-time.After(100 * time.Millisecond)
+	<-time.After(150 * time.Millisecond)
 	for i := 0; i < 100; i++ {
 		s.evictKeys()
 	}

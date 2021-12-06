@@ -115,13 +115,24 @@ func ParseGetCommand(cmd redcon.Command) (*Get, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return NewGet(
+	g := NewGet(
 		util.BytesToString(cmd.Args[1]),
 		util.BytesToString(cmd.Args[2]),
-	), nil
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RW" {
+			g.SetRaw()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return g, nil
 }
 
-func ParsePutReplicaCommand(cmd redcon.Command) (*PutEntry, error) {
+func ParsePutEntryCommand(cmd redcon.Command) (*PutEntry, error) {
 	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)
 	}

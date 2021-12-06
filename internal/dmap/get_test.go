@@ -17,13 +17,11 @@ package dmap
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"testing"
-	"time"
-
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"testing"
+	"time"
 )
 
 func TestDMap_Get_Cluster(t *testing.T) {
@@ -87,7 +85,6 @@ func TestDMap_Get_Lookup(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		val, err := dm3.Get(testutil.ToKey(i))
 		if err != nil {
-			fmt.Println(testutil.ToKey(i))
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
@@ -262,7 +259,7 @@ func TestDMap_GetEntry_Cluster(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	for i := 0; i < 10; i++ {
-		err = dm.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Hour)
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i), EX(time.Hour))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -271,17 +268,17 @@ func TestDMap_GetEntry_Cluster(t *testing.T) {
 	// Call DMap.GetEntry
 	for i := 0; i < 10; i++ {
 		key := testutil.ToKey(i)
-		entry, err := dm.GetEntry(key)
+		e, err := dm.GetEntry(key)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v for %s", err, key)
 		}
-		if !bytes.Equal(entry.Value.([]byte), testutil.ToVal(i)) {
+		if !bytes.Equal(e.Value.([]byte), testutil.ToVal(i)) {
 			t.Fatalf("Different value retrieved for %s", testutil.ToKey(i))
 		}
-		if entry.TTL == 0 {
+		if e.TTL == 0 {
 			t.Fatalf("TTL is empty")
 		}
-		if entry.Timestamp == 0 {
+		if e.Timestamp == 0 {
 			t.Fatalf("Timestamp is zero")
 		}
 	}

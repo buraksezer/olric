@@ -41,10 +41,11 @@ func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	e := &env{
-		dmap:    expireCmd.DMap,
-		key:     expireCmd.Key,
-		timeout: time.Duration(expireCmd.Timeout * float64(time.Second)),
-		kind:    kind,
+		putConfig: &putConfig{},
+		dmap:      expireCmd.DMap,
+		key:       expireCmd.Key,
+		timeout:   time.Duration(expireCmd.Timeout * float64(time.Second)),
+		kind:      kind,
 	}
 
 	if expireCmd.Replica {

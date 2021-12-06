@@ -15,7 +15,6 @@
 package routingtable
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 
@@ -52,7 +51,6 @@ func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.
 	rc := r.respClient.Get(member.String())
 	err := rc.Process(r.ctx, cmd)
 	if err != nil {
-		fmt.Println("process", err)
 		return nil, err
 	}
 
@@ -94,7 +92,6 @@ func (r *RoutingTable) updateRoutingTableOnCluster() (map[discovery.Member]*left
 
 			report, err := r.updateRoutingTableOnMember(data, member)
 			if err != nil {
-				fmt.Println("burda", err)
 				return err
 			}
 

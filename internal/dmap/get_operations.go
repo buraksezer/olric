@@ -37,6 +37,11 @@ func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		resp.WriteError(conn, err)
 		return
 	}
+
+	if getCmd.Raw {
+		conn.WriteBulk(raw.Encode())
+		return
+	}
 	conn.WriteBulk(raw.Value())
 }
 

@@ -18,25 +18,24 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 )
 
-// TODO: too dirty. clean that struct
 type env struct {
-	putCmd         *resp.Put
-	putConfig      *putConfig
-	hkey           uint64
-	timestamp      int64
-	flags          int16
-	opcode         protocol.OpCode
-	replicaOpcode  protocol.OpCode
-	command        string
-	replicaCommand string
-	dmap           string
-	key            string
-	value          []byte
-	timeout        time.Duration
-	kind           partitions.Kind
-	fragment       *fragment
+	putConfig *putConfig
+	hkey      uint64
+	timestamp int64
+	dmap      string
+	key       string
+	value     []byte
+	timeout   time.Duration
+	kind      partitions.Kind
+	fragment  *fragment
+}
+
+func newEnv() *env {
+	return &env{
+		putConfig: &putConfig{},
+		timestamp: time.Now().UnixNano(),
+		kind:      partitions.PRIMARY,
+	}
 }

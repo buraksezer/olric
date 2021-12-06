@@ -134,6 +134,7 @@ func (p *PutEntry) Command(ctx context.Context) *redis.StatusCmd {
 type Get struct {
 	DMap string
 	Key  string
+	Raw  bool
 }
 
 func NewGet(dmap, key string) *Get {
@@ -143,11 +144,19 @@ func NewGet(dmap, key string) *Get {
 	}
 }
 
+func (g *Get) SetRaw() *Get {
+	g.Raw = true
+	return g
+}
+
 func (g *Get) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
 	args = append(args, GetCmd)
 	args = append(args, g.DMap)
 	args = append(args, g.Key)
+	if g.Raw {
+		args = append(args, "RW")
+	}
 	return redis.NewStringCmd(ctx, args...)
 }
 

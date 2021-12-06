@@ -56,7 +56,6 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 	e := &env{
 		putConfig: &pc,
-		putCmd:    putCmd, // this is good if we want to reconstruct the protocol message
 		kind:      partitions.PRIMARY,
 		dmap:      dm.name,
 		key:       putCmd.Key,
@@ -70,14 +69,14 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	conn.WriteString(resp.StatusOK)
 }
 
-func (s *Service) putReplicaCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	putReplicaCmd, err := resp.ParsePutReplicaCommand(cmd)
+func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	putEntryCmd, err := resp.ParsePutEntryCommand(cmd)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
 
-	dm, err := s.getOrCreateDMap(putReplicaCmd.DMap)
+	dm, err := s.getOrCreateDMap(putEntryCmd.DMap)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
@@ -85,9 +84,10 @@ func (s *Service) putReplicaCommandHandler(conn redcon.Conn, cmd redcon.Command)
 
 	e := &env{
 		putConfig: &putConfig{},
-		dmap:      putReplicaCmd.DMap,
-		key:       putReplicaCmd.Key,
-		value:     putReplicaCmd.Value,
+		hkey:      partitions.HKey(putEntryCmd.DMap, putEntryCmd.Key),
+		dmap:      putEntryCmd.DMap,
+		key:       putEntryCmd.Key,
+		value:     putEntryCmd.Value,
 	}
 	err = dm.putOnReplicaFragment(e)
 	if err != nil {

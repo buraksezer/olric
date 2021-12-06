@@ -55,7 +55,10 @@ func prepareTTL(e *env) int64 {
 	case e.putConfig.HasPXAT:
 		ttl = e.putConfig.PXAT.Nanoseconds() / 1000000
 	default:
-		ttl = (e.timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
+		ns := e.timeout.Nanoseconds()
+		if ns != 0 {
+			ttl = (ns + time.Now().UnixNano()) / 1000000
+		}
 	}
 	return ttl
 }
@@ -101,7 +104,18 @@ func (dm *DMap) putOnReplicaFragment(e *env) error {
 	f.Lock()
 	defer f.Unlock()
 
-	return dm.putEntryOnFragment(e, dm.prepareEntry(e))
+	err = f.storage.PutRaw(e.hkey, e.value)
+	if errors.Is(err, storage.ErrKeyTooLarge) {
+		err = ErrKeyTooLarge
+	}
+	if err != nil {
+		return err
+	}
+
+	// total number of entries stored during the life of this instance.
+	EntriesTotal.Increase(1)
+
+	return nil
 }
 
 func (dm *DMap) asyncPutOnBackup(e *env, data []byte, owner discovery.Member) {
@@ -417,13 +431,11 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 	for _, opt := range options {
 		opt(&pc)
 	}
-	e := &env{
-		putConfig: &pc,
-		kind:      partitions.PRIMARY,
-		dmap:      dm.name,
-		key:       key,
-		value:     val,
-	}
+	e := newEnv()
+	e.putConfig = &pc
+	e.dmap = dm.name
+	e.key = key
+	e.value = val
 	return dm.put(e)
 }
 

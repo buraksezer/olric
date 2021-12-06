@@ -215,20 +215,22 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		cmd := resp.NewGetEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
 		rc := dm.s.respClient.Get(host.String())
 		err := rc.Process(dm.s.ctx, cmd)
+		err = resp.ConvertError(err)
 		if err != nil {
 			if dm.s.log.V(6).Ok() {
 				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
-					" a replica owner: %s: %v", replica, err)
+					" a replica owner: %s: %v", host, err)
 			}
 			continue
 		}
 
 		value, err := cmd.Bytes()
+		err = resp.ConvertError(err)
 		if err != nil {
 			// TODO: Improve logging
 			if dm.s.log.V(6).Ok() {
 				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
-					" a replica owner: %s: %v", replica, err)
+					" a replica owner: %s: %v", host, err)
 			}
 		}
 
@@ -341,7 +343,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	}
 
 	// Redirect to the partition owner
-	cmd := resp.NewGetEntry(dm.name, key).Command(dm.s.ctx)
+	cmd := resp.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
@@ -376,18 +378,18 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 // does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
 func (dm *DMap) GetEntry(key string) (*Entry, error) {
-	entry, err := dm.get(key)
+	e, err := dm.get(key)
 	if err != nil {
 		return nil, err
 	}
-	value, err := dm.unmarshalValue(entry.Value())
+	value, err := dm.unmarshalValue(e.Value())
 	if err != nil {
 		return nil, err
 	}
 	return &Entry{
-		Key:       entry.Key(),
+		Key:       e.Key(),
 		Value:     value,
-		TTL:       entry.TTL(),
-		Timestamp: entry.Timestamp(),
+		TTL:       e.TTL(),
+		Timestamp: e.Timestamp(),
 	}, nil
 }

@@ -32,7 +32,7 @@ func TestDMap_Put_Standalone(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
+	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -56,7 +56,7 @@ func TestDMap_Put_Cluster(t *testing.T) {
 	s2 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm1, err := s1.NewDMap("mymap")
+	dm1, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -64,7 +64,7 @@ func TestDMap_Put_Cluster(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	dm2, err := s2.NewDMap("mymap")
+	dm2, err := s2.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -91,7 +91,7 @@ func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
 	s2 := cluster.AddMember(e2).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("mymap")
+	dm, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -102,7 +102,7 @@ func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
 	// Wait some time for async replication
 	<-time.After(100 * time.Millisecond)
 
-	dm2, err := s2.NewDMap("mymap")
+	dm2, err := s2.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -121,7 +121,7 @@ func TestDMap_Put_PX(t *testing.T) {
 	s2 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm1, err := s1.NewDMap("mymap")
+	dm1, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -131,7 +131,7 @@ func TestDMap_Put_PX(t *testing.T) {
 
 	<-time.After(10 * time.Millisecond)
 
-	dm2, err := s2.NewDMap("mymap")
+	dm2, err := s2.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -153,7 +153,7 @@ func TestDMap_Put_WriteQuorum(t *testing.T) {
 	defer cluster.Shutdown()
 
 	var hit bool
-	dm, err := s1.NewDMap("mymap")
+	dm, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -179,7 +179,7 @@ func TestDMap_Put_NX(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
+	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -210,7 +210,7 @@ func TestDMap_Put_XX(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
+	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
