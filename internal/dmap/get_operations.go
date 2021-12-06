@@ -61,13 +61,12 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	if getEntryCmd.Replica {
 		kind = partitions.BACKUP
 	}
-	e := &env{
-		kind: kind,
-		hkey: partitions.HKey(getEntryCmd.DMap, getEntryCmd.Key),
-		dmap: getEntryCmd.DMap,
-		key:  getEntryCmd.Key,
-	}
 
+	e := newEnv()
+	e.dmap = getEntryCmd.DMap
+	e.key = getEntryCmd.Key
+	e.hkey = partitions.HKey(getEntryCmd.DMap, getEntryCmd.Key)
+	e.kind = kind
 	nt, err := dm.getOnFragment(e)
 	// TODO: errFragmentNotFound??
 	if err != nil {

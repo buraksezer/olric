@@ -54,13 +54,11 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	for _, opt := range options {
 		opt(&pc)
 	}
-	e := &env{
-		putConfig: &pc,
-		kind:      partitions.PRIMARY,
-		dmap:      dm.name,
-		key:       putCmd.Key,
-		value:     putCmd.Value,
-	}
+	e := newEnv()
+	e.putConfig = &pc
+	e.dmap = putCmd.DMap
+	e.key = putCmd.Key
+	e.value = putCmd.Value
 	err = dm.put(e)
 	if err != nil {
 		resp.WriteError(conn, err)
@@ -82,13 +80,11 @@ func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	e := &env{
-		putConfig: &putConfig{},
-		hkey:      partitions.HKey(putEntryCmd.DMap, putEntryCmd.Key),
-		dmap:      putEntryCmd.DMap,
-		key:       putEntryCmd.Key,
-		value:     putEntryCmd.Value,
-	}
+	e := newEnv()
+	e.hkey = partitions.HKey(putEntryCmd.DMap, putEntryCmd.Key)
+	e.dmap = putEntryCmd.DMap
+	e.key = putEntryCmd.Key
+	e.value = putEntryCmd.Value
 	err = dm.putOnReplicaFragment(e)
 	if err != nil {
 		resp.WriteError(conn, err)

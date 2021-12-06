@@ -15,9 +15,6 @@
 package dmap
 
 import (
-	"time"
-
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/tidwall/redcon"
 )
@@ -28,14 +25,9 @@ func (s *Service) incrDecrCommon(cmd, dmap, key string, delta int) (int, error) 
 		return 0, err
 	}
 
-	e := &env{
-		putConfig: &putConfig{},
-		dmap:      dmap,
-		key:       key,
-		timestamp: time.Now().UnixNano(),
-		kind:      partitions.PRIMARY,
-	}
-
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
 	return dm.atomicIncrDecr(cmd, e, delta)
 }
 
@@ -79,15 +71,10 @@ func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	e := &env{
-		putConfig: &putConfig{},
-		dmap:      getPutCmd.DMap,
-		key:       getPutCmd.Key,
-		value:     getPutCmd.Value,
-		timestamp: time.Now().UnixNano(),
-		kind:      partitions.PRIMARY,
-	}
-
+	e := newEnv()
+	e.dmap = getPutCmd.DMap
+	e.key = getPutCmd.Key
+	e.value = getPutCmd.Value
 	old, err := dm.getPut(e)
 	if err != nil {
 		resp.WriteError(conn, err)

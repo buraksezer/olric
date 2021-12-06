@@ -262,10 +262,9 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			}
 
 			f.Lock()
-			e := &env{
-				hkey:     hkey,
-				fragment: f,
-			}
+			e := newEnv()
+			e.hkey = hkey
+			e.fragment = f
 			err = dm.putEntryOnFragment(e, winner.entry)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)

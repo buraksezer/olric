@@ -168,12 +168,11 @@ func (dm *DMap) lockKey(key string, timeout, deadline time.Duration) (*LockConte
 		opt(&pc)
 	}
 
-	e := &env{
-		putConfig: &pc,
-		dmap:      dm.name,
-		key:       key,
-		value:     token,
-	}
+	e := newEnv()
+	e.putConfig = &pc
+	e.dmap = dm.name
+	e.key = key
+	e.value = token
 	err = dm.tryLock(e, deadline)
 	if err != nil {
 		return nil, err

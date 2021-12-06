@@ -58,11 +58,11 @@ func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) 
 		rc := dm.s.respClient.Get(owner.String())
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
-			return err
+			return resp.ConvertError(err)
 		}
 		err = cmd.Err()
 		if err != nil {
-			return err
+			return resp.ConvertError(err)
 		}
 	}
 	return nil
@@ -74,13 +74,15 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 	for _, owner := range owners {
 		mem := owner
 		g.Go(func() error {
-			cmd := resp.NewDelEntry(dm.name, key).Command(dm.s.ctx)
+			cmd := resp.NewDelEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
 			rc := dm.s.respClient.Get(mem.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to delete replica key/value on %s: %s", dm.name, err)
+				return resp.ConvertError(err)
 			}
-			return err
+			// TODO: Improve logging
+			return resp.ConvertError(cmd.Err())
 		})
 	}
 	return g.Wait()
@@ -143,9 +145,9 @@ func (dm *DMap) deleteKey(key string) error {
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return err
+		return resp.ConvertError(err)
 	}
-	return cmd.Err()
+	return resp.ConvertError(cmd.Err())
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

@@ -40,13 +40,11 @@ func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		kind = partitions.BACKUP
 	}
 
-	e := &env{
-		putConfig: &putConfig{},
-		dmap:      expireCmd.DMap,
-		key:       expireCmd.Key,
-		timeout:   time.Duration(expireCmd.Timeout * float64(time.Second)),
-		kind:      kind,
-	}
+	e := newEnv()
+	e.dmap = expireCmd.DMap
+	e.key = expireCmd.Key
+	e.timeout = time.Duration(expireCmd.Timeout * float64(time.Second))
+	e.kind = kind
 
 	if expireCmd.Replica {
 		err = dm.localExpireOnReplica(e)

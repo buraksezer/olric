@@ -17,11 +17,8 @@ package dmap
 import (
 	"errors"
 	"fmt"
-	"reflect"
-	"time"
-
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol/resp"
+	"reflect"
 )
 
 func valueToInt(delta interface{}) (int, error) {
@@ -102,25 +99,17 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (dm *DMap) Incr(key string, delta int) (int, error) {
-	e := &env{
-		putConfig: &putConfig{},
-		dmap:      dm.name,
-		key:       key,
-		timestamp: time.Now().UnixNano(),
-		kind:      partitions.PRIMARY,
-	}
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
 	return dm.atomicIncrDecr(resp.IncrCmd, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (dm *DMap) Decr(key string, delta int) (int, error) {
-	e := &env{
-		putConfig: &putConfig{},
-		dmap:      dm.name,
-		key:       key,
-		timestamp: time.Now().UnixNano(),
-		kind:      partitions.PRIMARY,
-	}
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
 	return dm.atomicIncrDecr(resp.DecrCmd, e, delta)
 }
 
@@ -161,13 +150,10 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &env{
-		putConfig: &putConfig{},
-		dmap:      dm.name,
-		key:       key,
-		value:     val,
-		timestamp: time.Now().UnixNano(),
-	}
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
+	e.value = val
 	raw, err := dm.getPut(e)
 	if err != nil {
 		return nil, err
