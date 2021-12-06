@@ -22,6 +22,7 @@ const (
 	DelCmd           = "dm.del"
 	DelEntryCmd      = "dm.delentry"
 	ExpireCmd        = "dm.expire"
+	PExpireCmd       = "dm.pexpire"
 	DestroyCmd       = "dm.destroy"
 	QueryCmd         = "dm.query"
 	IncrCmd          = "dm.incr"

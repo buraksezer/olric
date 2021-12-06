@@ -35,6 +35,7 @@ func (s *Service) RegisterHandlers() {
 	s.respServer.ServeMux().HandleFunc(resp.GetEntryCmd, s.getEntryCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.PutEntryCmd, s.putEntryCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.ExpireCmd, s.expireCommandHandler)
+	s.respServer.ServeMux().HandleFunc(resp.PExpireCmd, s.pexpireCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.DestroyCmd, s.destroyCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.QueryCmd, s.queryCommandHandler)
 	s.respServer.ServeMux().HandleFunc(resp.IncrCmd, s.incrCommandHandler)

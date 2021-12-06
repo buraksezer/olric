@@ -16,6 +16,7 @@ package resp
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -235,36 +236,50 @@ func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
-type Expire struct {
-	DMap    string
-	Key     string
-	Timeout float64
-	Replica bool
+type PExpire struct {
+	DMap         string
+	Key          string
+	Milliseconds time.Duration
 }
 
-func NewExpire(dmap, key string, timeout float64) *Expire {
-	return &Expire{
-		DMap:    dmap,
-		Key:     key,
-		Timeout: timeout,
+func NewPExpire(dmap, key string, milliseconds time.Duration) *PExpire {
+	return &PExpire{
+		DMap:         dmap,
+		Key:          key,
+		Milliseconds: milliseconds,
 	}
 }
 
-func (e *Expire) SetReplica() *Expire {
-	e.Replica = true
-	return e
+func (p *PExpire) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PExpireCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Milliseconds.Milliseconds())
+	return redis.NewStatusCmd(ctx, args...)
 }
 
-func (e *Expire) Command(ctx context.Context) *redis.BoolCmd {
+type Expire struct {
+	DMap    string
+	Key     string
+	Seconds time.Duration
+}
+
+func NewExpire(dmap, key string, seconds time.Duration) *Expire {
+	return &Expire{
+		DMap:    dmap,
+		Key:     key,
+		Seconds: seconds,
+	}
+}
+
+func (e *Expire) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
 	args = append(args, ExpireCmd)
 	args = append(args, e.DMap)
 	args = append(args, e.Key)
-	args = append(args, e.Timeout)
-	if e.Replica {
-		args = append(args, "RC")
-	}
-	return redis.NewBoolCmd(ctx, args...)
+	args = append(args, e.Seconds.Seconds())
+	return redis.NewStatusCmd(ctx, args...)
 }
 
 type Destroy struct {

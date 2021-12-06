@@ -15,9 +15,6 @@
 package dmap
 
 import (
-	"time"
-
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/tidwall/redcon"
 )
@@ -35,26 +32,49 @@ func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	var kind = partitions.PRIMARY
-	if expireCmd.Replica {
-		kind = partitions.BACKUP
+	pc := &putConfig{
+		OnlyUpdateTTL: true,
 	}
 
 	e := newEnv()
+	e.putConfig = pc
 	e.dmap = expireCmd.DMap
 	e.key = expireCmd.Key
-	e.timeout = time.Duration(expireCmd.Timeout * float64(time.Second))
-	e.kind = kind
-
-	if expireCmd.Replica {
-		err = dm.localExpireOnReplica(e)
-	} else {
-		err = dm.expire(e)
+	e.timeout = expireCmd.Seconds
+	err = dm.put(e)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
 	}
+	conn.WriteString(resp.StatusOK)
+}
+
+func (s *Service) pexpireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	pexpireCmd, err := resp.ParsePExpireCommand(cmd)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
 
-	conn.WriteInt(1)
+	dm, err := s.getOrCreateDMap(pexpireCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	pc := &putConfig{
+		OnlyUpdateTTL: true,
+	}
+
+	e := newEnv()
+	e.putConfig = pc
+	e.dmap = pexpireCmd.DMap
+	e.key = pexpireCmd.Key
+	e.timeout = pexpireCmd.Milliseconds
+	err = dm.put(e)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(resp.StatusOK)
 }

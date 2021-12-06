@@ -225,10 +225,10 @@ func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error 
 	}
 
 	// update
-	err = dm.Expire(key, timeout)
+	/*err = dm.Expire(key, timeout)
 	if err != nil {
 		return fmt.Errorf("lease failed: %w", err)
-	}
+	}*/
 	return nil
 }
 

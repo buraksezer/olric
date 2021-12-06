@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
@@ -188,21 +189,29 @@ func ParseExpireCommand(cmd redcon.Command) (*Expire, error) {
 		return nil, err
 	}
 	e := NewExpire(
-		util.BytesToString(cmd.Args[1]),
-		util.BytesToString(cmd.Args[2]),
-		seconds,
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		time.Duration(seconds*float64(time.Second)),
 	)
+	return e, nil
+}
 
-	if len(cmd.Args) == 5 {
-		arg := util.BytesToString(cmd.Args[4])
-		if arg == "RC" {
-			e.SetReplica()
-		} else {
-			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
-		}
+func ParsePExpireCommand(cmd redcon.Command) (*PExpire, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return e, nil
+	rawMilliseconds := util.BytesToString(cmd.Args[3])
+	milliseconds, err := strconv.ParseInt(rawMilliseconds, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	p := NewPExpire(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		time.Duration(milliseconds*int64(time.Millisecond)),
+	)
+	return p, nil
 }
 
 func ParseDestroyCommand(cmd redcon.Command) (*Destroy, error) {

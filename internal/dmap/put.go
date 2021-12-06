@@ -65,6 +65,16 @@ func prepareTTL(e *env) int64 {
 
 // putOnFragment calls underlying storage engine's Put method to store the key/value pair. It's not thread-safe.
 func (dm *DMap) putEntryOnFragment(e *env, nt storage.Entry) error {
+	if e.putConfig.OnlyUpdateTTL {
+		err := e.fragment.storage.UpdateTTL(e.hkey, nt)
+		if err != nil {
+			if errors.Is(err, storage.ErrKeyNotFound) {
+				err = ErrKeyNotFound
+			}
+			return err
+		}
+		return nil
+	}
 	err := e.fragment.storage.Put(e.hkey, nt)
 	if errors.Is(err, storage.ErrKeyTooLarge) {
 		err = ErrKeyTooLarge
@@ -364,16 +374,17 @@ func (dm *DMap) put(e *env) error {
 }
 
 type putConfig struct {
-	HasEX   bool
-	EX      time.Duration
-	HasPX   bool
-	PX      time.Duration
-	HasEXAT bool
-	EXAT    time.Duration
-	HasPXAT bool
-	PXAT    time.Duration
-	HasNX   bool
-	HasXX   bool
+	HasEX         bool
+	EX            time.Duration
+	HasPX         bool
+	PX            time.Duration
+	HasEXAT       bool
+	EXAT          time.Duration
+	HasPXAT       bool
+	PXAT          time.Duration
+	HasNX         bool
+	HasXX         bool
+	OnlyUpdateTTL bool
 }
 
 type PutOption func(*putConfig)
@@ -427,6 +438,7 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(val)
 	var pc putConfig
 	for _, opt := range options {
 		opt(&pc)
