@@ -92,9 +92,9 @@ func (dm *DMap) unlock(key string, token []byte) error {
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return err
+		return resp.ConvertError(err)
 	}
-	return cmd.Err()
+	return resp.ConvertError(cmd.Err())
 }
 
 // Unlock releases the lock.
@@ -225,10 +225,10 @@ func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error 
 	}
 
 	// update
-	/*err = dm.Expire(key, timeout)
+	err = dm.Expire(key, timeout)
 	if err != nil {
 		return fmt.Errorf("lease failed: %w", err)
-	}*/
+	}
 	return nil
 }
 
@@ -245,9 +245,9 @@ func (dm *DMap) lease(key string, token []byte, timeout time.Duration) error {
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return err
+		return resp.ConvertError(err)
 	}
-	return cmd.Err()
+	return resp.ConvertError(cmd.Err())
 }
 
 // Lease takes the duration to update the expiry for the given Lock.

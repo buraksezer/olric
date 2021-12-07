@@ -17,8 +17,6 @@ package dmap
 import (
 	"context"
 	"errors"
-	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/internal/server"
 	"sync"
 
 	"github.com/buraksezer/olric/config"
@@ -27,6 +25,8 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/storage"

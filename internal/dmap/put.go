@@ -368,9 +368,9 @@ func (dm *DMap) put(e *env) error {
 	rc := dm.s.respClient.Get(member.String())
 	err = rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return err
+		return resp.ConvertError(err)
 	}
-	return cmd.Err()
+	return resp.ConvertError(cmd.Err())
 }
 
 type putConfig struct {
