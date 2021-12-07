@@ -18,22 +18,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/server"
 	"net"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/discovery"
-
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/mockfragment"
-	"github.com/buraksezer/olric/internal/transport"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,7 +47,7 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-	e.Set("client", transport.NewClient(c.Client))
+	e.Set("respClient", server.NewClient(&redis.Options{}))
 	return e
 }
 
