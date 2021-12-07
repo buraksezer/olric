@@ -438,7 +438,6 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(val)
 	var pc putConfig
 	for _, opt := range options {
 		opt(&pc)

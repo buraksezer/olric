@@ -90,6 +90,9 @@ type Engine interface {
 	// Range implements a loop over the storage engine
 	Range(func(uint64, Entry) bool)
 
+	// RangeHKey implements a loop for hashed keys(HKeys).
+	RangeHKey(func(uint64) bool)
+
 	// RegexMatchOnKeys runs a regular expression over keys and loops over the result.
 	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
 

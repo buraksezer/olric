@@ -253,6 +253,7 @@ func (t *Table) Get(hkey uint64) (storage.Entry, error) {
 	offset += 8
 
 	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+
 	// Update the last access field
 	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
 	offset += 8
@@ -349,6 +350,14 @@ func (t *Table) Range(f func(hkey uint64, e storage.Entry) bool) {
 		}
 
 		if !f(hkey, e) {
+			break
+		}
+	}
+}
+
+func (t *Table) RangeHKey(f func(hkey uint64) bool) {
+	for hkey := range t.hkeys {
+		if !f(hkey) {
 			break
 		}
 	}

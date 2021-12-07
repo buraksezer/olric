@@ -366,6 +366,20 @@ func (k *KVStore) Range(f func(hkey uint64, e storage.Entry) bool) {
 	}
 }
 
+// RangeHKey calls f sequentially for each key present in the map.
+// If f returns false, range stops the iteration. Range may be O(N) with
+// the number of elements in the map even if f returns false after a constant
+// number of calls.
+func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
+	// Scan available tables by starting the last added table.
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		t.RangeHKey(func(hkey uint64) bool {
+			return f(hkey)
+		})
+	}
+}
+
 // RegexMatchOnKeys calls a regular expression on keys and provides an iterator.
 func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.Entry) bool) error {
 	if len(k.tables) == 0 {
