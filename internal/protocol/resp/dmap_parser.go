@@ -381,3 +381,21 @@ func ParseLockLeaseCommand(cmd redcon.Command) (*LockLease, error) {
 		timeout,                         // Timeout
 	), nil
 }
+
+func ParsePLockLeaseCommand(cmd redcon.Command) (*PLockLease, error) {
+	if len(cmd.Args) < 5 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	timeout, err := strconv.ParseInt(util.BytesToString(cmd.Args[4]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewPLockLease(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		util.BytesToString(cmd.Args[3]), // Token
+		timeout,                         // Timeout
+	), nil
+}

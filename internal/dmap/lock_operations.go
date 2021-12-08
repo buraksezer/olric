@@ -34,7 +34,6 @@ func (s *Service) unlockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		resp.WriteError(conn, err)
 		return
 	}
-
 	token, err := hex.DecodeString(unlockCmd.Token)
 	if err != nil {
 		resp.WriteError(conn, err)
@@ -101,6 +100,33 @@ func (s *Service) lockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) 
 		return
 	}
 	err = dm.lease(lockLeaseCmd.Key, token, timeout)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(resp.StatusOK)
+}
+
+func (s *Service) plockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	plockLeaseCmd, err := resp.ParsePLockLeaseCommand(cmd)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(plockLeaseCmd.DMap)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+
+	timeout := time.Duration(plockLeaseCmd.Timeout * int64(time.Millisecond))
+	token, err := hex.DecodeString(plockLeaseCmd.Token)
+	if err != nil {
+		resp.WriteError(conn, err)
+		return
+	}
+	err = dm.lease(plockLeaseCmd.Key, token, timeout)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return

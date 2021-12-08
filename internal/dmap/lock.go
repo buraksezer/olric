@@ -205,6 +205,16 @@ func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
 
 // leaseKey tries to update the expiry of the key by verifying token.
 func (dm *DMap) leaseKey(key string, token []byte, timeout time.Duration) error {
+	lkey := dm.name + key
+	// Only one unlockKey should work for a given key.
+	dm.s.locker.Lock(lkey)
+	defer func() {
+		err := dm.s.locker.Unlock(lkey)
+		if err != nil {
+			dm.s.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", key, dm.name, err)
+		}
+	}()
+
 	// get the key to check its value
 	entry, err := dm.get(key)
 	if errors.Is(err, ErrKeyNotFound) {

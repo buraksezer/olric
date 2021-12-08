@@ -31,6 +31,8 @@ const (
 	LockCmd          = "dm.lock"
 	UnlockCmd        = "dm.unlock"
 	LockLeaseCmd     = "dm.locklease"
+	PLockLeaseCmd    = "dm.plocklease"
+	ScanCmd          = "dm.scan"
 	PingCmd          = "ping"
 	MoveFragmentCmd  = "olric.internal.movefragment"
 	UpdateRoutingCmd = "olric.internal.updaterouting"

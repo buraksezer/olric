@@ -501,3 +501,29 @@ func (l *LockLease) Command(ctx context.Context) *redis.StatusCmd {
 	args = append(args, l.Timeout)
 	return redis.NewStatusCmd(ctx, args...)
 }
+
+type PLockLease struct {
+	DMap    string
+	Key     string
+	Token   string
+	Timeout int64
+}
+
+func NewPLockLease(dmap, key, token string, timeout int64) *PLockLease {
+	return &PLockLease{
+		DMap:    dmap,
+		Key:     key,
+		Token:   token,
+		Timeout: timeout,
+	}
+}
+
+func (p *PLockLease) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PLockLeaseCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Token)
+	args = append(args, p.Timeout)
+	return redis.NewStatusCmd(ctx, args...)
+}
