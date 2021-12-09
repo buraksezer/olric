@@ -28,6 +28,7 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/tidwall/redcon"
 	"net"
 	"strconv"
 	"strings"
@@ -223,6 +224,8 @@ func New(c *config.Config) (*Olric, error) {
 		BindPort: c.BindPort,
 	}
 	respServer := server.New(rc, flogger)
+	respServer.SetPreConditionFunc(db.preconditionFunc)
+
 	db.respServer = respServer
 	e.Set("respServer", respServer)
 
@@ -234,6 +237,15 @@ func New(c *config.Config) (*Olric, error) {
 	db.registerCommandHandlers()
 
 	return db, nil
+}
+
+func (db *Olric) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
+	err := db.isOperable()
+	if err != nil {
+		resp.WriteError(conn, err)
+		return false
+	}
+	return true
 }
 
 func (db *Olric) registerCommandHandlers() {

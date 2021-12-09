@@ -16,11 +16,11 @@ package server
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"net"
 	"strconv"
 	"testing"
 
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"
 )

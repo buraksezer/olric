@@ -16,7 +16,6 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
 	"log"
 	"net"
 	"os"
@@ -24,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
@@ -49,7 +47,7 @@ func getFreePort() (int, error) {
 	return port, nil
 }
 
-func newServer(t *testing.T) *Server {
+func newServerWithPreConditionFunc(t *testing.T, precond func(conn redcon.Conn, cmd redcon.Command) bool) *Server {
 	bindPort, err := getFreePort()
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
@@ -65,6 +63,7 @@ func newServer(t *testing.T) *Server {
 		KeepAlivePeriod: time.Second,
 	}
 	s := New(c, fl)
+	s.SetPreConditionFunc(precond)
 
 	go func() {
 		err := s.ListenAndServe()
@@ -83,6 +82,10 @@ func newServer(t *testing.T) *Server {
 	return s
 }
 
+func newServer(t *testing.T) *Server {
+	return newServerWithPreConditionFunc(t, nil)
+}
+
 func defaultRedisOptions(c *Config) *redis.Options {
 	return &redis.Options{
 		Addr: net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort)),
@@ -94,25 +97,5 @@ func TestServer_RESP(t *testing.T) {
 	defer func() {
 		require.NoError(t, s.Shutdown(context.Background()))
 	}()
-
-	data := make([]byte, 8)
-	_, err := rand.Read(data)
-	require.NoError(t, err)
-
-	s.ServeMux().HandleFunc(resp.GetCmd, func(conn redcon.Conn, cmd redcon.Command) {
-		conn.WriteBulk(data)
-	})
-
-	<-s.StartedCtx.Done()
-
-	rdb := redis.NewClient(defaultRedisOptions(s.config))
-
-	ctx := context.Background()
-	cmd := resp.Get(ctx, "mydmap", "mykey")
-	err = rdb.Process(ctx, cmd)
-	require.NoError(t, err)
-
-	result, err := cmd.Bytes()
-	require.NoError(t, err)
-	require.Equal(t, data, result)
+	respEcho(t, s)
 }

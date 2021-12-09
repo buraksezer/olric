@@ -55,6 +55,7 @@ type Config struct {
 type Server struct {
 	config     *Config
 	mux        *redcon.ServeMux
+	wmux       *ServeMuxWrapper
 	server     *redcon.Server
 	log        *flog.Logger
 	listener   net.Listener
@@ -83,12 +84,22 @@ func New(c *Config, l *flog.Logger) *Server {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
-
+	s.wmux = &ServeMuxWrapper{mux: s.mux}
 	return s
 }
 
-func (s *Server) ServeMux() *redcon.ServeMux {
-	return s.mux
+func (s *Server) SetPreConditionFunc(f func(conn redcon.Conn, cmd redcon.Command) bool) {
+	select {
+	case <-s.StartedCtx.Done():
+		// It's already started.
+		return
+	default:
+	}
+	s.wmux.precond = f
+}
+
+func (s *Server) ServeMux() *ServeMuxWrapper {
+	return s.wmux
 }
 
 // ListenAndServe listens on the TCP network address addr.

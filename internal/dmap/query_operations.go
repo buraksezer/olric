@@ -54,6 +54,7 @@ func (s *Service) queryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	if err == ErrDMapNotFound {
 		// No need to create a new DMap here.
 		conn.WriteString(resp.StatusOK)
+		return
 	}
 	if err != nil {
 		resp.WriteError(conn, err)
