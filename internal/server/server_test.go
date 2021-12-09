@@ -99,3 +99,17 @@ func TestServer_RESP(t *testing.T) {
 	}()
 	respEcho(t, s)
 }
+
+func TestServer_RESP_Stats(t *testing.T) {
+	s := newServer(t)
+	defer func() {
+		require.NoError(t, s.Shutdown(context.Background()))
+	}()
+	respEcho(t, s)
+
+	require.NotEqual(t, int64(0), CommandsTotal.Read())
+	require.NotEqual(t, int64(0), ConnectionsTotal.Read())
+	require.NotEqual(t, int64(0), CurrentConnections.Read())
+	require.NotEqual(t, int64(0), WrittenBytesTotal.Read())
+	require.NotEqual(t, int64(0), ReadBytesTotal.Read())
+}

@@ -38,6 +38,8 @@ type Handler struct {
 
 // ServeRESP calls f(w, r)
 func (h Handler) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
+	CommandsTotal.Increase(1)
+
 	if len(cmd.Args) == 0 {
 		// A client may form a bad message, prevent panicking.
 		h.handler(conn, cmd)

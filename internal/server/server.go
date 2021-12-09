@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/checkpoint"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/tidwall/redcon"
 )
 
-/*
 var (
 	// CommandsTotal is total number of all requests broken down by command (get, put, etc.) and status.
 	CommandsTotal = stats.NewInt64Counter()
@@ -43,7 +43,6 @@ var (
 	// ReadBytesTotal is total number of bytes read by this server from network.
 	ReadBytesTotal = stats.NewInt64Counter()
 )
-*/
 
 // Config is a composite type to bundle configuration parameters.
 type Config struct {
@@ -52,13 +51,49 @@ type Config struct {
 	KeepAlivePeriod time.Duration
 }
 
+type ConnWrapper struct {
+	net.Conn
+}
+
+func (cw *ConnWrapper) Write(b []byte) (n int, err error) {
+	nr, err := cw.Conn.Write(b)
+	if err != nil {
+		return 0, err
+	}
+
+	WrittenBytesTotal.Increase(int64(nr))
+	return nr, nil
+}
+
+func (cw *ConnWrapper) Read(b []byte) (n int, err error) {
+	nr, err := cw.Conn.Read(b)
+	if err != nil {
+		return 0, err
+	}
+
+	ReadBytesTotal.Increase(int64(nr))
+	return nr, nil
+}
+
+type ListenerWrapper struct {
+	net.Listener
+}
+
+func (lw *ListenerWrapper) Accept() (net.Conn, error) {
+	conn, err := lw.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return &ConnWrapper{conn}, nil
+}
+
 type Server struct {
 	config     *Config
 	mux        *redcon.ServeMux
 	wmux       *ServeMuxWrapper
 	server     *redcon.Server
 	log        *flog.Logger
-	listener   net.Listener
+	listener   *ListenerWrapper
 	StartedCtx context.Context
 	started    context.CancelFunc
 	ctx        context.Context
@@ -110,24 +145,25 @@ func (s *Server) ListenAndServe() error {
 		return err
 	}
 
+	lw := &ListenerWrapper{l}
+
 	defer close(s.stopped)
-	s.listener = l
+	s.listener = lw
 
 	srv := redcon.NewServer(addr,
 		s.mux.ServeRESP,
 		func(conn redcon.Conn) bool {
-			// use this function to accept or deny the connection.
-			// log.Printf("accept: %s", conn.RemoteAddr())
+			ConnectionsTotal.Increase(1)
+			CurrentConnections.Increase(1)
 			return true
 		},
 		func(conn redcon.Conn, err error) {
-			// this is called when the connection has been closed
-			// log.Printf("closed: %s, err: %v", conn.RemoteAddr(), err)
+			CurrentConnections.Increase(-1)
 		},
 	)
 	s.server = srv
 	s.started()
-	return s.server.Serve(s.listener)
+	return s.server.Serve(lw)
 }
 
 // Shutdown gracefully shuts down the server without interrupting any active connections.
