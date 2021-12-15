@@ -340,6 +340,46 @@ func (q *Query) Command(ctx context.Context) *redis.StringCmd {
 	return redis.NewStringCmd(ctx, args...)
 }
 
+type Scan struct {
+	DMap   string
+	Cursor uint64
+	Count  int
+	Match  string
+}
+
+func NewScan(dmap string, cursor uint64) *Scan {
+	return &Scan{
+		DMap:   dmap,
+		Cursor: cursor,
+	}
+}
+
+func (s *Scan) SetMatch(match string) *Scan {
+	s.Match = match
+	return s
+}
+
+func (s *Scan) SetCount(count int) *Scan {
+	s.Count = count
+	return s
+}
+
+func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
+	var args []interface{}
+	args = append(args, ScanCmd)
+	args = append(args, s.DMap)
+	args = append(args, s.Cursor)
+	if s.Match != "" {
+		args = append(args, "MATCH")
+		args = append(args, s.Match)
+	}
+	if s.Count != 0 {
+		args = append(args, "COUNT")
+		args = append(args, s.Count)
+	}
+	return redis.NewScanCmd(ctx, nil, args...)
+}
+
 type Incr struct {
 	DMap  string
 	Key   string

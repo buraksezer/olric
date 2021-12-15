@@ -3,6 +3,7 @@ module github.com/buraksezer/olric
 go 1.13
 
 require (
+	github.com/RoaringBitmap/roaring v0.9.4
 	github.com/buraksezer/connpool v0.4.0
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
 	github.com/cespare/xxhash v1.1.0

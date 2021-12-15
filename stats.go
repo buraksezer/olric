@@ -23,7 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/transport"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
 	"github.com/vmihailenco/msgpack"
@@ -92,11 +92,11 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 		Backups:            make(map[stats.PartitionID]stats.Partition),
 		ClusterMembers:     make(map[stats.MemberID]stats.Member),
 		Network: stats.Network{
-			ConnectionsTotal:   transport.ConnectionsTotal.Read(),
-			CurrentConnections: transport.CurrentConnections.Read(),
-			WrittenBytesTotal:  transport.WrittenBytesTotal.Read(),
-			ReadBytesTotal:     transport.ReadBytesTotal.Read(),
-			CommandsTotal:      transport.CommandsTotal.Read(),
+			ConnectionsTotal:   server.ConnectionsTotal.Read(),
+			CurrentConnections: server.CurrentConnections.Read(),
+			WrittenBytesTotal:  server.WrittenBytesTotal.Read(),
+			ReadBytesTotal:     server.ReadBytesTotal.Read(),
+			CommandsTotal:      server.CommandsTotal.Read(),
 		},
 		DMaps: stats.DMaps{
 			EntriesTotal: dmap.EntriesTotal.Read(),

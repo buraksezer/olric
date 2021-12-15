@@ -16,11 +16,10 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/query"
 	"github.com/tidwall/redcon"
-	"github.com/vmihailenco/msgpack"
 )
 
+/*
 func (s *Service) queryOnCluster(dm *DMap, q query.M, partID uint64) (interface{}, error) {
 	c, err := dm.Query(q)
 	if err != nil {
@@ -41,48 +40,39 @@ func (s *Service) queryOnCluster(dm *DMap, q query.M, partID uint64) (interface{
 		data[response.Key()] = response.Value()
 	}
 	return data, nil
-}
+}*/
 
-func (s *Service) queryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	queryCmd, err := resp.ParseQueryCommand(cmd)
+func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	scanCmd, err := resp.ParseScanCommand(cmd)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
 
-	dm, err := s.getOrCreateDMap(queryCmd.DMap)
-	if err == ErrDMapNotFound {
-		// No need to create a new DMap here.
-		conn.WriteString(resp.StatusOK)
-		return
-	}
+	_, err = s.getOrCreateDMap(scanCmd.DMap)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
+	/*for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
+		part := dm.s.primary.PartitionByID(partID)
+		f, err := dm.loadFragment(part)
+		if err != nil {
+			resp.WriteError(conn, err)
+			return
+		}
+		f.Lock()
+		cursor, err := f.storage.(*kvstore.KVStore).Scan(scanCmd.Cursor, scanCmd.Count, func(_ uint64, e storage.Entry) bool {
 
-	q, err := query.FromByte(queryCmd.Query)
-	if err != nil {
-		resp.WriteError(conn, err)
-		return
-	}
-
-	var result interface{}
-	if queryCmd.Local {
-		result, err = dm.runLocalQuery(queryCmd.PartID, q)
-	} else {
-		result, err = s.queryOnCluster(dm, q, queryCmd.PartID)
-	}
-
-	if err != nil {
-		resp.WriteError(conn, err)
-		return
-	}
-
-	value, err := msgpack.Marshal(&result)
-	if err != nil {
-		resp.WriteError(conn, err)
-		return
-	}
-	conn.WriteBulk(value)
+		})
+		if err != nil {
+			resp.WriteError(conn, err)
+			return
+		}
+	}*/
+	conn.WriteArray(2)
+	conn.WriteBulkString("12312")
+	conn.WriteArray(2)
+	conn.WriteBulkString("burak")
+	conn.WriteBulkString("sezer")
 }

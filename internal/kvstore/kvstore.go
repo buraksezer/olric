@@ -22,8 +22,10 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/kvstore/table"
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -38,16 +40,22 @@ const (
 // KVStore implements an in-memory storage engine.
 type KVStore struct {
 	tables []*table.Table
+	bitmap *roaring64.Bitmap
 	config *storage.Config
 }
-
-var _ storage.Engine = (*KVStore)(nil)
 
 func DefaultConfig() *storage.Config {
 	options := storage.NewConfig(nil)
 	options.Add("tableSize", defaultTableSize)
 	options.Add("maxIdleTableTimeout", defaultMaxIdleTableTimeout)
 	return options
+}
+
+func New(c *storage.Config) *KVStore {
+	return &KVStore{
+		config: c,
+		bitmap: roaring64.New(),
+	}
 }
 
 func (k *KVStore) SetConfig(c *storage.Config) {
@@ -95,9 +103,7 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	child := &KVStore{
-		config: c,
-	}
+	child := New(c)
 	t := table.New(size.(uint32))
 	child.tables = append(child.tables, t)
 	return child, nil
@@ -142,6 +148,7 @@ func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
 		break
 	}
 
+	k.bitmap.Add(hkey)
 	return nil
 }
 
@@ -173,6 +180,7 @@ func (k *KVStore) Put(hkey uint64, value storage.Entry) error {
 		break
 	}
 
+	k.bitmap.Add(hkey)
 	return nil
 }
 
@@ -299,6 +307,7 @@ func (k *KVStore) Delete(hkey uint64) error {
 		break
 	}
 
+	k.bitmap.Remove(hkey)
 	return nil
 }
 
@@ -408,6 +417,77 @@ func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.En
 	return nil
 }
 
+func (k *KVStore) Scan(cursor uint64, count int, f func(hkey uint64, e storage.Entry) bool) (uint64, error) {
+	it := k.bitmap.Iterator()
+	if cursor != 0 {
+		it.AdvanceIfNeeded(cursor)
+	}
+
+	var num int
+	for it.HasNext() && num < count {
+		hkey := it.Next()
+		e, err := k.Get(hkey)
+		if err != nil {
+			return 0, err
+		}
+		if !f(hkey, e) {
+			break
+		}
+		cursor = hkey + 1
+		num++
+	}
+
+	if !it.HasNext() {
+		// end of the scan
+		cursor = 0
+	}
+
+	return cursor, nil
+}
+
+func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(hkey uint64, e storage.Entry) bool) (uint64, error) {
+	if len(k.tables) == 0 {
+		// There is nothing to do
+		return 0, nil
+	}
+
+	r, err := regexp.Compile(expr)
+	if err != nil {
+		return 0, err
+	}
+
+	it := k.bitmap.Iterator()
+	if cursor != 0 {
+		it.AdvanceIfNeeded(cursor)
+	}
+
+	var num int
+	for it.HasNext() && num < count {
+		hkey := it.Next()
+
+		key, _ := k.GetKey(hkey)
+		if !r.Match(util.StringToBytes(key)) {
+			continue
+		}
+
+		e, err := k.Get(hkey)
+		if err != nil {
+			return 0, err
+		}
+		if !f(hkey, e) {
+			break
+		}
+		cursor = hkey + 1
+		num++
+	}
+
+	if !it.HasNext() {
+		// end of the scan
+		cursor = 0
+	}
+	return cursor, nil
+}
+
 func (k *KVStore) Close() error {
 	return nil
 }
@@ -415,3 +495,5 @@ func (k *KVStore) Close() error {
 func (k *KVStore) Destroy() error {
 	return nil
 }
+
+var _ storage.Engine = (*KVStore)(nil)

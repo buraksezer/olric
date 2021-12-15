@@ -15,19 +15,8 @@
 package dmap
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"sync"
-
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/buraksezer/olric/query"
-	"github.com/hashicorp/go-multierror"
-	"github.com/vmihailenco/msgpack"
-	"golang.org/x/sync/semaphore"
 )
 
 // NumConcurrentWorkers is the number of concurrent workers to run a query on the cluster.
@@ -43,10 +32,33 @@ type QueryResponse map[string]interface{}
 // internal representation of query response
 type queryResponse map[uint64][]byte
 
+/*
+type queryConfig struct {
+	Cursor      uint64
+	HasMatch    bool
+	Match       string
+	IgnoreValue bool
+}
+
+func Match(m string) QueryOption {
+	return func(cfg *queryConfig) {
+		cfg.HasMatch = true
+		cfg.Match = m
+	}
+}
+
+func IgnoreValue() QueryOption {
+	return func(cfg *queryConfig) {
+		cfg.IgnoreValue = true
+	}
+}
+
+type QueryOption func(*queryConfig)
+
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
 	dm     *DMap
-	query  query.M
+	config *queryConfig
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -97,23 +109,32 @@ type Cursor struct {
 //
 // Query function returns a cursor which has Range and Close methods. Please take look at the Range
 // function for further info.
-func (dm *DMap) Query(q query.M) (*Cursor, error) {
-	err := query.Validate(q)
-	if err != nil {
-		return nil, err
-	}
+func (dm *DMap) Query(options ...QueryOption) (*Cursor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	var qc queryConfig
+	for _, opt := range options {
+		opt(&qc)
+	}
 	return &Cursor{
 		dm:     dm,
-		query:  q,
+		config: &qc,
 		ctx:    ctx,
 		cancel: cancel,
 	}, nil
 }
 
-func (dm *DMap) runLocalQuery(partID uint64, q query.M) (queryResponse, error) {
-	p := newQueryPipeline(dm, partID)
-	return p.execute(q)
+func (dm *DMap) runLocalQuery(partID uint64, qc *queryConfig) (queryResponse, error) {
+	part := dm.s.primary.PartitionByID(partID)
+	f, err := dm.loadFragment(part)
+	if err != nil {
+		return nil, err
+	}
+	f.RLock()
+	defer f.RUnlock()
+	cursor, err := f.(*kvstore.KVStore).Scan(qc.cursor, qc.count, func(hkey uint64, e storage.Entry) bool {
+
+	})
+
 }
 
 func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storage.Entry {
@@ -136,28 +157,29 @@ func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storag
 }
 
 func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
-	value, err := msgpack.Marshal(c.query)
-	if err != nil {
-		return nil, err
-	}
-
 	owners := c.dm.s.primary.PartitionOwnersByID(partID)
 	var responses []queryResponse
 	for _, owner := range owners {
 		if owner.CompareByID(c.dm.s.rt.This()) {
-			response, err := c.dm.runLocalQuery(partID, c.query)
+			response, err := c.dm.runLocalQuery(partID)
 			if err != nil {
 				return nil, err
 			}
 			responses = append(responses, response)
 			continue
 		}
-		cmd := resp.NewQuery(c.dm.name, partID, value).SetLocal().Command(c.dm.s.ctx)
+
+		sc := resp.NewScan(c.dm.name).SetPartID(partID)
+		if c.config.HasMatch {
+			sc = sc.SetMatch(c.config.Match)
+		}
+		cmd := sc.Command(c.dm.s.ctx)
 		rc := c.dm.s.respClient.Get(owner.String())
 		err := rc.Process(c.dm.s.ctx, cmd)
 		if err != nil {
 			return nil, fmt.Errorf("query call is failed: %w", err)
 		}
+
 		value, err := cmd.Bytes()
 		if err != nil {
 			return nil, fmt.Errorf("query call is failed: %w", err)
@@ -259,4 +281,4 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 // Close cancels the underlying context and background goroutines stops running.
 func (c *Cursor) Close() {
 	c.cancel()
-}
+}*/

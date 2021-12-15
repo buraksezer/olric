@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/query"
 )
 
 const (
@@ -105,7 +104,7 @@ type LockContext struct {
 
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
-	cursor *dmap.Cursor
+	//cursor *dmap.Cursor
 }
 
 // DMap represents a distributed map instance.
@@ -247,6 +246,7 @@ func (dm *DMap) Expire(key string, timeout time.Duration) error {
 	return convertDMapError(err)
 }
 
+/*
 // Query runs a distributed query on a dmap instance.
 // Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
 // few keywords:
@@ -311,7 +311,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 // Close cancels the underlying context and background goroutines stops running.
 func (c *Cursor) Close() {
 	c.cursor.Close()
-}
+}*/
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.

@@ -399,3 +399,44 @@ func ParsePLockLeaseCommand(cmd redcon.Command) (*PLockLease, error) {
 		timeout,                         // Timeout
 	), nil
 }
+
+func ParseScanCommand(cmd redcon.Command) (*Scan, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	rawCursor := util.BytesToString(cmd.Args[2])
+	cursor, err := strconv.ParseUint(rawCursor, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	s := NewScan(
+		util.BytesToString(cmd.Args[1]), // DMap
+		cursor,
+	)
+
+	args := cmd.Args[3:]
+	for len(args) > 0 {
+		switch arg := strings.ToUpper(util.BytesToString(args[0])); arg {
+		case "MATCH":
+			s.SetMatch(util.BytesToString(args[1]))
+			args = args[2:]
+			continue
+		case "COUNT":
+			count, err := strconv.Atoi(util.BytesToString(args[1]))
+			if err != nil {
+				return nil, err
+			}
+			s.SetCount(count)
+			args = args[2:]
+			continue
+		}
+	}
+
+	if s.Count == 0 {
+		s.SetCount(10)
+	}
+
+	return s, nil
+}

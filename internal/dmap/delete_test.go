@@ -303,7 +303,7 @@ func TestDMap_Delete_Compaction(t *testing.T) {
 	c.ReplicaCount = 2
 	c.DMaps.TriggerCompactionInterval = time.Millisecond
 	c.DMaps.Engine.Name = config.DefaultStorageEngine
-	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
+	c.DMaps.Engine.Implementation = kvstore.New(nil)
 	c.DMaps.Engine.Config = map[string]interface{}{
 		"tableSize":           uint32(100), // overwrite tableSize to trigger compaction.
 		"maxIdleTableTimeout": time.Millisecond,

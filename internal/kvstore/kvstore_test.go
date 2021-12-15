@@ -39,11 +39,10 @@ func bval(i int) []byte {
 }
 
 func testKVStore(c *storage.Config) (storage.Engine, error) {
-	kv := &KVStore{}
 	if c == nil {
 		c = DefaultConfig()
 	}
-	kv.SetConfig(c)
+	kv := New(c)
 	child, err := kv.Fork(nil)
 	if err != nil {
 		return nil, err
@@ -495,4 +494,133 @@ func TestKVStore_CloseDestroy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
 	require.NoError(t, s.Destroy())
+}
+
+func TestStorage_Scan(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		e := entry.New()
+		e.SetKey(bkey(i))
+		e.SetTTL(int64(i))
+		e.SetValue(bval(i))
+		e.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	var (
+		num    int
+		count  int
+		cursor uint64
+	)
+	k := s.(*KVStore)
+	for {
+		num += 1
+		cursor, err = k.Scan(cursor, 10, func(hkey uint64, entry storage.Entry) bool {
+			count++
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 10, num)
+	require.Equal(t, 100, count)
+}
+
+func TestStorage_ScanRegexMatch(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+
+	var key string
+	for i := 0; i < 100; i++ {
+		if i%2 == 0 {
+			key = "even:" + strconv.Itoa(i)
+		} else {
+			key = "odd:" + strconv.Itoa(i)
+		}
+
+		e := entry.New()
+		e.SetKey(key)
+		e.SetTTL(int64(i))
+		e.SetValue(bval(i))
+		e.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	var (
+		num    int
+		count  int
+		cursor uint64
+	)
+	k := s.(*KVStore)
+	for {
+		num += 1
+		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(hkey uint64, entry storage.Entry) bool {
+			count++
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 5, num)
+	require.Equal(t, 50, count)
+}
+
+func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		e := entry.New()
+		e.SetKey(bkey(i))
+		e.SetTTL(int64(i))
+		e.SetValue(bval(i))
+		e.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	e := entry.New()
+	e.SetKey("even:200")
+	e.SetTTL(123123)
+	e.SetValue([]byte("my-value"))
+	e.SetTimestamp(time.Now().UnixNano())
+	hkey := xxhash.Sum64([]byte(e.Key()))
+	err = s.Put(hkey, e)
+	require.NoError(t, err)
+
+	var (
+		num    int
+		count  int
+		cursor uint64
+	)
+	k := s.(*KVStore)
+	for {
+		num += 1
+		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(hkey uint64, entry storage.Entry) bool {
+			count++
+			require.Equal(t, "even:200", e.Key())
+			require.Equal(t, "my-value", string(e.Value()))
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 1, num)
+	require.Equal(t, 1, count)
 }

@@ -124,3 +124,55 @@ func TestProtocol_ParsePutCommand_PXAT(t *testing.T) {
 	require.Equal(t, []byte("my-value"), parsed.Value)
 	require.Equal(t, pxat, parsed.PXAT)
 }
+
+func TestProtocol_ParseScanCommand(t *testing.T) {
+	scanCmd := NewScan("my-dmap", 0)
+
+	s := scanCmd.Command(context.Background()).String()
+	s = strings.TrimSuffix(s, ": []")
+	cmd := stringToCommand(s)
+	parsed, err := ParseScanCommand(cmd)
+	require.NoError(t, err)
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "", parsed.Match)
+	require.Equal(t, 10, parsed.Count)
+}
+
+func TestProtocol_ParseScanCommand_Match(t *testing.T) {
+	scanCmd := NewScan("my-dmap", 0).SetMatch("^even")
+
+	s := scanCmd.Command(context.Background()).String()
+	s = strings.TrimSuffix(s, ": []")
+	cmd := stringToCommand(s)
+	parsed, err := ParseScanCommand(cmd)
+	require.NoError(t, err)
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "^even", parsed.Match)
+	require.Equal(t, 10, parsed.Count)
+}
+
+func TestProtocol_ParseScanCommand_PartID(t *testing.T) {
+	scanCmd := NewScan("my-dmap", 0).SetCount(200)
+
+	s := scanCmd.Command(context.Background()).String()
+	s = strings.TrimSuffix(s, ": []")
+	cmd := stringToCommand(s)
+	parsed, err := ParseScanCommand(cmd)
+	require.NoError(t, err)
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "", parsed.Match)
+	require.Equal(t, 200, parsed.Count)
+}
+
+func TestProtocol_ParseScanCommand_Match_Count(t *testing.T) {
+	scanCmd := NewScan("my-dmap", 0).SetCount(100).SetMatch("^even")
+
+	s := scanCmd.Command(context.Background()).String()
+	s = strings.TrimSuffix(s, ": []")
+	cmd := stringToCommand(s)
+	parsed, err := ParseScanCommand(cmd)
+	require.NoError(t, err)
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "^even", parsed.Match)
+	require.Equal(t, 100, parsed.Count)
+}
