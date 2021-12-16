@@ -61,21 +61,12 @@ func (k *KVStore) Import(data []byte, f func(uint64, storage.Entry) error) error
 		// DMap has no keys. Set the imported storage instance.
 		// The old one will be garbage collected.
 		k.AppendTable(tb)
-		tb.Range(func(hkey uint64, _ storage.Entry) bool {
-			k.bitmap.Add(hkey)
-			return true
-		})
 		return nil
 	}
 
 	tb.Range(func(hkey uint64, e storage.Entry) bool {
-		if err := f(hkey, e); err != nil {
-			return false
-		} // return false to break the loop
-		k.bitmap.Add(hkey)
-		return true
+		return f(hkey, e) == nil
 	})
-
 	return err
 }
 

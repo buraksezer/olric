@@ -25,7 +25,6 @@ import (
 	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/kvstore/table"
-	"github.com/buraksezer/olric/internal/util"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -39,9 +38,11 @@ const (
 
 // KVStore implements an in-memory storage engine.
 type KVStore struct {
-	tables []*table.Table
-	bitmap *roaring64.Bitmap
-	config *storage.Config
+	coefficient         uint32
+	tablesByCoefficient map[uint32]*table.Table
+	tables              []*table.Table
+	bitmap              *roaring64.Bitmap
+	config              *storage.Config
 }
 
 func DefaultConfig() *storage.Config {
@@ -53,8 +54,9 @@ func DefaultConfig() *storage.Config {
 
 func New(c *storage.Config) *KVStore {
 	return &KVStore{
-		config: c,
-		bitmap: roaring64.New(),
+		tablesByCoefficient: make(map[uint32]*table.Table),
+		config:              c,
+		bitmap:              roaring64.New(),
 	}
 }
 
@@ -82,6 +84,8 @@ func (k *KVStore) makeTable() error {
 
 	current := table.New(size.(uint32))
 	k.tables = append(k.tables, current)
+	k.tablesByCoefficient[k.coefficient] = current
+	k.coefficient++
 	return nil
 }
 
@@ -106,11 +110,15 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	child := New(c)
 	t := table.New(size.(uint32))
 	child.tables = append(child.tables, t)
+	child.tablesByCoefficient[k.coefficient] = t
+	child.coefficient++
 	return child, nil
 }
 
 func (k *KVStore) AppendTable(t *table.Table) {
 	k.tables = append(k.tables, t)
+	k.tablesByCoefficient[k.coefficient] = t
+	k.coefficient++
 }
 
 func (k *KVStore) Name() string {
@@ -148,7 +156,6 @@ func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
 		break
 	}
 
-	k.bitmap.Add(hkey)
 	return nil
 }
 
@@ -180,7 +187,6 @@ func (k *KVStore) Put(hkey uint64, value storage.Entry) error {
 		break
 	}
 
-	k.bitmap.Add(hkey)
 	return nil
 }
 
@@ -307,7 +313,6 @@ func (k *KVStore) Delete(hkey uint64) error {
 		break
 	}
 
-	k.bitmap.Remove(hkey)
 	return nil
 }
 
@@ -417,75 +422,63 @@ func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.En
 	return nil
 }
 
-func (k *KVStore) Scan(cursor uint64, count int, f func(hkey uint64, e storage.Entry) bool) (uint64, error) {
-	it := k.bitmap.Iterator()
-	if cursor != 0 {
-		it.AdvanceIfNeeded(cursor)
+func (k *KVStore) Scan(cursor uint32, count int, f func(e storage.Entry) bool) (uint32, error) {
+	tmp, err := k.config.Get("tableSize")
+	if err != nil {
+		return 0, err
+	}
+	size := tmp.(uint32)
+
+	cf := cursor / size
+	t := k.tablesByCoefficient[cf]
+	if cf > 0 {
+		cursor = cursor - (size * cf)
 	}
 
-	var num int
-	for it.HasNext() && num < count {
-		hkey := it.Next()
-		e, err := k.Get(hkey)
-		if err != nil {
-			return 0, err
-		}
-		if !f(hkey, e) {
-			break
-		}
-		cursor = hkey + 1
-		num++
-	}
-
-	if !it.HasNext() {
-		// end of the scan
-		cursor = 0
-	}
-
-	return cursor, nil
-}
-
-func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(hkey uint64, e storage.Entry) bool) (uint64, error) {
-	if len(k.tables) == 0 {
-		// There is nothing to do
-		return 0, nil
-	}
-
-	r, err := regexp.Compile(expr)
+	cursor, err = t.Scan(cursor, count, f)
 	if err != nil {
 		return 0, err
 	}
 
-	it := k.bitmap.Iterator()
-	if cursor != 0 {
-		it.AdvanceIfNeeded(cursor)
+	if cursor == 0 {
+		_, ok := k.tablesByCoefficient[cf+1]
+		if !ok {
+			return 0, nil
+		}
+		return size * (cf + 1), nil
 	}
 
-	var num int
-	for it.HasNext() && num < count {
-		hkey := it.Next()
+	return cursor + (size * cf), nil
+}
 
-		key, _ := k.GetKey(hkey)
-		if !r.Match(util.StringToBytes(key)) {
-			continue
-		}
+func (k *KVStore) ScanRegexMatch(cursor uint32, expr string, count int, f func(e storage.Entry) bool) (uint32, error) {
+	tmp, err := k.config.Get("tableSize")
+	if err != nil {
+		return 0, err
+	}
+	size := tmp.(uint32)
 
-		e, err := k.Get(hkey)
-		if err != nil {
-			return 0, err
-		}
-		if !f(hkey, e) {
-			break
-		}
-		cursor = hkey + 1
-		num++
+	cf := cursor / size
+	t := k.tablesByCoefficient[cf]
+	if cf > 0 {
+		cursor = cursor - (size * cf)
 	}
 
-	if !it.HasNext() {
-		// end of the scan
-		cursor = 0
+	cursor, err = t.ScanRegexMatch(cursor, expr, count, f)
+	if err != nil {
+		return 0, err
 	}
-	return cursor, nil
+
+	if cursor == 0 {
+		_, ok := k.tablesByCoefficient[cf+1]
+		if !ok {
+			return 0, nil
+		}
+		return size * (cf + 1), nil
+	}
+
+	return cursor + (size * cf), nil
+
 }
 
 func (k *KVStore) Close() error {

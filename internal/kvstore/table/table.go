@@ -17,8 +17,10 @@ package table
 import (
 	"encoding/binary"
 	"fmt"
+	"regexp"
 	"time"
 
+	"github.com/RoaringBitmap/roaring"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
@@ -48,21 +50,23 @@ type Stats struct {
 }
 
 type Table struct {
-	offset     uint32
-	allocated  uint32
-	inuse      uint32
-	garbage    uint32
-	recycledAt int64
-	state      State
-	hkeys      map[uint64]uint32
-	memory     []byte
+	offset      uint32
+	allocated   uint32
+	inuse       uint32
+	garbage     uint32
+	recycledAt  int64
+	state       State
+	hkeys       map[uint64]uint32
+	offsetIndex *roaring.Bitmap
+	memory      []byte
 }
 
 func New(size uint32) *Table {
 	t := &Table{
-		hkeys:     make(map[uint64]uint32),
-		allocated: size,
-		state:     ReadWriteState,
+		hkeys:       make(map[uint64]uint32),
+		allocated:   size,
+		offsetIndex: roaring.New(),
+		state:       ReadWriteState,
 	}
 	//  From builtin.go:
 	//
@@ -91,6 +95,7 @@ func (t *Table) PutRaw(hkey uint64, value []byte) error {
 		return ErrNotEnoughSpace
 	}
 	t.hkeys[hkey] = t.offset
+	t.offsetIndex.Add(t.offset)
 	copy(t.memory[t.offset:], value)
 	t.inuse += inuse
 	t.offset += inuse
@@ -123,6 +128,7 @@ func (t *Table) Put(hkey uint64, value storage.Entry) error {
 	}
 
 	t.hkeys[hkey] = t.offset
+	t.offsetIndex.Add(t.offset)
 	t.inuse += inuse
 
 	// Set key length. It's 1 byte.
@@ -183,15 +189,19 @@ func (t *Table) GetRaw(hkey uint64) ([]byte, error) {
 	return rawval, nil
 }
 
+func (t *Table) getRawKey(offset uint32) ([]byte, error) {
+	klen := uint32(t.memory[offset])
+	offset++
+	return t.memory[offset : offset+klen], nil
+}
+
 func (t *Table) GetRawKey(hkey uint64) ([]byte, error) {
 	offset, ok := t.hkeys[hkey]
 	if !ok {
 		return nil, ErrHKeyNotFound
 	}
 
-	klen := uint32(t.memory[offset])
-	offset++
-	return t.memory[offset : offset+klen], nil
+	return t.getRawKey(offset)
 }
 
 func (t *Table) GetKey(hkey uint64) (string, error) {
@@ -228,6 +238,35 @@ func (t *Table) GetLastAccess(hkey uint64) (int64, error) {
 	offset += 8    // Timestamp
 
 	return int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])), nil
+}
+
+func (t *Table) get(offset uint32) storage.Entry {
+	e := &entry.Entry{}
+	// In-memory structure:
+	//
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	klen := uint32(t.memory[offset])
+	offset++
+
+	e.SetKey(string(t.memory[offset : offset+klen]))
+	offset += klen
+
+	e.SetTTL(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	offset += 8
+
+	e.SetTimestamp(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	offset += 8
+
+	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+
+	// Update the last access field
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
+	offset += 8
+
+	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
+	offset += 4
+	e.SetValue(t.memory[offset : offset+vlen])
+	return e
 }
 
 func (t *Table) Get(hkey uint64) (storage.Entry, error) {
@@ -275,6 +314,10 @@ func (t *Table) Delete(hkey uint64) error {
 
 	// key, 1 byte for key size, klen for key's actual length.
 	klen := uint32(t.memory[offset])
+
+	// Delete the offset from offsetIndex
+	t.offsetIndex.Remove(offset)
+
 	offset += 1 + klen
 	garbage += 1 + klen
 
@@ -372,4 +415,63 @@ func (t *Table) Reset() {
 	t.garbage = 0
 	t.offset = 0
 	t.recycledAt = time.Now().UnixNano()
+}
+
+func (t *Table) Scan(cursor uint32, count int, f func(e storage.Entry) bool) (uint32, error) {
+	it := t.offsetIndex.Iterator()
+	if cursor != 0 {
+		it.AdvanceIfNeeded(cursor)
+	}
+	var num int
+	for it.HasNext() && num < count {
+		offset := it.Next()
+		e := t.get(offset)
+		if !f(e) {
+			break
+		}
+		cursor = offset + 1
+		num++
+	}
+
+	if !it.HasNext() {
+		// end of the scan
+		cursor = 0
+	}
+
+	return cursor, nil
+}
+
+func (t *Table) ScanRegexMatch(cursor uint32, expr string, count int, f func(e storage.Entry) bool) (uint32, error) {
+	r, err := regexp.Compile(expr)
+	if err != nil {
+		return 0, err
+	}
+
+	it := t.offsetIndex.Iterator()
+	if cursor != 0 {
+		it.AdvanceIfNeeded(cursor)
+	}
+
+	var num int
+	for it.HasNext() && num < count {
+		offset := it.Next()
+
+		key, _ := t.getRawKey(offset)
+		if !r.Match(key) {
+			continue
+		}
+
+		e := t.get(offset)
+		if !f(e) {
+			break
+		}
+		cursor = offset + 1
+		num++
+	}
+
+	if !it.HasNext() {
+		// end of the scan
+		cursor = 0
+	}
+	return cursor, nil
 }

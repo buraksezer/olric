@@ -500,7 +500,7 @@ func TestStorage_Scan(t *testing.T) {
 	s, err := testKVStore(nil)
 	require.NoError(t, err)
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000000; i++ {
 		e := entry.New()
 		e.SetKey(bkey(i))
 		e.SetTTL(int64(i))
@@ -512,14 +512,12 @@ func TestStorage_Scan(t *testing.T) {
 	}
 
 	var (
-		num    int
 		count  int
-		cursor uint64
+		cursor uint32
 	)
 	k := s.(*KVStore)
 	for {
-		num += 1
-		cursor, err = k.Scan(cursor, 10, func(hkey uint64, entry storage.Entry) bool {
+		cursor, err = k.Scan(cursor, 10, func(e storage.Entry) bool {
 			count++
 			return true
 		})
@@ -529,8 +527,7 @@ func TestStorage_Scan(t *testing.T) {
 		}
 	}
 
-	require.Equal(t, 10, num)
-	require.Equal(t, 100, count)
+	require.Equal(t, 1000000, count)
 }
 
 func TestStorage_ScanRegexMatch(t *testing.T) {
@@ -538,7 +535,7 @@ func TestStorage_ScanRegexMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	var key string
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000000; i++ {
 		if i%2 == 0 {
 			key = "even:" + strconv.Itoa(i)
 		} else {
@@ -556,14 +553,12 @@ func TestStorage_ScanRegexMatch(t *testing.T) {
 	}
 
 	var (
-		num    int
 		count  int
-		cursor uint64
+		cursor uint32
 	)
 	k := s.(*KVStore)
 	for {
-		num += 1
-		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(hkey uint64, entry storage.Entry) bool {
+		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(entry storage.Entry) bool {
 			count++
 			return true
 		})
@@ -573,8 +568,7 @@ func TestStorage_ScanRegexMatch(t *testing.T) {
 		}
 	}
 
-	require.Equal(t, 5, num)
-	require.Equal(t, 50, count)
+	require.Equal(t, 500000, count)
 }
 
 func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
@@ -604,12 +598,12 @@ func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
 	var (
 		num    int
 		count  int
-		cursor uint64
+		cursor uint32
 	)
 	k := s.(*KVStore)
 	for {
 		num += 1
-		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(hkey uint64, entry storage.Entry) bool {
+		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(entry storage.Entry) bool {
 			count++
 			require.Equal(t, "even:200", e.Key())
 			require.Equal(t, "my-value", string(e.Value()))

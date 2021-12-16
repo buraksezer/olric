@@ -16,6 +16,7 @@ package table
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -293,4 +294,114 @@ func TestTable_Reset(t *testing.T) {
 	require.Equal(t, uint32(0), stats.Inuse)
 	require.Equal(t, tb.allocated, stats.Allocated)
 	require.Equal(t, 0, stats.Length)
+}
+
+func TestTable_Scan(t *testing.T) {
+
+	tb := New(1 << 20)
+	for i := 0; i < 100; i++ {
+		e := entry.New()
+		key := fmt.Sprintf("key-%d", i)
+		data := []byte(fmt.Sprintf("value-%d", i))
+		hkey := xxhash.Sum64String(key)
+		e.SetKey(key)
+		e.SetValue(data)
+
+		err := tb.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	var err error
+	var cursor uint32
+	for {
+		cursor, err = tb.Scan(cursor, 10, func(e storage.Entry) bool {
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+}
+
+func TestTable_ScanRegexMatch(t *testing.T) {
+	tb := New(1 << 20)
+	for i := 0; i < 100; i++ {
+		if i%2 == 0 {
+			key = "even:" + strconv.Itoa(i)
+		} else {
+			key = "odd:" + strconv.Itoa(i)
+		}
+		e := entry.New()
+		data := []byte(fmt.Sprintf("value-%d", i))
+		hkey := xxhash.Sum64String(key)
+		e.SetKey(key)
+		e.SetValue(data)
+
+		err := tb.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	var err error
+	var num int
+	var count int
+	var cursor uint32
+	for {
+		num++
+		cursor, err = tb.ScanRegexMatch(cursor, "even:", 10, func(e storage.Entry) bool {
+			count++
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 6, num)
+	require.Equal(t, 50, count)
+}
+
+func TestTable_ScanRegexMatch_SingleMatch(t *testing.T) {
+	tb := New(1 << 20)
+	for i := 0; i < 100; i++ {
+		e := entry.New()
+		key := fmt.Sprintf("key-%d", i)
+		data := []byte(fmt.Sprintf("value-%d", i))
+		hkey := xxhash.Sum64String(key)
+		e.SetKey(key)
+		e.SetValue(data)
+
+		err := tb.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	e := entry.New()
+	e.SetKey("even:200")
+	e.SetTTL(123123)
+	e.SetValue([]byte("my-value"))
+	e.SetTimestamp(time.Now().UnixNano())
+	hkey := xxhash.Sum64([]byte(e.Key()))
+	err := tb.Put(hkey, e)
+	require.NoError(t, err)
+
+	var num int
+	var count int
+	var cursor uint32
+	for {
+		num++
+		cursor, err = tb.ScanRegexMatch(cursor, "even:", 10, func(e storage.Entry) bool {
+			count++
+			require.Equal(t, "even:200", e.Key())
+			require.Equal(t, "my-value", string(e.Value()))
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 1, num)
+	require.Equal(t, 1, count)
 }
