@@ -17,12 +17,12 @@ package dmap
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
-	"strconv"
-	"testing"
 )
 
 func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
@@ -37,32 +37,19 @@ func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
 		err = dm.Put(testutil.ToKey(i), i)
 		require.NoError(t, err)
 	}
-
 	ctx := context.TODO()
-	cmd := resp.NewScan("mydmap", "0").Command(ctx)
 	rc := s.respClient.Get(s.rt.This().String())
+
+	r := resp.NewScan("mydmap", "10000000000000000442")
+	cmd := r.Command(ctx)
 	err = rc.Process(ctx, cmd)
 	require.NoError(t, err)
-	it := cmd.Iterator()
+	/*it := cmd.Iterator()
 	for it.Next(ctx) {
-		fmt.Println(it.Val())
-	}
-}
 
-func TestFlags(t *testing.T) {
-	partitionCount := uint64(1)
-	offset := uint64(345345)
-	//nump := numberOfPlaces(partitionCount)
-	//noff := numberOfPlaces(offset)
-	cursor := fmt.Sprintf("%d%0*d", partitionCount, 17, offset)
-	fmt.Println("Cursor:", cursor)
-	cursor = fmt.Sprintf("%0*s", 20, cursor)
-
-	rawPartID := cursor[:3]
-	fmt.Println(strconv.ParseUint(rawPartID, 10, 64))
-
-	rawOffset := cursor[3:]
-	fmt.Println(strconv.ParseUint(rawOffset, 10, 64))
+		//fmt.Println(it.Val())
+	}*/
+	fmt.Println(cmd.Result())
 }
 
 /*

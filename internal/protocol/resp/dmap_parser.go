@@ -401,16 +401,29 @@ func ParsePLockLeaseCommand(cmd redcon.Command) (*PLockLease, error) {
 }
 
 func ParseScanCommand(cmd redcon.Command) (*Scan, error) {
-	if len(cmd.Args) < 3 {
+	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
+	rawPartID := util.BytesToString(cmd.Args[1])
+	partID, err := strconv.ParseUint(rawPartID, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	rawCursor := util.BytesToString(cmd.Args[3])
+	cursor, err := strconv.ParseUint(rawCursor, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
 	s := NewScan(
-		util.BytesToString(cmd.Args[1]), // DMap
-		util.BytesToString(cmd.Args[2]),
+		partID,
+		util.BytesToString(cmd.Args[2]), // DMap
+		cursor,
 	)
 
-	args := cmd.Args[3:]
+	args := cmd.Args[4:]
 	for len(args) > 0 {
 		switch arg := strings.ToUpper(util.BytesToString(args[0])); arg {
 		case "MATCH":

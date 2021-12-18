@@ -31,15 +31,15 @@ import (
 const (
 	maxGarbageRatio = 0.40
 	// 1MB
-	defaultTableSize = uint32(1 << 20)
+	defaultTableSize = uint64(1 << 20)
 
 	defaultMaxIdleTableTimeout = 15 * time.Minute
 )
 
 // KVStore implements an in-memory storage engine.
 type KVStore struct {
-	coefficient         uint32
-	tablesByCoefficient map[uint32]*table.Table
+	coefficient         uint64
+	tablesByCoefficient map[uint64]*table.Table
 	tables              []*table.Table
 	bitmap              *roaring64.Bitmap
 	config              *storage.Config
@@ -54,7 +54,7 @@ func DefaultConfig() *storage.Config {
 
 func New(c *storage.Config) *KVStore {
 	return &KVStore{
-		tablesByCoefficient: make(map[uint32]*table.Table),
+		tablesByCoefficient: make(map[uint64]*table.Table),
 		config:              c,
 		bitmap:              roaring64.New(),
 	}
@@ -82,7 +82,7 @@ func (k *KVStore) makeTable() error {
 		}
 	}
 
-	current := table.New(size.(uint32))
+	current := table.New(size.(uint64))
 	k.tables = append(k.tables, current)
 	k.tablesByCoefficient[k.coefficient] = current
 	k.coefficient++
@@ -108,7 +108,7 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 		return nil, err
 	}
 	child := New(c)
-	t := table.New(size.(uint32))
+	t := table.New(size.(uint64))
 	child.tables = append(child.tables, t)
 	child.tablesByCoefficient[k.coefficient] = t
 	child.coefficient++
@@ -422,12 +422,12 @@ func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.En
 	return nil
 }
 
-func (k *KVStore) Scan(cursor uint32, count int, f func(e storage.Entry) bool) (uint32, error) {
+func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
 	tmp, err := k.config.Get("tableSize")
 	if err != nil {
 		return 0, err
 	}
-	size := tmp.(uint32)
+	size := tmp.(uint64)
 
 	cf := cursor / size
 	t := k.tablesByCoefficient[cf]
@@ -451,12 +451,12 @@ func (k *KVStore) Scan(cursor uint32, count int, f func(e storage.Entry) bool) (
 	return cursor + (size * cf), nil
 }
 
-func (k *KVStore) ScanRegexMatch(cursor uint32, expr string, count int, f func(e storage.Entry) bool) (uint32, error) {
+func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
 	tmp, err := k.config.Get("tableSize")
 	if err != nil {
 		return 0, err
 	}
-	size := tmp.(uint32)
+	size := tmp.(uint64)
 
 	cf := cursor / size
 	t := k.tablesByCoefficient[cf]

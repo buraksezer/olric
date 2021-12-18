@@ -114,7 +114,7 @@ func TestKVStore_Delete(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	garbage := make(map[int]uint32)
+	garbage := make(map[int]uint64)
 	for i, tb := range s.(*KVStore).tables {
 		s := tb.Stats()
 		garbage[i] = s.Inuse
@@ -131,7 +131,7 @@ func TestKVStore_Delete(t *testing.T) {
 
 	for i, tb := range s.(*KVStore).tables {
 		s := tb.Stats()
-		require.Equal(t, uint32(0), s.Inuse)
+		require.Equal(t, uint64(0), s.Inuse)
 		require.Equal(t, 0, s.Length)
 		require.Equal(t, garbage[i], s.Garbage)
 	}
@@ -428,7 +428,7 @@ func TestKVStore_Fork(t *testing.T) {
 	}
 
 	stats := child.Stats()
-	if uint32(stats.Allocated) != defaultTableSize {
+	if uint64(stats.Allocated) != defaultTableSize {
 		t.Fatalf("Expected Stats.Allocated: %d. Got: %d", defaultTableSize, stats.Allocated)
 	}
 
@@ -513,7 +513,7 @@ func TestStorage_Scan(t *testing.T) {
 
 	var (
 		count  int
-		cursor uint32
+		cursor uint64
 	)
 	k := s.(*KVStore)
 	for {
@@ -554,7 +554,7 @@ func TestStorage_ScanRegexMatch(t *testing.T) {
 
 	var (
 		count  int
-		cursor uint32
+		cursor uint64
 	)
 	k := s.(*KVStore)
 	for {
@@ -598,7 +598,7 @@ func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
 	var (
 		num    int
 		count  int
-		cursor uint32
+		cursor uint64
 	)
 	k := s.(*KVStore)
 	for {

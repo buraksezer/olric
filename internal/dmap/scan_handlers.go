@@ -16,7 +16,6 @@ package dmap
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol/resp"
@@ -24,28 +23,12 @@ import (
 	"github.com/tidwall/redcon"
 )
 
-const maxCursorNumPlaces = 20
-
-func numberOfPlaces(num uint64) int {
-	var places int
-	for {
-		places++
-		num /= 10
-		if num == 0 {
-			break
-		}
-	}
-
-	return places
-}
-
-func (dm *DMap) scanOnFragment(f *fragment, cursor uint32, count int) (uint32, []string, error) {
+func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) (uint64, []string, error) {
 	f.Lock()
 	defer f.Unlock()
 
-	var err error
 	var items []string
-	cursor, err = f.storage.(*kvstore.KVStore).Scan(cursor, count, func(e storage.Entry) bool {
+	cursor, err := f.storage.(*kvstore.KVStore).Scan(cursor, count, func(e storage.Entry) bool {
 		items = append(items, e.Key())
 		return true
 	})
@@ -56,7 +39,7 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint32, count int) (uint32, [
 	return cursor, items, nil
 }
 
-func (dm *DMap) scanOnCluster(partID uint64, cursor uint32, match string, count int) (uint32, []string, error) {
+func (dm *DMap) scanOnCluster(partID, cursor uint64, match string, count int) (uint64, []string, error) {
 	part := dm.s.primary.PartitionByID(partID)
 	f, err := dm.loadFragment(part)
 	if err == errFragmentNotFound {
@@ -68,41 +51,17 @@ func (dm *DMap) scanOnCluster(partID uint64, cursor uint32, match string, count 
 	return dm.scanOnFragment(f, cursor, count)
 }
 
-func formatCursor(partID uint64, fcursor uint32, placesPartCount int) string {
-	return fmt.Sprintf("%d%0*d", partID, maxCursorNumPlaces-placesPartCount, fcursor)
-}
-
-func (dm *DMap) scan(cursor, match string, count int) (string, []string, error) {
-	cursor = fmt.Sprintf("%0*s", maxCursorNumPlaces, cursor)
-	placesPartCount := numberOfPlaces(dm.s.config.PartitionCount)
-
-	partID, err := strconv.ParseUint(cursor[:placesPartCount], 10, 64)
-	if err != nil {
-		return "", nil, err
-	}
-
-	fcursor, err := strconv.ParseUint(cursor[placesPartCount:], 10, 64)
-	if err != nil {
-		return "", nil, err
-	}
-
+func (dm *DMap) scan(partID, cursor uint64, match string, count int) (uint64, []string, error) {
 	member := dm.s.primary.PartitionByID(partID).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
-		fcursor, items, err := dm.scanOnCluster(partID, uint32(fcursor), match, count)
+		cursor, items, err := dm.scanOnCluster(partID, cursor, match, count)
 		if err != nil {
-			return "", nil, err
+			return 0, nil, err
 		}
-		if fcursor == 0 {
-			if partID+1 < dm.s.config.PartitionCount {
-				partID++
-			} else {
-				partID = 0
-			}
-		}
-		return formatCursor(partID, fcursor, placesPartCount), items, nil
+		return cursor, items, nil
 	}
 
-	return "", nil, fmt.Errorf("not implemented yet")
+	return 0, nil, fmt.Errorf("not implemented yet")
 }
 
 func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
@@ -118,14 +77,14 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	cursor, result, err := dm.scan(scanCmd.Cursor, scanCmd.Match, scanCmd.Count)
+	cursor, result, err := dm.scan(scanCmd.PartID, scanCmd.Cursor, scanCmd.Match, scanCmd.Count)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
 
 	conn.WriteArray(2)
-	conn.WriteBulkString(cursor)
+	conn.WriteUint64(cursor)
 	conn.WriteArray(len(result))
 	for _, i := range result {
 		conn.WriteBulkString(i)

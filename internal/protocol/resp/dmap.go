@@ -341,14 +341,16 @@ func (q *Query) Command(ctx context.Context) *redis.StringCmd {
 }
 
 type Scan struct {
+	PartID uint64
 	DMap   string
-	Cursor string
+	Cursor uint64
 	Count  int
 	Match  string
 }
 
-func NewScan(dmap, cursor string) *Scan {
+func NewScan(partID uint64, dmap string, cursor uint64) *Scan {
 	return &Scan{
+		PartID: partID,
 		DMap:   dmap,
 		Cursor: cursor,
 	}
@@ -367,6 +369,7 @@ func (s *Scan) SetCount(count int) *Scan {
 func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
 	var args []interface{}
 	args = append(args, ScanCmd)
+	args = append(args, s.PartID)
 	args = append(args, s.DMap)
 	args = append(args, s.Cursor)
 	if s.Match != "" {

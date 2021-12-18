@@ -254,10 +254,10 @@ func TestTable_Stats(t *testing.T) {
 	}
 
 	s := tb.Stats()
-	require.Equal(t, uint32(1<<20), s.Allocated)
+	require.Equal(t, uint64(1<<20), s.Allocated)
 	require.Equal(t, 100, s.Length)
-	require.Equal(t, uint32(4280), s.Inuse)
-	require.Equal(t, uint32(0), s.Garbage)
+	require.Equal(t, uint64(4280), s.Inuse)
+	require.Equal(t, uint64(0), s.Garbage)
 
 	for i := 0; i < 100; i++ {
 		ikey := fmt.Sprintf("key-%d", i)
@@ -267,10 +267,10 @@ func TestTable_Stats(t *testing.T) {
 	}
 
 	s = tb.Stats()
-	require.Equal(t, uint32(1<<20), s.Allocated)
+	require.Equal(t, uint64(1<<20), s.Allocated)
 	require.Equal(t, 0, s.Length)
-	require.Equal(t, uint32(0), s.Inuse)
-	require.Equal(t, uint32(4280), s.Garbage)
+	require.Equal(t, uint64(0), s.Inuse)
+	require.Equal(t, uint64(4280), s.Garbage)
 }
 
 func TestTable_Reset(t *testing.T) {
@@ -290,8 +290,8 @@ func TestTable_Reset(t *testing.T) {
 
 	stats := tb.Stats()
 	require.Equal(t, RecycledState, tb.State())
-	require.Equal(t, uint32(0), stats.Garbage)
-	require.Equal(t, uint32(0), stats.Inuse)
+	require.Equal(t, uint64(0), stats.Garbage)
+	require.Equal(t, uint64(0), stats.Inuse)
 	require.Equal(t, tb.allocated, stats.Allocated)
 	require.Equal(t, 0, stats.Length)
 }
@@ -312,7 +312,7 @@ func TestTable_Scan(t *testing.T) {
 	}
 
 	var err error
-	var cursor uint32
+	var cursor uint64
 	for {
 		cursor, err = tb.Scan(cursor, 10, func(e storage.Entry) bool {
 			return true
@@ -345,7 +345,7 @@ func TestTable_ScanRegexMatch(t *testing.T) {
 	var err error
 	var num int
 	var count int
-	var cursor uint32
+	var cursor uint64
 	for {
 		num++
 		cursor, err = tb.ScanRegexMatch(cursor, "even:", 10, func(e storage.Entry) bool {
@@ -387,7 +387,7 @@ func TestTable_ScanRegexMatch_SingleMatch(t *testing.T) {
 
 	var num int
 	var count int
-	var cursor uint32
+	var cursor uint64
 	for {
 		num++
 		cursor, err = tb.ScanRegexMatch(cursor, "even:", 10, func(e storage.Entry) bool {

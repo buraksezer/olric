@@ -15,18 +15,18 @@
 package table
 
 import (
-	"github.com/RoaringBitmap/roaring"
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/vmihailenco/msgpack"
 )
 
 type Pack struct {
-	Offset      uint32
-	Allocated   uint32
-	Inuse       uint32
-	Garbage     uint32
+	Offset      uint64
+	Allocated   uint64
+	Inuse       uint64
+	Garbage     uint64
 	RecycledAt  int64
 	State       State
-	HKeys       map[uint64]uint32
+	HKeys       map[uint64]uint64
 	OffsetIndex []byte
 	Memory      []byte
 }
@@ -59,7 +59,7 @@ func Decode(data []byte) (*Table, error) {
 		return nil, err
 	}
 
-	rb := roaring.New()
+	rb := roaring64.New()
 	err = rb.UnmarshalBinary(p.OffsetIndex)
 	if err != nil {
 		return nil, err
