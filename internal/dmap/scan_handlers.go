@@ -15,15 +15,15 @@
 package dmap
 
 import (
-	"fmt"
+	"strconv"
+
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
-	"strconv"
 )
 
-func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) (uint64, []string, error) {
+func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) ([]string, uint64, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -33,35 +33,54 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) (uint64, [
 		return true
 	})
 	if err != nil {
-		return 0, nil, err
+		return nil, 0, err
 	}
 
-	return cursor, items, nil
+	return items, cursor, nil
 }
 
-func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) (uint64, []string, error) {
+func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
 	part := dm.s.primary.PartitionByID(partID)
 	f, err := dm.loadFragment(part)
 	if err == errFragmentNotFound {
-		return 0, nil, nil
+		return nil, 0, nil
 	}
 	if err != nil {
-		return 0, nil, err
+		return nil, 0, err
 	}
 	return dm.scanOnFragment(f, cursor, sc.Count)
 }
 
-func (dm *DMap) scan(partID, cursor uint64, option *scanConfig) (uint64, []string, error) {
+func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
 	member := dm.s.primary.PartitionByID(partID).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
-		cursor, items, err := dm.scanOnCluster(partID, cursor, option)
+		items, cursor, err := dm.scanOnCluster(partID, cursor, sc)
 		if err != nil {
-			return 0, nil, err
+			return nil, 0, err
 		}
-		return cursor, items, nil
+		return items, cursor, nil
 	}
 
-	return 0, nil, fmt.Errorf("not implemented yet")
+	// Redirect to the partition owner
+	scan := resp.NewScan(partID, dm.name, cursor)
+	if sc.HasMatch {
+		scan.SetMatch(scan.Match)
+	}
+	if sc.HashCount {
+		scan.SetCount(scan.Count)
+	}
+	cmd := scan.Command(dm.s.ctx)
+
+	rc := dm.s.respClient.Get(member.String())
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return nil, 0, resp.ConvertError(err)
+	}
+	err = cmd.Err()
+	if err != nil {
+		return nil, 0, resp.ConvertError(err)
+	}
+	return cmd.Result()
 }
 
 type scanConfig struct {
@@ -108,7 +127,7 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		opt(&sc)
 	}
 
-	cursor, result, err := dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
+	result, cursor, err := dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
