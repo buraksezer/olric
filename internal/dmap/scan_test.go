@@ -24,23 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dm, err := s.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	allKeys := make(map[string]bool)
-
-	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
-		require.NoError(t, err)
-
-		allKeys[testutil.ToKey(i)] = false
-	}
-
+func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool) {
 	ctx := context.TODO()
 	rc := s.respClient.Get(s.rt.This().String())
 
@@ -49,7 +33,7 @@ func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
 	for {
 		r := resp.NewScan(partID, "mydmap", cursor)
 		cmd := r.Command(ctx)
-		err = rc.Process(ctx, cmd)
+		err := rc.Process(ctx, cmd)
 		require.NoError(t, err)
 
 		var keys []string
@@ -75,6 +59,45 @@ func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
 	for _, value := range allKeys {
 		require.True(t, value)
 	}
+}
+
+func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	allKeys := make(map[string]bool)
+
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), i)
+		require.NoError(t, err)
+
+		allKeys[testutil.ToKey(i)] = false
+	}
+
+	testScanIterator(t, s, allKeys)
+}
+
+func TestDMap_scanCommandHandler_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	allKeys := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), i)
+		require.NoError(t, err)
+
+		allKeys[testutil.ToKey(i)] = false
+	}
+	testScanIterator(t, s2, allKeys)
 }
 
 /*
