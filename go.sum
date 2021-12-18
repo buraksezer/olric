@@ -111,12 +111,12 @@ github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81P
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/stretchr/testify v1.7.0 h1:nwc3DEeHmmLAfoZucVR881uASk0Mfjw8xYJ99tb5CcY=
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
-github.com/tidwall/btree v0.6.1 h1:75VVgBeviiDO+3g4U+7+BaNBNhNINxB0ULPT3fs9pMY=
-github.com/tidwall/btree v0.6.1/go.mod h1:TzIRzen6yHbibdSfK6t8QimqbUnoxUSrZfeW7Uob0q4=
+github.com/tidwall/btree v0.7.1 h1:LPXN3VRIxsdMwyfbtPgOA60jLuj/eEmMpDjOh2szRPw=
+github.com/tidwall/btree v0.7.1/go.mod h1:TzIRzen6yHbibdSfK6t8QimqbUnoxUSrZfeW7Uob0q4=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
 github.com/tidwall/match v1.1.1/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
-github.com/tidwall/redcon v1.4.2 h1:ap44ooAjFK1poJX+ji1/HJV9JzFCqHCHWb2RpVEnDfw=
-github.com/tidwall/redcon v1.4.2/go.mod h1:0LDDaln3mnvTNAsNkoLH4oz3s9UIaFwiMJVJTJZsu5k=
+github.com/tidwall/redcon v1.4.3 h1:HLtMEGxxv4Cc3uG9yH7ChHbkx2meclbBmPPazW/Aqcs=
+github.com/tidwall/redcon v1.4.3/go.mod h1:d3d1wXkiW7bDizXaHqEiHrh3RWvCNVu51Ix6YN0B5aA=
 github.com/vmihailenco/msgpack v4.0.4+incompatible h1:dSLoQfGFAo3F6OoNhwUmLwVgaUXK79GlxNBwueZn0xI=
 github.com/vmihailenco/msgpack v4.0.4+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

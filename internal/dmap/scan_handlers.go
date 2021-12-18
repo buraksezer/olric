@@ -16,12 +16,11 @@ package dmap
 
 import (
 	"fmt"
-	"strconv"
-
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
+	"strconv"
 )
 
 func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) (uint64, []string, error) {
@@ -40,7 +39,7 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) (uint64, [
 	return cursor, items, nil
 }
 
-func (dm *DMap) scanOnCluster(partID, cursor uint64, match string, count int) (uint64, []string, error) {
+func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) (uint64, []string, error) {
 	part := dm.s.primary.PartitionByID(partID)
 	f, err := dm.loadFragment(part)
 	if err == errFragmentNotFound {
@@ -49,13 +48,13 @@ func (dm *DMap) scanOnCluster(partID, cursor uint64, match string, count int) (u
 	if err != nil {
 		return 0, nil, err
 	}
-	return dm.scanOnFragment(f, cursor, count)
+	return dm.scanOnFragment(f, cursor, sc.Count)
 }
 
-func (dm *DMap) scan(partID, cursor uint64, match string, count int) (uint64, []string, error) {
+func (dm *DMap) scan(partID, cursor uint64, option *scanConfig) (uint64, []string, error) {
 	member := dm.s.primary.PartitionByID(partID).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
-		cursor, items, err := dm.scanOnCluster(partID, cursor, match, count)
+		cursor, items, err := dm.scanOnCluster(partID, cursor, option)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -63,6 +62,29 @@ func (dm *DMap) scan(partID, cursor uint64, match string, count int) (uint64, []
 	}
 
 	return 0, nil, fmt.Errorf("not implemented yet")
+}
+
+type scanConfig struct {
+	HashCount bool
+	Count     int
+	HasMatch  bool
+	Match     string
+}
+
+type ScanOption func(*scanConfig)
+
+func Count(c int) ScanOption {
+	return func(cfg *scanConfig) {
+		cfg.HashCount = true
+		cfg.Count = c
+	}
+}
+
+func Match(s string) ScanOption {
+	return func(cfg *scanConfig) {
+		cfg.HasMatch = true
+		cfg.Match = s
+	}
 }
 
 func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
@@ -78,7 +100,15 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	cursor, result, err := dm.scan(scanCmd.PartID, scanCmd.Cursor, scanCmd.Match, scanCmd.Count)
+	var sc scanConfig
+	var options []ScanOption
+	options = append(options, Count(scanCmd.Count))
+	options = append(options, Match(scanCmd.Match))
+	for _, opt := range options {
+		opt(&sc)
+	}
+
+	cursor, result, err := dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return

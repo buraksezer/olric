@@ -19,7 +19,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/redcon v1.4.2
+	github.com/tidwall/redcon v1.4.3
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	golang.org/x/crypto v0.0.0-20201001193750-eb9a90e9f9cb // indirect
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
