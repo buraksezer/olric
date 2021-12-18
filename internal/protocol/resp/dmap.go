@@ -342,12 +342,12 @@ func (q *Query) Command(ctx context.Context) *redis.StringCmd {
 
 type Scan struct {
 	DMap   string
-	Cursor uint64
+	Cursor string
 	Count  int
 	Match  string
 }
 
-func NewScan(dmap string, cursor uint64) *Scan {
+func NewScan(dmap, cursor string) *Scan {
 	return &Scan{
 		DMap:   dmap,
 		Cursor: cursor,

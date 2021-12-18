@@ -86,7 +86,12 @@ func main() {
 	}
 
 	if args.version {
-		log.Printf("olricd %s with runtime %s\n", olric.ReleaseVersion, runtime.Version())
+		log.Printf("olricd version %s %s %s/%s\n",
+			olric.ReleaseVersion,
+			runtime.Version(),
+			runtime.GOOS,
+			runtime.GOARCH,
+		)
 		return
 	} else if args.help {
 		usage()

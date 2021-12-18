@@ -296,14 +296,17 @@ func (dm *DMap) getOnCluster(hkey uint64, key string) (storage.Entry, error) {
 		v := dm.lookupOnReplicas(hkey, key)
 		versions = append(versions, v...)
 	}
+
 	if len(versions) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
+
 	sorted := dm.sanitizeAndSortVersions(versions)
 	if len(sorted) == 0 {
 		// We checked everywhere, it's not here.
 		return nil, ErrKeyNotFound
 	}
+
 	if len(sorted) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}

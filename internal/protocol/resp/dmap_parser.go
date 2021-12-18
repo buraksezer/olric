@@ -405,15 +405,9 @@ func ParseScanCommand(cmd redcon.Command) (*Scan, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	rawCursor := util.BytesToString(cmd.Args[2])
-	cursor, err := strconv.ParseUint(rawCursor, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
 	s := NewScan(
 		util.BytesToString(cmd.Args[1]), // DMap
-		cursor,
+		util.BytesToString(cmd.Args[2]),
 	)
 
 	args := cmd.Args[3:]
