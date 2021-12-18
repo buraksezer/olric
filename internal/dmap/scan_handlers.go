@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol/resp"
@@ -84,7 +85,7 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	conn.WriteArray(2)
-	conn.WriteUint64(cursor)
+	conn.WriteBulkString(strconv.FormatUint(cursor, 10))
 	conn.WriteArray(len(result))
 	for _, i := range result {
 		conn.WriteBulkString(i)

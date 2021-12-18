@@ -16,7 +16,6 @@ package dmap
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol/resp"
@@ -33,23 +32,49 @@ func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	allKeys := make(map[string]bool)
+
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), i)
 		require.NoError(t, err)
+
+		allKeys[testutil.ToKey(i)] = false
 	}
+
 	ctx := context.TODO()
 	rc := s.respClient.Get(s.rt.This().String())
 
-	r := resp.NewScan("mydmap", "10000000000000000442")
-	cmd := r.Command(ctx)
-	err = rc.Process(ctx, cmd)
-	require.NoError(t, err)
-	/*it := cmd.Iterator()
-	for it.Next(ctx) {
+	var totalKeys int
+	var partID, cursor uint64
+	for {
+		r := resp.NewScan(partID, "mydmap", cursor)
+		cmd := r.Command(ctx)
+		err = rc.Process(ctx, cmd)
+		require.NoError(t, err)
 
-		//fmt.Println(it.Val())
-	}*/
-	fmt.Println(cmd.Result())
+		var keys []string
+		keys, cursor, err = cmd.Result()
+		require.NoError(t, err)
+		totalKeys += len(keys)
+
+		for _, key := range keys {
+			_, ok := allKeys[key]
+			require.True(t, ok)
+			allKeys[key] = true
+		}
+		if cursor == 0 {
+			if partID+1 < s.config.PartitionCount {
+				partID++
+				continue
+			}
+			break
+		}
+	}
+	require.Equal(t, 100, totalKeys)
+
+	for _, value := range allKeys {
+		require.True(t, value)
+	}
 }
 
 /*
