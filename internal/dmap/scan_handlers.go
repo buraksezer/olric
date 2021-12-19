@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/discovery"
 	"strconv"
 
 	"github.com/buraksezer/olric/internal/kvstore"
@@ -22,6 +24,18 @@ import (
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 )
+
+func (dm *DMap) scanReplica(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
+	part := dm.s.backup.PartitionByID(partID)
+	f, err := dm.loadFragment(part)
+	if err == errFragmentNotFound {
+		return nil, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	return dm.scanOnFragment(f, cursor, sc.Count)
+}
 
 func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) ([]string, uint64, error) {
 	f.Lock()
@@ -39,6 +53,27 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) ([]string,
 	return items, cursor, nil
 }
 
+func (dm *DMap) scanOnReplicaOwner(member discovery.Member, partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
+	scan := resp.NewScan(partID, dm.name, cursor).SetReplica()
+	if sc.HasMatch {
+		scan.SetMatch(scan.Match)
+	}
+	if sc.HashCount {
+		scan.SetCount(scan.Count)
+	}
+	cmd := scan.Command(dm.s.ctx)
+	rc := dm.s.respClient.Get(member.String())
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return nil, 0, resp.ConvertError(err)
+	}
+	err = cmd.Err()
+	if err != nil {
+		return nil, 0, resp.ConvertError(err)
+	}
+	return cmd.Result()
+}
+
 func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
 	part := dm.s.primary.PartitionByID(partID)
 	f, err := dm.loadFragment(part)
@@ -47,6 +82,9 @@ func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) ([]string, 
 	}
 	if err != nil {
 		return nil, 0, err
+	}
+	if dm.s.config.ReplicaCount > config.MinimumReplicaCount {
+		//replicaOwners := dm.s.backup.PartitionOwnersByID(partID)
 	}
 	return dm.scanOnFragment(f, cursor, sc.Count)
 }
@@ -70,7 +108,6 @@ func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, e
 		scan.SetCount(scan.Count)
 	}
 	cmd := scan.Command(dm.s.ctx)
-
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
@@ -127,7 +164,13 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		opt(&sc)
 	}
 
-	result, cursor, err := dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
+	var result []string
+	var cursor uint64
+	if !scanCmd.Replica {
+		result, cursor, err = dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
+	} else {
+		result, cursor, err = dm.scanReplica(scanCmd.PartID, scanCmd.Cursor, &sc)
+	}
 	if err != nil {
 		resp.WriteError(conn, err)
 		return

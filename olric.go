@@ -28,12 +28,13 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/tidwall/redcon"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tidwall/redcon"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
@@ -210,6 +211,7 @@ func New(c *config.Config) (*Olric, error) {
 		config:     c,
 		hashFunc:   c.Hasher,
 		serializer: c.Serializer,
+		respClient: respClient,
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
 		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
@@ -250,6 +252,7 @@ func (db *Olric) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
 
 func (db *Olric) registerCommandHandlers() {
 	db.respServer.ServeMux().HandleFunc(resp.PingCmd, db.pingCommandHandler)
+	db.respServer.ServeMux().HandleFunc(resp.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
 }
 
 // callStartedCallback checks passed checkpoint count and calls the callback

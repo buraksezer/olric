@@ -341,11 +341,12 @@ func (q *Query) Command(ctx context.Context) *redis.StringCmd {
 }
 
 type Scan struct {
-	PartID uint64
-	DMap   string
-	Cursor uint64
-	Count  int
-	Match  string
+	PartID  uint64
+	DMap    string
+	Cursor  uint64
+	Count   int
+	Match   string
+	Replica bool
 }
 
 func NewScan(partID uint64, dmap string, cursor uint64) *Scan {
@@ -366,6 +367,11 @@ func (s *Scan) SetCount(count int) *Scan {
 	return s
 }
 
+func (s *Scan) SetReplica() *Scan {
+	s.Replica = true
+	return s
+}
+
 func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
 	var args []interface{}
 	args = append(args, ScanCmd)
@@ -379,6 +385,9 @@ func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
 	if s.Count != 0 {
 		args = append(args, "COUNT")
 		args = append(args, s.Count)
+	}
+	if s.Replica {
+		args = append(args, "RC")
 	}
 	return redis.NewScanCmd(ctx, nil, args...)
 }

@@ -15,12 +15,10 @@
 package olric
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/query"
 	"github.com/stretchr/testify/require"
 )
 
@@ -160,6 +158,7 @@ func TestOlric_DMap_Expire(t *testing.T) {
 	require.NoError(t, err)
 }
 
+/*
 func TestOlric_DMap_Query(t *testing.T) {
 	db := newTestOlric(t)
 
@@ -202,7 +201,7 @@ func TestOlric_DMap_Query(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, len(expected), count)
-}
+}*/
 
 func TestOlric_DMap_PutEx(t *testing.T) {
 	db := newTestOlric(t)

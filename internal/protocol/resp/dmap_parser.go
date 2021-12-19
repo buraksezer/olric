@@ -438,6 +438,9 @@ func ParseScanCommand(cmd redcon.Command) (*Scan, error) {
 			s.SetCount(count)
 			args = args[2:]
 			continue
+		case "RC":
+			s.SetReplica()
+			args = args[1:]
 		}
 	}
 

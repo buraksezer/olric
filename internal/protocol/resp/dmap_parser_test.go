@@ -136,6 +136,21 @@ func TestProtocol_ParseScanCommand(t *testing.T) {
 	require.Equal(t, "my-dmap", parsed.DMap)
 	require.Equal(t, "", parsed.Match)
 	require.Equal(t, 10, parsed.Count)
+	require.False(t, scanCmd.Replica)
+}
+
+func TestProtocol_ParseScanCommand_Replica(t *testing.T) {
+	scanCmd := NewScan(1, "my-dmap", 0).SetReplica()
+
+	s := scanCmd.Command(context.Background()).String()
+	s = strings.TrimSuffix(s, ": []")
+	cmd := stringToCommand(s)
+	parsed, err := ParseScanCommand(cmd)
+	require.NoError(t, err)
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "", parsed.Match)
+	require.Equal(t, 10, parsed.Count)
+	require.True(t, scanCmd.Replica)
 }
 
 func TestProtocol_ParseScanCommand_Match(t *testing.T) {
@@ -150,6 +165,7 @@ func TestProtocol_ParseScanCommand_Match(t *testing.T) {
 	require.Equal(t, uint64(1), parsed.PartID)
 	require.Equal(t, "^even", parsed.Match)
 	require.Equal(t, 10, parsed.Count)
+	require.False(t, scanCmd.Replica)
 }
 
 func TestProtocol_ParseScanCommand_PartID(t *testing.T) {
@@ -164,6 +180,7 @@ func TestProtocol_ParseScanCommand_PartID(t *testing.T) {
 	require.Equal(t, uint64(1), parsed.PartID)
 	require.Equal(t, "", parsed.Match)
 	require.Equal(t, 200, parsed.Count)
+	require.False(t, scanCmd.Replica)
 }
 
 func TestProtocol_ParseScanCommand_Match_Count(t *testing.T) {
@@ -178,4 +195,23 @@ func TestProtocol_ParseScanCommand_Match_Count(t *testing.T) {
 	require.Equal(t, uint64(1), parsed.PartID)
 	require.Equal(t, "^even", parsed.Match)
 	require.Equal(t, 100, parsed.Count)
+	require.False(t, scanCmd.Replica)
+}
+
+func TestProtocol_ParseScanCommand_Match_Count_Replica(t *testing.T) {
+	scanCmd := NewScan(1, "my-dmap", 0).
+		SetCount(100).
+		SetMatch("^even").
+		SetReplica()
+
+	s := scanCmd.Command(context.Background()).String()
+	s = strings.TrimSuffix(s, ": []")
+	cmd := stringToCommand(s)
+	parsed, err := ParseScanCommand(cmd)
+	require.NoError(t, err)
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, uint64(1), parsed.PartID)
+	require.Equal(t, "^even", parsed.Match)
+	require.Equal(t, 100, parsed.Count)
+	require.True(t, scanCmd.Replica)
 }
