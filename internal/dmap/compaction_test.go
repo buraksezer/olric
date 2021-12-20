@@ -33,7 +33,7 @@ func TestDMap_Compaction(t *testing.T) {
 	c.DMaps.Engine.Name = config.DefaultStorageEngine
 	c.DMaps.Engine.Implementation = kvstore.New(nil)
 	c.DMaps.Engine.Config = map[string]interface{}{
-		"tableSize":           uint32(2048), // overwrite tableSize to trigger compaction.
+		"tableSize":           uint64(2048), // overwrite tableSize to trigger compaction.
 		"maxIdleTableTimeout": time.Millisecond,
 	}
 	e := testcluster.NewEnvironment(c)
