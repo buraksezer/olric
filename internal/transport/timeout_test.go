@@ -17,6 +17,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -57,6 +58,7 @@ func TestConnWithTimeout(t *testing.T) {
 			defer cancel()
 			req := protocol.NewDMapMessage(protocol.OpPut)
 			_, err := c.RequestTo(s.listener.Addr().String(), req)
+			err = errors.Unwrap(err)
 			if err.(*net.OpError).Err.Error() != "i/o timeout" {
 				t.Errorf("Expected i/o timeout. Got: %v", err)
 			}
