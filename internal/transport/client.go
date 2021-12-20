@@ -16,6 +16,7 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -25,6 +26,8 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/protocol"
 )
+
+var ErrConnPoolTimeout = errors.New("timeout exceeded")
 
 // Client is the client implementation for the internal TCP server.
 // It maintains a connection pool and manages request-response cycle.
@@ -129,7 +132,12 @@ func (c *Client) conn(addr string) (net.Conn, error) {
 
 	conn, err := p.Get(ctx)
 	if err != nil {
-		return nil, err
+		// Reformat the error here. DeadlineExceeded error is too
+		// cryptic for users.
+		if err == context.DeadlineExceeded {
+			err = ErrConnPoolTimeout
+		}
+		return nil, fmt.Errorf("failed to acquire a TCP connection from the pool for: %s %w", addr, err)
 	}
 
 	if c.config.HasTimeout() {
