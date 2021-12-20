@@ -105,14 +105,12 @@ func (db *Olric) clusterRoutingTableCommandHandler(conn redcon.Conn, cmd redcon.
 		resp.WriteError(conn, err)
 		return
 	}
-
-	// TODO: Text will fail
-	data, err := rtCmd.Text()
+	slice, err := rtCmd.Slice()
 	if err != nil {
 		resp.WriteError(conn, err)
 		return
 	}
-	conn.WriteBulkString(data)
+	conn.WriteAny(slice)
 }
 
 func (db *Olric) fillRoutingTable() RoutingTable {
