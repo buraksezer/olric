@@ -98,11 +98,6 @@ func (dm *DMap) prepareEntry(e *env) storage.Entry {
 	return nt
 }
 
-// TODO: putOnFragment is deprecated
-func (dm *DMap) putOnFragment(e *env) error {
-	return dm.putEntryOnFragment(e, dm.prepareEntry(e))
-}
-
 func (dm *DMap) putOnReplicaFragment(e *env) error {
 	part := dm.getPartitionByHKey(e.hkey, partitions.BACKUP)
 	f, err := dm.loadOrCreateFragment(part)

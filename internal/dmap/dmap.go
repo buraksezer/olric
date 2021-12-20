@@ -125,14 +125,6 @@ func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partition
 	return part
 }
 
-func timeoutToTTL(timeout time.Duration) int64 {
-	if timeout.Seconds() == 0 {
-		return 0
-	}
-	// convert nanoseconds to milliseconds
-	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
-}
-
 func isKeyExpired(ttl int64) bool {
 	if ttl == 0 {
 		return false

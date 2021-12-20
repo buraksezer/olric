@@ -15,9 +15,10 @@
 package olric
 
 import (
+	"testing"
+
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestOlric_ClusterRoutingTable_clusterRoutingTableCommandHandler(t *testing.T) {

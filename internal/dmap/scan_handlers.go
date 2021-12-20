@@ -15,27 +15,14 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/discovery"
 	"strconv"
 
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 )
-
-func (dm *DMap) scanReplica(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
-	part := dm.s.backup.PartitionByID(partID)
-	f, err := dm.loadFragment(part)
-	if err == errFragmentNotFound {
-		return nil, 0, nil
-	}
-	if err != nil {
-		return nil, 0, err
-	}
-	return dm.scanOnFragment(f, cursor, sc.Count)
-}
 
 func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) ([]string, uint64, error) {
 	f.Lock()
@@ -53,29 +40,13 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) ([]string,
 	return items, cursor, nil
 }
 
-func (dm *DMap) scanOnReplicaOwner(member discovery.Member, partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
-	scan := resp.NewScan(partID, dm.name, cursor).SetReplica()
-	if sc.HasMatch {
-		scan.SetMatch(scan.Match)
+func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
+	var part *partitions.Partition
+	if sc.replica {
+		part = dm.s.backup.PartitionByID(partID)
+	} else {
+		part = dm.s.primary.PartitionByID(partID)
 	}
-	if sc.HashCount {
-		scan.SetCount(scan.Count)
-	}
-	cmd := scan.Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(member.String())
-	err := rc.Process(dm.s.ctx, cmd)
-	if err != nil {
-		return nil, 0, resp.ConvertError(err)
-	}
-	err = cmd.Err()
-	if err != nil {
-		return nil, 0, resp.ConvertError(err)
-	}
-	return cmd.Result()
-}
-
-func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
-	part := dm.s.primary.PartitionByID(partID)
 	f, err := dm.loadFragment(part)
 	if err == errFragmentNotFound {
 		return nil, 0, nil
@@ -83,41 +54,7 @@ func (dm *DMap) scanOnCluster(partID, cursor uint64, sc *scanConfig) ([]string, 
 	if err != nil {
 		return nil, 0, err
 	}
-	if dm.s.config.ReplicaCount > config.MinimumReplicaCount {
-		//replicaOwners := dm.s.backup.PartitionOwnersByID(partID)
-	}
 	return dm.scanOnFragment(f, cursor, sc.Count)
-}
-
-func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
-	member := dm.s.primary.PartitionByID(partID).Owner()
-	if member.CompareByName(dm.s.rt.This()) {
-		items, cursor, err := dm.scanOnCluster(partID, cursor, sc)
-		if err != nil {
-			return nil, 0, err
-		}
-		return items, cursor, nil
-	}
-
-	// Redirect to the partition owner
-	scan := resp.NewScan(partID, dm.name, cursor)
-	if sc.HasMatch {
-		scan.SetMatch(scan.Match)
-	}
-	if sc.HashCount {
-		scan.SetCount(scan.Count)
-	}
-	cmd := scan.Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(member.String())
-	err := rc.Process(dm.s.ctx, cmd)
-	if err != nil {
-		return nil, 0, resp.ConvertError(err)
-	}
-	err = cmd.Err()
-	if err != nil {
-		return nil, 0, resp.ConvertError(err)
-	}
-	return cmd.Result()
 }
 
 type scanConfig struct {
@@ -125,6 +62,7 @@ type scanConfig struct {
 	Count     int
 	HasMatch  bool
 	Match     string
+	replica   bool
 }
 
 type ScanOption func(*scanConfig)
@@ -163,14 +101,11 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	for _, opt := range options {
 		opt(&sc)
 	}
+	sc.replica = scanCmd.Replica
 
 	var result []string
 	var cursor uint64
-	if !scanCmd.Replica {
-		result, cursor, err = dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
-	} else {
-		result, cursor, err = dm.scanReplica(scanCmd.PartID, scanCmd.Cursor, &sc)
-	}
+	result, cursor, err = dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
 		resp.WriteError(conn, err)
 		return

@@ -140,11 +140,10 @@ func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, err
 	part.Lock()
 	defer part.Unlock()
 
-	// Creating a new fragment is our critical section here.
-	// It should be protected by a lock.
-
+	// Critical section here. It should be protected by a lock.
 	fg, ok := part.Map().Load(dm.fragmentName)
 	if ok {
+		// We already have the fragment.
 		return fg.(*fragment), nil
 	}
 

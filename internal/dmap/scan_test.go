@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool) {
+func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool, replica bool) int {
 	ctx := context.TODO()
 	rc := s.respClient.Get(s.rt.This().String())
 
@@ -32,6 +32,9 @@ func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool) {
 	var partID, cursor uint64
 	for {
 		r := resp.NewScan(partID, "mydmap", cursor)
+		if replica {
+			r.SetReplica()
+		}
 		cmd := r.Command(ctx)
 		err := rc.Process(ctx, cmd)
 		require.NoError(t, err)
@@ -54,11 +57,7 @@ func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool) {
 			break
 		}
 	}
-	require.Equal(t, 100, totalKeys)
-
-	for _, value := range allKeys {
-		require.True(t, value)
-	}
+	return totalKeys
 }
 
 func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
@@ -78,13 +77,28 @@ func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
 		allKeys[testutil.ToKey(i)] = false
 	}
 
-	testScanIterator(t, s, allKeys)
+	totalKeys := testScanIterator(t, s, allKeys, false)
+	require.Equal(t, 100, totalKeys)
+	for _, value := range allKeys {
+		require.True(t, value)
+	}
 }
 
 func TestDMap_scanCommandHandler_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
+
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	c1.WriteQuorum = 2
+	e1 := testcluster.NewEnvironment(c1)
+	s1 := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	c1.WriteQuorum = 2
+	e2 := testcluster.NewEnvironment(c2)
+	s2 := cluster.AddMember(e2).(*Service)
+
 	defer cluster.Shutdown()
 
 	dm, err := s1.NewDMap("mydmap")
@@ -97,329 +111,26 @@ func TestDMap_scanCommandHandler_Cluster(t *testing.T) {
 
 		allKeys[testutil.ToKey(i)] = false
 	}
-	testScanIterator(t, s2, allKeys)
-}
 
-/*
-func TestDMap_QueryOnKeyStandalone(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
+	t.Run("Scan on primary copies", func(t *testing.T) {
+		var totalKeys int
+		totalKeys += testScanIterator(t, s1, allKeys, false)
+		totalKeys += testScanIterator(t, s2, allKeys, false)
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var key string
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			key = "even:" + testutil.ToKey(i)
-		} else {
-			key = "odd:" + testutil.ToKey(i)
+		require.Equal(t, 100, totalKeys)
+		for _, value := range allKeys {
+			require.True(t, value)
 		}
-		err = dm.Put(key, i)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	q, err := dm.Query(
-		query.M{
-			"$onKey": query.M{
-				"$regexMatch": "even:",
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	count := 0
-	err = q.Range(func(key string, value interface{}) bool {
-		count++
-		if value.(int)%2 != 0 {
-			t.Fatalf("Expected value is an even number. Got: %d", value)
-		}
-		return true
 	})
 
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	t.Run("Scan on replicas", func(t *testing.T) {
+		var totalKeys int
+		totalKeys += testScanIterator(t, s1, allKeys, true)
+		totalKeys += testScanIterator(t, s2, allKeys, true)
 
-	if count != 50 {
-		t.Fatalf("Expected count is 50. Got: %d", count)
-	}
-}
-
-func TestDMap_QueryOnKeyCluster(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var key string
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			key = "even:" + testutil.ToKey(i)
-		} else {
-			key = "odd:" + testutil.ToKey(i)
+		require.Equal(t, 100, totalKeys)
+		for _, value := range allKeys {
+			require.True(t, value)
 		}
-		err = dm1.Put(key, i)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	q, err := dm2.Query(
-		query.M{
-			"$onKey": query.M{
-				"$regexMatch": "even:",
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer q.Close()
-
-	count := 0
-	err = q.Range(func(key string, value interface{}) bool {
-		count++
-		if value.(int)%2 != 0 {
-			t.Fatalf("Expected value is an even number. Got: %d", value)
-		}
-		return true
 	})
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	if count != 50 {
-		t.Fatalf("Expected count is 50. Got: %d", count)
-	}
 }
-
-func TestDMap_QueryOnKeyIgnoreValues(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var key string
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			key = "even:" + testutil.ToKey(i)
-		} else {
-			key = "odd:" + testutil.ToKey(i)
-		}
-		err = dm.Put(key, i)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	q, err := dm.Query(
-		query.M{
-			"$onKey": query.M{
-				"$regexMatch": "even:",
-				"$options": query.M{
-					"$onValue": query.M{
-						"$ignore": true,
-					},
-				},
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	count := 0
-	err = q.Range(func(key string, value interface{}) bool {
-		count++
-		if value != nil {
-			t.Fatalf("Expected nil. Got: %v", value)
-		}
-		return true
-	})
-
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	if count != 50 {
-		t.Fatalf("Expected count is 50. Got: %d", count)
-	}
-}
-
-func TestDMap_IteratorCluster(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var key string
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			key = "even:" + testutil.ToKey(i)
-		} else {
-			key = "odd:" + testutil.ToKey(i)
-		}
-		err = dm1.Put(key, i)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	q, err := dm2.Query(
-		query.M{
-			"$onKey": query.M{
-				"$regexMatch": "",
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer q.Close()
-
-	count := 0
-	err = q.Range(func(key string, value interface{}) bool {
-		count++
-		return true
-	})
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	if count != 100 {
-		t.Fatalf("Expected count is 100. Got: %d", count)
-	}
-}
-
-func TestDMap_Query(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var key string
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			key = "even:" + testutil.ToKey(i)
-		} else {
-			key = "odd:" + testutil.ToKey(i)
-		}
-		err = dm.Put(key, i)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	q := query.M{
-		"$onKey": query.M{
-			"$regexMatch": "even:",
-		},
-	}
-	value, err := msgpack.Marshal(q)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	req := protocol.NewDMapMessage(protocol.OpQuery)
-	req.SetDMap("mydmap")
-	req.SetValue(value)
-	req.SetExtra(protocol.QueryExtra{PartID: 0})
-
-	cc := &config.Client{
-		MaxConn: 10,
-	}
-	cc.Sanitize()
-	cl := transport.NewClient(cc)
-	resp, err := cl.RequestTo(s.rt.This().String(), req)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if resp.Status() != protocol.StatusOK {
-		t.Fatalf("Expected protocol.StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status())
-	}
-	var qr QueryResponse
-	if err = msgpack.Unmarshal(resp.Value(), &qr); err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	for key, value := range qr {
-		if !strings.HasPrefix(key, "even:") {
-			t.Fatalf("Expected prefix is even:. Got: %s", key)
-		}
-
-		var v interface{}
-		err = s.serializer.Unmarshal(value.([]byte), &v)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if v.(int)%2 != 0 {
-			t.Fatalf("Expected even number. Got: %v", v)
-		}
-	}
-}
-
-func TestDMap_QueryEndOfKeySpace(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	q := query.M{
-		"$onKey": query.M{
-			"$regexMatch": "even:",
-		},
-	}
-	value, err := msgpack.Marshal(q)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	req := protocol.NewDMapMessage(protocol.OpQuery)
-	req.SetDMap("mydmap")
-	req.SetValue(value)
-	req.SetExtra(protocol.QueryExtra{PartID: 300})
-
-	cc := &config.Client{
-		MaxConn: 10,
-	}
-	cc.Sanitize()
-	cl := transport.NewClient(cc)
-	resp, err := cl.RequestTo(s.rt.This().String(), req)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if resp.Status() != protocol.StatusErrEndOfQuery {
-		t.Fatalf("Expected protocol.ErrEndOfQuery (%d). Got: %d", protocol.StatusErrEndOfQuery, resp.Status())
-	}
-}*/
