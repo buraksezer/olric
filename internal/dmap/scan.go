@@ -15,7 +15,11 @@
 package dmap
 
 import (
+	"context"
+
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
@@ -31,6 +35,89 @@ type QueryResponse map[string]interface{}
 
 // internal representation of query response
 type queryResponse map[uint64][]byte
+
+// ScanIterator implements distributed query on DMaps.
+type ScanIterator struct {
+	dm      *DMap
+	cursors map[uint64]uint64
+	partID  uint64
+	config  *scanConfig
+	ctx     context.Context
+	cancel  context.CancelFunc
+}
+
+func (dm *DMap) Scan(options ...ScanOption) (*ScanIterator, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	var sc scanConfig
+	for _, opt := range options {
+		opt(&sc)
+	}
+	return &ScanIterator{
+		dm:      dm,
+		config:  &sc,
+		cursors: make(map[uint64]uint64),
+		ctx:     ctx,
+		cancel:  cancel,
+	}, nil
+}
+
+func (si *ScanIterator) scanOnOwners(owners []discovery.Member, set map[string]struct{}) error {
+	for _, owner := range owners {
+		if owner.CompareByID(si.dm.s.rt.This()) {
+			keys, cursor, err := si.dm.scan(si.partID, si.cursors[owner.ID], si.config)
+			if err != nil {
+				return err
+			}
+			si.cursors[owner.ID] = cursor
+			for _, key := range keys {
+				set[key] = struct{}{}
+			}
+		}
+
+		scanCmd := resp.NewScan(si.partID, si.dm.name, si.cursors[owner.ID]).Command(context.TODO())
+		rc := si.dm.s.respClient.Get(owner.String())
+		err := rc.Process(context.TODO(), scanCmd)
+		if err != nil {
+			return err
+		}
+		keys, cursor, err := scanCmd.Result()
+		if err != nil {
+			return err
+		}
+		si.cursors[owner.ID] = cursor
+		for _, key := range keys {
+			set[key] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+func (si *ScanIterator) Range(f func(key string) bool) error {
+	for si.dm.s.config.PartitionCount > si.partID {
+		set := make(map[string]struct{})
+
+		primaryOwners := si.dm.s.primary.PartitionOwnersByID(si.partID)
+		si.config.replica = false
+		if err := si.scanOnOwners(primaryOwners, set); err != nil {
+			return err
+		}
+
+		replicaOwners := si.dm.s.backup.PartitionOwnersByID(si.partID)
+		si.config.replica = true
+		if err := si.scanOnOwners(replicaOwners, set); err != nil {
+			return err
+		}
+
+		for key := range set {
+			if !f(key) {
+				break
+			}
+		}
+		si.partID++
+	}
+	return nil
+}
 
 /*
 type queryConfig struct {

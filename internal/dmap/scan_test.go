@@ -134,3 +134,62 @@ func TestDMap_scanCommandHandler_Cluster(t *testing.T) {
 		}
 	})
 }
+
+func TestDMap_Scan(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	allKeys := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), i)
+		require.NoError(t, err)
+		allKeys[testutil.ToKey(i)] = false
+	}
+	sc, err := dm.Scan()
+	require.NoError(t, err)
+	err = sc.Range(func(key string) bool {
+		require.Contains(t, allKeys, key)
+		return true
+	})
+	require.NoError(t, err)
+}
+
+func TestDMap_Scan_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+
+	c1 := testutil.NewConfig()
+	c1.ReplicaCount = 2
+	c1.WriteQuorum = 2
+	e1 := testcluster.NewEnvironment(c1)
+	s1 := cluster.AddMember(e1).(*Service)
+
+	c2 := testutil.NewConfig()
+	c2.ReplicaCount = 2
+	c1.WriteQuorum = 2
+	e2 := testcluster.NewEnvironment(c2)
+	cluster.AddMember(e2)
+
+	defer cluster.Shutdown()
+
+	dm, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	allKeys := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		err = dm.Put(testutil.ToKey(i), i)
+		require.NoError(t, err)
+
+		allKeys[testutil.ToKey(i)] = false
+	}
+	sc, err := dm.Scan()
+	require.NoError(t, err)
+	err = sc.Range(func(key string) bool {
+		require.Contains(t, allKeys, key)
+		return true
+	})
+	require.NoError(t, err)
+}
