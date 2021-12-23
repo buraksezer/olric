@@ -26,18 +26,9 @@ import (
 
 const DefaultScanCount = 10
 
-// NumConcurrentWorkers is the number of concurrent workers to run a query on the cluster.
-const NumConcurrentWorkers = 2
-
 // ErrEndOfQuery is the error returned by Range when no more data is available.
 // Functions should return ErrEndOfQuery only to signal a graceful end of input.
 var ErrEndOfQuery = neterrors.New(protocol.StatusErrEndOfQuery, "end of query")
-
-// QueryResponse denotes returned data by a node for query.
-type QueryResponse map[string]interface{}
-
-// internal representation of query response
-type queryResponse map[uint64][]byte
 
 // Iterator implements distributed query on DMaps.
 type Iterator struct {
