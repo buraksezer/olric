@@ -396,6 +396,7 @@ func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
 
 // RegexMatchOnKeys calls a regular expression on keys and provides an iterator.
 func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.Entry) bool) error {
+	// TODO: Delete this function
 	if len(k.tables) == 0 {
 		// There is nothing to do
 		return nil

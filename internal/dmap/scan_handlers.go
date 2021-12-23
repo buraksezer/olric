@@ -18,23 +18,33 @@ import (
 	"strconv"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 )
 
-func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, count int) ([]string, uint64, error) {
+func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
 	f.Lock()
 	defer f.Unlock()
 
 	var items []string
-	cursor, err := f.storage.(*kvstore.KVStore).Scan(cursor, count, func(e storage.Entry) bool {
-		items = append(items, e.Key())
-		return true
-	})
-	if err != nil {
-		return nil, 0, err
+	var err error
+	if sc.HasMatch {
+		cursor, err = f.storage.ScanRegexMatch(cursor, sc.Match, sc.Count, func(e storage.Entry) bool {
+			items = append(items, e.Key())
+			return true
+		})
+		if err != nil {
+			return nil, 0, err
+		}
+	} else {
+		cursor, err = f.storage.Scan(cursor, sc.Count, func(e storage.Entry) bool {
+			items = append(items, e.Key())
+			return true
+		})
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 
 	return items, cursor, nil
@@ -54,22 +64,22 @@ func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, e
 	if err != nil {
 		return nil, 0, err
 	}
-	return dm.scanOnFragment(f, cursor, sc.Count)
+	return dm.scanOnFragment(f, cursor, sc)
 }
 
 type scanConfig struct {
-	HashCount bool
-	Count     int
-	HasMatch  bool
-	Match     string
-	replica   bool
+	HasCount bool
+	Count    int
+	HasMatch bool
+	Match    string
+	replica  bool
 }
 
 type ScanOption func(*scanConfig)
 
 func Count(c int) ScanOption {
 	return func(cfg *scanConfig) {
-		cfg.HashCount = true
+		cfg.HasCount = true
 		cfg.Count = c
 	}
 }

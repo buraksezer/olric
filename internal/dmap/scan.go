@@ -16,12 +16,15 @@ package dmap
 
 import (
 	"context"
+	"sync"
 
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 )
+
+const DefaultScanCount = 10
 
 // NumConcurrentWorkers is the number of concurrent workers to run a query on the cluster.
 const NumConcurrentWorkers = 2
@@ -36,47 +39,79 @@ type QueryResponse map[string]interface{}
 // internal representation of query response
 type queryResponse map[uint64][]byte
 
-// ScanIterator implements distributed query on DMaps.
-type ScanIterator struct {
-	dm      *DMap
-	cursors map[uint64]uint64
-	partID  uint64
-	config  *scanConfig
-	ctx     context.Context
-	cancel  context.CancelFunc
+// Iterator implements distributed query on DMaps.
+type Iterator struct {
+	mtx sync.Mutex
+
+	pos      int
+	page     []string
+	dm       *DMap
+	allKeys  map[string]struct{}
+	finished map[uint64]struct{}
+	cursors  map[uint64]uint64 // member id => cursor
+	partID   uint64            // current partition id
+	config   *scanConfig
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
-func (dm *DMap) Scan(options ...ScanOption) (*ScanIterator, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (dm *DMap) Scan(options ...ScanOption) (*Iterator, error) {
 	var sc scanConfig
 	for _, opt := range options {
 		opt(&sc)
 	}
-	return &ScanIterator{
-		dm:      dm,
-		config:  &sc,
-		cursors: make(map[uint64]uint64),
-		ctx:     ctx,
-		cancel:  cancel,
+	if sc.Count == 0 {
+		sc.Count = DefaultScanCount
+	}
+	ctx, cancel := context.WithCancel(dm.s.ctx)
+	return &Iterator{
+		dm:       dm,
+		config:   &sc,
+		allKeys:  make(map[string]struct{}),
+		finished: make(map[uint64]struct{}),
+		cursors:  make(map[uint64]uint64),
+		ctx:      ctx,
+		cancel:   cancel,
 	}, nil
 }
 
-func (si *ScanIterator) scanOnOwners(owners []discovery.Member, set map[string]struct{}) error {
+func (i *Iterator) updateIterator(keys []string, cursor, ownerID uint64) {
+	if cursor == 0 {
+		i.finished[ownerID] = struct{}{}
+	}
+	i.cursors[ownerID] = cursor
+	for _, key := range keys {
+		if _, ok := i.allKeys[key]; !ok {
+			i.page = append(i.page, key)
+			i.allKeys[key] = struct{}{}
+		}
+	}
+}
+
+func (i *Iterator) scanOnOwners(owners []discovery.Member) error {
 	for _, owner := range owners {
-		if owner.CompareByID(si.dm.s.rt.This()) {
-			keys, cursor, err := si.dm.scan(si.partID, si.cursors[owner.ID], si.config)
+		if _, ok := i.finished[owner.ID]; ok {
+			continue
+		}
+		if owner.CompareByID(i.dm.s.rt.This()) {
+			keys, cursor, err := i.dm.scan(i.partID, i.cursors[owner.ID], i.config)
 			if err != nil {
 				return err
 			}
-			si.cursors[owner.ID] = cursor
-			for _, key := range keys {
-				set[key] = struct{}{}
-			}
+			i.updateIterator(keys, cursor, owner.ID)
+			continue
 		}
 
-		scanCmd := resp.NewScan(si.partID, si.dm.name, si.cursors[owner.ID]).Command(context.TODO())
-		rc := si.dm.s.respClient.Get(owner.String())
-		err := rc.Process(context.TODO(), scanCmd)
+		s := resp.NewScan(i.partID, i.dm.name, i.cursors[owner.ID])
+		if i.config.HasCount {
+			s.SetCount(i.config.Count)
+		}
+		if i.config.HasMatch {
+			s.SetMatch(s.Match)
+		}
+		scanCmd := s.Command(i.ctx)
+		rc := i.dm.s.respClient.Get(owner.String())
+		err := rc.Process(i.ctx, scanCmd)
 		if err != nil {
 			return err
 		}
@@ -84,288 +119,91 @@ func (si *ScanIterator) scanOnOwners(owners []discovery.Member, set map[string]s
 		if err != nil {
 			return err
 		}
-		si.cursors[owner.ID] = cursor
-		for _, key := range keys {
-			set[key] = struct{}{}
-		}
+		i.updateIterator(keys, cursor, owner.ID)
 	}
 
 	return nil
 }
 
-func (si *ScanIterator) Range(f func(key string) bool) error {
-	for si.dm.s.config.PartitionCount > si.partID {
-		set := make(map[string]struct{})
-
-		primaryOwners := si.dm.s.primary.PartitionOwnersByID(si.partID)
-		si.config.replica = false
-		if err := si.scanOnOwners(primaryOwners, set); err != nil {
-			return err
-		}
-
-		replicaOwners := si.dm.s.backup.PartitionOwnersByID(si.partID)
-		si.config.replica = true
-		if err := si.scanOnOwners(replicaOwners, set); err != nil {
-			return err
-		}
-
-		for key := range set {
-			if !f(key) {
-				break
-			}
-		}
-		si.partID++
+func (i *Iterator) resetPage() {
+	if len(i.page) != 0 {
+		i.page = []string{}
 	}
-	return nil
+	i.pos = 0
 }
 
-/*
-type queryConfig struct {
-	Cursor      uint64
-	HasMatch    bool
-	Match       string
-	IgnoreValue bool
-}
-
-func Match(m string) QueryOption {
-	return func(cfg *queryConfig) {
-		cfg.HasMatch = true
-		cfg.Match = m
+func (i *Iterator) reset() {
+	// Reset
+	for memberID := range i.cursors {
+		delete(i.cursors, memberID)
+		delete(i.finished, memberID)
 	}
+	i.resetPage()
 }
 
-func IgnoreValue() QueryOption {
-	return func(cfg *queryConfig) {
-		cfg.IgnoreValue = true
-	}
-}
-
-type QueryOption func(*queryConfig)
-
-// Cursor implements distributed query on DMaps.
-type Cursor struct {
-	dm     *DMap
-	config *queryConfig
-	ctx    context.Context
-	cancel context.CancelFunc
-}
-
-// Query runs a distributed query on a dmap instance.
-// Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
-// few keywords:
-//
-// $onKey: Runs the given query on keys or manages options on keys for a given query.
-//
-// $onValue: Runs the given query on values or manages options on values for a given query.
-//
-// $options: Useful to modify data returned from a query
-//
-// Keywords for $options:
-//
-// $ignore: Ignores a value.
-//
-// A distributed query looks like the following:
-//
-//   query.M{
-// 	  "$onKey": query.M{
-// 		  "$regexMatch": "^even:",
-// 		  "$options": query.M{
-// 			  "$onValue": query.M{
-// 				  "$ignore": true,
-// 			  },
-// 		  },
-// 	  },
-//   }
-//
-// This query finds the keys starts with "even:", drops the values and returns only keys.
-// If you also want to retrieve the values, just remove the $options directive:
-//
-//   query.M{
-// 	  "$onKey": query.M{
-// 		  "$regexMatch": "^even:",
-// 	  },
-//   }
-//
-// In order to iterate over all the keys:
-//
-//   query.M{
-// 	  "$onKey": query.M{
-// 		  "$regexMatch": "",
-// 	  },
-//   }
-//
-// Query function returns a cursor which has Range and Close methods. Please take look at the Range
-// function for further info.
-func (dm *DMap) Query(options ...QueryOption) (*Cursor, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	var qc queryConfig
-	for _, opt := range options {
-		opt(&qc)
-	}
-	return &Cursor{
-		dm:     dm,
-		config: &qc,
-		ctx:    ctx,
-		cancel: cancel,
-	}, nil
-}
-
-func (dm *DMap) runLocalQuery(partID uint64, qc *queryConfig) (queryResponse, error) {
-	part := dm.s.primary.PartitionByID(partID)
-	f, err := dm.loadFragment(part)
-	if err != nil {
-		return nil, err
-	}
-	f.RLock()
-	defer f.RUnlock()
-	cursor, err := f.(*kvstore.KVStore).Scan(qc.cursor, qc.count, func(hkey uint64, e storage.Entry) bool {
-
-	})
-
-}
-
-func (c *Cursor) reconcileResponses(responses []queryResponse) map[uint64]storage.Entry {
-	result := make(map[uint64]storage.Entry)
-	for _, response := range responses {
-		for hkey, tmp1 := range response {
-			val1 := c.dm.engine.NewEntry()
-			val1.Decode(tmp1)
-
-			if val2, ok := result[hkey]; ok {
-				if val1.Timestamp() > val2.Timestamp() {
-					result[hkey] = val1
-				}
-			} else {
-				result[hkey] = val1
-			}
+func (i *Iterator) next() bool {
+	if len(i.page) != 0 {
+		i.pos++
+		if i.pos <= len(i.page) {
+			return true
 		}
 	}
-	return result
+
+	i.resetPage()
+
+	primaryOwners := i.dm.s.primary.PartitionOwnersByID(i.partID)
+	i.config.replica = false
+	if err := i.scanOnOwners(primaryOwners); err != nil {
+		return false
+	}
+
+	replicaOwners := i.dm.s.backup.PartitionOwnersByID(i.partID)
+	i.config.replica = true
+	if err := i.scanOnOwners(replicaOwners); err != nil {
+		return false
+	}
+
+	if len(i.page) == 0 {
+		i.partID++
+		if i.dm.s.config.PartitionCount <= i.partID {
+			return false
+		}
+		i.reset()
+		return i.next()
+	}
+	i.pos = 1
+	return true
 }
 
-func (c *Cursor) runQueryOnOwners(partID uint64) ([]storage.Entry, error) {
-	owners := c.dm.s.primary.PartitionOwnersByID(partID)
-	var responses []queryResponse
-	for _, owner := range owners {
-		if owner.CompareByID(c.dm.s.rt.This()) {
-			response, err := c.dm.runLocalQuery(partID)
-			if err != nil {
-				return nil, err
-			}
-			responses = append(responses, response)
-			continue
-		}
+func (i *Iterator) Next() bool {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
 
-		sc := resp.NewScan(c.dm.name).SetPartID(partID)
-		if c.config.HasMatch {
-			sc = sc.SetMatch(c.config.Match)
-		}
-		cmd := sc.Command(c.dm.s.ctx)
-		rc := c.dm.s.respClient.Get(owner.String())
-		err := rc.Process(c.dm.s.ctx, cmd)
-		if err != nil {
-			return nil, fmt.Errorf("query call is failed: %w", err)
-		}
-
-		value, err := cmd.Bytes()
-		if err != nil {
-			return nil, fmt.Errorf("query call is failed: %w", err)
-		}
-		tmp := make(queryResponse)
-		err = msgpack.Unmarshal(value, &tmp)
-		if err != nil {
-			return nil, err
-		}
-		responses = append(responses, tmp)
+	select {
+	case <-i.ctx.Done():
+		return false
+	default:
 	}
 
-	var result []storage.Entry
-	for _, entry := range c.reconcileResponses(responses) {
-		result = append(result, entry)
-	}
-	return result, nil
+	return i.next()
 }
 
-func (c *Cursor) runQueryOnCluster(results chan []storage.Entry, errCh chan error) {
-	defer c.dm.s.wg.Done()
-	defer close(results)
+func (i *Iterator) Key() string {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
 
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	var errs error
-	appendError := func(e error) error {
-		mu.Lock()
-		defer mu.Unlock()
-		return multierror.Append(e, errs)
+	var key string
+	if i.pos > 0 && i.pos <= len(i.page) {
+		key = i.page[i.pos-1]
 	}
-
-	sem := semaphore.NewWeighted(NumConcurrentWorkers)
-	for partID := uint64(0); partID < c.dm.s.config.PartitionCount; partID++ {
-		err := sem.Acquire(c.ctx, 1)
-		if errors.Is(err, context.Canceled) {
-			break
-		}
-		if err != nil {
-			errs = appendError(err)
-			break
-		}
-
-		wg.Add(1)
-		go func(id uint64) {
-			defer sem.Release(1)
-			defer wg.Done()
-
-			responses, err := c.runQueryOnOwners(id)
-			if err != nil {
-				errs = appendError(err)
-				c.Close() // Breaks the loop
-				return
-			}
-			select {
-			case <-c.ctx.Done():
-				// cursor is gone:
-				return
-			case <-c.dm.s.ctx.Done():
-				// Server is gone.
-				return
-			default:
-				results <- responses
-			}
-		}(partID)
-	}
-	wg.Wait()
-	errCh <- errs
+	return key
 }
 
-// Range calls f sequentially for each key and value yielded from the cursor. If f returns false,
-// range stops the iteration.
-func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
-	defer c.Close()
-
-	// Currently, we have only 2 parallel query on the cluster. It's good enough for a smooth operation.
-	results := make(chan []storage.Entry, NumConcurrentWorkers)
-	errCh := make(chan error, 1)
-
-	c.dm.s.wg.Add(1)
-	go c.runQueryOnCluster(results, errCh)
-
-	for res := range results {
-		for _, entry := range res {
-			value, err := c.dm.unmarshalValue(entry.Value())
-			if err != nil {
-				return err
-			}
-			if !f(entry.Key(), value) {
-				// User called "break" in this loop (Range)
-				return nil
-			}
-		}
+func (i *Iterator) Close() {
+	select {
+	case <-i.ctx.Done():
+		return
+	default:
 	}
-	return <-errCh
+	i.cancel()
 }
-
-// Close cancels the underlying context and background goroutines stops running.
-func (c *Cursor) Close() {
-	c.cancel()
-}*/

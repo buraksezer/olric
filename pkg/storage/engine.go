@@ -96,6 +96,10 @@ type Engine interface {
 	// RegexMatchOnKeys runs a regular expression over keys and loops over the result.
 	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
 
+	Scan(uint64, int, func(Entry) bool) (uint64, error)
+
+	ScanRegexMatch(uint64, string, int, func(Entry) bool) (uint64, error)
+
 	// Compaction reorganizes storage tables and reclaims wasted resources.
 	Compaction() (bool, error)
 
