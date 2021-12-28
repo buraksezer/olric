@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/serializer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,7 +132,6 @@ func TestConfig(t *testing.T) {
 	c := New("local")
 	c.BindAddr = "0.0.0.0"
 	c.BindPort = 3320
-	c.Serializer = serializer.NewMsgpackSerializer()
 	c.KeepAlivePeriod = 300 * time.Second
 	c.BootstrapTimeout = 5 * time.Second
 	c.PartitionCount = 271

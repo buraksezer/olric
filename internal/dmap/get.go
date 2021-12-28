@@ -16,13 +16,14 @@ package dmap
 
 import (
 	"errors"
+	"sort"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
-	"sort"
 )
 
 // Entry is a DMap entry with its metadata.
@@ -49,18 +50,6 @@ var ErrReadQuorum = errors.New("read quorum cannot be reached")
 type version struct {
 	host  *discovery.Member
 	entry storage.Entry
-}
-
-func (dm *DMap) unmarshalValue(raw []byte) (interface{}, error) {
-	var value interface{}
-	err := dm.s.serializer.Unmarshal(raw, &value)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := value.(struct{}); ok {
-		return nil, nil
-	}
-	return value, nil
 }
 
 func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {

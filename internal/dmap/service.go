@@ -30,7 +30,6 @@ import (
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/buraksezer/olric/serializer"
 )
 
 var errFragmentNotFound = errors.New("fragment not found")
@@ -48,7 +47,6 @@ type Service struct {
 	respClient *server.Client
 	respServer *server.Server
 	rt         *routingtable.RoutingTable
-	serializer serializer.Serializer
 	primary    *partitions.Partitions
 	backup     *partitions.Partitions
 	locker     *locker.Locker
@@ -76,7 +74,6 @@ func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
 		config:     e.Get("config").(*config.Config),
-		serializer: e.Get("config").(*config.Config).Serializer,
 		respClient: e.Get("respClient").(*server.Client),
 		respServer: e.Get("respServer").(*server.Server),
 		log:        e.Get("logger").(*flog.Logger),

@@ -24,7 +24,6 @@ type olricd struct {
 	ReplicationMode          int     `yaml:"replicationMode"`
 	PartitionCount           uint64  `yaml:"partitionCount"`
 	LoadFactor               float64 `yaml:"loadFactor"`
-	Serializer               string  `yaml:"serializer"`
 	KeepAlivePeriod          string  `yaml:"keepAlivePeriod"`
 	BootstrapTimeout         string  `yaml:"bootstrapTimeout"`
 	ReplicaCount             int     `yaml:"replicaCount"`

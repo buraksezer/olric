@@ -49,7 +49,6 @@ import (
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/serializer"
 	"github.com/go-redis/redis/v8"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
@@ -88,12 +87,11 @@ var (
 // service.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
-	name       string
-	env        *environment.Environment
-	config     *config.Config
-	log        *flog.Logger
-	hashFunc   hasher.Hasher
-	serializer serializer.Serializer
+	name     string
+	env      *environment.Environment
+	config   *config.Config
+	log      *flog.Logger
+	hashFunc hasher.Hasher
 
 	// Logical units to store data
 	primary *partitions.Partitions
@@ -210,7 +208,6 @@ func New(c *config.Config) (*Olric, error) {
 		log:        flogger,
 		config:     c,
 		hashFunc:   c.Hasher,
-		serializer: c.Serializer,
 		respClient: respClient,
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/hasher"
-	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -229,9 +228,6 @@ type Config struct {
 	// Default hasher is github.com/cespare/xxhash/v2
 	Hasher hasher.Hasher
 
-	// Default Serializer implementation uses gob for encoding/decoding.
-	Serializer serializer.Serializer
-
 	// LogOutput is the writer where logs should be sent. If this is not
 	// set, logging will go to stderr by default. You cannot specify both LogOutput
 	// and Logger at the same time.
@@ -378,9 +374,6 @@ func (c *Config) Sanitize() error {
 
 	if c.Hasher == nil {
 		c.Hasher = hasher.NewDefaultHasher()
-	}
-	if c.Serializer == nil {
-		c.Serializer = serializer.NewGobSerializer()
 	}
 
 	if c.BindAddr == "" {
