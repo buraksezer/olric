@@ -147,6 +147,9 @@ const (
 	// two sequential call of compaction workers. The compaction worker works until
 	// its work is done. It's 10 minutes by default.
 	DefaultTriggerCompactionInterval = 10 * time.Minute
+
+	// DefaultLeaveTimeout is the default value of maximum amount of time before
+	DefaultLeaveTimeout = 5 * time.Second
 )
 
 // Config is the configuration to create a Olric instance.
@@ -249,7 +252,7 @@ type Config struct {
 	// cluster.
 	JoinRetryInterval time.Duration
 
-	// MaxJoinAttempts denotes the maximum number of attemps to join an existing
+	// MaxJoinAttempts denotes the maximum number of attempts to join an existing
 	// cluster before forming a new one.
 	MaxJoinAttempts int
 
@@ -266,6 +269,15 @@ type Config struct {
 	// If both are provided, then Olric verifies that the interface has the bind
 	// address that is provided.
 	MemberlistInterface string
+
+	// Olric will broadcast a leave message but will not shut down the background
+	// listeners, meaning the node will continue participating in gossip and state
+	// updates.
+	//
+	// Sending a leave message will block until the leave message is successfully
+	// broadcast to a member of the cluster, if any exist or until a specified timeout
+	// is reached.
+	LeaveTimeout time.Duration
 
 	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some
@@ -410,6 +422,9 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
+	}
+	if c.LeaveTimeout == 0 {
+		c.LeaveTimeout = DefaultLeaveTimeout
 	}
 
 	if c.RoutingTablePushInterval.Microseconds() == 0 {

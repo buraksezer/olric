@@ -16,6 +16,7 @@ package dmap
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -320,9 +321,9 @@ type myType struct {
 }
 
 func (mt *myType) MarshalBinary() ([]byte, error) {
-	return msgpack.Marshal(mt)
+	return json.Marshal(mt)
 }
 
 func (mt *myType) UnmarshalBinary(data []byte) error {
-	return msgpack.Unmarshal(data, &mt)
+	return json.Unmarshal(data, &mt)
 }

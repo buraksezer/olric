@@ -328,6 +328,7 @@ func Load(filename string) (*Config, error) {
 		keepAlivePeriod,
 		bootstrapTimeout,
 		triggerBalancerInterval,
+		leaveTimeout,
 		routingTablePushInterval time.Duration
 	)
 
@@ -366,6 +367,14 @@ func Load(filename string) (*Config, error) {
 		if err != nil {
 			return nil, errors.WithMessage(err,
 				fmt.Sprintf("failed to parse olricd.triggerBalancerInterval: '%s'", c.Olricd.TriggerBalancerInterval))
+		}
+	}
+
+	if c.Olricd.LeaveTimeout != "" {
+		leaveTimeout, err = time.ParseDuration(c.Olricd.LeaveTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.leaveTimeout: '%s'", c.Olricd.LeaveTimeout))
 		}
 	}
 
@@ -409,6 +418,7 @@ func Load(filename string) (*Config, error) {
 		Serializer:               sr,
 		KeepAlivePeriod:          keepAlivePeriod,
 		BootstrapTimeout:         bootstrapTimeout,
+		LeaveTimeout:             leaveTimeout,
 		DMaps:                    dmapConfig,
 	}
 

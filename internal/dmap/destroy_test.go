@@ -15,12 +15,12 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/stretchr/testify/require"
 	"testing"
 
+	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Destroy_Standalone(t *testing.T) {

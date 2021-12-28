@@ -292,8 +292,8 @@ func (d *Discovery) Shutdown() error {
 	// listeners, meaning the node will continue participating in gossip and state
 	// updates.
 	d.log.V(2).Printf("[INFO] Broadcasting a leave message")
-	if err := d.memberlist.Leave(15 * time.Second); err != nil {
-		d.log.V(3).Printf("[ERROR] memberlist.Leave returned an error: %v", err)
+	if err := d.memberlist.Leave(d.config.LeaveTimeout); err != nil {
+		d.log.V(3).Printf("[WARN] memberlist.Leave returned an error: %v", err)
 	}
 
 	if d.serviceDiscovery != nil {

@@ -34,6 +34,7 @@ type olricd struct {
 	MemberCountQuorum        int32   `yaml:"memberCountQuorum"`
 	RoutingTablePushInterval string  `yaml:"routingTablePushInterval"`
 	TriggerBalancerInterval  string  `yaml:"triggerBalancerInterval"`
+	LeaveTimeout             string  `yaml:"leaveTimeout"`
 }
 
 type client struct {
