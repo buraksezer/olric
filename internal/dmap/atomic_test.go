@@ -15,14 +15,18 @@
 package dmap
 
 import (
+	"bytes"
 	"context"
-	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/internal/testcluster"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/buraksezer/olric/internal/encoding"
+	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/testcluster"
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestDMap_Atomic_Incr(t *testing.T) {
@@ -56,7 +60,10 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	res, err := dm.Get(key)
+	gr, err := dm.Get(key)
+	require.NoError(t, err)
+
+	res, err := gr.Int()
 	require.NoError(t, err)
 	require.Equal(t, 100, res)
 }
@@ -95,9 +102,9 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	res, err := dm.Get(key)
 	require.NoError(t, err)
 
-	if res.(int) != -100 {
-		t.Fatalf("Expected 100. Got: %v", res)
-	}
+	value, err := res.Int()
+	require.NoError(t, err)
+	require.Equal(t, -100, value)
 }
 
 func TestDMap_Atomic_GetPut(t *testing.T) {
@@ -113,13 +120,15 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 		<-start
 		defer wg.Done()
 
-		oldval, err := dm.GetPut(key, i)
+		gr, err := dm.GetPut(key, i)
 		if err != nil {
 			s.log.V(2).Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
-		if oldval != nil {
-			atomic.AddInt64(&total, int64(oldval.(int)))
+		if gr != nil {
+			oldval, err := gr.Int()
+			require.NoError(t, err)
+			atomic.AddInt64(&total, int64(oldval))
 		}
 	}
 
@@ -136,13 +145,14 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	last, err := dm.Get(key)
+	gr, err := dm.Get(key)
 	require.NoError(t, err)
 
-	atomic.AddInt64(&total, int64(last.(int)))
-	if atomic.LoadInt64(&total) != final {
-		t.Fatalf("Expected %d. Got: %d", final, atomic.LoadInt64(&total))
-	}
+	last, err := gr.Int()
+	require.NoError(t, err)
+
+	atomic.AddInt64(&total, int64(last))
+	require.Equal(t, final, atomic.LoadInt64(&total))
 }
 
 func TestDMap_incrCommandHandler(t *testing.T) {
@@ -172,11 +182,10 @@ func TestDMap_incrCommandHandler(t *testing.T) {
 
 	value, err := cmd.Bytes()
 	require.NoError(t, err)
-
-	var v interface{}
-	err = s.serializer.Unmarshal(value, &v)
+	v := new(int)
+	err = encoding.Scan(value, v)
 	require.NoError(t, err)
-	require.Equal(t, 100, v.(int))
+	require.Equal(t, 100, *v)
 }
 
 func TestDMap_incrCommandHandler_Single_Request(t *testing.T) {
@@ -221,11 +230,10 @@ func TestDMap_decrCommandHandler(t *testing.T) {
 
 	value, err := cmd.Bytes()
 	require.NoError(t, err)
-
-	var v interface{}
-	err = s.serializer.Unmarshal(value, &v)
+	v := new(int)
+	err = encoding.Scan(value, v)
 	require.NoError(t, err)
-	require.Equal(t, -100, v.(int))
+	require.Equal(t, -100, *v)
 }
 
 func TestDMap_decrCommandHandler_Single_Request(t *testing.T) {
@@ -255,14 +263,19 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 	getPut := func(i int) error {
 		<-start
 
-		value, err := s.serializer.Marshal(i)
+		buf := bytes.NewBuffer(nil)
+		enc := encoding.New(buf)
+		err := enc.Encode(i)
 		if err != nil {
 			return err
 		}
 
-		cmd := resp.NewGetPut("mydmap", "mykey", value).Command(context.Background())
+		cmd := resp.NewGetPut("mydmap", "mykey", buf.Bytes()).Command(context.Background())
 		rc := s.respClient.Get(s.rt.This().String())
 		err = rc.Process(context.Background(), cmd)
+		if err == redis.Nil {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -272,14 +285,12 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 		}
 
 		if len(val) != 0 {
-			var oldval interface{}
-			err = s.serializer.Unmarshal(val, &oldval)
+			oldval := new(int)
+			err = encoding.Scan(val, oldval)
 			if err != nil {
 				return err
 			}
-			if oldval != nil {
-				atomic.AddInt64(&total, int64(oldval.(int)))
-			}
+			atomic.AddInt64(&total, int64(*oldval))
 		}
 		return nil
 	}
@@ -299,11 +310,12 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
-	result, err := dm.Get("mykey")
+	gr, err := dm.Get("mykey")
 	require.NoError(t, err)
 
-	atomic.AddInt64(&total, int64(result.(int)))
-	if atomic.LoadInt64(&total) != final {
-		t.Fatalf("Expected %d. Got: %d", final, atomic.LoadInt64(&total))
-	}
+	last, err := gr.Int()
+	require.NoError(t, err)
+
+	atomic.AddInt64(&total, int64(last))
+	require.Equal(t, final, atomic.LoadInt64(&total))
 }

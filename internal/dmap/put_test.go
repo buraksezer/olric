@@ -15,7 +15,6 @@
 package dmap
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 	"time"
@@ -41,12 +40,12 @@ func TestDMap_Put_Standalone(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		val, err := dm.Get(testutil.ToKey(i))
+		gr, err := dm.Get(testutil.ToKey(i))
 		require.NoError(t, err)
 
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -68,12 +67,12 @@ func TestDMap_Put_Cluster(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
+		gr, err := dm2.Get(testutil.ToKey(i))
 		require.NoError(t, err)
 
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -106,12 +105,12 @@ func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
+		gr, err := dm2.Get(testutil.ToKey(i))
 		require.NoError(t, err)
 
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -196,12 +195,12 @@ func TestDMap_Put_NX(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		val, err := dm.Get(testutil.ToKey(i))
+		gr, err := dm.Get(testutil.ToKey(i))
 		require.NoError(t, err)
 
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 

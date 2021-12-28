@@ -17,26 +17,11 @@ package dmap
 import (
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"reflect"
+	"github.com/buraksezer/olric/internal/util"
+	"github.com/buraksezer/olric/pkg/storage"
 )
-
-func valueToInt(delta interface{}) (int, error) {
-	switch value := delta.(type) {
-	case int:
-		return value, nil
-	case int8:
-		return int(value), nil
-	case int16:
-		return int(value), nil
-	case int32:
-		return int(value), nil
-	case int64:
-		return int(value), nil
-	default:
-		return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(delta))
-	}
-}
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	entry, err := dm.get(e.key)
@@ -47,15 +32,14 @@ func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 		return 0, err
 	}
 
-	var current int
-	if entry != nil {
-		var value interface{}
-		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
-			return 0, err
-		}
-		return valueToInt(value)
+	if entry == nil {
+		return 0, nil
 	}
-	return current, nil
+	nr, err := util.ParseInt(entry.Value(), 10, 64)
+	if err != nil {
+		return 0, nil
+	}
+	return int(nr), nil
 }
 
 func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
@@ -83,12 +67,17 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 		return 0, fmt.Errorf("invalid operation")
 	}
 
-	val, err := dm.s.serializer.Marshal(updated)
+	valueBuf := pool.Get()
+	enc := encoding.New(valueBuf)
+	err = enc.Encode(updated)
 	if err != nil {
 		return 0, err
 	}
+	e.value = valueBuf.Bytes()
+	defer func() {
+		pool.Put(valueBuf)
+	}()
 
-	e.value = val
 	err = dm.put(e)
 	if err != nil {
 		return 0, err
@@ -113,7 +102,7 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 	return dm.atomicIncrDecr(resp.DecrCmd, e, delta)
 }
 
-func (dm *DMap) getPut(e *env) ([]byte, error) {
+func (dm *DMap) getPut(e *env) (storage.Entry, error) {
 	atomicKey := e.dmap + e.key
 	dm.s.locker.Lock(atomicKey)
 	defer func() {
@@ -138,32 +127,35 @@ func (dm *DMap) getPut(e *env) ([]byte, error) {
 		// The value is nil.
 		return nil, nil
 	}
-	return entry.Value(), nil
+	return entry, nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
-func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
+func (dm *DMap) GetPut(key string, value interface{}) (*GetResponse, error) {
 	if value == nil {
 		value = struct{}{}
 	}
-	val, err := dm.s.serializer.Marshal(value)
+
+	valueBuf := pool.Get()
+	enc := encoding.New(valueBuf)
+	err := enc.Encode(value)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		pool.Put(valueBuf)
+	}()
+
 	e := newEnv()
 	e.dmap = dm.name
 	e.key = key
-	e.value = val
+	e.value = valueBuf.Bytes()
 	raw, err := dm.getPut(e)
 	if err != nil {
 		return nil, err
 	}
-
-	var old interface{}
-	if raw != nil {
-		if err = dm.s.serializer.Unmarshal(raw, &old); err != nil {
-			return nil, err
-		}
+	if raw == nil {
+		return nil, nil
 	}
-	return old, nil
+	return &GetResponse{entry: raw}, nil
 }

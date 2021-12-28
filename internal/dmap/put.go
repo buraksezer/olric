@@ -20,13 +20,17 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
+	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/go-redis/redis/v8"
 )
+
+var pool = bufpool.New()
 
 const (
 	IfNotFound = int16(1) << iota
@@ -143,8 +147,7 @@ func (dm *DMap) asyncPutOnBackup(e *env, data []byte, owner discovery.Member) {
 	}
 }
 
-func (dm *DMap) asyncPutOnCluster(e *env) error {
-	nt := dm.prepareEntry(e)
+func (dm *DMap) asyncPutOnCluster(e *env, nt storage.Entry) error {
 	err := dm.putEntryOnFragment(e, nt)
 	if err != nil {
 		return err
@@ -165,11 +168,10 @@ func (dm *DMap) asyncPutOnCluster(e *env) error {
 	return nil
 }
 
-func (dm *DMap) syncPutOnCluster(e *env) error {
+func (dm *DMap) syncPutOnCluster(e *env, nt storage.Entry) error {
 	// Quorum based replication.
 	var successful int
 
-	nt := dm.prepareEntry(e)
 	encodedEntry := nt.Encode()
 
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
@@ -304,22 +306,23 @@ func (dm *DMap) putOnCluster(e *env) error {
 		}
 	}
 
+	nt := dm.prepareEntry(e)
 	if dm.s.config.ReplicaCount > config.MinimumReplicaCount {
 		switch dm.s.config.ReplicationMode {
 		case config.AsyncReplicationMode:
 			// Fire and forget mode. Calls PutBackup command in different goroutines
 			// and stores the key/value pair on local storage instance.
-			return dm.asyncPutOnCluster(e)
+			return dm.asyncPutOnCluster(e, nt)
 		case config.SyncReplicationMode:
 			// Quorum based replication.
-			return dm.syncPutOnCluster(e)
+			return dm.syncPutOnCluster(e, nt)
 		default:
 			return fmt.Errorf("invalid replication mode: %v", dm.s.config.ReplicationMode)
 		}
 	}
 
 	// single replica
-	return dm.putEntryOnFragment(e, dm.prepareEntry(e))
+	return dm.putEntryOnFragment(e, nt)
 }
 
 func (dm *DMap) writePutCommand(e *env) (*redis.StatusCmd, error) {
@@ -429,10 +432,16 @@ func XX() PutOption {
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
-	val, err := dm.s.serializer.Marshal(value)
+	valueBuf := pool.Get()
+	enc := encoding.New(valueBuf)
+	err := enc.Encode(value)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		pool.Put(valueBuf)
+	}()
+
 	var pc putConfig
 	for _, opt := range options {
 		opt(&pc)
@@ -441,7 +450,7 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 	e.putConfig = &pc
 	e.dmap = dm.name
 	e.key = key
-	e.value = val
+	e.value = valueBuf.Bytes()
 	return dm.put(e)
 }
 

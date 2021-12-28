@@ -81,5 +81,9 @@ func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	conn.WriteBulk(old)
+	if old == nil {
+		conn.WriteNull()
+		return
+	}
+	conn.WriteBulk(old.Value())
 }

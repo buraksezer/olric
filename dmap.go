@@ -139,23 +139,6 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 	return value, nil
 }
 
-// GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value.
-func (dm *DMap) GetEntry(key string) (*Entry, error) {
-	e, err := dm.dm.GetEntry(key)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-
-	return &Entry{
-		Key:       e.Key,
-		Value:     e.Value,
-		TTL:       e.TTL,
-		Timestamp: e.Timestamp,
-	}, nil
-}
-
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
 // it automatically releases the lock. Acquired lock is only for the key in this dmap.
 //

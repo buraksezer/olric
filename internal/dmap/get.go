@@ -16,14 +16,13 @@ package dmap
 
 import (
 	"errors"
-	"sort"
-
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
+	"sort"
 )
 
 // Entry is a DMap entry with its metadata.
@@ -368,30 +367,10 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
 // does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
-func (dm *DMap) Get(key string) (interface{}, error) {
+func (dm *DMap) Get(key string) (*GetResponse, error) {
 	raw, err := dm.get(key)
 	if err != nil {
 		return nil, err
 	}
-	return dm.unmarshalValue(raw.Value())
-}
-
-// GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value.
-func (dm *DMap) GetEntry(key string) (*Entry, error) {
-	e, err := dm.get(key)
-	if err != nil {
-		return nil, err
-	}
-	value, err := dm.unmarshalValue(e.Value())
-	if err != nil {
-		return nil, err
-	}
-	return &Entry{
-		Key:       e.Key(),
-		Value:     value,
-		TTL:       e.TTL(),
-		Timestamp: e.Timestamp(),
-	}, nil
+	return &GetResponse{entry: raw}, nil
 }
