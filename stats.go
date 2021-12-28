@@ -26,7 +26,7 @@ import (
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func toMember(member discovery.Member) stats.Member {

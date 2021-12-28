@@ -19,8 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-
-	"github.com/vmihailenco/msgpack"
 )
 
 // ErrInvalidQuery denotes a given query is empty or badly formatted.

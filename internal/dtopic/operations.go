@@ -19,7 +19,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/streams"
 	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func (s *Service) processDTopicMessage(msg Message, name string, streamID, listenerID uint64) {

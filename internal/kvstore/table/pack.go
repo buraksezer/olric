@@ -16,7 +16,7 @@ package table
 
 import (
 	"github.com/RoaringBitmap/roaring/roaring64"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type Pack struct {

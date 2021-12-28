@@ -22,7 +22,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 )
 

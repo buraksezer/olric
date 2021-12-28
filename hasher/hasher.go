@@ -14,7 +14,7 @@
 
 package hasher
 
-import "github.com/cespare/xxhash"
+import "github.com/cespare/xxhash/v2"
 
 // NewDefaultHasher returns an instance of xxhash package which implements the 64-bit variant of
 // xxHash (XXH64) as described at http://cyan4973.github.io/xxHash/.

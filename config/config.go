@@ -223,7 +223,7 @@ type Config struct {
 	// load for a server in the cluster. Keep it small.
 	LoadFactor float64
 
-	// Default hasher is github.com/cespare/xxhash
+	// Default hasher is github.com/cespare/xxhash/v2
 	Hasher hasher.Hasher
 
 	// Default Serializer implementation uses gob for encoding/decoding.

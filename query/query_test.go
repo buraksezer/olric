@@ -15,7 +15,6 @@
 package query
 
 import (
-	"github.com/vmihailenco/msgpack"
 	"reflect"
 	"testing"
 )

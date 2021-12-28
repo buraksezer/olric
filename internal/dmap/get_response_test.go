@@ -22,7 +22,6 @@ import (
 	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack"
 )
 
 func TestDMap_Get_GetResponse(t *testing.T) {

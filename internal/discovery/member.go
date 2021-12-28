@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/config"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // Member represents a node in the cluster.

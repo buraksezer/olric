@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // Serializer interface responsible for encoding/decoding values to transmit over network between Olric nodes.
