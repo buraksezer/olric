@@ -261,7 +261,6 @@ func (c *Client) processIncrDecrResponse(resp protocol.EncodeDecoder) (int, erro
 func (c *Client) incrDecr(op protocol.OpCode, name, key string, delta int) (int, error) {
 	value, err := c.serializer.Marshal(delta)
 	if err != nil {
-		fmt.Println(delta, err)
 		return 0, err
 	}
 	req := protocol.NewDMapMessage(op)

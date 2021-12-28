@@ -649,3 +649,129 @@ func Test_Fork(t *testing.T) {
 		t.Fatalf("Expected Stats.NumTables: 1. Got: %d", stats.NumTables)
 	}
 }
+
+func Test_Put_Big_Value(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+
+	value := make([]byte, 1<<20)
+	entry := NewEntry()
+	entry.SetKey(bkey(1))
+	entry.SetValue(value)
+	entry.SetTTL(int64(1))
+	entry.SetTimestamp(time.Now().UnixNano())
+	hkey := xxhash.Sum64([]byte(entry.Key()))
+
+	err = s.Put(hkey, entry)
+	if err != storage.ErrFragmented {
+		t.Fatalf("Expected storage.ErrFragmented. Got %v", err)
+	}
+	_, err = s.Get(hkey)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+}
+
+func Test_calculateTableSize(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+
+	kv := s.(*KVStore)
+	t.Run("Big value", func(t *testing.T) {
+		valueSize := 1 << 21
+		tableSize := kv.calculateTableSize(valueSize)
+		if kv.minimumTableSize >= tableSize {
+			t.Fatalf("Calculated tableSize(%d) has to be bigger than kv.minimumTableSize(%d)", tableSize, kv.minimumTableSize)
+		}
+	})
+
+	t.Run("Minimum required space is zero", func(t *testing.T) {
+		tableSize := kv.calculateTableSize(0)
+		if tableSize != kv.minimumTableSize {
+			t.Fatalf("Calculated tableSize(%d) has to be equal to kv.minimumTableSize(%d)", tableSize, kv.minimumTableSize)
+		}
+	})
+}
+
+func Test_MinimumTableSize(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	kv := s.(*KVStore)
+	for i := 0; i < 100; i++ {
+		entry := NewEntry()
+		entry.SetKey(bkey(i))
+		entry.SetValue(bval(i))
+		entry.SetTTL(int64(i))
+		entry.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(entry.Key()))
+		err := s.Put(hkey, entry)
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+	}
+
+	tableSize := kv.calculateTableSize(0)
+	if tableSize != kv.minimumTableSize {
+		t.Fatalf("Calculated tableSize(%d) has to be equal to kv.minimumTableSize(%d)", tableSize, kv.minimumTableSize)
+	}
+}
+
+func Test_ExpandTable(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	kv := s.(*KVStore)
+	for i := 0; i < 10000; i++ {
+		entry := NewEntry()
+		entry.SetKey(bkey(i))
+		entry.SetValue(bval(i))
+		entry.SetTTL(int64(i))
+		entry.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(entry.Key()))
+		err := s.Put(hkey, entry)
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+	}
+
+	st := kv.Stats()
+	tableSize := kv.calculateTableSize(0)
+	if tableSize != st.Inuse*2 {
+		t.Fatalf("Calculated tableSize(%d) has to be equal to Inuse*2(%d)", tableSize, st.Inuse*2)
+	}
+}
+
+func Test_ExpandTable_With_Big_Value(t *testing.T) {
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	kv := s.(*KVStore)
+	for i := 0; i < 10000; i++ {
+		entry := NewEntry()
+		entry.SetKey(bkey(i))
+		entry.SetValue(bval(i))
+		entry.SetTTL(int64(i))
+		entry.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(entry.Key()))
+		err := s.Put(hkey, entry)
+		if err != nil {
+			t.Fatalf("Expected nil. Got %v", err)
+		}
+	}
+
+	st := kv.Stats()
+	bigValueSize := 1 << 21
+	tableSize := kv.calculateTableSize(bigValueSize)
+	calculatedTableSize := (st.Inuse * 2) + bigValueSize
+	if tableSize != calculatedTableSize {
+		t.Fatalf("Calculated tableSize(%d) has to be equal to Inuse*2 + valueSize(%d)", tableSize, calculatedTableSize)
+	}
+}
