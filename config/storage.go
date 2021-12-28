@@ -16,9 +16,10 @@ package config
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/pkg/storage"
-	"os"
 )
 
 // StorageEngines contains storage engine configuration and their implementations.
@@ -80,6 +81,11 @@ func (s *StorageEngines) Sanitize() error {
 	if len(s.Impls) == 0 {
 		s.Impls[DefaultStorageEngine] = &kvstore.KVStore{}
 		s.Config[DefaultStorageEngine] = kvstore.DefaultConfig().ToMap()
+		if cfg, ok := s.Config[DefaultStorageEngine]; ok {
+			s.Config[DefaultStorageEngine] = kvstore.SanitizeConfig(cfg)
+		} else {
+			s.Config[DefaultStorageEngine] = kvstore.DefaultConfig().ToMap()
+		}
 	}
 	return nil
 }
