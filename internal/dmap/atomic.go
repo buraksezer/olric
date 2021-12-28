@@ -17,6 +17,7 @@ package dmap
 import (
 	"errors"
 	"fmt"
+
 	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/util"

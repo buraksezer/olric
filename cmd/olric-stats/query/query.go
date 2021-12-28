@@ -14,6 +14,7 @@
 
 package query
 
+/*
 import (
 	"encoding/json"
 	"fmt"
@@ -267,4 +268,4 @@ func (q *Query) PrintNetworkStatistics() error {
 	q.log.Printf(" Current connections: %d", data.Network.CurrentConnections)
 
 	return nil
-}
+}*/
