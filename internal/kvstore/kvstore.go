@@ -47,6 +47,13 @@ func DefaultConfig() *storage.Config {
 	return options
 }
 
+func SanitizeConfig(cfg map[string]interface{}) map[string]interface{} {
+	if _, ok := cfg["tableSize"]; !ok {
+		cfg["tableSize"] = defaultTableSize
+	}
+	return cfg
+}
+
 func (kv *KVStore) SetConfig(c *storage.Config) {
 	kv.config = c
 }
@@ -98,7 +105,8 @@ func (kv *KVStore) PutRaw(hkey uint64, value []byte) error {
 		err := t.putRaw(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(kv.Stats().Inuse * 2)
+			ntSize := kv.Stats().Inuse*2 + len(value) + defaultTableSize
+			nt := newTable(ntSize)
 			kv.tables = append(kv.tables, nt)
 			res = storage.ErrFragmented
 			// try again
@@ -118,7 +126,6 @@ func (kv *KVStore) Put(hkey uint64, value storage.Entry) error {
 	if len(kv.tables) == 0 {
 		panic("tables cannot be empty")
 	}
-
 	var res error
 	for {
 		// Get the last value, storage only calls Put on the last created table.
@@ -126,7 +133,8 @@ func (kv *KVStore) Put(hkey uint64, value storage.Entry) error {
 		err := t.put(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			nt := newTable(kv.Stats().Inuse * 2)
+			ntSize := kv.Stats().Inuse*2 + len(value.Value()) + defaultTableSize
+			nt := newTable(ntSize)
 			kv.tables = append(kv.tables, nt)
 			res = storage.ErrFragmented
 			// try again
