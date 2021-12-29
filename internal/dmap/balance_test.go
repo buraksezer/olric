@@ -15,13 +15,11 @@
 package dmap
 
 import (
-	"bytes"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -40,18 +38,6 @@ func TestDMap_Balance_Invalid_PartID(t *testing.T) {
 	}
 	err := s.validateFragmentPack(fp)
 	require.Error(t, err)
-}
-
-func TestDMap_Balance_Extract_FragmentPack(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	req := protocol.NewSystemMessage(protocol.OpMoveFragment)
-	req.SetValue([]byte("fragment-data"))
-	req.SetBuffer(bytes.NewBuffer(nil))
-	_, err := s.extractFragmentPack(req)
-	require.Error(t, err) // Expected an error
 }
 
 func TestDMap_Balance_FragmentMergeFunction(t *testing.T) {

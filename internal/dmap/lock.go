@@ -24,17 +24,15 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 var (
 	// ErrLockNotAcquired is returned when the requested lock could not be acquired
-	ErrLockNotAcquired = neterrors.New(protocol.StatusErrLockNotAcquired, "lock not acquired")
+	ErrLockNotAcquired = errors.New("lock not acquired")
 
 	// ErrNoSuchLock is returned when the requested lock does not exist
-	ErrNoSuchLock = neterrors.New(protocol.StatusErrNoSuchLock, "no such lock")
+	ErrNoSuchLock = errors.New("no such lock")
 )
 
 // LockContext is returned by Lock and LockWithTimeout methods.

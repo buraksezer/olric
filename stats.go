@@ -22,11 +22,8 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/dtopic"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/server"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/stats"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 func toMember(member discovery.Member) stats.Member {
@@ -144,21 +141,6 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	}
 
 	return s
-}
-
-func (db *Olric) statsOperation(w, r protocol.EncodeDecoder) {
-	extra := r.Extra().(protocol.StatsExtra)
-	cfg := statsConfig{
-		CollectRuntime: extra.CollectRuntime,
-	}
-	s := db.stats(cfg)
-	value, err := msgpack.Marshal(s)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
 }
 
 type statsConfig struct {

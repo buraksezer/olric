@@ -45,7 +45,6 @@ import (
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -96,10 +95,6 @@ type Olric struct {
 	// Logical units to store data
 	primary *partitions.Partitions
 	backup  *partitions.Partitions
-
-	// Matches opcodes to functions. It's somewhat like an HTTP request
-	// multiplexer
-	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
 
 	// RESP experiment
 	respServer *server.Server
@@ -211,7 +206,6 @@ func New(c *config.Config) (*Olric, error) {
 		respClient: respClient,
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
-		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
 		started:    c.Started,
 		ctx:        ctx,
 		cancel:     cancel,

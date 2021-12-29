@@ -7,9 +7,6 @@ olricd:
   # with other Olric nodes.
   bindPort: 3320
 
-  # Default Serializer implementation uses gob for encoding/decoding.
-  serializer: msgpack
-
   # KeepAlivePeriod denotes whether the operating system should send
   # keep-alive messages on the connection.
   keepAlivePeriod: 300s

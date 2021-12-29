@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -92,17 +91,11 @@ func (s *Service) validateFragmentPack(fp *fragmentPack) error {
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !s.checkOwnership(part) {
-		return neterrors.Wrap(neterrors.ErrInvalidArgument,
-			fmt.Sprintf("partID: %d (kind: %s) doesn't belong to %s", fp.PartID, fp.Kind, s.rt.This()))
+		return fmt.Errorf("%w: %s",
+			neterrors.ErrInvalidArgument, fmt.Sprintf("partID: %d (kind: %s) doesn't belong to %s",
+				fp.PartID, fp.Kind, s.rt.This()))
 	}
 	return nil
-}
-
-func (s *Service) extractFragmentPack(r protocol.EncodeDecoder) (*fragmentPack, error) {
-	req := r.(*protocol.SystemMessage)
-	fp := &fragmentPack{}
-	err := msgpack.Unmarshal(req.Value(), fp)
-	return fp, err
 }
 
 func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Command) {

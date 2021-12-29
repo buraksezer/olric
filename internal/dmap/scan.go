@@ -16,19 +16,18 @@ package dmap
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 const DefaultScanCount = 10
 
 // ErrEndOfQuery is the error returned by Range when no more data is available.
 // Functions should return ErrEndOfQuery only to signal a graceful end of input.
-var ErrEndOfQuery = neterrors.New(protocol.StatusErrEndOfQuery, "end of query")
+var ErrEndOfQuery = errors.New("end of query")
 
 // Iterator implements distributed query on DMaps.
 type Iterator struct {
