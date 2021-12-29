@@ -80,7 +80,6 @@ func (s *StorageEngines) Validate() error {
 func (s *StorageEngines) Sanitize() error {
 	if len(s.Impls) == 0 {
 		s.Impls[DefaultStorageEngine] = &kvstore.KVStore{}
-		s.Config[DefaultStorageEngine] = kvstore.DefaultConfig().ToMap()
 		if cfg, ok := s.Config[DefaultStorageEngine]; ok {
 			s.Config[DefaultStorageEngine] = kvstore.SanitizeConfig(cfg)
 		} else {
