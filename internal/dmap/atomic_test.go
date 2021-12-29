@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/buraksezer/olric/internal/encoding"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
@@ -163,7 +163,7 @@ func TestDMap_incrCommandHandler(t *testing.T) {
 	var errGr errgroup.Group
 	for i := 0; i < 100; i++ {
 		errGr.Go(func() error {
-			cmd := resp.NewIncr("mydmap", "mykey", 1).Command(context.Background())
+			cmd := protocol.NewIncr("mydmap", "mykey", 1).Command(context.Background())
 			rc := s.respClient.Get(s.rt.This().String())
 			err := rc.Process(context.Background(), cmd)
 			if err != nil {
@@ -175,7 +175,7 @@ func TestDMap_incrCommandHandler(t *testing.T) {
 	}
 	require.NoError(t, errGr.Wait())
 
-	cmd := resp.NewGet("mydmap", "mykey").Command(context.Background())
+	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestDMap_incrCommandHandler_Single_Request(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	cmd := resp.NewIncr("mydmap", "mykey", 100).Command(context.Background())
+	cmd := protocol.NewIncr("mydmap", "mykey", 100).Command(context.Background())
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
@@ -211,7 +211,7 @@ func TestDMap_decrCommandHandler(t *testing.T) {
 	var errGr errgroup.Group
 	for i := 0; i < 100; i++ {
 		errGr.Go(func() error {
-			cmd := resp.NewDecr("mydmap", "mykey", 1).Command(context.Background())
+			cmd := protocol.NewDecr("mydmap", "mykey", 1).Command(context.Background())
 			rc := s.respClient.Get(s.rt.This().String())
 			err := rc.Process(context.Background(), cmd)
 			if err != nil {
@@ -223,7 +223,7 @@ func TestDMap_decrCommandHandler(t *testing.T) {
 	}
 	require.NoError(t, errGr.Wait())
 
-	cmd := resp.NewGet("mydmap", "mykey").Command(context.Background())
+	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestDMap_decrCommandHandler_Single_Request(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	cmd := resp.NewDecr("mydmap", "mykey", 100).Command(context.Background())
+	cmd := protocol.NewDecr("mydmap", "mykey", 100).Command(context.Background())
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
@@ -270,7 +270,7 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 			return err
 		}
 
-		cmd := resp.NewGetPut("mydmap", "mykey", buf.Bytes()).Command(context.Background())
+		cmd := protocol.NewGetPut("mydmap", "mykey", buf.Bytes()).Command(context.Background())
 		rc := s.respClient.Get(s.rt.This().String())
 		err = rc.Process(context.Background(), cmd)
 		if err == redis.Nil {

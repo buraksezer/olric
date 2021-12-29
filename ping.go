@@ -15,14 +15,14 @@
 package olric
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
 // Ping sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
 func (db *Olric) Ping(addr string) error {
-	cmd := resp.NewPing().Command(db.ctx)
+	cmd := protocol.NewPing().Command(db.ctx)
 	rc := db.respClient.Get(addr)
 	err := rc.Process(db.ctx, cmd)
 	if err != nil {
@@ -32,9 +32,9 @@ func (db *Olric) Ping(addr string) error {
 }
 
 func (db *Olric) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	pingCmd, err := resp.ParsePingCommand(cmd)
+	pingCmd, err := protocol.ParsePingCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 

@@ -19,7 +19,7 @@ import (
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
@@ -70,15 +70,15 @@ func (s *Service) destroyLocalDMap(name string) error {
 }
 
 func (s *Service) destroyCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	destroyCmd, err := resp.ParseDestroyCommand(cmd)
+	destroyCmd, err := protocol.ParseDestroyCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(destroyCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -89,8 +89,8 @@ func (s *Service) destroyCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }

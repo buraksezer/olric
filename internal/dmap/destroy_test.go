@@ -17,7 +17,7 @@ package dmap
 import (
 	"testing"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -107,7 +107,7 @@ func TestDMap_Destroy_destroyOperation(t *testing.T) {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
-	cmd := resp.NewDestroy("mydmap").Command(s.ctx)
+	cmd := protocol.NewDestroy("mydmap").Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)

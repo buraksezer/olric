@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/stretchr/testify/require"
 )
@@ -285,7 +285,7 @@ func TestDMap_lockCommandHandler(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	cmd := resp.NewLock("lock.test", "lock.test.foo", 1).Command(s.ctx)
+	cmd := protocol.NewLock("lock.test", "lock.test.foo", 1).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
@@ -293,7 +293,7 @@ func TestDMap_lockCommandHandler(t *testing.T) {
 	token, err := cmd.Bytes()
 	require.NoError(t, err)
 
-	cmdUnlock := resp.NewUnlock("lock.test", "lock.test.foo", string(token)).Command(s.ctx)
+	cmdUnlock := protocol.NewUnlock("lock.test", "lock.test.foo", string(token)).Command(s.ctx)
 	err = rc.Process(s.ctx, cmdUnlock)
 	require.NoError(t, err)
 
@@ -306,7 +306,7 @@ func TestDMap_lockCommandHandler_EX(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	cmd := resp.NewLock("lock.test", "lock.test.foo", 1).SetEX(1).Command(s.ctx)
+	cmd := protocol.NewLock("lock.test", "lock.test.foo", 1).SetEX(1).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
@@ -316,9 +316,9 @@ func TestDMap_lockCommandHandler_EX(t *testing.T) {
 
 	<-time.After(2 * time.Second)
 
-	cmdUnlock := resp.NewUnlock("lock.test", "lock.test.foo", string(token)).Command(s.ctx)
+	cmdUnlock := protocol.NewUnlock("lock.test", "lock.test.foo", string(token)).Command(s.ctx)
 	err = rc.Process(s.ctx, cmdUnlock)
-	err = resp.ConvertError(err)
+	err = protocol.ConvertError(err)
 	require.ErrorIs(t, err, ErrNoSuchLock)
 }
 
@@ -327,7 +327,7 @@ func TestDMap_lockCommandHandler_PX(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	cmd := resp.NewLock("lock.test", "lock.test.foo", 1).
+	cmd := protocol.NewLock("lock.test", "lock.test.foo", 1).
 		SetPX((10 * time.Millisecond).Milliseconds()).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err := rc.Process(s.ctx, cmd)
@@ -338,9 +338,9 @@ func TestDMap_lockCommandHandler_PX(t *testing.T) {
 
 	<-time.After(20 * time.Millisecond)
 
-	cmdUnlock := resp.NewUnlock("lock.test", "lock.test.foo", string(token)).Command(s.ctx)
+	cmdUnlock := protocol.NewUnlock("lock.test", "lock.test.foo", string(token)).Command(s.ctx)
 	err = rc.Process(s.ctx, cmdUnlock)
-	err = resp.ConvertError(err)
+	err = protocol.ConvertError(err)
 	require.ErrorIs(t, err, ErrNoSuchLock)
 }
 
@@ -358,7 +358,7 @@ func TestDMap_lockLeaseCommandHandler(t *testing.T) {
 
 	// Update the timeout
 	token := hex.EncodeToString(ctx.token)
-	cmd := resp.NewLockLease("lock.test", "lock.test.foo", token, 10).Command(s.ctx)
+	cmd := protocol.NewLockLease("lock.test", "lock.test.foo", token, 10).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
@@ -383,7 +383,7 @@ func TestDMap_plockLeaseCommandHandler(t *testing.T) {
 
 	// Update the timeout
 	token := hex.EncodeToString(ctx.token)
-	cmd := resp.NewPLockLease("lock.test", "lock.test.foo", token, 2000).Command(s.ctx)
+	cmd := protocol.NewPLockLease("lock.test", "lock.test.foo", token, 2000).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)

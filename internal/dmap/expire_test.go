@@ -15,11 +15,12 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
-	"github.com/buraksezer/olric/internal/testcluster"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/testcluster"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Expire(t *testing.T) {
@@ -71,7 +72,7 @@ func TestDMap_Expire_expireCommandHandler(t *testing.T) {
 	err = dm.Put(key, "myvalue")
 	require.NoError(t, err)
 
-	cmd := resp.NewExpire("mydmap", "mykey", time.Duration(0.1*float64(time.Second))).Command(s.ctx)
+	cmd := protocol.NewExpire("mydmap", "mykey", time.Duration(0.1*float64(time.Second))).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
@@ -95,7 +96,7 @@ func TestDMap_Expire_pexpireCommandHandler(t *testing.T) {
 	err = dm.Put(key, "myvalue")
 	require.NoError(t, err)
 
-	cmd := resp.NewPExpire("mydmap", "mykey", time.Millisecond).Command(s.ctx)
+	cmd := protocol.NewPExpire("mydmap", "mykey", time.Millisecond).Command(s.ctx)
 	rc := s.respClient.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)

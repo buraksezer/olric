@@ -22,7 +22,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -100,7 +100,7 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 	}
 
 	for _, owner := range owners {
-		cmd := resp.NewMoveFragment(value).Command(f.service.ctx)
+		cmd := protocol.NewMoveFragment(value).Command(f.service.ctx)
 		rc := f.service.respClient.Get(owner.String())
 		err = rc.Process(f.service.ctx, cmd)
 		if err != nil {

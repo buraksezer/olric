@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 const DefaultScanCount = 10
@@ -92,7 +92,7 @@ func (i *Iterator) scanOnOwners(owners []discovery.Member) error {
 			continue
 		}
 
-		s := resp.NewScan(i.partID, i.dm.name, i.cursors[owner.ID])
+		s := protocol.NewScan(i.partID, i.dm.name, i.cursors[owner.ID])
 		if i.config.HasCount {
 			s.SetCount(i.config.Count)
 		}

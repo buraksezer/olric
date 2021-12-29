@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
@@ -99,21 +99,21 @@ func (s *Service) validateFragmentPack(fp *fragmentPack) error {
 }
 
 func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	moveFragmentCmd, err := resp.ParseMoveFragmentCommand(cmd)
+	moveFragmentCmd, err := protocol.ParseMoveFragmentCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	fp := &fragmentPack{}
 	err = msgpack.Unmarshal(moveFragmentCmd.Payload, fp)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	if err = s.validateFragmentPack(fp); err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Comman
 
 	dm, err := s.NewDMap(fp.Name)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -135,9 +135,9 @@ func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Comman
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to merge Received DMap (kind: %s): %s on PartID: %d: %v",
 			fp.Kind, fp.Name, fp.PartID, err)
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }

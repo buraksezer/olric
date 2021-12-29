@@ -15,7 +15,7 @@
 package server
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
 )
@@ -48,7 +48,7 @@ func (h Handler) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 	command := util.BytesToString(cmd.Args[0])
 	// The node is updated by UpdateRoutingCmd. So it's a precondition for
 	// an operable node.
-	if command == resp.UpdateRoutingCmd {
+	if command == protocol.UpdateRoutingCmd {
 		h.handler(conn, cmd)
 		return
 	}

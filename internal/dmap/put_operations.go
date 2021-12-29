@@ -18,19 +18,19 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
 func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	putCmd, err := resp.ParsePutCommand(cmd)
+	putCmd, err := protocol.ParsePutCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	dm, err := s.getOrCreateDMap(putCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -61,22 +61,22 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.value = putCmd.Value
 	err = dm.put(e)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }
 
 func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	putEntryCmd, err := resp.ParsePutEntryCommand(cmd)
+	putEntryCmd, err := protocol.ParsePutEntryCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(putEntryCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -87,8 +87,8 @@ func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.value = putEntryCmd.Value
 	err = dm.putOnReplicaFragment(e)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }

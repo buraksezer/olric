@@ -18,7 +18,7 @@ import (
 	"errors"
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member {
@@ -57,7 +57,7 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 	// Prune empty nodes
 	for i := 0; i < len(owners); i++ {
 		owner := owners[i]
-		cmd := resp.NewLengthOfPart(partID).Command(r.ctx)
+		cmd := protocol.NewLengthOfPart(partID).Command(r.ctx)
 		rc := r.respClient.Get(owner.String())
 		err := rc.Process(r.ctx, cmd)
 		// TODO: improve logging
@@ -165,7 +165,7 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 	// Prune empty nodes
 	for i := 0; i < len(owners); i++ {
 		backup := owners[i]
-		cmd := resp.NewLengthOfPart(partID).SetReplica().Command(r.ctx)
+		cmd := protocol.NewLengthOfPart(partID).SetReplica().Command(r.ctx)
 		rc := r.respClient.Get(backup.String())
 		err := rc.Process(r.ctx, cmd)
 		// TODO: improve logging

@@ -24,7 +24,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/encoding"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/go-redis/redis/v8"
@@ -131,7 +131,7 @@ func (dm *DMap) asyncPutOnBackup(e *env, data []byte, owner discovery.Member) {
 	defer dm.s.wg.Done()
 
 	rc := dm.s.respClient.Get(owner.String())
-	cmd := resp.NewPutEntry(e.dmap, e.key, data).Command(dm.s.ctx)
+	cmd := protocol.NewPutEntry(e.dmap, e.key, data).Command(dm.s.ctx)
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		if dm.s.log.V(3).Ok() {
@@ -177,12 +177,12 @@ func (dm *DMap) syncPutOnCluster(e *env, nt storage.Entry) error {
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
 		rc := dm.s.respClient.Get(owner.String())
-		cmd := resp.NewPutEntry(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
+		cmd := protocol.NewPutEntry(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
-			return resp.ConvertError(err)
+			return protocol.ConvertError(err)
 		}
-		err = resp.ConvertError(cmd.Err())
+		err = protocol.ConvertError(cmd.Err())
 		if err != nil {
 			if dm.s.log.V(3).Ok() {
 				dm.s.log.V(3).Printf("[ERROR] Failed to call put command on %s for DMap: %s: %v", owner, e.dmap, err)
@@ -326,7 +326,7 @@ func (dm *DMap) putOnCluster(e *env) error {
 }
 
 func (dm *DMap) writePutCommand(e *env) (*redis.StatusCmd, error) {
-	cmd := resp.NewPut(e.dmap, e.key, e.value)
+	cmd := protocol.NewPut(e.dmap, e.key, e.value)
 	switch {
 	case e.putConfig.HasEX:
 		cmd.SetEX(e.putConfig.EX.Seconds())
@@ -366,9 +366,9 @@ func (dm *DMap) put(e *env) error {
 	rc := dm.s.respClient.Get(member.String())
 	err = rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return resp.ConvertError(err)
+		return protocol.ConvertError(err)
 	}
-	return resp.ConvertError(cmd.Err())
+	return protocol.ConvertError(cmd.Err())
 }
 
 type putConfig struct {

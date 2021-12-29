@@ -14,25 +14,27 @@
 
 package dmap
 
-import "github.com/buraksezer/olric/internal/protocol/resp"
+import (
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
 func (s *Service) RegisterHandlers() {
-	s.respServer.ServeMux().HandleFunc(resp.PutCmd, s.putCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.GetCmd, s.getCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.DelCmd, s.delCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.DelEntryCmd, s.delEntryCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.GetEntryCmd, s.getEntryCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.PutEntryCmd, s.putEntryCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.ExpireCmd, s.expireCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.PExpireCmd, s.pexpireCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.DestroyCmd, s.destroyCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.ScanCmd, s.scanCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.IncrCmd, s.incrCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.DecrCmd, s.decrCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.GetPutCmd, s.getPutCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.LockCmd, s.lockCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.UnlockCmd, s.unlockCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.LockLeaseCmd, s.lockLeaseCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.PLockLeaseCmd, s.plockLeaseCommandHandler)
-	s.respServer.ServeMux().HandleFunc(resp.MoveFragmentCmd, s.moveFragmentCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.PutCmd, s.putCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.GetCmd, s.getCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.DelCmd, s.delCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.DelEntryCmd, s.delEntryCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.GetEntryCmd, s.getEntryCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.PutEntryCmd, s.putEntryCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.ExpireCmd, s.expireCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.PExpireCmd, s.pexpireCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.DestroyCmd, s.destroyCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.ScanCmd, s.scanCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.IncrCmd, s.incrCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.DecrCmd, s.decrCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.GetPutCmd, s.getPutCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.LockCmd, s.lockCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.UnlockCmd, s.unlockCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.LockLeaseCmd, s.lockLeaseCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.PLockLeaseCmd, s.plockLeaseCommandHandler)
+	s.respServer.ServeMux().HandleFunc(protocol.MoveFragmentCmd, s.moveFragmentCommandHandler)
 }

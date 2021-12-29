@@ -17,10 +17,10 @@ package server
 import (
 	"context"
 	"crypto/rand"
+	"github.com/buraksezer/olric/internal/protocol"
 	"sync/atomic"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"
@@ -31,7 +31,7 @@ func respEcho(t *testing.T, s *Server) {
 	_, err := rand.Read(data)
 	require.NoError(t, err)
 
-	s.ServeMux().HandleFunc(resp.GetCmd, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(protocol.GetCmd, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulk(data)
 	})
 
@@ -40,7 +40,7 @@ func respEcho(t *testing.T, s *Server) {
 	rdb := redis.NewClient(defaultRedisOptions(s.config))
 
 	ctx := context.Background()
-	cmd := resp.NewGet("mydmap", "mykey").Command(ctx)
+	cmd := protocol.NewGet("mydmap", "mykey").Command(ctx)
 	err = rdb.Process(ctx, cmd)
 	require.NoError(t, err)
 
@@ -80,7 +80,7 @@ func TestHandler_ServeRESP_PreCondition_DontCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	// The node is bootstrapped by UpdateRoutingCmd. Don't check any preconditions to run that command.
-	s.ServeMux().HandleFunc(resp.UpdateRoutingCmd, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(protocol.UpdateRoutingCmd, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulk(data)
 	})
 
@@ -89,7 +89,7 @@ func TestHandler_ServeRESP_PreCondition_DontCheck(t *testing.T) {
 	rdb := redis.NewClient(defaultRedisOptions(s.config))
 
 	ctx := context.Background()
-	cmd := resp.NewUpdateRouting([]byte("dummy-data"), 1).Command(ctx)
+	cmd := protocol.NewUpdateRouting([]byte("dummy-data"), 1).Command(ctx)
 	err = rdb.Process(ctx, cmd)
 	require.NoError(t, err)
 

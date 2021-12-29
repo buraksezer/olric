@@ -17,7 +17,7 @@ package olric
 import (
 	"fmt"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
@@ -68,9 +68,9 @@ func mapToRoutingTable(slice []interface{}) (RoutingTable, error) {
 }
 
 func (db *Olric) clusterRoutingTableCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	_, err := resp.ParseClusterRoutingTable(cmd)
+	_, err := protocol.ParseClusterRoutingTable(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	coordinator := db.rt.Discovery().GetCoordinator()
@@ -98,16 +98,16 @@ func (db *Olric) clusterRoutingTableCommandHandler(conn redcon.Conn, cmd redcon.
 	}
 
 	// Redirect to the cluster coordinator
-	rtCmd := resp.NewClusterRoutingTable().Command(db.ctx)
+	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
 	rc := db.respClient.Get(coordinator.String())
 	err = rc.Process(db.ctx, rtCmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	slice, err := rtCmd.Slice()
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	conn.WriteAny(slice)
@@ -136,7 +136,7 @@ func (db *Olric) RoutingTable() (RoutingTable, error) {
 		return db.fillRoutingTable(), nil
 	}
 
-	rtCmd := resp.NewClusterRoutingTable().Command(db.ctx)
+	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
 	rc := db.respClient.Get(coordinator.String())
 	err := rc.Process(db.ctx, rtCmd)
 	if err != nil {

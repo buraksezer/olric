@@ -15,7 +15,7 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
@@ -32,42 +32,42 @@ func (s *Service) incrDecrCommon(cmd, dmap, key string, delta int) (int, error) 
 }
 
 func (s *Service) incrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	incrCmd, err := resp.ParseIncrCommand(cmd)
+	incrCmd, err := protocol.ParseIncrCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	latest, err := s.incrDecrCommon(resp.IncrCmd, incrCmd.DMap, incrCmd.Key, incrCmd.Delta)
+	latest, err := s.incrDecrCommon(protocol.IncrCmd, incrCmd.DMap, incrCmd.Key, incrCmd.Delta)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	conn.WriteInt(latest)
 }
 
 func (s *Service) decrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	decrCmd, err := resp.ParseDecrCommand(cmd)
+	decrCmd, err := protocol.ParseDecrCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	latest, err := s.incrDecrCommon(resp.DecrCmd, decrCmd.DMap, decrCmd.Key, decrCmd.Delta)
+	latest, err := s.incrDecrCommon(protocol.DecrCmd, decrCmd.DMap, decrCmd.Key, decrCmd.Delta)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	conn.WriteInt(latest)
 }
 
 func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	getPutCmd, err := resp.ParseGetPutCommand(cmd)
+	getPutCmd, err := protocol.ParseGetPutCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	dm, err := s.getOrCreateDMap(getPutCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.value = getPutCmd.Value
 	old, err := dm.getPut(e)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 

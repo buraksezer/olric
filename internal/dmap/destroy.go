@@ -18,7 +18,7 @@ import (
 	"runtime"
 
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
@@ -53,7 +53,7 @@ func (dm *DMap) destroyOnCluster() error {
 
 			// TODO: Improve logging
 			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
-			cmd := resp.NewDestroy(dm.name).SetLocal().Command(dm.s.ctx)
+			cmd := protocol.NewDestroy(dm.name).SetLocal().Command(dm.s.ctx)
 			rc := dm.s.respClient.Get(addr)
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {

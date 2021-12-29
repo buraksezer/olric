@@ -15,20 +15,20 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
 func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	expireCmd, err := resp.ParseExpireCommand(cmd)
+	expireCmd, err := protocol.ParseExpireCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(expireCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -43,22 +43,22 @@ func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.timeout = expireCmd.Seconds
 	err = dm.put(e)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }
 
 func (s *Service) pexpireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	pexpireCmd, err := resp.ParsePExpireCommand(cmd)
+	pexpireCmd, err := protocol.ParsePExpireCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(pexpireCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -73,8 +73,8 @@ func (s *Service) pexpireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.timeout = pexpireCmd.Milliseconds
 	err = dm.put(e)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }

@@ -14,9 +14,11 @@
 
 package routingtable
 
-import "github.com/buraksezer/olric/internal/protocol/resp"
+import (
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
 func (r *RoutingTable) RegisterHandlers() {
-	r.respServer.ServeMux().HandleFunc(resp.UpdateRoutingCmd, r.updateRoutingCommandHandler)
-	r.respServer.ServeMux().HandleFunc(resp.LengthOfPartCmd, r.lengthOfPartCommandHandler)
+	r.respServer.ServeMux().HandleFunc(protocol.UpdateRoutingCmd, r.updateRoutingCommandHandler)
+	r.respServer.ServeMux().HandleFunc(protocol.LengthOfPartCmd, r.lengthOfPartCommandHandler)
 }

@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"testing"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -205,7 +205,7 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	cmd := resp.NewDelEntry("mydmap", "mykey").Command(context.Background())
+	cmd := protocol.NewDelEntry("mydmap", "mykey").Command(context.Background())
 	rc := s.respClient.Get(s.rt.This().String())
 	err = rc.Process(context.Background(), cmd)
 	require.NoError(t, err)

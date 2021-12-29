@@ -24,7 +24,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -57,15 +57,15 @@ type Service struct {
 }
 
 func registerErrors() {
-	resp.SetError("NOSUCHLOCK", ErrNoSuchLock)
-	resp.SetError("LOCKNOTACQUIRED", ErrLockNotAcquired)
-	resp.SetError("READQUORUM", ErrReadQuorum)
-	resp.SetError("WRITEQUORUM", ErrWriteQuorum)
-	resp.SetError("ENDOFQUERY", ErrEndOfQuery)
-	resp.SetError("DMAPNOTFOUND", ErrDMapNotFound)
-	resp.SetError("KEYTOOLARGE", ErrKeyTooLarge)
-	resp.SetError("KEYNOTFOUND", ErrKeyNotFound)
-	resp.SetError("KEYFOUND", ErrKeyFound)
+	protocol.SetError("NOSUCHLOCK", ErrNoSuchLock)
+	protocol.SetError("LOCKNOTACQUIRED", ErrLockNotAcquired)
+	protocol.SetError("READQUORUM", ErrReadQuorum)
+	protocol.SetError("WRITEQUORUM", ErrWriteQuorum)
+	protocol.SetError("ENDOFQUERY", ErrEndOfQuery)
+	protocol.SetError("DMAPNOTFOUND", ErrDMapNotFound)
+	protocol.SetError("KEYTOOLARGE", ErrKeyTooLarge)
+	protocol.SetError("KEYNOTFOUND", ErrKeyNotFound)
+	protocol.SetError("KEYFOUND", ErrKeyFound)
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {

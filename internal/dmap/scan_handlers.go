@@ -18,7 +18,7 @@ import (
 	"strconv"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 )
@@ -92,15 +92,15 @@ func Match(s string) ScanOption {
 }
 
 func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	scanCmd, err := resp.ParseScanCommand(cmd)
+	scanCmd, err := protocol.ParseScanCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(scanCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	var cursor uint64
 	result, cursor, err = dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 

@@ -15,16 +15,16 @@
 package olric
 
 import (
+	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOlric_ClusterRoutingTable_clusterRoutingTableCommandHandler(t *testing.T) {
 	db := newTestOlric(t)
 
-	rtCmd := resp.NewClusterRoutingTable().Command(db.ctx)
+	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
 	rc := db.respClient.Get(db.rt.This().String())
 	err := rc.Process(db.ctx, rtCmd)
 	require.NoError(t, err)

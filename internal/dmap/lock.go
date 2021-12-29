@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 )
 
 var (
@@ -86,13 +86,13 @@ func (dm *DMap) unlock(key string, token []byte) error {
 		return dm.unlockKey(key, token)
 	}
 
-	cmd := resp.NewUnlock(dm.name, key, hex.EncodeToString(token)).Command(dm.s.ctx)
+	cmd := protocol.NewUnlock(dm.name, key, hex.EncodeToString(token)).Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return resp.ConvertError(err)
+		return protocol.ConvertError(err)
 	}
-	return resp.ConvertError(cmd.Err())
+	return protocol.ConvertError(cmd.Err())
 }
 
 // Unlock releases the lock.
@@ -249,13 +249,13 @@ func (dm *DMap) lease(key string, token []byte, timeout time.Duration) error {
 		return dm.leaseKey(key, token, timeout)
 	}
 
-	cmd := resp.NewLockLease(dm.name, key, hex.EncodeToString(token), timeout.Seconds()).Command(dm.s.ctx)
+	cmd := protocol.NewLockLease(dm.name, key, hex.EncodeToString(token), timeout.Seconds()).Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return resp.ConvertError(err)
+		return protocol.ConvertError(err)
 	}
-	return resp.ConvertError(cmd.Err())
+	return protocol.ConvertError(cmd.Err())
 }
 
 // Lease takes the duration to update the expiry for the given Lock.

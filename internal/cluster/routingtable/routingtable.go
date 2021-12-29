@@ -17,6 +17,7 @@ package routingtable
 import (
 	"context"
 	"errors"
+	"github.com/buraksezer/olric/internal/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,7 +28,6 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/pkg/flog"
@@ -76,10 +76,10 @@ type RoutingTable struct {
 }
 
 func registerErrors() {
-	resp.SetError("CLUSTERQUORUM", ErrClusterQuorum)
-	resp.SetError("CLUSTERJOIN", ErrClusterJoin)
-	resp.SetError("SERVERGONE", ErrServerGone)
-	resp.SetError("OPERATIONTIMEOUT", ErrOperationTimeout)
+	protocol.SetError("CLUSTERQUORUM", ErrClusterQuorum)
+	protocol.SetError("CLUSTERJOIN", ErrClusterJoin)
+	protocol.SetError("SERVERGONE", ErrServerGone)
+	protocol.SetError("OPERATIONTIMEOUT", ErrOperationTimeout)
 }
 
 func New(e *environment.Environment) *RoutingTable {

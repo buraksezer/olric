@@ -16,18 +16,18 @@ package routingtable
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/redcon"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 func (r *RoutingTable) lengthOfPartCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	lengthOfPartCmd, err := resp.ParseLengthOfPartCommand(cmd)
+	lengthOfPartCmd, err := protocol.ParseLengthOfPartCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -64,29 +64,29 @@ func (r *RoutingTable) updateRoutingCommandHandler(conn redcon.Conn, cmd redcon.
 	r.updateRoutingMtx.Lock()
 	defer r.updateRoutingMtx.Unlock()
 
-	updateRoutingCmd, err := resp.ParseUpdateRoutingCommand(cmd)
+	updateRoutingCmd, err := protocol.ParseUpdateRoutingCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	table := make(map[uint64]*route)
 	err = msgpack.Unmarshal(updateRoutingCmd.Payload, &table)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	// Log this event
 	coordinator, err := r.discovery.FindMemberByID(updateRoutingCmd.CoordinatorID)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
 
 	if err = r.verifyRoutingTable(updateRoutingCmd.CoordinatorID, table); err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -112,7 +112,7 @@ func (r *RoutingTable) updateRoutingCommandHandler(conn redcon.Conn, cmd redcon.
 	// Collect report
 	value, err := r.prepareLeftOverDataReport()
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 

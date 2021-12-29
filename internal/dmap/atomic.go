@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	"github.com/buraksezer/olric/internal/encoding"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -60,9 +60,9 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 
 	var updated int
 	switch cmd {
-	case resp.IncrCmd:
+	case protocol.IncrCmd:
 		updated = current + delta
-	case resp.DecrCmd:
+	case protocol.DecrCmd:
 		updated = current - delta
 	default:
 		return 0, fmt.Errorf("invalid operation")
@@ -92,7 +92,7 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 	e := newEnv()
 	e.dmap = dm.name
 	e.key = key
-	return dm.atomicIncrDecr(resp.IncrCmd, e, delta)
+	return dm.atomicIncrDecr(protocol.IncrCmd, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
@@ -100,7 +100,7 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 	e := newEnv()
 	e.dmap = dm.name
 	e.key = key
-	return dm.atomicIncrDecr(resp.DecrCmd, e, delta)
+	return dm.atomicIncrDecr(protocol.DecrCmd, e, delta)
 }
 
 func (dm *DMap) getPut(e *env) (storage.Entry, error) {

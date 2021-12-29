@@ -15,11 +15,11 @@
 package routingtable
 
 import (
+	"github.com/buraksezer/olric/internal/protocol"
 	"runtime"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -47,7 +47,7 @@ func (r *RoutingTable) prepareLeftOverDataReport() ([]byte, error) {
 }
 
 func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.Member) (*leftOverDataReport, error) {
-	cmd := resp.NewUpdateRouting(data, r.this.ID).Command(r.ctx)
+	cmd := protocol.NewUpdateRouting(data, r.this.ID).Command(r.ctx)
 	rc := r.respClient.Get(member.String())
 	err := rc.Process(r.ctx, cmd)
 	if err != nil {

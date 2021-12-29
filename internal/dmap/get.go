@@ -21,7 +21,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -83,15 +83,15 @@ func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 }
 
 func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*version, error) {
-	cmd := resp.NewGetEntry(dm.name, key).Command(dm.s.ctx)
+	cmd := protocol.NewGetEntry(dm.name, key).Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(owner.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return nil, resp.ConvertError(err)
+		return nil, protocol.ConvertError(err)
 	}
 	value, err := cmd.Bytes()
 	if err != nil {
-		return nil, resp.ConvertError(err)
+		return nil, protocol.ConvertError(err)
 	}
 
 	v := &version{host: owner}
@@ -200,10 +200,10 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 	versions := make([]*version, 0, len(backups))
 	for _, replica := range backups {
 		host := replica
-		cmd := resp.NewGetEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
+		cmd := protocol.NewGetEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
 		rc := dm.s.respClient.Get(host.String())
 		err := rc.Process(dm.s.ctx, cmd)
-		err = resp.ConvertError(err)
+		err = protocol.ConvertError(err)
 		if err != nil {
 			if dm.s.log.V(6).Ok() {
 				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
@@ -213,7 +213,7 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		}
 
 		value, err := cmd.Bytes()
-		err = resp.ConvertError(err)
+		err = protocol.ConvertError(err)
 		if err != nil {
 			// TODO: Improve logging
 			if dm.s.log.V(6).Ok() {
@@ -260,7 +260,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			f.Unlock()
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
-			cmd := resp.NewPutEntry(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
+			cmd := protocol.NewPutEntry(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
 			rc := dm.s.respClient.Get(version.host.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
@@ -333,16 +333,16 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	}
 
 	// Redirect to the partition owner
-	cmd := resp.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
+	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return nil, resp.ConvertError(err)
+		return nil, protocol.ConvertError(err)
 	}
 
 	value, err := cmd.Bytes()
 	if err != nil {
-		return nil, resp.ConvertError(err)
+		return nil, protocol.ConvertError(err)
 	}
 
 	// number of keys that have been requested and found present

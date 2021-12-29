@@ -12,4 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package resp
+package protocol
+
+import (
+	"context"
+	"github.com/go-redis/redis/v8"
+)
+
+type ClusterRoutingTableCommand struct{}
+
+type ClusterRoutingTable struct{}
+
+func NewClusterRoutingTable() *ClusterRoutingTable {
+	return &ClusterRoutingTable{}
+}
+
+func (c *ClusterRoutingTable) Command(ctx context.Context) *redis.Cmd {
+	var args []interface{}
+	args = append(args, ClusterRoutingTableCmd)
+	return redis.NewCmd(ctx, args...)
+}

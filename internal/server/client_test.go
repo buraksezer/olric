@@ -16,11 +16,11 @@ package server
 
 import (
 	"context"
+	"github.com/buraksezer/olric/internal/protocol"
 	"net"
 	"strconv"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"
 )
@@ -31,7 +31,7 @@ func TestServer_Client_Get(t *testing.T) {
 		require.NoError(t, s.Shutdown(context.Background()))
 	}()
 
-	s.ServeMux().HandleFunc(resp.PingCmd, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(protocol.PingCmd, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulkString("pong")
 	})
 
@@ -42,7 +42,7 @@ func TestServer_Client_Get(t *testing.T) {
 	rc := cs.Get(addr)
 
 	ctx := context.Background()
-	cmd := resp.NewPing().Command(ctx)
+	cmd := protocol.NewPing().Command(ctx)
 	err := rc.Process(ctx, cmd)
 	require.NoError(t, err)
 

@@ -16,25 +16,25 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
 func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	delCmd, err := resp.ParseDelCommand(cmd)
+	delCmd, err := protocol.ParseDelCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	dm, err := s.getOrCreateDMap(delCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	err = dm.deleteKey(delCmd.Key)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	// TODO: Write zero?
@@ -42,14 +42,14 @@ func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 }
 
 func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	delCmd, err := resp.ParseDelEntryCommand(cmd)
+	delCmd, err := protocol.ParseDelEntryCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	dm, err := s.getOrCreateDMap(delCmd.Del.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 	err = dm.deleteFromFragment(delCmd.Del.Key, kind)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 

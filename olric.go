@@ -34,8 +34,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tidwall/redcon"
-
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/checkpoint"
@@ -45,12 +43,13 @@ import (
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/go-redis/redis/v8"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
+	"github.com/tidwall/redcon"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -235,15 +234,15 @@ func New(c *config.Config) (*Olric, error) {
 func (db *Olric) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
 	err := db.isOperable()
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return false
 	}
 	return true
 }
 
 func (db *Olric) registerCommandHandlers() {
-	db.respServer.ServeMux().HandleFunc(resp.PingCmd, db.pingCommandHandler)
-	db.respServer.ServeMux().HandleFunc(resp.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
+	db.respServer.ServeMux().HandleFunc(protocol.PingCmd, db.pingCommandHandler)
+	db.respServer.ServeMux().HandleFunc(protocol.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
 }
 
 // callStartedCallback checks passed checkpoint count and calls the callback

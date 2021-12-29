@@ -18,47 +18,47 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
 func (s *Service) unlockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	unlockCmd, err := resp.ParseUnlockCommand(cmd)
+	unlockCmd, err := protocol.ParseUnlockCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(unlockCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	token, err := hex.DecodeString(unlockCmd.Token)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	err = dm.unlock(unlockCmd.Key, token)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }
 
 func (s *Service) lockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	lockCmd, err := resp.ParseLockCommand(cmd)
+	lockCmd, err := protocol.ParseLockCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(lockCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -73,7 +73,7 @@ func (s *Service) lockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	var deadline = time.Duration(lockCmd.Deadline * float64(time.Second))
 	lctx, err := dm.lockKey(lockCmd.Key, timeout, deadline)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -81,55 +81,55 @@ func (s *Service) lockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 }
 
 func (s *Service) lockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	lockLeaseCmd, err := resp.ParseLockLeaseCommand(cmd)
+	lockLeaseCmd, err := protocol.ParseLockLeaseCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(lockLeaseCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	timeout := time.Duration(lockLeaseCmd.Timeout * float64(time.Second))
 	token, err := hex.DecodeString(lockLeaseCmd.Token)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	err = dm.lease(lockLeaseCmd.Key, token, timeout)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }
 
 func (s *Service) plockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	plockLeaseCmd, err := resp.ParsePLockLeaseCommand(cmd)
+	plockLeaseCmd, err := protocol.ParsePLockLeaseCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	dm, err := s.getOrCreateDMap(plockLeaseCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	timeout := time.Duration(plockLeaseCmd.Timeout * int64(time.Millisecond))
 	token, err := hex.DecodeString(plockLeaseCmd.Token)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	err = dm.lease(plockLeaseCmd.Key, token, timeout)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	conn.WriteString(resp.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }

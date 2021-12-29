@@ -19,7 +19,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/stats"
 	"golang.org/x/sync/errgroup"
 )
@@ -54,15 +54,15 @@ func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) 
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
-		cmd := resp.NewDelEntry(dm.name, key).Command(dm.s.ctx)
+		cmd := protocol.NewDelEntry(dm.name, key).Command(dm.s.ctx)
 		rc := dm.s.respClient.Get(owner.String())
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
-			return resp.ConvertError(err)
+			return protocol.ConvertError(err)
 		}
 		err = cmd.Err()
 		if err != nil {
-			return resp.ConvertError(err)
+			return protocol.ConvertError(err)
 		}
 	}
 	return nil
@@ -74,15 +74,15 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 	for _, owner := range owners {
 		mem := owner
 		g.Go(func() error {
-			cmd := resp.NewDelEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
+			cmd := protocol.NewDelEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
 			rc := dm.s.respClient.Get(mem.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to delete replica key/value on %s: %s", dm.name, err)
-				return resp.ConvertError(err)
+				return protocol.ConvertError(err)
 			}
 			// TODO: Improve logging
-			return resp.ConvertError(cmd.Err())
+			return protocol.ConvertError(cmd.Err())
 		})
 	}
 	return g.Wait()
@@ -141,13 +141,13 @@ func (dm *DMap) deleteKey(key string) error {
 		return dm.deleteOnCluster(hkey, key, f)
 	}
 
-	cmd := resp.NewDel(dm.name, key).Command(dm.s.ctx)
+	cmd := protocol.NewDel(dm.name, key).Command(dm.s.ctx)
 	rc := dm.s.respClient.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return resp.ConvertError(err)
+		return protocol.ConvertError(err)
 	}
-	return resp.ConvertError(cmd.Err())
+	return protocol.ConvertError(cmd.Err())
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

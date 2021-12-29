@@ -16,25 +16,25 @@ package dmap
 
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol/resp"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
 
 func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	getCmd, err := resp.ParseGetCommand(cmd)
+	getCmd, err := protocol.ParseGetCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	dm, err := s.getOrCreateDMap(getCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	raw, err := dm.get(getCmd.Key)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -46,14 +46,14 @@ func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 }
 
 func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	getEntryCmd, err := resp.ParseGetEntryCommand(cmd)
+	getEntryCmd, err := protocol.ParseGetEntryCommand(cmd)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	dm, err := s.getOrCreateDMap(getEntryCmd.DMap)
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -70,7 +70,7 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	nt, err := dm.getOnFragment(e)
 	// TODO: errFragmentNotFound??
 	if err != nil {
-		resp.WriteError(conn, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
