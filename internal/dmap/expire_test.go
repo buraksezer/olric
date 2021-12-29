@@ -73,7 +73,7 @@ func TestDMap_Expire_expireCommandHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := protocol.NewExpire("mydmap", "mykey", time.Duration(0.1*float64(time.Second))).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
@@ -97,7 +97,7 @@ func TestDMap_Expire_pexpireCommandHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	cmd := protocol.NewPExpire("mydmap", "mykey", time.Millisecond).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 

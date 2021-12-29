@@ -54,7 +54,7 @@ func (dm *DMap) destroyOnCluster() error {
 			// TODO: Improve logging
 			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
 			cmd := protocol.NewDestroy(dm.name).SetLocal().Command(dm.s.ctx)
-			rc := dm.s.respClient.Get(addr)
+			rc := dm.s.client.Get(addr)
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
 				return err

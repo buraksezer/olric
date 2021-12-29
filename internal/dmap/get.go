@@ -84,7 +84,7 @@ func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 
 func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*version, error) {
 	cmd := protocol.NewGetEntry(dm.name, key).Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(owner.String())
+	rc := dm.s.client.Get(owner.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return nil, protocol.ConvertError(err)
@@ -201,7 +201,7 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 	for _, replica := range backups {
 		host := replica
 		cmd := protocol.NewGetEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
-		rc := dm.s.respClient.Get(host.String())
+		rc := dm.s.client.Get(host.String())
 		err := rc.Process(dm.s.ctx, cmd)
 		err = protocol.ConvertError(err)
 		if err != nil {
@@ -261,7 +261,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
 			cmd := protocol.NewPutEntry(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
-			rc := dm.s.respClient.Get(version.host.String())
+			rc := dm.s.client.Get(version.host.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", version.host, err)
@@ -334,7 +334,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 
 	// Redirect to the partition owner
 	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(member.String())
+	rc := dm.s.client.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return nil, protocol.ConvertError(err)

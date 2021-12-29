@@ -206,7 +206,7 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 	cmd := protocol.NewDelEntry("mydmap", "mykey").Command(context.Background())
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
 	require.NoError(t, cmd.Err())

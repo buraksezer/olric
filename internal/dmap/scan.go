@@ -100,7 +100,7 @@ func (i *Iterator) scanOnOwners(owners []discovery.Member) error {
 			s.SetMatch(s.Match)
 		}
 		scanCmd := s.Command(i.ctx)
-		rc := i.dm.s.respClient.Get(owner.String())
+		rc := i.dm.s.client.Get(owner.String())
 		err := rc.Process(i.ctx, scanCmd)
 		if err != nil {
 			return err

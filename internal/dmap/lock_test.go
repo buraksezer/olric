@@ -286,7 +286,7 @@ func TestDMap_lockCommandHandler(t *testing.T) {
 	defer cluster.Shutdown()
 
 	cmd := protocol.NewLock("lock.test", "lock.test.foo", 1).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
@@ -307,7 +307,7 @@ func TestDMap_lockCommandHandler_EX(t *testing.T) {
 	defer cluster.Shutdown()
 
 	cmd := protocol.NewLock("lock.test", "lock.test.foo", 1).SetEX(1).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
@@ -329,7 +329,7 @@ func TestDMap_lockCommandHandler_PX(t *testing.T) {
 
 	cmd := protocol.NewLock("lock.test", "lock.test.foo", 1).
 		SetPX((10 * time.Millisecond).Milliseconds()).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
@@ -359,7 +359,7 @@ func TestDMap_lockLeaseCommandHandler(t *testing.T) {
 	// Update the timeout
 	token := hex.EncodeToString(ctx.token)
 	cmd := protocol.NewLockLease("lock.test", "lock.test.foo", token, 10).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
@@ -384,7 +384,7 @@ func TestDMap_plockLeaseCommandHandler(t *testing.T) {
 	// Update the timeout
 	token := hex.EncodeToString(ctx.token)
 	cmd := protocol.NewPLockLease("lock.test", "lock.test.foo", token, 2000).Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 

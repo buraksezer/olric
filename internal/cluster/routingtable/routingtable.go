@@ -17,10 +17,11 @@ package routingtable
 import (
 	"context"
 	"errors"
-	"github.com/buraksezer/olric/internal/protocol"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/buraksezer/olric/internal/protocol"
 
 	"github.com/buraksezer/consistent"
 	"github.com/buraksezer/olric/config"
@@ -64,8 +65,8 @@ type RoutingTable struct {
 	log              *flog.Logger
 	primary          *partitions.Partitions
 	backup           *partitions.Partitions
-	respClient       *server.Client
-	respServer       *server.Server
+	client           *server.Client
+	server           *server.Server
 	discovery        *discovery.Discovery
 	callbacks        []func()
 	callbackMtx      sync.Mutex
@@ -103,8 +104,8 @@ func New(e *environment.Environment) *RoutingTable {
 		consistent: consistent.New(nil, cc),
 		primary:    e.Get("primary").(*partitions.Partitions),
 		backup:     e.Get("backup").(*partitions.Partitions),
-		respClient: e.Get("respClient").(*server.Client),
-		respServer: e.Get("respServer").(*server.Server),
+		client:     e.Get("client").(*server.Client),
+		server:     e.Get("server").(*server.Server),
 		pushPeriod: c.RoutingTablePushInterval,
 		ctx:        ctx,
 		cancel:     cancel,
@@ -268,7 +269,7 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 		r.consistent.Remove(event.NodeName)
 		// Don't try to used closed sockets again.
 		r.log.V(2).Printf("[INFO] Node left: %s", event.NodeName)
-		if err := r.respClient.Close(event.NodeName); err != nil {
+		if err := r.client.Close(event.NodeName); err != nil {
 			r.log.V(2).Printf("[ERROR] Failed to remove the node from pool %s: %v", event.NodeName, err)
 		}
 	case memberlist.NodeUpdate:
@@ -278,7 +279,7 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 			if member.CompareByName(item) {
 				r.Members().Delete(id)
 				r.consistent.Remove(event.NodeName)
-				if err := r.respClient.Close(event.NodeName); err != nil {
+				if err := r.client.Close(event.NodeName); err != nil {
 					r.log.V(2).Printf("[ERROR] Failed to remove the node from pool %s: %v", event.NodeName, err)
 				}
 			}

@@ -47,13 +47,13 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-	e.Set("respClient", server.NewClient(&redis.Options{}))
+	e.Set("client", server.NewClient(&redis.Options{}))
 	return e
 }
 
 func newBalancerForTest(e *environment.Environment) *Balancer {
 	rt := routingtable.New(e)
-	srv := e.Get("respServer").(*server.Server)
+	srv := e.Get("server").(*server.Server)
 	go func() {
 		err := srv.ListenAndServe()
 		if err != nil {
@@ -105,7 +105,7 @@ func (mc *mockCluster) addNode(e *environment.Environment) *Balancer {
 	c.Peers = peers
 
 	srv := testutil.NewServer(c)
-	e.Set("respServer", srv)
+	e.Set("server", srv)
 	b := newBalancerForTest(e)
 
 	err = b.Start()

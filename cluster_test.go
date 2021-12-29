@@ -25,7 +25,7 @@ func TestOlric_ClusterRoutingTable_clusterRoutingTableCommandHandler(t *testing.
 	db := newTestOlric(t)
 
 	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
-	rc := db.respClient.Get(db.rt.This().String())
+	rc := db.client.Get(db.rt.This().String())
 	err := rc.Process(db.ctx, rtCmd)
 	require.NoError(t, err)
 	slice, err := rtCmd.Slice()

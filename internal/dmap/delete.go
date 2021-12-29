@@ -55,7 +55,7 @@ func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) 
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
 		cmd := protocol.NewDelEntry(dm.name, key).Command(dm.s.ctx)
-		rc := dm.s.respClient.Get(owner.String())
+		rc := dm.s.client.Get(owner.String())
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
 			return protocol.ConvertError(err)
@@ -75,7 +75,7 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 		mem := owner
 		g.Go(func() error {
 			cmd := protocol.NewDelEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
-			rc := dm.s.respClient.Get(mem.String())
+			rc := dm.s.client.Get(mem.String())
 			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to delete replica key/value on %s: %s", dm.name, err)
@@ -142,7 +142,7 @@ func (dm *DMap) deleteKey(key string) error {
 	}
 
 	cmd := protocol.NewDel(dm.name, key).Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(member.String())
+	rc := dm.s.client.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return protocol.ConvertError(err)

@@ -101,7 +101,7 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 
 	for _, owner := range owners {
 		cmd := protocol.NewMoveFragment(value).Command(f.service.ctx)
-		rc := f.service.respClient.Get(owner.String())
+		rc := f.service.client.Get(owner.String())
 		err = rc.Process(f.service.ctx, cmd)
 		if err != nil {
 			return err

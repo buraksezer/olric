@@ -99,7 +99,7 @@ func (db *Olric) clusterRoutingTableCommandHandler(conn redcon.Conn, cmd redcon.
 
 	// Redirect to the cluster coordinator
 	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
-	rc := db.respClient.Get(coordinator.String())
+	rc := db.client.Get(coordinator.String())
 	err = rc.Process(db.ctx, rtCmd)
 	if err != nil {
 		protocol.WriteError(conn, err)
@@ -137,7 +137,7 @@ func (db *Olric) RoutingTable() (RoutingTable, error) {
 	}
 
 	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
-	rc := db.respClient.Get(coordinator.String())
+	rc := db.client.Get(coordinator.String())
 	err := rc.Process(db.ctx, rtCmd)
 	if err != nil {
 		return nil, err

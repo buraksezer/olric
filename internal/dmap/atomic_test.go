@@ -164,7 +164,7 @@ func TestDMap_incrCommandHandler(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		errGr.Go(func() error {
 			cmd := protocol.NewIncr("mydmap", "mykey", 1).Command(context.Background())
-			rc := s.respClient.Get(s.rt.This().String())
+			rc := s.client.Get(s.rt.This().String())
 			err := rc.Process(context.Background(), cmd)
 			if err != nil {
 				return err
@@ -176,7 +176,7 @@ func TestDMap_incrCommandHandler(t *testing.T) {
 	require.NoError(t, errGr.Wait())
 
 	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
 
@@ -194,7 +194,7 @@ func TestDMap_incrCommandHandler_Single_Request(t *testing.T) {
 	defer cluster.Shutdown()
 
 	cmd := protocol.NewIncr("mydmap", "mykey", 100).Command(context.Background())
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
 	value, err := cmd.Result()
@@ -212,7 +212,7 @@ func TestDMap_decrCommandHandler(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		errGr.Go(func() error {
 			cmd := protocol.NewDecr("mydmap", "mykey", 1).Command(context.Background())
-			rc := s.respClient.Get(s.rt.This().String())
+			rc := s.client.Get(s.rt.This().String())
 			err := rc.Process(context.Background(), cmd)
 			if err != nil {
 				return err
@@ -224,7 +224,7 @@ func TestDMap_decrCommandHandler(t *testing.T) {
 	require.NoError(t, errGr.Wait())
 
 	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
 
@@ -242,7 +242,7 @@ func TestDMap_decrCommandHandler_Single_Request(t *testing.T) {
 	defer cluster.Shutdown()
 
 	cmd := protocol.NewDecr("mydmap", "mykey", 100).Command(context.Background())
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err := rc.Process(context.Background(), cmd)
 	require.NoError(t, err)
 	value, err := cmd.Result()
@@ -271,7 +271,7 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 		}
 
 		cmd := protocol.NewGetPut("mydmap", "mykey", buf.Bytes()).Command(context.Background())
-		rc := s.respClient.Get(s.rt.This().String())
+		rc := s.client.Get(s.rt.This().String())
 		err = rc.Process(context.Background(), cmd)
 		if err == redis.Nil {
 			return nil

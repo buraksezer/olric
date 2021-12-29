@@ -30,7 +30,7 @@ func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool, sc *sca
 		sc = &scanConfig{}
 	}
 	ctx := context.TODO()
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 
 	var totalKeys int
 	var partID, cursor uint64
@@ -311,7 +311,7 @@ func TestDMap_scanCommandHandler_count(t *testing.T) {
 	}
 
 	ctx := context.TODO()
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 
 	var partID, cursor uint64
 	r := protocol.NewScan(partID, "mydmap", cursor)

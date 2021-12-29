@@ -130,7 +130,7 @@ func (dm *DMap) putOnReplicaFragment(e *env) error {
 func (dm *DMap) asyncPutOnBackup(e *env, data []byte, owner discovery.Member) {
 	defer dm.s.wg.Done()
 
-	rc := dm.s.respClient.Get(owner.String())
+	rc := dm.s.client.Get(owner.String())
 	cmd := protocol.NewPutEntry(e.dmap, e.key, data).Command(dm.s.ctx)
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
@@ -176,7 +176,7 @@ func (dm *DMap) syncPutOnCluster(e *env, nt storage.Entry) error {
 
 	owners := dm.s.backup.PartitionOwnersByHKey(e.hkey)
 	for _, owner := range owners {
-		rc := dm.s.respClient.Get(owner.String())
+		rc := dm.s.client.Get(owner.String())
 		cmd := protocol.NewPutEntry(dm.name, e.key, encodedEntry).Command(dm.s.ctx)
 		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
@@ -363,7 +363,7 @@ func (dm *DMap) put(e *env) error {
 	if err != nil {
 		return err
 	}
-	rc := dm.s.respClient.Get(member.String())
+	rc := dm.s.client.Get(member.String())
 	err = rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return protocol.ConvertError(err)

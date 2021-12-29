@@ -96,8 +96,8 @@ type Olric struct {
 	backup  *partitions.Partitions
 
 	// RESP experiment
-	respServer *server.Server
-	respClient *server.Client
+	server *server.Server
+	client *server.Client
 
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
@@ -190,24 +190,24 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	e.Set("logger", flogger)
 
-	respClient := server.NewClient(&redis.Options{}) // TODO: Add redis options
-	e.Set("respClient", respClient)
+	client := server.NewClient(&redis.Options{}) // TODO: Add redis options
+	e.Set("client", client)
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("locker", locker.New())
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
-		name:       c.MemberlistConfig.Name,
-		env:        e,
-		log:        flogger,
-		config:     c,
-		hashFunc:   c.Hasher,
-		respClient: respClient,
-		primary:    e.Get("primary").(*partitions.Partitions),
-		backup:     e.Get("backup").(*partitions.Partitions),
-		started:    c.Started,
-		ctx:        ctx,
-		cancel:     cancel,
+		name:     c.MemberlistConfig.Name,
+		env:      e,
+		log:      flogger,
+		config:   c,
+		hashFunc: c.Hasher,
+		client:   client,
+		primary:  e.Get("primary").(*partitions.Partitions),
+		backup:   e.Get("backup").(*partitions.Partitions),
+		started:  c.Started,
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 
 	// RESP experiment
@@ -215,11 +215,11 @@ func New(c *config.Config) (*Olric, error) {
 		BindAddr: c.BindAddr,
 		BindPort: c.BindPort,
 	}
-	respServer := server.New(rc, flogger)
-	respServer.SetPreConditionFunc(db.preconditionFunc)
+	srv := server.New(rc, flogger)
+	srv.SetPreConditionFunc(db.preconditionFunc)
 
-	db.respServer = respServer
-	e.Set("respServer", respServer)
+	db.server = srv
+	e.Set("server", srv)
 
 	err = initializeServices(db)
 	if err != nil {
@@ -241,8 +241,8 @@ func (db *Olric) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
 }
 
 func (db *Olric) registerCommandHandlers() {
-	db.respServer.ServeMux().HandleFunc(protocol.PingCmd, db.pingCommandHandler)
-	db.respServer.ServeMux().HandleFunc(protocol.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
+	db.server.ServeMux().HandleFunc(protocol.PingCmd, db.pingCommandHandler)
+	db.server.ServeMux().HandleFunc(protocol.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
 }
 
 // callStartedCallback checks passed checkpoint count and calls the callback
@@ -298,11 +298,11 @@ func (db *Olric) Start() error {
 
 	// RESP experiment
 	errGr.Go(func() error {
-		return db.respServer.ListenAndServe()
+		return db.server.ListenAndServe()
 	})
 
 	select {
-	case <-db.respServer.StartedCtx.Done():
+	case <-db.server.StartedCtx.Done():
 		// TCP server is started
 		checkpoint.Pass()
 	case <-ctx.Done():
@@ -383,7 +383,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	}
 
 	// RESP experiment
-	if err := db.respServer.Shutdown(ctx); err != nil {
+	if err := db.server.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestError = err
 	}

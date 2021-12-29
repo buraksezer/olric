@@ -40,8 +40,8 @@ func newRoutingTableForTest(c *config.Config, srv *server.Server) *RoutingTable 
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-	e.Set("respClient", server.NewClient(&redis.Options{}))
-	e.Set("respServer", srv)
+	e.Set("client", server.NewClient(&redis.Options{}))
+	e.Set("server", srv)
 
 	rt := New(e)
 	go func() {

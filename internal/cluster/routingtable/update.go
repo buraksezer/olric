@@ -48,7 +48,7 @@ func (r *RoutingTable) prepareLeftOverDataReport() ([]byte, error) {
 
 func (r *RoutingTable) updateRoutingTableOnMember(data []byte, member discovery.Member) (*leftOverDataReport, error) {
 	cmd := protocol.NewUpdateRouting(data, r.this.ID).Command(r.ctx)
-	rc := r.respClient.Get(member.String())
+	rc := r.client.Get(member.String())
 	err := rc.Process(r.ctx, cmd)
 	if err != nil {
 		return nil, err

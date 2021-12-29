@@ -19,6 +19,6 @@ import (
 )
 
 func (r *RoutingTable) RegisterHandlers() {
-	r.respServer.ServeMux().HandleFunc(protocol.UpdateRoutingCmd, r.updateRoutingCommandHandler)
-	r.respServer.ServeMux().HandleFunc(protocol.LengthOfPartCmd, r.lengthOfPartCommandHandler)
+	r.server.ServeMux().HandleFunc(protocol.UpdateRoutingCmd, r.updateRoutingCommandHandler)
+	r.server.ServeMux().HandleFunc(protocol.LengthOfPartCmd, r.lengthOfPartCommandHandler)
 }

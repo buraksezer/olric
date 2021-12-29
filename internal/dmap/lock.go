@@ -87,7 +87,7 @@ func (dm *DMap) unlock(key string, token []byte) error {
 	}
 
 	cmd := protocol.NewUnlock(dm.name, key, hex.EncodeToString(token)).Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(member.String())
+	rc := dm.s.client.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return protocol.ConvertError(err)
@@ -250,7 +250,7 @@ func (dm *DMap) lease(key string, token []byte, timeout time.Duration) error {
 	}
 
 	cmd := protocol.NewLockLease(dm.name, key, hex.EncodeToString(token), timeout.Seconds()).Command(dm.s.ctx)
-	rc := dm.s.respClient.Get(member.String())
+	rc := dm.s.client.Get(member.String())
 	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
 		return protocol.ConvertError(err)

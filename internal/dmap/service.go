@@ -41,19 +41,19 @@ type storageMap struct {
 type Service struct {
 	sync.RWMutex // protects dmaps map
 
-	log        *flog.Logger
-	config     *config.Config
-	respClient *server.Client
-	respServer *server.Server
-	rt         *routingtable.RoutingTable
-	primary    *partitions.Partitions
-	backup     *partitions.Partitions
-	locker     *locker.Locker
-	dmaps      map[string]*DMap
-	storage    *storageMap
-	wg         sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
+	log     *flog.Logger
+	config  *config.Config
+	client  *server.Client
+	server  *server.Server
+	rt      *routingtable.RoutingTable
+	primary *partitions.Partitions
+	backup  *partitions.Partitions
+	locker  *locker.Locker
+	dmaps   map[string]*DMap
+	storage *storageMap
+	wg      sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 func registerErrors() {
@@ -71,14 +71,14 @@ func registerErrors() {
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		config:     e.Get("config").(*config.Config),
-		respClient: e.Get("respClient").(*server.Client),
-		respServer: e.Get("respServer").(*server.Server),
-		log:        e.Get("logger").(*flog.Logger),
-		rt:         e.Get("routingtable").(*routingtable.RoutingTable),
-		primary:    e.Get("primary").(*partitions.Partitions),
-		backup:     e.Get("backup").(*partitions.Partitions),
-		locker:     e.Get("locker").(*locker.Locker),
+		config:  e.Get("config").(*config.Config),
+		client:  e.Get("client").(*server.Client),
+		server:  e.Get("server").(*server.Server),
+		log:     e.Get("logger").(*flog.Logger),
+		rt:      e.Get("routingtable").(*routingtable.RoutingTable),
+		primary: e.Get("primary").(*partitions.Partitions),
+		backup:  e.Get("backup").(*partitions.Partitions),
+		locker:  e.Get("locker").(*locker.Locker),
 		storage: &storageMap{
 			engines: make(map[string]storage.Engine),
 			configs: make(map[string]map[string]interface{}),

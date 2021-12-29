@@ -58,7 +58,7 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 	for i := 0; i < len(owners); i++ {
 		owner := owners[i]
 		cmd := protocol.NewLengthOfPart(partID).Command(r.ctx)
-		rc := r.respClient.Get(owner.String())
+		rc := r.client.Get(owner.String())
 		err := rc.Process(r.ctx, cmd)
 		// TODO: improve logging
 		if err != nil {
@@ -166,7 +166,7 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 	for i := 0; i < len(owners); i++ {
 		backup := owners[i]
 		cmd := protocol.NewLengthOfPart(partID).SetReplica().Command(r.ctx)
-		rc := r.respClient.Get(backup.String())
+		rc := r.client.Get(backup.String())
 		err := rc.Process(r.ctx, cmd)
 		// TODO: improve logging
 		if err != nil {

@@ -30,7 +30,7 @@ func (db *Olric) pingCommon(addr, message string) ([]byte, error) {
 	}
 
 	cmd := pingCmd.Command(db.ctx)
-	rc := db.respClient.Get(addr)
+	rc := db.client.Get(addr)
 	err := rc.Process(db.ctx, cmd)
 	if err != nil {
 		return nil, err

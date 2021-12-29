@@ -108,7 +108,7 @@ func TestDMap_Destroy_destroyOperation(t *testing.T) {
 		}
 	}
 	cmd := protocol.NewDestroy("mydmap").Command(s.ctx)
-	rc := s.respClient.Get(s.rt.This().String())
+	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 	require.NoError(t, cmd.Err())
