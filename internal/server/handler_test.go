@@ -17,10 +17,10 @@ package server
 import (
 	"context"
 	"crypto/rand"
-	"github.com/buraksezer/olric/internal/protocol"
 	"sync/atomic"
 	"testing"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"

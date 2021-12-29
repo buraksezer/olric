@@ -16,11 +16,12 @@ package server
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/protocol"
 	"net"
 	"strconv"
 	"testing"
 
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"
 )
@@ -38,7 +39,10 @@ func TestServer_Client_Get(t *testing.T) {
 	<-s.StartedCtx.Done()
 
 	addr := net.JoinHostPort(s.config.BindAddr, strconv.Itoa(s.config.BindPort))
-	cs := NewClient(defaultRedisOptions(s.config))
+	c := config.NewClient()
+	require.NoError(t, c.Sanitize())
+
+	cs := NewClient(c)
 	rc := cs.Get(addr)
 
 	ctx := context.Background()
@@ -59,8 +63,11 @@ func TestServer_Client_Close(t *testing.T) {
 
 	<-s.StartedCtx.Done()
 
+	c := config.NewClient()
+	require.NoError(t, c.Sanitize())
+
 	addr := net.JoinHostPort(s.config.BindAddr, strconv.Itoa(s.config.BindPort))
-	cs := NewClient(defaultRedisOptions(s.config))
+	cs := NewClient(c)
 	rc1 := cs.Get(addr)
 
 	require.NoError(t, cs.Close(addr))

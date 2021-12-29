@@ -15,6 +15,7 @@
 package server
 
 import (
+	"github.com/buraksezer/olric/config"
 	"sync"
 
 	"github.com/go-redis/redis/v8"
@@ -23,13 +24,13 @@ import (
 type Client struct {
 	mu sync.RWMutex
 
-	options *redis.Options
+	config  *config.Client
 	clients map[string]*redis.Client
 }
 
-func NewClient(opt *redis.Options) *Client {
+func NewClient(c *config.Client) *Client {
 	return &Client{
-		options: opt,
+		config:  c,
 		clients: make(map[string]*redis.Client),
 	}
 }
@@ -46,28 +47,8 @@ func (c *Client) Get(addr string) *redis.Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	opt := &redis.Options{
-		Network:            "tcp",
-		Addr:               addr,
-		Dialer:             c.options.Dialer,
-		OnConnect:          c.options.OnConnect,
-		MaxRetries:         c.options.MaxRetries,
-		MinRetryBackoff:    c.options.MinRetryBackoff,
-		MaxRetryBackoff:    c.options.MaxRetryBackoff,
-		DialTimeout:        c.options.DialTimeout,
-		ReadTimeout:        c.options.ReadTimeout,
-		WriteTimeout:       c.options.WriteTimeout,
-		PoolFIFO:           c.options.PoolFIFO,
-		PoolSize:           c.options.PoolSize,
-		MinIdleConns:       c.options.MinIdleConns,
-		MaxConnAge:         c.options.MaxConnAge,
-		PoolTimeout:        c.options.PoolTimeout,
-		IdleTimeout:        c.options.IdleTimeout,
-		IdleCheckFrequency: c.options.IdleCheckFrequency,
-		TLSConfig:          c.options.TLSConfig,
-		Limiter:            c.options.Limiter,
-	}
-
+	opt := c.config.RedisOptions()
+	opt.Addr = addr
 	rc = redis.NewClient(opt)
 	c.clients[addr] = rc
 	rc.PoolStats()

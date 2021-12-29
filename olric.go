@@ -46,7 +46,6 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/go-redis/redis/v8"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
 	"github.com/tidwall/redcon"
@@ -190,7 +189,7 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	e.Set("logger", flogger)
 
-	client := server.NewClient(&redis.Options{}) // TODO: Add redis options
+	client := server.NewClient(c.Client)
 	e.Set("client", client)
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))

@@ -29,7 +29,6 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/go-redis/redis/v8"
 	"github.com/hashicorp/memberlist"
 	"golang.org/x/sync/errgroup"
 )
@@ -40,7 +39,7 @@ func newRoutingTableForTest(c *config.Config, srv *server.Server) *RoutingTable 
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-	e.Set("client", server.NewClient(&redis.Options{}))
+	e.Set("client", server.NewClient(c.Client))
 	e.Set("server", srv)
 
 	rt := New(e)

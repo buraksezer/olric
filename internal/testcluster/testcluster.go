@@ -30,7 +30,6 @@ import (
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/go-redis/redis/v8"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -53,7 +52,7 @@ func NewEnvironment(c *config.Config) *environment.Environment {
 	e := environment.New()
 	e.Set("config", c)
 	e.Set("logger", testutil.NewFlogger(c))
-	e.Set("client", server.NewClient(&redis.Options{})) // TODO: Add redis options
+	e.Set("client", server.NewClient(c.Client))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("locker", locker.New())

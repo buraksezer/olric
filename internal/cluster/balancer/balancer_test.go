@@ -32,7 +32,6 @@ import (
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/mockfragment"
-	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -47,7 +46,7 @@ func newTestEnvironment(c *config.Config) *environment.Environment {
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-	e.Set("client", server.NewClient(&redis.Options{}))
+	e.Set("client", server.NewClient(c.Client))
 	return e
 }
 
