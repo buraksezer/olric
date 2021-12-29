@@ -44,25 +44,6 @@ func TestOlric_DMap_Get(t *testing.T) {
 	})
 }
 
-func TestOlric_DMap_GetEntry(t *testing.T) {
-	db := newTestOlric(t)
-
-	dm, err := db.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	key := "mykey"
-	value := "myvalue"
-	err = dm.Put(key, value)
-	require.NoError(t, err)
-
-	retrieved, err := dm.GetEntry(key)
-	require.NoError(t, err)
-	require.Equal(t, key, retrieved.Key)
-	require.Equal(t, value, retrieved.Value)
-	require.NotEqual(t, 0, retrieved.Timestamp)
-	require.Equal(t, int64(0), retrieved.TTL)
-}
-
 func TestOlric_DMap_Put(t *testing.T) {
 	db := newTestOlric(t)
 

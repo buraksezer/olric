@@ -15,9 +15,9 @@
 package olric
 
 import (
-	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/stretchr/testify/require"
 )
 
