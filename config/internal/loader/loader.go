@@ -37,13 +37,19 @@ type olricd struct {
 }
 
 type client struct {
-	DialTimeout  string `yaml:"dialTimeout"`
-	ReadTimeout  string `yaml:"readTimeout"`
-	WriteTimeout string `yaml:"writeTimeout"`
-	KeepAlive    string `yaml:"keepAlive"`
-	MinConn      int    `yaml:"minConn"`
-	MaxConn      int    `yaml:"maxConn"`
-	PoolTimeout  string `yaml:"poolTimeout"`
+	DialTimeout        string `yaml:"dialTimeout"`
+	ReadTimeout        string `yaml:"readTimeout"`
+	WriteTimeout       string `yaml:"writeTimeout"`
+	MaxRetries         int    `yaml:"maxRetries"`
+	MinRetryBackoff    string `yaml:"minRetryBackoff"`
+	MaxRetryBackoff    string `yaml:"maxRetryBackoff"`
+	PoolFIFO           bool   `yaml:"poolFIFO"`
+	PoolSize           int    `yaml:"poolSize"`
+	MinIdleConns       int    `yaml:"minIdleConns"`
+	MaxConnAge         string `yaml:"maxConnAge"`
+	PoolTimeout        string `yaml:"poolTimeout"`
+	IdleTimeout        string `yaml:"idleTimeout"`
+	IdleCheckFrequency string `yaml:"idleCheckFrequency"`
 }
 
 // logging contains configuration variables of logging section of config file.
