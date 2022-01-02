@@ -29,6 +29,9 @@ func stringToCommand(s string) redcon.Command {
 		Raw: []byte(s),
 	}
 
+	s = strings.TrimSuffix(s, ": []")
+	s = strings.TrimSuffix(s, ": 0")
+	s = strings.TrimSuffix(s, ":")
 	s = strings.TrimSuffix(s, ": ")
 	parsed := strings.Split(s, " ")
 	for _, arg := range parsed {

@@ -14,334 +14,213 @@
 
 package dtopic
 
-/*
 import (
 	"context"
-	"errors"
-	"sync/atomic"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testcluster"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/require"
 )
 
-func TestDTopic_PublishStandalone(t *testing.T) {
+func TestDTopic_Subscribe_And_Publish_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dt, err := s.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	pubsub := rc.Subscribe(ctx, "my-topic")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg Message) {
-		defer cancel()
-		if msg.Message.(string) != "message" {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
 
-	listenerID, err := dt.AddListener(onMessage)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = dt.RemoveListener(listenerID)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
+	// Go channel which receives messages.
+	ch := pubsub.Channel()
 
-	err = dt.Publish("message")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	select {
-	case <-ctx.Done():
-	case <-time.After(5 * time.Second):
-		t.Fatal("Failed to call onMessage function")
-	}
-
-	// Check statistics
-	stats := map[string]int64{
-		"PublishedTotal":   PublishedTotal.Read(),
-		"CurrentListeners": CurrentListeners.Read(),
-		"ListenersTotal":   ListenersTotal.Read(),
-	}
-
-	for name, value := range stats {
-		if value <= 0 {
-			t.Fatalf("Expected %s has to be bigger than zero", name)
-		}
-	}
-}
-
-func TestDTopic_RemoveListener(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dt, err := s.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	onMessage := func(msg Message) {}
-	listenerID, err := dt.AddListener(onMessage)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	err = dt.RemoveListener(listenerID)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-}
-
-func TestDTopic_PublishCluster(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	// Add listener
-
-	dt, err := s1.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var count int32
-	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg Message) {
-		defer cancel()
-		if msg.Message.(string) != "message" {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		atomic.AddInt32(&count, 1)
-	}
-
-	listenerID, err := dt.AddListener(onMessage)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = dt.RemoveListener(listenerID)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
-
-	// Publish
-
-	dt2, err := s2.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	err = dt2.Publish("message")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	select {
-	case <-ctx.Done():
-		if atomic.LoadInt32(&count) != 1 {
-			t.Fatalf("Expected count 1. Got: %d", atomic.LoadInt32(&count))
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Failed to call onMessage function")
-	}
-}
-
-func TestDTopic_RemoveListenerNotFound(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	dt, err := s.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	err = dt.RemoveListener(1231)
-	if !errors.Is(err, neterrors.ErrInvalidArgument) {
-		t.Fatalf("Expected ErrInvalidArgument. Got: %v", err)
-	}
-}
-
-func TestDTopic_Destroy(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	// Add listener
-	dt1, err := s1.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	onMessage := func(msg Message) {}
-	listenerID, err := dt1.AddListener(onMessage)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	dt2, err := s2.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	err = dt2.Destroy()
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	err = dt1.RemoveListener(listenerID)
-	if !errors.Is(err, neterrors.ErrInvalidArgument) {
-		t.Fatalf("Expected ErrInvalidArgument. Got: %v", err)
-	}
-}
-
-func TestDTopic_DTopicMessage(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	// Add listener
-
-	dt1, err := s1.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg Message) {
-		defer cancel()
-		if msg.Message.(string) != "message" {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-
-		if msg.PublisherAddr != s2.rt.This().String() {
-			t.Fatalf("Expected %s. Got: %s", s2.rt.This().String(), msg.PublisherAddr)
-		}
-
-		if msg.PublishedAt <= 0 {
-			t.Fatalf("Invalid PublishedAt: %d", msg.PublishedAt)
-		}
-	}
-
-	listenerID, err := dt1.AddListener(onMessage)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = dt1.RemoveListener(listenerID)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
-
-	// Publish
-
-	dtTwo, err := s2.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	err = dtTwo.Publish("message")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	select {
-	case <-ctx.Done():
-	case <-time.After(5 * time.Second):
-		t.Fatal("Failed to call onMessage function")
-	}
-}
-
-func TestDTopic_PublishMessagesCluster(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	// Add listener
-
-	dt1, err := s1.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	var count int32
-	ctx, cancel := context.WithCancel(context.Background())
-	onMessage := func(msg Message) {
-		if msg.Message.(string) != "message" {
-			t.Fatalf("Expected message. Got: %v", err)
-		}
-		atomic.AddInt32(&count, 1)
-		if atomic.LoadInt32(&count) == 10 {
-			cancel()
-		}
-	}
-
-	listenerID, err := dt1.AddListener(onMessage)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	defer func() {
-		err = dt1.RemoveListener(listenerID)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}()
-
-	// Publish
-
-	dt2, err := s2.NewDTopic("my-topic", 0, UnorderedDelivery)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	expected := make(map[string]struct{})
 	for i := 0; i < 10; i++ {
-		err = dt2.Publish("message")
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+		msg := fmt.Sprintf("my-message-%d", i)
+		err = rc.Publish(ctx, "my-topic", msg).Err()
+		require.NoError(t, err)
+		expected[msg] = struct{}{}
+	}
+
+	consumed := make(map[string]struct{})
+L:
+	for {
+		select {
+		case msg := <-ch:
+			require.Equal(t, "my-topic", msg.Channel)
+			consumed[msg.Payload] = struct{}{}
+			if len(consumed) == 10 {
+				// It would be OK
+				break L
+			}
+		case <-time.After(5 * time.Second):
+			// Enough. Break it and check the consumed items.
+			break L
 		}
 	}
 
-	select {
-	case <-ctx.Done():
-		if atomic.LoadInt32(&count) != 10 {
-			t.Fatalf("Expected count 10. Got: %d", atomic.LoadInt32(&count))
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("Failed to call onMessage function")
-	}
+	require.Equal(t, expected, consumed)
 }
 
-func TestDTopic_DeliveryOrder(t *testing.T) {
+func TestDTopic_Unsubscribe(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	_, err := s.NewDTopic("my-topic", 0, 0)
-	if !errors.Is(err, neterrors.ErrInvalidArgument) {
-		t.Errorf("Expected ErrInvalidArgument. Got: %v", err)
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	pubsub := rc.Subscribe(ctx, "my-topic")
+
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
+
+	// Go channel which receives messages.
+	ch := pubsub.Channel()
+
+	err = pubsub.Unsubscribe(ctx, "my-topic")
+	require.NoError(t, err)
+
+	err = rc.Publish(ctx, "my-topic", "hello, world!").Err()
+	require.NoError(t, err)
+L:
+	for {
+		select {
+		case <-ch:
+			require.Fail(t, "Received a message from an unsubscribed channel")
+		case <-time.After(250 * time.Millisecond):
+			// Enough. Break it and check the consumed items.
+			break L
+		}
 	}
 }
 
-func TestDTopic_OrderedDelivery(t *testing.T) {
+func TestDTopic_PSubscribe_And_Publish_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	_, err := s.NewDTopic("my-topic", 0, OrderedDelivery)
-	if !errors.Is(err, neterrors.ErrNotImplemented) {
-		t.Errorf("Expected ErrNotImplemented. Got: %v", err)
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	pubsub := rc.PSubscribe(ctx, "h?llo")
+
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
+
+	// Go channel which receives messages.
+	ch := pubsub.Channel()
+
+	expected := make(map[string]struct{})
+	for _, topic := range []string{"hello", "hallo", "hxllo"} {
+		for i := 0; i < 10; i++ {
+			msg := fmt.Sprintf("my-message-%s-%d", topic, i)
+			err = rc.Publish(ctx, topic, msg).Err()
+			require.NoError(t, err)
+			expected[msg] = struct{}{}
+		}
 	}
-}*/
+
+	consumed := make(map[string]struct{})
+L:
+	for {
+		select {
+		case msg := <-ch:
+			consumed[msg.Payload] = struct{}{}
+			if len(consumed) == 30 {
+				// It would be OK
+				break L
+			}
+		case <-time.After(5 * time.Second):
+			// Enough. Break it and check the consumed items.
+			break L
+		}
+	}
+
+	require.Equal(t, expected, consumed)
+}
+
+func TestDTopic_PUnsubscribe(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	pubsub := rc.PSubscribe(ctx, "h?llo")
+
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
+
+	// Go channel which receives messages.
+	ch := pubsub.Channel()
+
+	err = pubsub.PUnsubscribe(ctx, "h?llo")
+	require.NoError(t, err)
+
+	for _, topic := range []string{"hello", "hallo", "hxllo"} {
+		err = rc.Publish(ctx, topic, "hello, world!").Err()
+		require.NoError(t, err)
+	}
+
+L:
+	for {
+		select {
+		case <-ch:
+			require.Fail(t, "Received a message from an unsubscribed channel")
+		case <-time.After(250 * time.Millisecond):
+			// Enough. Break it and check the consumed items.
+			break L
+		}
+	}
+}
+
+func TestDTopic_Ping(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	pubsub := rc.Subscribe(ctx, "my-topic")
+
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
+
+	err = pubsub.Ping(ctx, "hello, world!")
+	require.NoError(t, err)
+
+	msg, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "Pong<hello, world!>", msg.(*redis.Pong).String())
+}
+
+func TestDTopic_Close(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	pubsub := rc.Subscribe(ctx, "my-topic")
+
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err)
+
+	err = pubsub.Close()
+	require.NoError(t, err)
+
+	err = pubsub.Ping(ctx)
+	require.Error(t, err, "redis: client is closed")
+	// TODO: Control active subscriber count
+}

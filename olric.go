@@ -41,6 +41,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -101,8 +102,8 @@ type Olric struct {
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
 
-	//dtopic *dtopic.Service
-	dmap *dmap.Service
+	dtopic *dtopic.Service
+	dmap   *dmap.Service
 
 	// Structures for flow control
 	ctx    context.Context
@@ -153,11 +154,11 @@ func initializeServices(db *Olric) error {
 	db.balancer = balancer.New(db.env)
 
 	// Add Services
-	/*dt, err := dtopic.NewService(db.env)
+	dt, err := dtopic.NewService(db.env)
 	if err != nil {
 		return err
 	}
-	db.dtopic = dt.(*dtopic.Service)*/
+	db.dtopic = dt.(*dtopic.Service)
 
 	dm, err := dmap.NewService(db.env)
 	if err != nil {
@@ -295,7 +296,6 @@ func (db *Olric) isOperable() error {
 func (db *Olric) Start() error {
 	errGr, ctx := errgroup.WithContext(context.Background())
 
-	// RESP experiment
 	errGr.Go(func() error {
 		return db.server.ListenAndServe()
 	})
@@ -322,9 +322,9 @@ func (db *Olric) Start() error {
 	}
 
 	// Start distributed topic service
-	/*if err := db.dtopic.Start(); err != nil {
+	if err := db.dtopic.Start(); err != nil {
 		return err
-	}*/
+	}
 
 	// Start distributed map service
 	if err := db.dmap.Start(); err != nil {
@@ -361,10 +361,10 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	var latestError error
 
-	/*if err := db.dtopic.Shutdown(ctx); err != nil {
+	if err := db.dtopic.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown DTopic service: %v", err)
 		latestError = err
-	}*/
+	}
 
 	if err := db.dmap.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown DMap service: %v", err)

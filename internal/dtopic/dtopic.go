@@ -15,7 +15,10 @@
 package dtopic
 
 import (
+	"errors"
+	"fmt"
 	"github.com/buraksezer/olric/internal/stats"
+	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 var (
@@ -29,7 +32,6 @@ var (
 	ListenersTotal = stats.NewInt64Counter()
 )
 
-/*
 const (
 	// UnorderedDelivery means that messages are delivered in random order. It's good to distribute independent events in a distributed system.
 	UnorderedDelivery = int16(1) << iota
@@ -53,10 +55,11 @@ type Message struct {
 //  * All data is in-memory, and the published messages are not stored in the cluster.
 //  * Fire&Forget: message delivery is not guaranteed.
 type DTopic struct {
-	name        string
-	flag        int16
-	concurrency int
-	s           *Service
+	name           string
+	flag           int16
+	numSubscribers int32
+	concurrency    int
+	s              *Service
 }
 
 // NewDTopic returns a new distributed topic instance.
@@ -106,6 +109,7 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 	return dt, nil
 }
 
+/*
 // Publish publishes the given message to listeners of the topic. Message order and delivery are not guaranteed.
 func (d *DTopic) Publish(msg interface{}) error {
 	tm := &Message{

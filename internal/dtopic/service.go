@@ -14,22 +14,18 @@
 
 package dtopic
 
-/*
 import (
 	"context"
 	"errors"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"sync"
 
-	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/service"
-	"github.com/buraksezer/olric/internal/streams"
-	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/buraksezer/olric/serializer"
+	"github.com/tidwall/redcon"
 )
 
 var ErrServerGone = errors.New("server is gone")
@@ -37,95 +33,42 @@ var ErrServerGone = errors.New("server is gone")
 type Service struct {
 	sync.RWMutex
 
-	log        *flog.Logger
-	serializer serializer.Serializer
-	client     *transport.Client
-	rt         *routingtable.RoutingTable
-	streams    *streams.Streams
-	dispatcher *Dispatcher
-	m          map[string]*DTopic
-	wg         sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
+	log    *flog.Logger
+	pubsub *redcon.PubSub
+	rt     *routingtable.RoutingTable
+	m      map[string]*DTopic
+	server *server.Server
+	client *server.Client
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (s *Service) RegisterHandlers() {
+	s.server.ServeMux().HandleFunc(protocol.DTopic.Subscribe, s.subscribeCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.DTopic.PSubscribe, s.psubscribeCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.DTopic.Publish, s.publishCommandHandler)
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{
-		streams:    e.Get("streams").(*streams.Streams),
-		serializer: e.Get("config").(*config.Config).Serializer,
-		client:     e.Get("client").(*transport.Client),
-		log:        e.Get("logger").(*flog.Logger),
-		rt:         e.Get("routingtable").(*routingtable.RoutingTable),
-		dispatcher: NewDispatcher(context.Background()),
-		m:          make(map[string]*DTopic),
-		ctx:        ctx,
-		cancel:     cancel,
-	}, nil
+	s := &Service{
+		log:    e.Get("logger").(*flog.Logger),
+		rt:     e.Get("routingtable").(*routingtable.RoutingTable),
+		server: e.Get("server").(*server.Server),
+		client: e.Get("client").(*server.Client),
+		pubsub: &redcon.PubSub{},
+		m:      make(map[string]*DTopic),
+		ctx:    ctx,
+		cancel: cancel,
+	}
+	s.RegisterHandlers()
+	return s, nil
 }
 
 func (s *Service) Start() error {
 	// dummy implementation
 	return nil
-}
-
-func (s *Service) isAlive() bool {
-	select {
-	case <-s.ctx.Done():
-		// The node is gone.
-		return false
-	default:
-	}
-	return true
-}
-
-func (s *Service) unmarshalValue(raw []byte) (interface{}, error) {
-	var value interface{}
-	err := s.serializer.Unmarshal(raw, &value)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := value.(struct{}); ok {
-		return nil, nil
-	}
-	return value, nil
-}
-
-func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	resp, err := s.client.RequestTo(addr, req)
-	if err != nil {
-		return nil, err
-	}
-	status := resp.Status()
-	if status == protocol.StatusOK {
-		return resp, nil
-	}
-
-	switch status {
-	case protocol.StatusErrInternalFailure:
-		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
-	case protocol.StatusErrInvalidArgument:
-		return nil, neterrors.Wrap(neterrors.ErrInvalidArgument, string(resp.Value()))
-	}
-	return nil, neterrors.GetByCode(status)
-}
-
-func (s *Service) RegisterOperations(operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)) {
-	// Operations on DTopic data structure
-	//
-	// DTopic.Publish
-	operations[protocol.OpPublishDTopicMessage] = s.publishMessageOperation
-	operations[protocol.OpDTopicPublish] = s.exPublishOperation
-
-	// DTopic.Destroy
-	operations[protocol.OpDestroyDTopicInternal] = s.destroyDTopicInternalOperation
-	operations[protocol.OpDTopicDestroy] = s.dtopicDestroyOperation
-
-	// DTopic.AddListener
-	operations[protocol.OpDTopicAddListener] = s.addListenerOperation
-
-	// DTopic.RemoveListener
-	operations[protocol.OpDTopicRemoveListener] = s.removeListenerOperation
 }
 
 func (s *Service) Shutdown(ctx context.Context) error {
@@ -148,4 +91,4 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-var _ service.Service = (*Service)(nil)*/
+var _ service.Service = (*Service)(nil)
