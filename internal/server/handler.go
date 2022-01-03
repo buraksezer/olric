@@ -15,13 +15,15 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
 )
 
 type ServeMuxWrapper struct {
-	mux     *redcon.ServeMux
+	mux     *ServeMux
 	precond func(conn redcon.Conn, cmd redcon.Command) bool
 }
 
@@ -46,6 +48,9 @@ func (h Handler) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 	command := util.BytesToString(cmd.Args[0])
+	if command == "pubsub" || command == "PUBSUB" {
+		command = fmt.Sprintf("%s %s", command, util.BytesToString(cmd.Args[1]))
+	}
 	// The node is updated by UpdateRoutingCmd. So it's a precondition for
 	// an operable node.
 	if command == protocol.UpdateRoutingCmd {

@@ -25,5 +25,5 @@ func TestProtocol_ParseSubscribeCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	topics := []string{"topic-1", "topic-2", "topic-3"}
-	require.Equal(t, topics, parsed.Topics)
+	require.Equal(t, topics, parsed.Channels)
 }

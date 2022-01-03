@@ -16,7 +16,6 @@ package protocol
 
 import (
 	"context"
-	"fmt"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -25,7 +24,6 @@ func TestProtocol_ParseClusterRoutingTable(t *testing.T) {
 	rtCmd := NewClusterRoutingTable()
 
 	cmd := stringToCommand(rtCmd.Command(context.Background()).String())
-	parsed, err := ParseClusterRoutingTable(cmd)
+	_, err := ParseClusterRoutingTable(cmd)
 	require.NoError(t, err)
-	fmt.Println(parsed)
 }

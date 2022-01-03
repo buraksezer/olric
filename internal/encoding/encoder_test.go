@@ -3,7 +3,6 @@ package encoding
 import (
 	"bytes"
 	"encoding"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,5 +26,4 @@ func TestWriter_WriteArg(t *testing.T) {
 	scannedValue := new(uint64)
 	err = Scan(buf.Bytes(), scannedValue)
 	require.NoError(t, err)
-	fmt.Println(value, *scannedValue)
 }

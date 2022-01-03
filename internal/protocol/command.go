@@ -43,13 +43,19 @@ const (
 const StatusOK = "OK"
 
 type DTopicCommands struct {
-	Publish    string
-	Subscribe  string
-	PSubscribe string
+	Publish        string
+	Subscribe      string
+	PSubscribe     string
+	PubSubChannels string
+	PubSubNumpat   string
+	PubSubNumsub   string
 }
 
 var DTopic = &DTopicCommands{
-	Publish:    "publish",
-	Subscribe:  "subscribe",
-	PSubscribe: "psubscribe",
+	Publish:        "publish",
+	Subscribe:      "subscribe",
+	PSubscribe:     "psubscribe",
+	PubSubChannels: "pubsub channels",
+	PubSubNumpat:   "pubsub numpat",
+	PubSubNumsub:   "pubsub numsub",
 }

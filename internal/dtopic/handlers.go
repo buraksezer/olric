@@ -26,7 +26,7 @@ func (s *Service) subscribeCommandHandler(conn redcon.Conn, cmd redcon.Command) 
 		return
 	}
 
-	for _, topic := range subscribeCmd.Topics {
+	for _, topic := range subscribeCmd.Channels {
 		s.pubsub.Subscribe(conn, topic)
 	}
 }
@@ -51,4 +51,43 @@ func (s *Service) psubscribeCommandHandler(conn redcon.Conn, cmd redcon.Command)
 	for _, topic := range psubscribeCmd.Patterns {
 		s.pubsub.Psubscribe(conn, topic)
 	}
+}
+
+func (s *Service) pubsubChannelsCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	pubsubChannelsCmd, err := protocol.ParsePubSubChannelsCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	var channels []string
+	if pubsubChannelsCmd.Pattern != "" {
+		channels = s.pubsub.ChannelsWithPatterns(pubsubChannelsCmd.Pattern)
+	} else {
+		channels = s.pubsub.Channels()
+	}
+	conn.WriteArray(len(channels))
+	for _, channel := range channels {
+		conn.WriteBulkString(channel)
+	}
+}
+
+func (s *Service) pubsubNumpatCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	_, err := protocol.ParsePubSubNumpatCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteInt(s.pubsub.Numpat())
+}
+
+func (s *Service) pubsubNumsubCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	_, err := protocol.ParsePubSubNumsubCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteInt(s.pubsub.Numpat())
 }

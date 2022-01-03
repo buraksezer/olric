@@ -89,7 +89,7 @@ func (lw *ListenerWrapper) Accept() (net.Conn, error) {
 
 type Server struct {
 	config     *Config
-	mux        *redcon.ServeMux
+	mux        *ServeMux
 	wmux       *ServeMuxWrapper
 	server     *redcon.Server
 	log        *flog.Logger
@@ -111,7 +111,7 @@ func New(c *Config, l *flog.Logger) *Server {
 	startedCtx, started := context.WithCancel(context.Background())
 	s := &Server{
 		config:     c,
-		mux:        redcon.NewServeMux(),
+		mux:        NewServeMux(),
 		log:        l,
 		started:    started,
 		StartedCtx: startedCtx,

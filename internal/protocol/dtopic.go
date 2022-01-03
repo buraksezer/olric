@@ -40,20 +40,20 @@ func (p *Publish) Command(ctx context.Context) *redis.IntCmd {
 }
 
 type Subscribe struct {
-	Topics []string
+	Channels []string
 }
 
-func NewSubscribe(topics ...string) *Subscribe {
+func NewSubscribe(channels ...string) *Subscribe {
 	return &Subscribe{
-		Topics: topics,
+		Channels: channels,
 	}
 }
 
 func (s *Subscribe) Command(ctx context.Context) *redis.SliceCmd {
 	var args []interface{}
 	args = append(args, DTopic.Subscribe)
-	for _, topic := range s.Topics {
-		args = append(args, topic)
+	for _, channel := range s.Channels {
+		args = append(args, channel)
 	}
 	return redis.NewSliceCmd(ctx, args...)
 }
@@ -73,6 +73,59 @@ func (s *PSubscribe) Command(ctx context.Context) *redis.SliceCmd {
 	args = append(args, DTopic.Subscribe)
 	for _, topic := range s.Patterns {
 		args = append(args, topic)
+	}
+	return redis.NewSliceCmd(ctx, args...)
+}
+
+type PubSubChannels struct {
+	Pattern string
+}
+
+func NewPubSubChannels() *PubSubChannels {
+	return &PubSubChannels{}
+}
+
+func (ps *PubSubChannels) SetPattern(pattern string) *PubSubChannels {
+	ps.Pattern = pattern
+	return ps
+}
+
+func (ps *PubSubChannels) Command(ctx context.Context) *redis.SliceCmd {
+	var args []interface{}
+	args = append(args, DTopic.PubSubChannels)
+	if ps.Pattern != "" {
+		args = append(args, ps.Pattern)
+	}
+	return redis.NewSliceCmd(ctx, args...)
+}
+
+type PubSubNumpat struct{}
+
+func NewPubSubNumpat() *PubSubNumpat {
+	return &PubSubNumpat{}
+}
+
+func (ps *PubSubNumpat) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, DTopic.PubSubChannels)
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type PubSubNumSub struct {
+	Channels []string
+}
+
+func NewPubSubNumSub(channels ...string) *PubSubNumSub {
+	return &PubSubNumSub{
+		Channels: channels,
+	}
+}
+
+func (ps *PubSubNumSub) Command(ctx context.Context) *redis.SliceCmd {
+	var args []interface{}
+	args = append(args, DTopic.PubSubNumsub)
+	for _, channel := range ps.Channels {
+		args = append(args, channel)
 	}
 	return redis.NewSliceCmd(ctx, args...)
 }

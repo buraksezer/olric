@@ -235,7 +235,6 @@ func TestDMap_ScanMatch(t *testing.T) {
 
 	for i.Next() {
 		count++
-		fmt.Println(i.Key())
 		require.Contains(t, evenKeys, i.Key())
 	}
 	require.Equal(t, 50, count)

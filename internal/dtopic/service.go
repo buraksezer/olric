@@ -25,7 +25,6 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/tidwall/redcon"
 )
 
 var ErrServerGone = errors.New("server is gone")
@@ -34,7 +33,7 @@ type Service struct {
 	sync.RWMutex
 
 	log    *flog.Logger
-	pubsub *redcon.PubSub
+	pubsub *PubSub
 	rt     *routingtable.RoutingTable
 	m      map[string]*DTopic
 	server *server.Server
@@ -48,6 +47,9 @@ func (s *Service) RegisterHandlers() {
 	s.server.ServeMux().HandleFunc(protocol.DTopic.Subscribe, s.subscribeCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.DTopic.PSubscribe, s.psubscribeCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.DTopic.Publish, s.publishCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubChannels, s.pubsubChannelsCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumpat, s.pubsubNumpatCommandHandler)
+
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {
@@ -57,7 +59,7 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		rt:     e.Get("routingtable").(*routingtable.RoutingTable),
 		server: e.Get("server").(*server.Server),
 		client: e.Get("client").(*server.Client),
-		pubsub: &redcon.PubSub{},
+		pubsub: &PubSub{},
 		m:      make(map[string]*DTopic),
 		ctx:    ctx,
 		cancel: cancel,

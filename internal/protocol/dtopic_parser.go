@@ -59,3 +59,38 @@ func ParsePSubscribeCommand(cmd redcon.Command) (*PSubscribe, error) {
 	}
 	return NewPSubscribe(patterns...), nil
 }
+
+func ParsePubSubChannelsCommand(cmd redcon.Command) (*PubSubChannels, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	ps := NewPubSubChannels()
+	if len(cmd.Args) >= 3 {
+		ps.SetPattern(util.BytesToString(cmd.Args[2]))
+	}
+	return ps, nil
+}
+
+func ParsePubSubNumpatCommand(cmd redcon.Command) (*PubSubNumpat, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewPubSubNumpat(), nil
+}
+
+func ParsePubSubNumsubCommand(cmd redcon.Command) (*Subscribe, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	var topics []string
+	args := cmd.Args[1:]
+	for len(args) > 0 {
+		arg := util.BytesToString(args[0])
+		topics = append(topics, arg)
+		args = args[1:]
+	}
+	return NewSubscribe(topics...), nil
+}
