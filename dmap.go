@@ -190,6 +190,12 @@ func (l *LockContext) Unlock() error {
 	return convertDMapError(err)
 }
 
+// Lease update the expiry of an acquired lock.
+func (l *LockContext) Lease(timeout time.Duration) error {
+	err := l.ctx.Lease(timeout)
+	return convertDMapError(err)
+}
+
 // PutEx sets the value for the given key with TTL. It overwrites any previous
 // value for that key. It's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
