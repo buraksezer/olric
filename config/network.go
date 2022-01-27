@@ -105,8 +105,18 @@ func getBindIP(ifname, address string) (string, error) {
 		// if we're not bound to a specific IP, let's use a suitable private IP address.
 		ipStr, err := sockaddr.GetPrivateIP()
 		if err != nil {
-			return "", fmt.Errorf("failed to get interface addresses: %w", err)
+			return "", fmt.Errorf("failed to get private interface addresses: %w", err)
 		}
+
+		// if we could not find a private address, we need to expand our search to a public
+		// ip address
+		if ipStr == "" {
+			ipStr, err = sockaddr.GetPublicIP()
+			if err != nil {
+				return "", fmt.Errorf("failed to get public interface addresses: %w", err)
+			}
+		}
+
 		if ipStr == "" {
 			return "", fmt.Errorf("no private IP address found, and explicit IP not provided")
 		}
