@@ -14,6 +14,7 @@
 
 package olric
 
+/*
 import (
 	"context"
 	"testing"
@@ -82,4 +83,4 @@ func TestOlric_DTopic_Destroy(t *testing.T) {
 
 	err = dt.Destroy()
 	require.NoError(t, err)
-}
+}*/

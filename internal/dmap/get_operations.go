@@ -17,44 +17,63 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/tidwall/redcon"
 )
 
-func (s *Service) getOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error)) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	getCmd, err := protocol.ParseGetCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(getCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
 		return
 	}
 
-	entry, err := f(dm, r)
+	raw, err := dm.get(getCmd.Key)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(entry.Encode())
+
+	if getCmd.Raw {
+		conn.WriteBulk(raw.Encode())
+		return
+	}
+	conn.WriteBulk(raw.Value())
 }
 
-func (s *Service) getOperation(w, r protocol.EncodeDecoder) {
-	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
-		req := r.(*protocol.DMapMessage)
-		return dm.get(req.Key())
-	})
-}
+func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	getEntryCmd, err := protocol.ParseGetEntryCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(getEntryCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 
-func (s *Service) getReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
-		e := newEnvFromReq(r, partitions.BACKUP)
-		return dm.getOnFragment(e)
-	})
-}
+	var kind = partitions.PRIMARY
+	if getEntryCmd.Replica {
+		kind = partitions.BACKUP
+	}
 
-func (s *Service) getPrevOperation(w, r protocol.EncodeDecoder) {
-	s.getOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (storage.Entry, error) {
-		e := newEnvFromReq(r, partitions.PRIMARY)
-		return dm.getOnFragment(e)
-	})
+	e := newEnv()
+	e.dmap = getEntryCmd.DMap
+	e.key = getEntryCmd.Key
+	e.hkey = partitions.HKey(getEntryCmd.DMap, getEntryCmd.Key)
+	e.kind = kind
+	nt, err := dm.getOnFragment(e)
+	// TODO: errFragmentNotFound??
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	// We found it.
+	conn.WriteBulk(nt.Encode())
 }

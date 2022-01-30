@@ -23,7 +23,8 @@ import (
 )
 
 func TestRoutingTable_Callback(t *testing.T) {
-	rt := newRoutingTableForTest(testutil.NewConfig(), nil)
+	c := testutil.NewConfig()
+	rt := newRoutingTableForTest(c, testutil.NewServer(c))
 	var num int32
 	increase := func() {
 		atomic.AddInt32(&num, 1)

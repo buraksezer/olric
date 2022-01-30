@@ -15,223 +15,567 @@
 package protocol
 
 import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
+	"context"
+	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
-// DMapMessageHeaderSize defines total count of bytes in a DMapMessage
-const DMapMessageHeaderSize uint32 = 7
-
-const (
-	// MagicDMapReq is a magic number which denotes DMap message requests on the wire.
-	MagicDMapReq MagicCode = 0xE2
-	// MagicDMapRes is a magic number which denotes DMap message response on the wire.
-	MagicDMapRes MagicCode = 0xE3
-)
-
-// DMapMessageHeader defines a message header for both request and response.
-type DMapMessageHeader struct {
-	Op         OpCode     // 1
-	DMapLen    uint16     // 2
-	KeyLen     uint16     // 2
-	ExtraLen   uint8      // 1
-	StatusCode StatusCode // 1
+type Put struct {
+	DMap  string
+	Key   string
+	Value []byte
+	EX    float64
+	PX    int64
+	EXAT  float64
+	PXAT  int64
+	NX    bool
+	XX    bool
 }
 
-// DMapMessage is a message type in OBP. It can be used to access and modify DMap data structure.
-type DMapMessage struct {
-	Header
-	DMapMessageHeader
-	extra interface{}
-	dmap  string
-	key   string
-	value []byte
-	buf   *bytes.Buffer
-}
-
-// NewDMapMessage returns a new DMapMessage with the given operation code.
-func NewDMapMessage(opcode OpCode) *DMapMessage {
-	return &DMapMessage{
-		Header: Header{
-			Magic:   MagicDMapReq,
-			Version: Version1,
-		},
-		DMapMessageHeader: DMapMessageHeader{
-			Op: opcode,
-		},
+func NewPut(dmap, key string, value []byte) *Put {
+	return &Put{
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
 	}
 }
 
-// NewDMapMessageFromRequest returns a new DMapMessage for the given bytes.Buffer. The caller can use
-// Decode method to read message from the raw data.
-func NewDMapMessageFromRequest(buf *bytes.Buffer) *DMapMessage {
-	return &DMapMessage{
-		Header: Header{
-			Magic:         MagicDMapReq,
-			Version:       Version1,
-			MessageLength: uint32(buf.Len()),
-		},
-		DMapMessageHeader: DMapMessageHeader{},
-		buf:               buf,
+func (p *Put) SetEX(ex float64) *Put {
+	p.EX = ex
+	return p
+}
+
+func (p *Put) SetPX(px int64) *Put {
+	p.PX = px
+	return p
+}
+
+func (p *Put) SetEXAT(exat float64) *Put {
+	p.EXAT = exat
+	return p
+}
+
+func (p *Put) SetPXAT(pxat int64) *Put {
+	p.PXAT = pxat
+	return p
+}
+
+func (p *Put) SetNX() *Put {
+	p.NX = true
+	return p
+}
+
+func (p *Put) SetXX() *Put {
+	p.XX = true
+	return p
+}
+
+func (p *Put) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PutCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Value)
+
+	if p.EX != 0 {
+		args = append(args, "EX")
+		args = append(args, p.EX)
+	}
+
+	if p.PX != 0 {
+		args = append(args, "PX")
+		args = append(args, p.PX)
+	}
+
+	if p.EXAT != 0 {
+		args = append(args, "EXAT")
+		args = append(args, p.EXAT)
+	}
+
+	if p.PXAT != 0 {
+		args = append(args, "PXAT")
+		args = append(args, p.PXAT)
+	}
+
+	if p.NX {
+		args = append(args, "NX")
+	}
+
+	if p.XX {
+		args = append(args, "XX")
+	}
+
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type PutEntry struct {
+	DMap  string
+	Key   string
+	Value []byte
+}
+
+func NewPutEntry(dmap, key string, value []byte) *PutEntry {
+	return &PutEntry{
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
 	}
 }
 
-// Response generates a response message for the request. This is a shortcut function to reduce boilerplate code.
-func (d *DMapMessage) Response(buf *bytes.Buffer) EncodeDecoder {
-	msg := &DMapMessage{
-		Header: Header{
-			Magic:   MagicDMapRes,
-			Version: Version1,
-		},
-		DMapMessageHeader: DMapMessageHeader{
-			Op: d.Op,
-		},
+func (p *PutEntry) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PutEntryCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Value)
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type Get struct {
+	DMap string
+	Key  string
+	Raw  bool
+}
+
+func NewGet(dmap, key string) *Get {
+	return &Get{
+		DMap: dmap,
+		Key:  key,
 	}
-	if buf != nil {
-		msg.buf = buf
-	} else {
-		d.buf.Reset()
-		msg.buf = d.buf
+}
+
+func (g *Get) SetRaw() *Get {
+	g.Raw = true
+	return g
+}
+
+func (g *Get) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, GetCmd)
+	args = append(args, g.DMap)
+	args = append(args, g.Key)
+	if g.Raw {
+		args = append(args, "RW")
 	}
-	msg.MessageLength = uint32(d.buf.Len())
-	return msg
+	return redis.NewStringCmd(ctx, args...)
 }
 
-// SetStatus sets a status code for the message.
-func (d *DMapMessage) SetStatus(code StatusCode) {
-	d.StatusCode = code
+type GetEntry struct {
+	DMap    string
+	Key     string
+	Replica bool
 }
 
-// Status returns status code.
-func (d *DMapMessage) Status() StatusCode {
-	return d.StatusCode
-}
-
-// SetValue writes the given byte slice into the underlying bytes.Buffer
-func (d *DMapMessage) SetValue(value []byte) {
-	d.value = value
-}
-
-// Value returns the value
-func (d *DMapMessage) Value() []byte {
-	return d.value
-}
-
-// OpCode returns operation code of the message
-func (d *DMapMessage) OpCode() OpCode {
-	return d.Op
-}
-
-// SetBuffer sets the underlying bytes.Buffer. It should be recycled by the caller.
-func (d *DMapMessage) SetBuffer(buf *bytes.Buffer) {
-	d.buf = buf
-}
-
-// Buffer returns the underlying bytes.Buffer
-func (d *DMapMessage) Buffer() *bytes.Buffer {
-	return d.buf
-}
-
-// SetDMap sets the DMap name for this message.
-func (d *DMapMessage) SetDMap(dmap string) {
-	d.dmap = dmap
-}
-
-// DMap returns the DMap name.
-func (d *DMapMessage) DMap() string {
-	return d.dmap
-}
-
-// SetKey sets the key for this DMap message.
-func (d *DMapMessage) SetKey(key string) {
-	d.key = key
-}
-
-// Key returns the key for this DMap message.
-func (d *DMapMessage) Key() string {
-	return d.key
-}
-
-// SetExtra sets the extra section for the message, if there is any.
-func (d *DMapMessage) SetExtra(extra interface{}) {
-	d.extra = extra
-}
-
-// Extra returns the extra section of the message, if there is any.
-func (d *DMapMessage) Extra() interface{} {
-	return d.extra
-}
-
-// Encode encodes the message into byte form.
-func (d *DMapMessage) Encode() error {
-	// Calculate lengths here
-	d.DMapLen = uint16(len(d.dmap))
-	d.KeyLen = uint16(len(d.key))
-	if d.extra != nil {
-		d.ExtraLen = uint8(binary.Size(d.extra))
+func NewGetEntry(dmap, key string) *GetEntry {
+	return &GetEntry{
+		DMap: dmap,
+		Key:  key,
 	}
-	d.MessageLength = DMapMessageHeaderSize + uint32(len(d.dmap)+len(d.key)+len(d.value)+int(d.ExtraLen))
-
-	err := binary.Write(d.buf, binary.BigEndian, d.Header)
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(d.buf, binary.BigEndian, d.DMapMessageHeader)
-	if err != nil {
-		return err
-	}
-
-	if d.extra != nil {
-		err = binary.Write(d.buf, binary.BigEndian, d.extra)
-		if err != nil {
-			return err
-		}
-	}
-
-	_, err = d.buf.WriteString(d.dmap)
-	if err != nil {
-		return err
-	}
-
-	_, err = d.buf.WriteString(d.key)
-	if err != nil {
-		return err
-	}
-
-	_, err = d.buf.Write(d.value)
-	return err
 }
 
-// Decode decodes message from byte form into DMapMessage.
-func (d *DMapMessage) Decode() error {
-	err := binary.Read(d.buf, binary.BigEndian, &d.DMapMessageHeader)
-	if err != nil {
-		return err
+func (g *GetEntry) SetReplica() *GetEntry {
+	g.Replica = true
+	return g
+}
+
+func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, GetEntryCmd)
+	args = append(args, g.DMap)
+	args = append(args, g.Key)
+	if g.Replica {
+		args = append(args, "RC")
 	}
-	if d.Magic != MagicDMapReq && d.Magic != MagicDMapRes {
-		return fmt.Errorf("invalid dmap message")
+	return redis.NewStringCmd(ctx, args...)
+}
+
+type Del struct {
+	DMap string
+	Key  string
+}
+
+func NewDel(dmap, key string) *Del {
+	return &Del{
+		DMap: dmap,
+		Key:  key,
+	}
+}
+
+func (d *Del) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, DelCmd)
+	args = append(args, d.DMap)
+	args = append(args, d.Key)
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type DelEntry struct {
+	Del     *Del
+	Replica bool
+}
+
+func NewDelEntry(dmap, key string) *DelEntry {
+	return &DelEntry{
+		Del: NewDel(dmap, key),
+	}
+}
+
+func (d *DelEntry) SetReplica() *DelEntry {
+	d.Replica = true
+	return d
+}
+
+func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
+	cmd := d.Del.Command(ctx)
+	args := cmd.Args()
+	args[0] = DelEntryCmd
+	if d.Replica {
+		args = append(args, "RC")
+	}
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type PExpire struct {
+	DMap         string
+	Key          string
+	Milliseconds time.Duration
+}
+
+func NewPExpire(dmap, key string, milliseconds time.Duration) *PExpire {
+	return &PExpire{
+		DMap:         dmap,
+		Key:          key,
+		Milliseconds: milliseconds,
+	}
+}
+
+func (p *PExpire) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PExpireCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Milliseconds.Milliseconds())
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type Expire struct {
+	DMap    string
+	Key     string
+	Seconds time.Duration
+}
+
+func NewExpire(dmap, key string, seconds time.Duration) *Expire {
+	return &Expire{
+		DMap:    dmap,
+		Key:     key,
+		Seconds: seconds,
+	}
+}
+
+func (e *Expire) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, ExpireCmd)
+	args = append(args, e.DMap)
+	args = append(args, e.Key)
+	args = append(args, e.Seconds.Seconds())
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type Destroy struct {
+	DMap  string
+	Local bool
+}
+
+func NewDestroy(dmap string) *Destroy {
+	return &Destroy{
+		DMap: dmap,
+	}
+}
+
+func (d *Destroy) SetLocal() *Destroy {
+	d.Local = true
+	return d
+}
+
+func (d *Destroy) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, DestroyCmd)
+	args = append(args, d.DMap)
+	if d.Local {
+		args = append(args, "LC")
+	}
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type Query struct {
+	DMap   string
+	PartID uint64
+	Query  []byte
+	Local  bool
+}
+
+func NewQuery(dmap string, partID uint64, query []byte) *Query {
+	return &Query{
+		DMap:   dmap,
+		PartID: partID,
+		Query:  query,
+	}
+}
+
+func (q *Query) SetLocal() *Query {
+	q.Local = true
+	return q
+}
+
+func (q *Query) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, QueryCmd)
+	args = append(args, q.DMap)
+	args = append(args, q.PartID)
+	args = append(args, q.Query)
+	if q.Local {
+		args = append(args, "LC")
+	}
+	return redis.NewStringCmd(ctx, args...)
+}
+
+type Scan struct {
+	PartID  uint64
+	DMap    string
+	Cursor  uint64
+	Count   int
+	Match   string
+	Replica bool
+}
+
+func NewScan(partID uint64, dmap string, cursor uint64) *Scan {
+	return &Scan{
+		PartID: partID,
+		DMap:   dmap,
+		Cursor: cursor,
+	}
+}
+
+func (s *Scan) SetMatch(match string) *Scan {
+	s.Match = match
+	return s
+}
+
+func (s *Scan) SetCount(count int) *Scan {
+	s.Count = count
+	return s
+}
+
+func (s *Scan) SetReplica() *Scan {
+	s.Replica = true
+	return s
+}
+
+func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
+	var args []interface{}
+	args = append(args, ScanCmd)
+	args = append(args, s.PartID)
+	args = append(args, s.DMap)
+	args = append(args, s.Cursor)
+	if s.Match != "" {
+		args = append(args, "MATCH")
+		args = append(args, s.Match)
+	}
+	if s.Count != 0 {
+		args = append(args, "COUNT")
+		args = append(args, s.Count)
+	}
+	if s.Replica {
+		args = append(args, "RC")
+	}
+	return redis.NewScanCmd(ctx, nil, args...)
+}
+
+type Incr struct {
+	DMap  string
+	Key   string
+	Delta int
+}
+
+func NewIncr(dmap, key string, delta int) *Incr {
+	return &Incr{
+		DMap:  dmap,
+		Key:   key,
+		Delta: delta,
+	}
+}
+
+func (i *Incr) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, IncrCmd)
+	args = append(args, i.DMap)
+	args = append(args, i.Key)
+	args = append(args, i.Delta)
+	return redis.NewIntCmd(ctx, args...)
+}
+
+type Decr struct {
+	*Incr
+}
+
+func NewDecr(dmap, key string, delta int) *Decr {
+	return &Decr{
+		NewIncr(dmap, key, delta),
+	}
+}
+
+func (d *Decr) Command(ctx context.Context) *redis.IntCmd {
+	cmd := d.Incr.Command(ctx)
+	cmd.Args()[0] = DecrCmd
+	return cmd
+}
+
+type GetPut struct {
+	DMap  string
+	Key   string
+	Value []byte
+}
+
+func NewGetPut(dmap, key string, value []byte) *GetPut {
+	return &GetPut{
+		DMap:  dmap,
+		Key:   key,
+		Value: value,
+	}
+}
+
+func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, GetPutCmd)
+	args = append(args, g.DMap)
+	args = append(args, g.Key)
+	args = append(args, g.Value)
+	return redis.NewStringCmd(ctx, args...)
+}
+
+// TODO: Add PLock
+
+type Lock struct {
+	DMap     string
+	Key      string
+	Deadline float64
+	EX       float64
+	PX       int64
+}
+
+func NewLock(dmap, key string, deadline float64) *Lock {
+	return &Lock{
+		DMap:     dmap,
+		Key:      key,
+		Deadline: deadline,
+	}
+}
+
+func (l *Lock) SetEX(ex float64) *Lock {
+	l.EX = ex
+	return l
+}
+
+func (l *Lock) SetPX(px int64) *Lock {
+	l.PX = px
+	return l
+}
+
+func (l *Lock) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, LockCmd)
+	args = append(args, l.DMap)
+	args = append(args, l.Key)
+	args = append(args, l.Deadline)
+
+	// Options
+	if l.EX != 0 {
+		args = append(args, "EX")
+		args = append(args, l.EX)
 	}
 
-	if d.Magic == MagicDMapReq && d.ExtraLen > 0 {
-		raw := d.buf.Next(int(d.ExtraLen))
-		extra, err := loadExtras(raw, d.Op)
-		if err != nil {
-			return err
-		}
-		d.extra = extra
+	if l.PX != 0 {
+		args = append(args, "PX")
+		args = append(args, l.PX)
 	}
-	d.dmap = string(d.buf.Next(int(d.DMapLen)))
-	d.key = string(d.buf.Next(int(d.KeyLen)))
 
-	// There is no maximum value for BodyLen which also includes ValueLen.
-	// So our limit is available memory amount at the time of execution.
-	// Please note that maximum partition size should not exceed 50MB for a smooth operation.
-	vlen := int(d.MessageLength) - int(d.ExtraLen) - int(d.KeyLen) - int(d.DMapLen) - int(DMapMessageHeaderSize)
-	if vlen != 0 {
-		d.value = make([]byte, vlen)
-		copy(d.value, d.buf.Next(vlen))
+	return redis.NewStringCmd(ctx, args...)
+}
+
+type Unlock struct {
+	DMap  string
+	Key   string
+	Token string
+}
+
+func NewUnlock(dmap, key, token string) *Unlock {
+	return &Unlock{
+		DMap:  dmap,
+		Key:   key,
+		Token: token,
 	}
-	return nil
+}
+
+func (u *Unlock) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, UnlockCmd)
+	args = append(args, u.DMap)
+	args = append(args, u.Key)
+	args = append(args, u.Token)
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+// TODO: Add PLockLease
+
+type LockLease struct {
+	DMap    string
+	Key     string
+	Token   string
+	Timeout float64
+}
+
+func NewLockLease(dmap, key, token string, timeout float64) *LockLease {
+	return &LockLease{
+		DMap:    dmap,
+		Key:     key,
+		Token:   token,
+		Timeout: timeout,
+	}
+}
+
+func (l *LockLease) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, LockLeaseCmd)
+	args = append(args, l.DMap)
+	args = append(args, l.Key)
+	args = append(args, l.Token)
+	args = append(args, l.Timeout)
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+type PLockLease struct {
+	DMap    string
+	Key     string
+	Token   string
+	Timeout int64
+}
+
+func NewPLockLease(dmap, key, token string, timeout int64) *PLockLease {
+	return &PLockLease{
+		DMap:    dmap,
+		Key:     key,
+		Token:   token,
+		Timeout: timeout,
+	}
+}
+
+func (p *PLockLease) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, PLockLeaseCmd)
+	args = append(args, p.DMap)
+	args = append(args, p.Key)
+	args = append(args, p.Token)
+	args = append(args, p.Timeout)
+	return redis.NewStatusCmd(ctx, args...)
 }

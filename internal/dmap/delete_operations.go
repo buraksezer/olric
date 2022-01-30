@@ -17,41 +17,52 @@ package dmap
 import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
-func (s *Service) deleteOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	delCmd, err := protocol.ParseDelCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	err = f(dm, r)
+	dm, err := s.getOrCreateDMap(delCmd.DMap)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
+
+	err = dm.deleteKey(delCmd.Key)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	// TODO: Write zero?
+	conn.WriteInt(1)
 }
 
-func (s *Service) deleteOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		req := r.(*protocol.DMapMessage)
-		return dm.deleteKey(req.Key())
-	})
-}
+func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	delCmd, err := protocol.ParseDelEntryCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(delCmd.Del.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 
-func (s *Service) deletePrevOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		req := r.(*protocol.DMapMessage)
-		return dm.deleteBackupFromFragment(req.Key(), partitions.PRIMARY)
-	})
-}
+	var kind = partitions.PRIMARY
+	if delCmd.Replica {
+		kind = partitions.BACKUP
+	}
+	err = dm.deleteFromFragment(delCmd.Del.Key, kind)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 
-func (s *Service) deleteReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.deleteOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		req := r.(*protocol.DMapMessage)
-		return dm.deleteBackupFromFragment(req.Key(), partitions.BACKUP)
-	})
+	// TODO: Write zero?
+	conn.WriteInt(1)
 }

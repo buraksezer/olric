@@ -17,14 +17,12 @@ package dmap
 import (
 	"errors"
 	"sort"
-	"time"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/stats"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -47,28 +45,19 @@ var (
 	EvictedTotal = stats.NewInt64Counter()
 )
 
-var ErrReadQuorum = neterrors.New(protocol.StatusErrReadQuorum, "read quorum cannot be reached")
+var ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 type version struct {
 	host  *discovery.Member
 	entry storage.Entry
 }
 
-func (dm *DMap) unmarshalValue(raw []byte) (interface{}, error) {
-	var value interface{}
-	err := dm.s.serializer.Unmarshal(raw, &value)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := value.(struct{}); ok {
-		return nil, nil
-	}
-	return value, nil
-}
-
 func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 	part := dm.getPartitionByHKey(e.hkey, e.kind)
 	f, err := dm.loadFragment(part)
+	if err == errFragmentNotFound {
+		err = ErrKeyNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +66,12 @@ func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 	defer f.RUnlock()
 
 	entry, err := f.storage.Get(e.hkey)
+	switch err {
+	case storage.ErrKeyNotFound:
+		err = ErrKeyNotFound
+	case storage.ErrKeyTooLarge:
+		err = ErrKeyTooLarge
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -88,18 +83,21 @@ func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 }
 
 func (dm *DMap) lookupOnPreviousOwner(owner *discovery.Member, key string) (*version, error) {
-	req := protocol.NewDMapMessage(protocol.OpGetPrev)
-	req.SetDMap(dm.name)
-	req.SetKey(key)
+	cmd := protocol.NewGetEntry(dm.name, key).Command(dm.s.ctx)
+	rc := dm.s.client.Get(owner.String())
+	err := rc.Process(dm.s.ctx, cmd)
+	if err != nil {
+		return nil, protocol.ConvertError(err)
+	}
+	value, err := cmd.Bytes()
+	if err != nil {
+		return nil, protocol.ConvertError(err)
+	}
 
 	v := &version{host: owner}
-	resp, err := dm.s.requestTo(owner.String(), req)
-	if err != nil {
-		return nil, err
-	}
-	data := dm.engine.NewEntry()
-	data.Decode(resp.Value())
-	v.entry = data
+	e := dm.engine.NewEntry()
+	e.Decode(value)
+	v.entry = e
 	return v, nil
 }
 
@@ -201,22 +199,33 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 	backups := dm.s.backup.PartitionOwnersByHKey(hkey)
 	versions := make([]*version, 0, len(backups))
 	for _, replica := range backups {
-		req := protocol.NewDMapMessage(protocol.OpGetReplica)
-		req.SetDMap(dm.name)
-		req.SetKey(key)
 		host := replica
-		v := &version{host: &host}
-		resp, err := dm.s.requestTo(replica.String(), req)
+		cmd := protocol.NewGetEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
+		rc := dm.s.client.Get(host.String())
+		err := rc.Process(dm.s.ctx, cmd)
+		err = protocol.ConvertError(err)
 		if err != nil {
 			if dm.s.log.V(6).Ok() {
 				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
-					" a replica owner: %s: %v", replica, err)
+					" a replica owner: %s: %v", host, err)
 			}
-		} else {
-			data := dm.engine.NewEntry()
-			data.Decode(resp.Value())
-			v.entry = data
+			continue
 		}
+
+		value, err := cmd.Bytes()
+		err = protocol.ConvertError(err)
+		if err != nil {
+			// TODO: Improve logging
+			if dm.s.log.V(6).Ok() {
+				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
+					" a replica owner: %s: %v", host, err)
+			}
+		}
+
+		v := &version{host: &host}
+		e := dm.engine.NewEntry()
+		e.Decode(value)
+		v.entry = e
 		versions = append(versions, v)
 	}
 	return versions
@@ -241,40 +250,24 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			}
 
 			f.Lock()
-			e := &env{
-				dmap:      dm.name,
-				key:       winner.entry.Key(),
-				value:     winner.entry.Value(),
-				timestamp: winner.entry.Timestamp(),
-				timeout:   time.Duration(winner.entry.TTL()),
-				hkey:      hkey,
-				fragment:  f,
-			}
-			err = dm.putOnFragment(e)
+			e := newEnv()
+			e.hkey = hkey
+			e.fragment = f
+			err = dm.putEntryOnFragment(e, winner.entry)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
 			}
 			f.Unlock()
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
-			var req *protocol.DMapMessage
-			if winner.entry.TTL() == 0 {
-				req = protocol.NewDMapMessage(protocol.OpPutReplica)
-				req.SetDMap(dm.name)
-				req.SetKey(winner.entry.Key())
-				req.SetValue(winner.entry.Value())
-				req.SetExtra(protocol.PutExtra{Timestamp: winner.entry.Timestamp()})
-			} else {
-				req = protocol.NewDMapMessage(protocol.OpPutExReplica)
-				req.SetDMap(dm.name)
-				req.SetKey(winner.entry.Key())
-				req.SetValue(winner.entry.Value())
-				req.SetExtra(protocol.PutExExtra{
-					Timestamp: winner.entry.Timestamp(),
-					TTL:       winner.entry.TTL(),
-				})
+			cmd := protocol.NewPutEntry(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
+			rc := dm.s.client.Get(version.host.String())
+			err := rc.Process(dm.s.ctx, cmd)
+			if err != nil {
+				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", version.host, err)
+				continue
 			}
-			_, err := dm.s.requestTo(version.host.String(), req)
+			err = cmd.Err()
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize replica %s: %v", version.host, err)
 			}
@@ -291,14 +284,17 @@ func (dm *DMap) getOnCluster(hkey uint64, key string) (storage.Entry, error) {
 		v := dm.lookupOnReplicas(hkey, key)
 		versions = append(versions, v...)
 	}
+
 	if len(versions) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
+
 	sorted := dm.sanitizeAndSortVersions(versions)
 	if len(sorted) == 0 {
 		// We checked everywhere, it's not here.
 		return nil, ErrKeyNotFound
 	}
+
 	if len(sorted) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
 	}
@@ -337,53 +333,33 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	}
 
 	// Redirect to the partition owner
-	req := protocol.NewDMapMessage(protocol.OpGet)
-	req.SetDMap(dm.name)
-	req.SetKey(key)
-
-	resp, err := dm.s.requestTo(member.String(), req)
-	if errors.Is(err, ErrKeyNotFound) {
-		GetMisses.Increase(1)
-	}
+	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
+	rc := dm.s.client.Get(member.String())
+	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return nil, err
+		return nil, protocol.ConvertError(err)
+	}
+
+	value, err := cmd.Bytes()
+	if err != nil {
+		return nil, protocol.ConvertError(err)
 	}
 
 	// number of keys that have been requested and found present
 	GetHits.Increase(1)
 
 	entry := dm.engine.NewEntry()
-	entry.Decode(resp.Value())
+	entry.Decode(value)
 	return entry, nil
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contains the key. It's thread-safe. It is safe to modify the contents
+// does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
-func (dm *DMap) Get(key string) (interface{}, error) {
+func (dm *DMap) Get(key string) (*GetResponse, error) {
 	raw, err := dm.get(key)
 	if err != nil {
 		return nil, err
 	}
-	return dm.unmarshalValue(raw.Value())
-}
-
-// GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value.
-func (dm *DMap) GetEntry(key string) (*Entry, error) {
-	entry, err := dm.get(key)
-	if err != nil {
-		return nil, err
-	}
-	value, err := dm.unmarshalValue(entry.Value())
-	if err != nil {
-		return nil, err
-	}
-	return &Entry{
-		Key:       entry.Key(),
-		Value:     value,
-		TTL:       entry.TTL(),
-		Timestamp: entry.Timestamp(),
-	}, nil
+	return &GetResponse{entry: raw}, nil
 }

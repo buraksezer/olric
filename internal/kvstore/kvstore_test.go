@@ -26,7 +26,7 @@ import (
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/kvstore/table"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,11 +39,10 @@ func bval(i int) []byte {
 }
 
 func testKVStore(c *storage.Config) (storage.Engine, error) {
-	kv := &KVStore{}
 	if c == nil {
 		c = DefaultConfig()
 	}
-	kv.SetConfig(c)
+	kv := New(c)
 	child, err := kv.Fork(nil)
 	if err != nil {
 		return nil, err
@@ -115,7 +114,7 @@ func TestKVStore_Delete(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	garbage := make(map[int]uint32)
+	garbage := make(map[int]uint64)
 	for i, tb := range s.(*KVStore).tables {
 		s := tb.Stats()
 		garbage[i] = s.Inuse
@@ -132,7 +131,7 @@ func TestKVStore_Delete(t *testing.T) {
 
 	for i, tb := range s.(*KVStore).tables {
 		s := tb.Stats()
-		require.Equal(t, uint32(0), s.Inuse)
+		require.Equal(t, uint64(0), s.Inuse)
 		require.Equal(t, 0, s.Length)
 		require.Equal(t, garbage[i], s.Garbage)
 	}
@@ -429,7 +428,7 @@ func TestKVStore_Fork(t *testing.T) {
 	}
 
 	stats := child.Stats()
-	if uint32(stats.Allocated) != defaultTableSize {
+	if uint64(stats.Allocated) != defaultTableSize {
 		t.Fatalf("Expected Stats.Allocated: %d. Got: %d", defaultTableSize, stats.Allocated)
 	}
 
@@ -495,4 +494,127 @@ func TestKVStore_CloseDestroy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.Close())
 	require.NoError(t, s.Destroy())
+}
+
+func TestStorage_Scan(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 1000000; i++ {
+		e := entry.New()
+		e.SetKey(bkey(i))
+		e.SetTTL(int64(i))
+		e.SetValue(bval(i))
+		e.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	var (
+		count  int
+		cursor uint64
+	)
+	k := s.(*KVStore)
+	for {
+		cursor, err = k.Scan(cursor, 10, func(e storage.Entry) bool {
+			count++
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 1000000, count)
+}
+
+func TestStorage_ScanRegexMatch(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+
+	var key string
+	for i := 0; i < 1000000; i++ {
+		if i%2 == 0 {
+			key = "even:" + strconv.Itoa(i)
+		} else {
+			key = "odd:" + strconv.Itoa(i)
+		}
+
+		e := entry.New()
+		e.SetKey(key)
+		e.SetTTL(int64(i))
+		e.SetValue(bval(i))
+		e.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	var (
+		count  int
+		cursor uint64
+	)
+	k := s.(*KVStore)
+	for {
+		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(entry storage.Entry) bool {
+			count++
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 500000, count)
+}
+
+func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
+	s, err := testKVStore(nil)
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		e := entry.New()
+		e.SetKey(bkey(i))
+		e.SetTTL(int64(i))
+		e.SetValue(bval(i))
+		e.SetTimestamp(time.Now().UnixNano())
+		hkey := xxhash.Sum64([]byte(e.Key()))
+		err := s.Put(hkey, e)
+		require.NoError(t, err)
+	}
+
+	e := entry.New()
+	e.SetKey("even:200")
+	e.SetTTL(123123)
+	e.SetValue([]byte("my-value"))
+	e.SetTimestamp(time.Now().UnixNano())
+	hkey := xxhash.Sum64([]byte(e.Key()))
+	err = s.Put(hkey, e)
+	require.NoError(t, err)
+
+	var (
+		num    int
+		count  int
+		cursor uint64
+	)
+	k := s.(*KVStore)
+	for {
+		num += 1
+		cursor, err = k.ScanRegexMatch(cursor, "even:", 10, func(entry storage.Entry) bool {
+			count++
+			require.Equal(t, "even:200", e.Key())
+			require.Equal(t, "my-value", string(e.Value()))
+			return true
+		})
+		require.NoError(t, err)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	require.Equal(t, 1, num)
+	require.Equal(t, 1, count)
 }

@@ -16,16 +16,16 @@ package testutil
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"net"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/transport"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/hashicorp/memberlist"
+	"github.com/stretchr/testify/require"
 )
 
 func GetFreePort() (int, error) {
@@ -76,22 +76,21 @@ func NewConfig() *config.Config {
 	c.BindAddr = "127.0.0.1"
 	c.BindPort = port
 	c.MemberlistConfig.Name = net.JoinHostPort(c.BindAddr, strconv.Itoa(c.BindPort))
+	c.LeaveTimeout = 500 * time.Millisecond
 	if err := c.Sanitize(); err != nil {
 		panic(fmt.Sprintf("failed to sanitize default config: %v", err))
 	}
 	return c
 }
 
-func NewTransportServer(c *config.Config) *transport.Server {
-	sc := &transport.ServerConfig{
+func NewServer(c *config.Config) *server.Server {
+	sc := &server.Config{
 		BindAddr:        c.BindAddr,
 		BindPort:        c.BindPort,
 		KeepAlivePeriod: time.Second,
-		GracefulPeriod:  10 * time.Second,
 	}
-	flogger := NewFlogger(c)
-	srv := transport.NewServer(sc, flogger)
-	return srv
+	l := NewFlogger(c)
+	return server.New(sc, l)
 }
 
 func TryWithInterval(max int, interval time.Duration, f func() error) error {

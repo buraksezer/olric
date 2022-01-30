@@ -137,18 +137,29 @@ func (s *Service) scanFragmentForEviction(partID uint64, name string, f *fragmen
 		f.Lock()
 		defer f.Unlock()
 		count, keyCount := 0, 0
-		f.storage.Range(func(hkey uint64, entry storage.Entry) bool {
+		f.storage.RangeHKey(func(hkey uint64) bool {
 			keyCount++
 			if keyCount >= maxKeyCount {
 				// this means 'break'.
 				return false
 			}
-			if isKeyExpired(entry.TTL()) || dm.isKeyIdleOnFragment(hkey, f) {
-				err = dm.deleteOnCluster(hkey, entry.Key(), f)
+			ttl, err := f.storage.GetTTL(hkey)
+			if err != nil {
+				dm.s.log.V(3).Printf("[ERROR] Failed to get TTL for: %d", hkey)
+				return true // continue
+			}
+			key, err := f.storage.GetKey(hkey)
+			if err != nil {
+				dm.s.log.V(3).Printf("[ERROR] Failed to get key for: %d", hkey)
+				return true // continue
+			}
+
+			if isKeyExpired(ttl) || dm.isKeyIdleOnFragment(hkey, f) {
+				err = dm.deleteOnCluster(hkey, key, f)
 				if err != nil {
 					// It will be tried again.
 					dm.s.log.V(3).Printf("[ERROR] Failed to delete expired key: %s on DMap: %s: %v",
-						entry.Key(), dm.name, err)
+						key, dm.name, err)
 					return true
 				}
 

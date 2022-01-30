@@ -22,7 +22,8 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/vmihailenco/msgpack"
+	"github.com/tidwall/redcon"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type fragmentPack struct {
@@ -90,29 +91,29 @@ func (s *Service) validateFragmentPack(fp *fragmentPack) error {
 
 	// Check ownership before merging. This is useful to prevent data corruption in network partitioning case.
 	if !s.checkOwnership(part) {
-		return neterrors.Wrap(neterrors.ErrInvalidArgument,
-			fmt.Sprintf("partID: %d (kind: %s) doesn't belong to %s", fp.PartID, fp.Kind, s.rt.This()))
+		return fmt.Errorf("%w: %s",
+			neterrors.ErrInvalidArgument, fmt.Sprintf("partID: %d (kind: %s) doesn't belong to %s",
+				fp.PartID, fp.Kind, s.rt.This()))
 	}
 	return nil
 }
 
-func (s *Service) extractFragmentPack(r protocol.EncodeDecoder) (*fragmentPack, error) {
-	req := r.(*protocol.SystemMessage)
+func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	moveFragmentCmd, err := protocol.ParseMoveFragmentCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 	fp := &fragmentPack{}
-	err := msgpack.Unmarshal(req.Value(), fp)
-	return fp, err
-}
-
-func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
-	fp, err := s.extractFragmentPack(r)
+	err = msgpack.Unmarshal(moveFragmentCmd.Payload, fp)
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to unmarshal DMap: %v", err)
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	if err = s.validateFragmentPack(fp); err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -126,7 +127,7 @@ func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
 
 	dm, err := s.NewDMap(fp.Name)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
@@ -134,8 +135,9 @@ func (s *Service) moveFragmentOperation(w, r protocol.EncodeDecoder) {
 	if err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to merge Received DMap (kind: %s): %s on PartID: %d: %v",
 			fp.Kind, fp.Name, fp.PartID, err)
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
+
+	conn.WriteString(protocol.StatusOK)
 }

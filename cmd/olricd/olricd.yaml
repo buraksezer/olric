@@ -7,9 +7,6 @@ olricd:
   # with other Olric nodes.
   bindPort: 3320
 
-  # Default Serializer implementation uses gob for encoding/decoding.
-  serializer: msgpack
-
   # KeepAlivePeriod denotes whether the operating system should send
   # keep-alive messages on the connection.
   keepAlivePeriod: 300s
@@ -56,7 +53,7 @@ client:
   # The timeout includes name resolution, if required. When using TCP, and the host in the address parameter
   # resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
   # given an appropriate fraction of the time to connect.
-  dialTimeout: -1s
+  dialTimeout: 5s
 
   # Timeout for socket reads. If reached, commands will fail
   # with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
@@ -68,25 +65,50 @@ client:
   # Default is DefaultWriteTimeout
   writeTimeout: 3s
 
-  # KeepAlive specifies the interval between keep-alive
-  # probes for an active network connection.
-  # If zero, keep-alive probes are sent with a default value
-  # (currently 15 seconds), if supported by the protocol and operating
-  # system. Network protocols or operating systems that do
-  # not support keep-alives ignore this field.
-  # If negative, keep-alive probes are disabled.
-  keepAlive: 15s
+  # Maximum number of retries before giving up.
+  # Default is 3 retries; -1 (not 0) disables retries.
+  #maxRetries: 3
 
-  # Minimum TCP connection count in the pool for a host:port
-  minConn: 1
+  # Minimum backoff between each retry.
+  # Default is 8 milliseconds; -1 disables backoff.
+  #minRetryBackoff: 8ms
 
-  # Maximum TCP connection count in the pool for a host:port
-  maxConn: 100
+  # Maximum backoff between each retry.
+  # Default is 512 milliseconds; -1 disables backoff.
+  #maxRetryBackoff: 512ms
 
-  # Timeout for getting a new connection from the pool. If reached, commands will fail
-  # with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
-  # Default is DefaultPoolTimeout
-  poolTimeout: 3s
+  # Type of connection pool.
+  # true for FIFO pool, false for LIFO pool.
+  # Note that fifo has higher overhead compared to lifo.
+  #poolFIFO: false
+
+  # Maximum number of socket connections.
+  # Default is 10 connections per every available CPU as reported by runtime.GOMAXPROCS.
+  #poolSize: 0
+
+  # Minimum number of idle connections which is useful when establishing
+  # new connection is slow.
+  #minIdleConns:
+
+  # Connection age at which client retires (closes) the connection.
+  # Default is to not close aged connections.
+  #maxConnAge:
+
+  # Amount of time client waits for connection if all connections are busy before
+  # returning an error. Default is ReadTimeout + 1 second.
+  #poolTimeout: 3s
+
+  # Amount of time after which client closes idle connections.
+  # Should be less than server's timeout.
+  # Default is 5 minutes. -1 disables idle timeout check.
+  #idleTimeout: 5m
+
+  # Frequency of idle checks made by idle connections reaper.
+  # Default is 1 minute. -1 disables idle connections reaper,
+  # but idle connections are still discarded by the client
+  # if IdleTimeout is set.
+  #idleCheckFrequency: 1m
+
 
 logging:
   # DefaultLogVerbosity denotes default log verbosity level.

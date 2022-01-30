@@ -24,7 +24,7 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type fragment struct {
@@ -99,11 +99,14 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 		return err
 	}
 
-	req := protocol.NewSystemMessage(protocol.OpMoveFragment)
-	req.SetValue(value)
 	for _, owner := range owners {
-		_, err = f.service.requestTo(owner.String(), req)
+		cmd := protocol.NewMoveFragment(value).Command(f.service.ctx)
+		rc := f.service.client.Get(owner.String())
+		err = rc.Process(f.service.ctx, cmd)
 		if err != nil {
+			return err
+		}
+		if err := cmd.Err(); err != nil {
 			return err
 		}
 	}
@@ -137,11 +140,10 @@ func (dm *DMap) loadOrCreateFragment(part *partitions.Partition) (*fragment, err
 	part.Lock()
 	defer part.Unlock()
 
-	// Creating a new fragment is our critical section here.
-	// It should be protected by a lock.
-
+	// Critical section here. It should be protected by a lock.
 	fg, ok := part.Map().Load(dm.fragmentName)
 	if ok {
+		// We already have the fragment.
 		return fg.(*fragment), nil
 	}
 

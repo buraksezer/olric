@@ -15,37 +15,80 @@
 package dmap
 
 import (
+	"time"
+
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
-func (s *Service) putOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	putCmd, err := protocol.ParsePutCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(putCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
 		return
 	}
 
-	err = f(dm, r)
+	var options []PutOption
+	switch {
+	case putCmd.NX:
+		options = append(options, NX())
+	case putCmd.XX:
+		options = append(options, XX())
+	case putCmd.EX != 0:
+		options = append(options, EX(time.Duration(putCmd.EX*float64(time.Second))))
+	case putCmd.PX != 0:
+		options = append(options, PX(time.Duration(putCmd.PX*int64(time.Millisecond))))
+	case putCmd.EXAT != 0:
+		options = append(options, EXAT(time.Duration(putCmd.EXAT*float64(time.Second))))
+	case putCmd.PXAT != 0:
+		options = append(options, PXAT(time.Duration(putCmd.PXAT*int64(time.Millisecond))))
+	}
+
+	var pc putConfig
+	for _, opt := range options {
+		opt(&pc)
+	}
+	e := newEnv()
+	e.putConfig = &pc
+	e.dmap = putCmd.DMap
+	e.key = putCmd.Key
+	e.value = putCmd.Value
+	err = dm.put(e)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
+	conn.WriteString(protocol.StatusOK)
 }
 
-func (s *Service) putOperation(w, r protocol.EncodeDecoder) {
-	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		e := newEnvFromReq(r, partitions.PRIMARY)
-		return dm.put(e)
-	})
-}
+func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	putEntryCmd, err := protocol.ParsePutEntryCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 
-func (s *Service) putReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.putOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		e := newEnvFromReq(r, partitions.BACKUP)
-		return dm.putOnReplicaFragment(e)
-	})
+	dm, err := s.getOrCreateDMap(putEntryCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	e := newEnv()
+	e.hkey = partitions.HKey(putEntryCmd.DMap, putEntryCmd.Key)
+	e.dmap = putEntryCmd.DMap
+	e.key = putEntryCmd.Key
+	e.value = putEntryCmd.Value
+	err = dm.putOnReplicaFragment(e)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(protocol.StatusOK)
 }

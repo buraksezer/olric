@@ -15,12 +15,10 @@
 package olric
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/query"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,25 +42,6 @@ func TestOlric_DMap_Get(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, value, retrieved)
 	})
-}
-
-func TestOlric_DMap_GetEntry(t *testing.T) {
-	db := newTestOlric(t)
-
-	dm, err := db.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	key := "mykey"
-	value := "myvalue"
-	err = dm.Put(key, value)
-	require.NoError(t, err)
-
-	retrieved, err := dm.GetEntry(key)
-	require.NoError(t, err)
-	require.Equal(t, key, retrieved.Key)
-	require.Equal(t, value, retrieved.Value)
-	require.NotEqual(t, 0, retrieved.Timestamp)
-	require.Equal(t, int64(0), retrieved.TTL)
 }
 
 func TestOlric_DMap_Put(t *testing.T) {
@@ -160,6 +139,7 @@ func TestOlric_DMap_Expire(t *testing.T) {
 	require.NoError(t, err)
 }
 
+/*
 func TestOlric_DMap_Query(t *testing.T) {
 	db := newTestOlric(t)
 
@@ -202,7 +182,7 @@ func TestOlric_DMap_Query(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, len(expected), count)
-}
+}*/
 
 func TestOlric_DMap_PutEx(t *testing.T) {
 	db := newTestOlric(t)

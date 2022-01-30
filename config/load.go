@@ -26,7 +26,6 @@ import (
 
 	"github.com/buraksezer/olric/config/internal/loader"
 	"github.com/buraksezer/olric/hasher"
-	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/memberlist"
 	"github.com/pkg/errors"
 )
@@ -300,19 +299,6 @@ func Load(filename string) (*Config, error) {
 		c.Logging.Level = DefaultLogLevel
 	}
 
-	// Default serializer is Gob serializer, just set nil or use gob keyword to use it.
-	var sr serializer.Serializer
-	switch {
-	case c.Olricd.Serializer == "json":
-		sr = serializer.NewJSONSerializer()
-	case c.Olricd.Serializer == "msgpack":
-		sr = serializer.NewMsgpackSerializer()
-	case c.Olricd.Serializer == "gob":
-		sr = serializer.NewGobSerializer()
-	default:
-		return nil, fmt.Errorf("invalid serializer: %s", c.Olricd.Serializer)
-	}
-
 	rawMc, err := NewMemberlistConfig(c.Memberlist.Environment)
 	if err != nil {
 		return nil, err
@@ -328,6 +314,7 @@ func Load(filename string) (*Config, error) {
 		keepAlivePeriod,
 		bootstrapTimeout,
 		triggerBalancerInterval,
+		leaveTimeout,
 		routingTablePushInterval time.Duration
 	)
 
@@ -369,6 +356,14 @@ func Load(filename string) (*Config, error) {
 		}
 	}
 
+	if c.Olricd.LeaveTimeout != "" {
+		leaveTimeout, err = time.ParseDuration(c.Olricd.LeaveTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.leaveTimeout: '%s'", c.Olricd.LeaveTimeout))
+		}
+	}
+
 	clientConfig := Client{}
 	err = mapYamlToConfig(&clientConfig, &c.Client)
 	if err != nil {
@@ -406,9 +401,9 @@ func Load(filename string) (*Config, error) {
 		LogOutput:                logOutput,
 		LogVerbosity:             c.Logging.Verbosity,
 		Hasher:                   hasher.NewDefaultHasher(),
-		Serializer:               sr,
 		KeepAlivePeriod:          keepAlivePeriod,
 		BootstrapTimeout:         bootstrapTimeout,
+		LeaveTimeout:             leaveTimeout,
 		DMaps:                    dmapConfig,
 	}
 

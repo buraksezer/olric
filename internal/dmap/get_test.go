@@ -15,16 +15,36 @@
 package dmap
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"testing"
-	"time"
-
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
+	"testing"
 )
+
+func TestDMap_Get_Standalone(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	// Call DMap.Put on S1
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < 10; i++ {
+		gr, err := dm.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
+	}
+}
 
 func TestDMap_Get_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
@@ -33,30 +53,24 @@ func TestDMap_Get_Cluster(t *testing.T) {
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
+
 	}
 
 	// Call DMap.Get on S2
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		gr, err := dm2.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -67,32 +81,26 @@ func TestDMap_Get_Lookup(t *testing.T) {
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	s3 := cluster.AddMember(nil).(*Service)
 	// Call DMap.Get on S3
-	dm3, err := s3.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm3, err := s3.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
-		val, err := dm3.Get(testutil.ToKey(i))
-		if err != nil {
-			fmt.Println(testutil.ToKey(i))
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		gr, err := dm3.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -102,7 +110,7 @@ func TestDMap_Get_NilValue(t *testing.T) {
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
-	dm, err := s.NewDMap("mymap")
+	dm, err := s.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -111,13 +119,13 @@ func TestDMap_Get_NilValue(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
-	val, err := dm.Get("foobar")
+	gr, err := dm.Get("foobar")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	if val != nil {
-		t.Fatalf("Expected value: nil. Got: %v", val)
-	}
+	value, err := gr.Byte()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, value)
 
 	err = dm.Delete("foobar")
 	if err != nil {
@@ -137,37 +145,27 @@ func TestDMap_Get_NilValue_Cluster(t *testing.T) {
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	err = dm.Put("foobar", nil)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
 
-	val, err := dm2.Get("foobar")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if val != nil {
-		t.Fatalf("Expected value: nil. Got: %v", val)
-	}
+	gr, err := dm2.Get("foobar")
+	require.NoError(t, err)
+
+	value, err := gr.Byte()
+	require.NoError(t, err)
+	require.Equal(t, []byte{}, value)
 
 	err = dm2.Delete("foobar")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	_, err = dm2.Get("foobar")
-	if err != ErrKeyNotFound {
-		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-	}
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestDMap_Put_ReadQuorum(t *testing.T) {
@@ -180,7 +178,7 @@ func TestDMap_Put_ReadQuorum(t *testing.T) {
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
+	dm, err := s.NewDMap("mydmap")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -207,26 +205,20 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 	defer cluster.Shutdown()
 
 	// Call DMap.Put on S1
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	err = s2.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	rt := e2.Get("routingtable").(*routingtable.RoutingTable)
 	err = rt.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	c3 := testutil.NewConfig()
 	c3.ReadRepair = true
@@ -235,54 +227,15 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 	s3 := cluster.AddMember(e3).(*Service)
 
 	// Call DMap.Get on S2
-	dm2, err := s3.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
-	}
-}
+	dm2, err := s3.NewDMap("mydmap")
+	require.NoError(t, err)
 
-func TestDMap_GetEntry_Cluster(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	cluster.AddMember(nil) // second member
-	defer cluster.Shutdown()
-
-	// Call DMap.Put on S1
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
 	for i := 0; i < 10; i++ {
-		err = dm.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Hour)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
+		gr, err := dm2.Get(testutil.ToKey(i))
+		require.NoError(t, err)
 
-	// Call DMap.GetEntry
-	for i := 0; i < 10; i++ {
-		key := testutil.ToKey(i)
-		entry, err := dm.GetEntry(key)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v for %s", err, key)
-		}
-		if !bytes.Equal(entry.Value.([]byte), testutil.ToVal(i)) {
-			t.Fatalf("Different value retrieved for %s", testutil.ToKey(i))
-		}
-		if entry.TTL == 0 {
-			t.Fatalf("TTL is empty")
-		}
-		if entry.Timestamp == 0 {
-			t.Fatalf("Timestamp is zero")
-		}
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }

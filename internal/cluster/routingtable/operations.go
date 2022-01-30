@@ -16,33 +16,29 @@ package routingtable
 
 import (
 	"fmt"
+	"github.com/buraksezer/olric/internal/protocol"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/cespare/xxhash"
-	"github.com/vmihailenco/msgpack"
+	"github.com/cespare/xxhash/v2"
+	"github.com/tidwall/redcon"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
-func (r *RoutingTable) lengthOfPartOperation(w, rq protocol.EncodeDecoder) {
-	req := rq.(*protocol.SystemMessage)
-	partID := req.Extra().(protocol.LengthOfPartExtra).PartID
-	isBackup := req.Extra().(protocol.LengthOfPartExtra).Backup
-
-	var part *partitions.Partition
-	if isBackup {
-		part = r.backup.PartitionByID(partID)
-	} else {
-		part = r.primary.PartitionByID(partID)
-	}
-
-	value, err := msgpack.Marshal(part.Length())
+func (r *RoutingTable) lengthOfPartCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	lengthOfPartCmd, err := protocol.ParseLengthOfPartCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetValue(value)
-	w.SetStatus(protocol.StatusOK)
+
+	var part *partitions.Partition
+	if lengthOfPartCmd.Replica {
+		part = r.backup.PartitionByID(lengthOfPartCmd.PartID)
+	} else {
+		part = r.primary.PartitionByID(lengthOfPartCmd.PartID)
+	}
+
+	conn.WriteInt(part.Length())
 }
 
 func (r *RoutingTable) verifyRoutingTable(id uint64, table map[uint64]*route) error {
@@ -64,36 +60,39 @@ func (r *RoutingTable) verifyRoutingTable(id uint64, table map[uint64]*route) er
 	return nil
 }
 
-func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
+func (r *RoutingTable) updateRoutingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	r.updateRoutingMtx.Lock()
 	defer r.updateRoutingMtx.Unlock()
 
-	req := rq.(*protocol.SystemMessage)
-	table := make(map[uint64]*route)
-	err := msgpack.Unmarshal(req.Value(), &table)
+	updateRoutingCmd, err := protocol.ParseUpdateRoutingCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
-	coordinatorID := req.Extra().(protocol.UpdateRoutingExtra).CoordinatorID
+	table := make(map[uint64]*route)
+	err = msgpack.Unmarshal(updateRoutingCmd.Payload, &table)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 
 	// Log this event
-	coordinator, err := r.discovery.FindMemberByID(coordinatorID)
+	coordinator, err := r.discovery.FindMemberByID(updateRoutingCmd.CoordinatorID)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 	r.log.V(3).Printf("[INFO] Routing table has been pushed by %s", coordinator)
 
-	if err = r.verifyRoutingTable(coordinatorID, table); err != nil {
-		neterrors.ErrorResponse(w, err)
+	if err = r.verifyRoutingTable(updateRoutingCmd.CoordinatorID, table); err != nil {
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	// owners(atomic.value) is guarded by routingUpdateMtx against parallel writers.
 	// Calculate routing signature. This is useful to control balancing tasks.
-	r.setSignature(xxhash.Sum64(req.Value()))
+	r.setSignature(xxhash.Sum64(updateRoutingCmd.Payload))
 	for partID, data := range table {
 		// Set partition(primary copies) owners
 		part := r.primary.PartitionByID(partID)
@@ -113,13 +112,12 @@ func (r *RoutingTable) updateRoutingOperation(w, rq protocol.EncodeDecoder) {
 	// Collect report
 	value, err := r.prepareLeftOverDataReport()
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
 
 	// Call balancer to distribute load evenly
 	r.wg.Add(1)
 	go r.runCallbacks()
-	w.SetValue(value)
-	w.SetStatus(protocol.StatusOK)
+	conn.WriteBulk(value)
 }

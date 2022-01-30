@@ -14,12 +14,14 @@
 
 package neterrors
 
-import "github.com/buraksezer/olric/internal/protocol"
+import (
+	"errors"
+)
 
 var (
-	ErrInvalidArgument  = New(protocol.StatusErrInvalidArgument, "invalid argument")
-	ErrUnknownOperation = New(protocol.StatusErrUnknownOperation, "unknown operation")
-	ErrInternalFailure  = New(protocol.StatusErrInternalFailure, "internal failure")
-	ErrNotImplemented   = New(protocol.StatusErrNotImplemented, "not implemented")
-	ErrOperationTimeout = New(protocol.StatusErrOperationTimeout, "operation timeout")
+	ErrInvalidArgument  = errors.New("invalid argument")
+	ErrUnknownOperation = errors.New("unknown operation")
+	ErrInternalFailure  = errors.New("internal failure")
+	ErrNotImplemented   = errors.New("not implemented")
+	ErrOperationTimeout = errors.New("operation timeout")
 )

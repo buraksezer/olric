@@ -26,3 +26,11 @@ func TestOlric_Ping(t *testing.T) {
 	err := db.Ping(db.rt.This().String())
 	require.NoError(t, err)
 }
+
+func TestOlric_PingWithMessage(t *testing.T) {
+	db := newTestOlric(t)
+
+	response, err := db.PingWithMessage(db.rt.This().String(), "Olric rocks!")
+	require.NoError(t, err)
+	require.Equal(t, "Olric rocks!", response)
+}

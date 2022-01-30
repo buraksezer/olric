@@ -15,15 +15,18 @@
 package dmap
 
 import (
+	"bytes"
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
-	"github.com/buraksezer/olric/internal/transport"
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestDMap_Atomic_Incr(t *testing.T) {
@@ -47,9 +50,8 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	}
 
 	dm, err := s.NewDMap("atomic_test")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	start = make(chan struct{})
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
@@ -58,13 +60,12 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	res, err := dm.Get(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if res.(int) != 100 {
-		t.Fatalf("Expected 100. Got: %v", res)
-	}
+	gr, err := dm.Get(key)
+	require.NoError(t, err)
+
+	res, err := gr.Int()
+	require.NoError(t, err)
+	require.Equal(t, 100, res)
 }
 
 func TestDMap_Atomic_Decr(t *testing.T) {
@@ -88,9 +89,8 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	}
 
 	dm, err := s.NewDMap("atomic_test")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	start = make(chan struct{})
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
@@ -100,12 +100,11 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	wg.Wait()
 
 	res, err := dm.Get(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if res.(int) != -100 {
-		t.Fatalf("Expected 100. Got: %v", res)
-	}
+	require.NoError(t, err)
+
+	value, err := res.Int()
+	require.NoError(t, err)
+	require.Equal(t, -100, value)
 }
 
 func TestDMap_Atomic_GetPut(t *testing.T) {
@@ -121,20 +120,21 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 		<-start
 		defer wg.Done()
 
-		oldval, err := dm.GetPut(key, i)
+		gr, err := dm.GetPut(key, i)
 		if err != nil {
 			s.log.V(2).Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
-		if oldval != nil {
-			atomic.AddInt64(&total, int64(oldval.(int)))
+		if gr != nil {
+			oldval, err := gr.Int()
+			require.NoError(t, err)
+			atomic.AddInt64(&total, int64(oldval))
 		}
 	}
 
 	dm, err := s.NewDMap("atomic_test")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
+
 	start = make(chan struct{})
 	var final int64
 	for i := 0; i < 100; i++ {
@@ -145,50 +145,110 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	last, err := dm.Get(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	atomic.AddInt64(&total, int64(last.(int)))
-	if atomic.LoadInt64(&total) != final {
-		t.Fatalf("Expected %d. Got: %d", final, atomic.LoadInt64(&total))
-	}
+	gr, err := dm.Get(key)
+	require.NoError(t, err)
+
+	last, err := gr.Int()
+	require.NoError(t, err)
+
+	atomic.AddInt64(&total, int64(last))
+	require.Equal(t, final, atomic.LoadInt64(&total))
 }
 
-func TestDMap_exIncrDecrOperation(t *testing.T) {
+func TestDMap_incrCommandHandler(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	value, err := s.serializer.Marshal(100)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
+	var errGr errgroup.Group
+	for i := 0; i < 100; i++ {
+		errGr.Go(func() error {
+			cmd := protocol.NewIncr("mydmap", "mykey", 1).Command(context.Background())
+			rc := s.client.Get(s.rt.This().String())
+			err := rc.Process(context.Background(), cmd)
+			if err != nil {
+				return err
+			}
+			_, err = cmd.Result()
+			return err
+		})
 	}
+	require.NoError(t, errGr.Wait())
 
-	req := protocol.NewDMapMessage(protocol.OpIncr)
-	req.SetDMap("mydmap")
-	req.SetKey("mykey")
-	req.SetValue(value)
-	req.SetExtra(protocol.AtomicExtra{
-		Timestamp: time.Now().UnixNano(),
-	})
-	cc := &config.Client{
-		MaxConn: 10,
+	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
+	rc := s.client.Get(s.rt.This().String())
+	err := rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+
+	value, err := cmd.Bytes()
+	require.NoError(t, err)
+	v := new(int)
+	err = encoding.Scan(value, v)
+	require.NoError(t, err)
+	require.Equal(t, 100, *v)
+}
+
+func TestDMap_incrCommandHandler_Single_Request(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	cmd := protocol.NewIncr("mydmap", "mykey", 100).Command(context.Background())
+	rc := s.client.Get(s.rt.This().String())
+	err := rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+	value, err := cmd.Result()
+
+	require.NoError(t, err)
+	require.Equal(t, 100, int(value))
+}
+
+func TestDMap_decrCommandHandler(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	var errGr errgroup.Group
+	for i := 0; i < 100; i++ {
+		errGr.Go(func() error {
+			cmd := protocol.NewDecr("mydmap", "mykey", 1).Command(context.Background())
+			rc := s.client.Get(s.rt.This().String())
+			err := rc.Process(context.Background(), cmd)
+			if err != nil {
+				return err
+			}
+			_, err = cmd.Result()
+			return err
+		})
 	}
-	cc.Sanitize()
-	c := transport.NewClient(cc)
-	resp, err := c.RequestTo(s.rt.This().String(), req)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	var val interface{}
-	err = s.serializer.Unmarshal(resp.Value(), &val)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	if val.(int) != 100 {
-		t.Fatalf("Expected value is 100. Got: %v", val)
-	}
+	require.NoError(t, errGr.Wait())
+
+	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
+	rc := s.client.Get(s.rt.This().String())
+	err := rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+
+	value, err := cmd.Bytes()
+	require.NoError(t, err)
+	v := new(int)
+	err = encoding.Scan(value, v)
+	require.NoError(t, err)
+	require.Equal(t, -100, *v)
+}
+
+func TestDMap_decrCommandHandler_Single_Request(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	cmd := protocol.NewDecr("mydmap", "mykey", 100).Command(context.Background())
+	rc := s.client.Get(s.rt.This().String())
+	err := rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+	value, err := cmd.Result()
+
+	require.NoError(t, err)
+	require.Equal(t, -100, int(value))
 }
 
 func TestDMap_exGetPutOperation(t *testing.T) {
@@ -196,70 +256,66 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	cc := &config.Client{
-		MaxConn: 100,
-	}
-	cc.Sanitize()
-	c := transport.NewClient(cc)
 	var total int64
-	var wg sync.WaitGroup
 	var final int64
 	start := make(chan struct{})
 
-	getput := func(i int) {
-		defer wg.Done()
+	getPut := func(i int) error {
 		<-start
 
-		value, err := s.serializer.Marshal(i)
+		buf := bytes.NewBuffer(nil)
+		enc := encoding.New(buf)
+		err := enc.Encode(i)
 		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+			return err
 		}
 
-		req := protocol.NewDMapMessage(protocol.OpGetPut)
-		req.SetDMap("atomic_test")
-		req.SetKey("atomic_getput")
-		req.SetValue(value)
-		req.SetExtra(protocol.AtomicExtra{
-			Timestamp: time.Now().UnixNano(),
-		})
-
-		resp, err := c.RequestTo(s.rt.This().String(), req)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
+		cmd := protocol.NewGetPut("mydmap", "mykey", buf.Bytes()).Command(context.Background())
+		rc := s.client.Get(s.rt.This().String())
+		err = rc.Process(context.Background(), cmd)
+		if err == redis.Nil {
+			return nil
 		}
-		if len(resp.Value()) != 0 {
-			var oldval interface{}
-			err = s.serializer.Unmarshal(resp.Value(), &oldval)
+		if err != nil {
+			return err
+		}
+		val, err := cmd.Bytes()
+		if err != nil {
+			return err
+		}
+
+		if len(val) != 0 {
+			oldval := new(int)
+			err = encoding.Scan(val, oldval)
 			if err != nil {
-				t.Fatalf("Expected nil. Got: %v", err)
+				return err
 			}
-
-			if oldval != nil {
-				atomic.AddInt64(&total, int64(oldval.(int)))
-			}
+			atomic.AddInt64(&total, int64(*oldval))
 		}
+		return nil
 	}
 
+	var errGr errgroup.Group
 	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go getput(i)
+		num := i
+		errGr.Go(func() error {
+			return getPut(num)
+		})
 		final += int64(i)
 	}
 
 	close(start)
-	wg.Wait()
+	require.NoError(t, errGr.Wait())
 
-	dm, err := s.NewDMap("atomic_test")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
 
-	result, err := dm.Get("atomic_getput")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	atomic.AddInt64(&total, int64(result.(int)))
-	if atomic.LoadInt64(&total) != final {
-		t.Fatalf("Expected %d. Got: %d", final, atomic.LoadInt64(&total))
-	}
+	gr, err := dm.Get("mykey")
+	require.NoError(t, err)
+
+	last, err := gr.Int()
+	require.NoError(t, err)
+
+	atomic.AddInt64(&total, int64(last))
+	require.Equal(t, final, atomic.LoadInt64(&total))
 }

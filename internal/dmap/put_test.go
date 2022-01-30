@@ -15,7 +15,6 @@
 package dmap
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 	"time"
@@ -24,6 +23,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Put_Standalone(t *testing.T) {
@@ -31,25 +31,21 @@ func TestDMap_Put_Standalone(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	for i := 0; i < 10; i++ {
-		val, err := dm.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		gr, err := dm.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -59,30 +55,24 @@ func TestDMap_Put_Cluster(t *testing.T) {
 	s2 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		gr, err := dm2.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
@@ -100,58 +90,49 @@ func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
 	s2 := cluster.AddMember(e2).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// Wait some time for async replication
 	<-time.After(100 * time.Millisecond)
 
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
-		val, err := dm2.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		gr, err := dm2.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
-func TestDMap_PutEx(t *testing.T) {
+func TestDMap_Put_PX(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s1 := cluster.AddMember(nil).(*Service)
 	s2 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm1, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
-		err = dm1.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Millisecond)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i), PX(time.Millisecond))
+		require.NoError(t, err)
 	}
 
 	<-time.After(10 * time.Millisecond)
 
-	dm2, err := s2.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		_, err := dm2.Get(testutil.ToKey(i))
 		if err != ErrKeyNotFound {
@@ -171,10 +152,9 @@ func TestDMap_Put_WriteQuorum(t *testing.T) {
 	defer cluster.Shutdown()
 
 	var hit bool
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		key := testutil.ToKey(i)
 
@@ -193,61 +173,51 @@ func TestDMap_Put_WriteQuorum(t *testing.T) {
 	}
 }
 
-func TestDMap_Put_IfNotExist(t *testing.T) {
+func TestDMap_Put_NX(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 10; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	for i := 0; i < 10; i++ {
-		err = dm.PutIf(testutil.ToKey(i), testutil.ToVal(i*2), IfNotFound)
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i*2), NX())
 		if err == ErrKeyFound {
 			err = nil
 		}
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	for i := 0; i < 10; i++ {
-		val, err := dm.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if !bytes.Equal(val.([]byte), testutil.ToVal(i)) {
-			t.Errorf("Different value(%s) retrieved for %s", val.([]byte), testutil.ToKey(i))
-		}
+		gr, err := dm.Get(testutil.ToKey(i))
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
 	}
 }
 
-func TestDMap_Put_IfFound(t *testing.T) {
+func TestDMap_Put_XX(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		err = dm.PutIf(testutil.ToKey(i), testutil.ToVal(i*2), IfFound)
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i*2), XX())
 		if errors.Is(err, ErrKeyNotFound) {
 			err = nil
 		}
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	for i := 0; i < 10; i++ {

@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/query"
 )
 
 const (
@@ -105,7 +104,7 @@ type LockContext struct {
 
 // Cursor implements distributed query on DMaps.
 type Cursor struct {
-	cursor *dmap.Cursor
+	//cursor *dmap.Cursor
 }
 
 // DMap represents a distributed map instance.
@@ -138,23 +137,6 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 		return nil, convertDMapError(err)
 	}
 	return value, nil
-}
-
-// GetEntry gets the value for the given key with its metadata. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value.
-func (dm *DMap) GetEntry(key string) (*Entry, error) {
-	e, err := dm.dm.GetEntry(key)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-
-	return &Entry{
-		Key:       e.Key,
-		Value:     e.Value,
-		TTL:       e.TTL,
-		Timestamp: e.Timestamp,
-	}, nil
 }
 
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
@@ -217,7 +199,7 @@ func (dm *DMap) Put(key string, value interface{}) error {
 // IfNotFound: Only set the key if it does not already exist.
 // It returns ErrFound if the key already exist.
 //
-// IfFound: Only set the key if it already exist.
+// IfFound: Only set the key if it already exists.
 // It returns ErrKeyNotFound if the key does not exist.
 func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
 	err := dm.dm.PutIf(key, value, flags)
@@ -247,6 +229,7 @@ func (dm *DMap) Expire(key string, timeout time.Duration) error {
 	return convertDMapError(err)
 }
 
+/*
 // Query runs a distributed query on a dmap instance.
 // Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
 // few keywords:
@@ -311,7 +294,7 @@ func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
 // Close cancels the underlying context and background goroutines stops running.
 func (c *Cursor) Close() {
 	c.cursor.Close()
-}
+}*/
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.

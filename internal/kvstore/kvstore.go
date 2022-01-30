@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/kvstore/table"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -30,24 +31,33 @@ import (
 const (
 	maxGarbageRatio = 0.40
 	// 1MB
-	defaultTableSize = uint32(1 << 20)
+	defaultTableSize = uint64(1 << 20)
 
 	defaultMaxIdleTableTimeout = 15 * time.Minute
 )
 
 // KVStore implements an in-memory storage engine.
 type KVStore struct {
-	tables []*table.Table
-	config *storage.Config
+	coefficient         uint64
+	tablesByCoefficient map[uint64]*table.Table
+	tables              []*table.Table
+	bitmap              *roaring64.Bitmap
+	config              *storage.Config
 }
-
-var _ storage.Engine = (*KVStore)(nil)
 
 func DefaultConfig() *storage.Config {
 	options := storage.NewConfig(nil)
 	options.Add("tableSize", defaultTableSize)
 	options.Add("maxIdleTableTimeout", defaultMaxIdleTableTimeout)
 	return options
+}
+
+func New(c *storage.Config) *KVStore {
+	return &KVStore{
+		tablesByCoefficient: make(map[uint64]*table.Table),
+		config:              c,
+		bitmap:              roaring64.New(),
+	}
 }
 
 func (k *KVStore) SetConfig(c *storage.Config) {
@@ -72,8 +82,10 @@ func (k *KVStore) makeTable() error {
 		}
 	}
 
-	current := table.New(size.(uint32))
+	current := table.New(size.(uint64))
 	k.tables = append(k.tables, current)
+	k.tablesByCoefficient[k.coefficient] = current
+	k.coefficient++
 	return nil
 }
 
@@ -95,16 +107,18 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	child := &KVStore{
-		config: c,
-	}
-	t := table.New(size.(uint32))
+	child := New(c)
+	t := table.New(size.(uint64))
 	child.tables = append(child.tables, t)
+	child.tablesByCoefficient[k.coefficient] = t
+	child.coefficient++
 	return child, nil
 }
 
 func (k *KVStore) AppendTable(t *table.Table) {
 	k.tables = append(k.tables, t)
+	k.tablesByCoefficient[k.coefficient] = t
+	k.coefficient++
 }
 
 func (k *KVStore) Name() string {
@@ -366,8 +380,23 @@ func (k *KVStore) Range(f func(hkey uint64, e storage.Entry) bool) {
 	}
 }
 
+// RangeHKey calls f sequentially for each key present in the map.
+// If f returns false, range stops the iteration. Range may be O(N) with
+// the number of elements in the map even if f returns false after a constant
+// number of calls.
+func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
+	// Scan available tables by starting the last added table.
+	for i := len(k.tables) - 1; i >= 0; i-- {
+		t := k.tables[i]
+		t.RangeHKey(func(hkey uint64) bool {
+			return f(hkey)
+		})
+	}
+}
+
 // RegexMatchOnKeys calls a regular expression on keys and provides an iterator.
 func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.Entry) bool) error {
+	// TODO: Delete this function
 	if len(k.tables) == 0 {
 		// There is nothing to do
 		return nil
@@ -394,6 +423,65 @@ func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.En
 	return nil
 }
 
+func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
+	tmp, err := k.config.Get("tableSize")
+	if err != nil {
+		return 0, err
+	}
+	size := tmp.(uint64)
+
+	cf := cursor / size
+	t := k.tablesByCoefficient[cf]
+	if cf > 0 {
+		cursor = cursor - (size * cf)
+	}
+
+	cursor, err = t.Scan(cursor, count, f)
+	if err != nil {
+		return 0, err
+	}
+
+	if cursor == 0 {
+		_, ok := k.tablesByCoefficient[cf+1]
+		if !ok {
+			return 0, nil
+		}
+		return size * (cf + 1), nil
+	}
+
+	return cursor + (size * cf), nil
+}
+
+func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
+	tmp, err := k.config.Get("tableSize")
+	if err != nil {
+		return 0, err
+	}
+	size := tmp.(uint64)
+
+	cf := cursor / size
+	t := k.tablesByCoefficient[cf]
+	if cf > 0 {
+		cursor = cursor - (size * cf)
+	}
+
+	cursor, err = t.ScanRegexMatch(cursor, expr, count, f)
+	if err != nil {
+		return 0, err
+	}
+
+	if cursor == 0 {
+		_, ok := k.tablesByCoefficient[cf+1]
+		if !ok {
+			return 0, nil
+		}
+		return size * (cf + 1), nil
+	}
+
+	return cursor + (size * cf), nil
+
+}
+
 func (k *KVStore) Close() error {
 	return nil
 }
@@ -401,3 +489,5 @@ func (k *KVStore) Close() error {
 func (k *KVStore) Destroy() error {
 	return nil
 }
+
+var _ storage.Engine = (*KVStore)(nil)

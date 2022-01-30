@@ -45,13 +45,11 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/streams"
-	"github.com/buraksezer/olric/internal/transport"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/pkg/neterrors"
-	"github.com/buraksezer/olric/serializer"
 	"github.com/hashicorp/logutils"
 	"github.com/pkg/errors"
+	"github.com/tidwall/redcon"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -87,33 +85,25 @@ var (
 // service.
 type Olric struct {
 	// name is BindAddr:BindPort. It defines servers unique name in the cluster.
-	name       string
-	env        *environment.Environment
-	config     *config.Config
-	log        *flog.Logger
-	hashFunc   hasher.Hasher
-	serializer serializer.Serializer
+	name     string
+	env      *environment.Environment
+	config   *config.Config
+	log      *flog.Logger
+	hashFunc hasher.Hasher
 
 	// Logical units to store data
 	primary *partitions.Partitions
 	backup  *partitions.Partitions
 
-	// Matches opcodes to functions. It's somewhat like an HTTP request
-	// multiplexer
-	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
-
-	// Internal TCP server and its client for peer-to-peer communication.
-	client *transport.Client
-	server *transport.Server
+	// RESP experiment
+	server *server.Server
+	client *server.Client
 
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
 
 	dtopic *dtopic.Service
 	dmap   *dmap.Service
-
-	// Bidirectional stream sockets for Olric clients and nodes.
-	streams *streams.Streams
 
 	// Structures for flow control
 	ctx    context.Context
@@ -200,95 +190,59 @@ func New(c *config.Config) (*Olric, error) {
 	}
 	e.Set("logger", flogger)
 
-	// Start a concurrent TCP server
-	sc := &transport.ServerConfig{
-		BindAddr:        c.BindAddr,
-		BindPort:        c.BindPort,
-		KeepAlivePeriod: c.KeepAlivePeriod,
-		GracefulPeriod:  10 * time.Second,
-	}
-	client := transport.NewClient(c.Client)
-
+	client := server.NewClient(c.Client)
 	e.Set("client", client)
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
 	e.Set("locker", locker.New())
-	e.Set("streams", streams.New(e))
-	srv := transport.NewServer(sc, flogger)
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &Olric{
-		name:       c.MemberlistConfig.Name,
-		env:        e,
-		log:        flogger,
-		config:     c,
-		hashFunc:   c.Hasher,
-		serializer: c.Serializer,
-		client:     e.Get("client").(*transport.Client),
-		primary:    e.Get("primary").(*partitions.Partitions),
-		backup:     e.Get("backup").(*partitions.Partitions),
-		streams:    e.Get("streams").(*streams.Streams),
-		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
-		server:     srv,
-		started:    c.Started,
-		ctx:        ctx,
-		cancel:     cancel,
+		name:     c.MemberlistConfig.Name,
+		env:      e,
+		log:      flogger,
+		config:   c,
+		hashFunc: c.Hasher,
+		client:   client,
+		primary:  e.Get("primary").(*partitions.Partitions),
+		backup:   e.Get("backup").(*partitions.Partitions),
+		started:  c.Started,
+		ctx:      ctx,
+		cancel:   cancel,
 	}
+
+	// RESP experiment
+	rc := &server.Config{
+		BindAddr: c.BindAddr,
+		BindPort: c.BindPort,
+	}
+	srv := server.New(rc, flogger)
+	srv.SetPreConditionFunc(db.preconditionFunc)
+
+	db.server = srv
+	e.Set("server", srv)
 
 	err = initializeServices(db)
 	if err != nil {
 		return nil, err
 	}
 
-	db.registerOperations()
-	db.server.SetDispatcher(db.requestDispatcher)
+	db.registerCommandHandlers()
+
 	return db, nil
 }
 
-func (db *Olric) registerOperations() {
-	// System Messages
-	//
-	// Aliveness
-	db.operations[protocol.OpPing] = db.pingOperation
-
-	// Node Stats
-	db.operations[protocol.OpStats] = db.statsOperation
-
-	// Routing table
-	//
-	db.rt.RegisterOperations(db.operations)
-
-	// Operations on DTopic data structure
-	//
-	db.dtopic.RegisterOperations(db.operations)
-
-	// Operations on DMap data structure
-	//
-	db.dmap.RegisterOperations(db.operations)
-
-	// Operations on message streams
-	//
-	// Bidirectional communication channel for clients and cluster members.
-	db.streams.RegisterOperations(db.operations)
+func (db *Olric) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
+	err := db.isOperable()
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return false
+	}
+	return true
 }
 
-func (db *Olric) requestDispatcher(w, r protocol.EncodeDecoder) {
-	// Check bootstrapping status
-	// Exclude protocol.OpUpdateRouting. The node is bootstrapped by this
-	// operation.
-	if r.OpCode() != protocol.OpUpdateRouting {
-		if err := db.isOperable(); err != nil {
-			neterrors.ErrorResponse(w, err)
-			return
-		}
-	}
-
-	// Run the incoming command.
-	f, ok := db.operations[r.OpCode()]
-	if !ok {
-		neterrors.ErrorResponse(w, ErrUnknownOperation)
-		return
-	}
-	f(w, r)
+func (db *Olric) registerCommandHandlers() {
+	db.server.ServeMux().HandleFunc(protocol.PingCmd, db.pingCommandHandler)
+	db.server.ServeMux().HandleFunc(protocol.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
 }
 
 // callStartedCallback checks passed checkpoint count and calls the callback
@@ -342,7 +296,6 @@ func (db *Olric) isOperable() error {
 func (db *Olric) Start() error {
 	errGr, ctx := errgroup.WithContext(context.Background())
 
-	// Start the TCP server
 	errGr.Go(func() error {
 		return db.server.ListenAndServe()
 	})
@@ -418,11 +371,6 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
-	if err := db.streams.Shutdown(ctx); err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to shutdown stream service: %v", err)
-		latestError = err
-	}
-
 	if err := db.balancer.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown balancer service: %v", err)
 		latestError = err
@@ -433,8 +381,9 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
+	// RESP experiment
 	if err := db.server.Shutdown(ctx); err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to shutdown TCP server: %v", err)
+		db.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestError = err
 	}
 

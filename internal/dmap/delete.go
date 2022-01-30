@@ -32,7 +32,7 @@ var (
 	DeleteMisses = stats.NewInt64Counter()
 )
 
-func (dm *DMap) deleteBackupFromFragment(key string, kind partitions.Kind) error {
+func (dm *DMap) deleteFromFragment(key string, kind partitions.Kind) error {
 	hkey := partitions.HKey(dm.name, key)
 	part := dm.getPartitionByHKey(hkey, kind)
 	f, err := dm.loadFragment(part)
@@ -54,12 +54,15 @@ func (dm *DMap) deleteFromPreviousOwners(key string, owners []discovery.Member) 
 	// Traverse in reverse order. Except from the latest host, this one.
 	for i := len(owners) - 2; i >= 0; i-- {
 		owner := owners[i]
-		req := protocol.NewDMapMessage(protocol.OpDeletePrev)
-		req.SetDMap(dm.name)
-		req.SetKey(key)
-		_, err := dm.s.requestTo(owner.String(), req)
+		cmd := protocol.NewDelEntry(dm.name, key).Command(dm.s.ctx)
+		rc := dm.s.client.Get(owner.String())
+		err := rc.Process(dm.s.ctx, cmd)
 		if err != nil {
-			return err
+			return protocol.ConvertError(err)
+		}
+		err = cmd.Err()
+		if err != nil {
+			return protocol.ConvertError(err)
 		}
 	}
 	return nil
@@ -71,15 +74,15 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 	for _, owner := range owners {
 		mem := owner
 		g.Go(func() error {
-			// TODO: Add retry with backoff
-			req := protocol.NewDMapMessage(protocol.OpDeleteReplica)
-			req.SetDMap(dm.name)
-			req.SetKey(key)
-			_, err := dm.s.requestTo(mem.String(), req)
+			cmd := protocol.NewDelEntry(dm.name, key).SetReplica().Command(dm.s.ctx)
+			rc := dm.s.client.Get(mem.String())
+			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
 				dm.s.log.V(3).Printf("[ERROR] Failed to delete replica key/value on %s: %s", dm.name, err)
+				return protocol.ConvertError(err)
 			}
-			return err
+			// TODO: Improve logging
+			return protocol.ConvertError(cmd.Err())
 		})
 	}
 	return g.Wait()
@@ -118,31 +121,33 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 func (dm *DMap) deleteKey(key string) error {
 	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
-	if !member.CompareByName(dm.s.rt.This()) {
-		req := protocol.NewDMapMessage(protocol.OpDelete)
-		req.SetDMap(dm.name)
-		req.SetKey(key)
-		_, err := dm.s.requestTo(member.String(), req)
-		return err
+	if member.CompareByName(dm.s.rt.This()) {
+		part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+		f, err := dm.loadOrCreateFragment(part)
+		if err != nil {
+			return err
+		}
+
+		f.Lock()
+		defer f.Unlock()
+
+		// Check the HKey before trying to delete it.
+		if !f.storage.Check(hkey) {
+			// DeleteMisses is the number of deletions reqs for missing keys
+			DeleteMisses.Increase(1)
+			return nil
+		}
+
+		return dm.deleteOnCluster(hkey, key, f)
 	}
 
-	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
-	f, err := dm.loadOrCreateFragment(part)
+	cmd := protocol.NewDel(dm.name, key).Command(dm.s.ctx)
+	rc := dm.s.client.Get(member.String())
+	err := rc.Process(dm.s.ctx, cmd)
 	if err != nil {
-		return err
+		return protocol.ConvertError(err)
 	}
-
-	f.Lock()
-	defer f.Unlock()
-
-	// Check the HKey before trying to delete it.
-	if !f.storage.Check(hkey) {
-		// DeleteMisses is the number of deletions reqs for missing keys
-		DeleteMisses.Increase(1)
-		return nil
-	}
-
-	return dm.deleteOnCluster(hkey, key, f)
+	return protocol.ConvertError(cmd.Err())
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.

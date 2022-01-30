@@ -15,10 +15,8 @@
 package olric
 
 import (
-	"bytes"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/stats"
 	"github.com/stretchr/testify/require"
@@ -81,19 +79,4 @@ func TestOlric_Stats_CollectRuntime(t *testing.T) {
 	if s.Runtime == nil {
 		t.Fatal("Runtime stats must be collected by default:", s.Runtime)
 	}
-}
-
-func TestOlric_Stats_Operation(t *testing.T) {
-	db := newTestOlric(t)
-
-	buf := new(bytes.Buffer)
-	req := protocol.NewSystemMessage(protocol.OpStats)
-	req.SetExtra(protocol.StatsExtra{})
-	req.SetBuffer(buf)
-	err := req.Encode()
-	require.NoError(t, err)
-
-	resp := req.Response(nil)
-	db.statsOperation(resp, req)
-	require.Equal(t, protocol.StatusOK, resp.Status())
 }

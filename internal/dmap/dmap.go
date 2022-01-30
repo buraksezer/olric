@@ -19,21 +19,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 )
-
-// pool is good for recycling memory while reading messages from the socket.
-var bufferPool = bufpool.New()
 
 const nilTimeout = 0 * time.Second
 
 var (
 	// ErrKeyNotFound is returned when a key could not be found.
-	ErrKeyNotFound  = neterrors.New(protocol.StatusErrKeyNotFound, "key not found")
+	ErrKeyNotFound  = errors.New("key not found")
 	ErrDMapNotFound = errors.New("dmap not found")
 	ErrServerGone   = errors.New("server is gone")
 )
@@ -129,14 +123,6 @@ func (dm *DMap) getPartitionByHKey(hkey uint64, kind partitions.Kind) *partition
 		panic("unknown partition kind")
 	}
 	return part
-}
-
-func timeoutToTTL(timeout time.Duration) int64 {
-	if timeout.Seconds() == 0 {
-		return 0
-	}
-	// convert nanoseconds to milliseconds
-	return (timeout.Nanoseconds() + time.Now().UnixNano()) / 1000000
 }
 
 func isKeyExpired(ttl int64) bool {

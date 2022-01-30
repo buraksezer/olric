@@ -15,48 +15,37 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/config"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
-	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
-// TODO: Add an integration test for write quorum control
-
-func TestDMap_Expire_Standalone(t *testing.T) {
+func TestDMap_Expire(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	key := "mykey"
 	err = dm.Put(key, "myvalue")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	_, err = dm.Get(key)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	err = dm.Expire(key, time.Millisecond)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	<-time.After(time.Millisecond)
 
 	// Get the value and check it.
 	_, err = dm.Get(key)
-	if err != ErrKeyNotFound {
-		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-	}
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestDMap_Expire_ErrKeyNotFound(t *testing.T) {
@@ -64,94 +53,57 @@ func TestDMap_Expire_ErrKeyNotFound(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	err = dm.Expire("mykey", time.Millisecond)
-	if err != ErrKeyNotFound {
-		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-	}
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
-func testExpireWithConfig(t *testing.T, s1, s2 *Service) {
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-	for i := 0; i < 10; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	for i := 0; i < 10; i++ {
-		err = dm.Expire(testutil.ToKey(i), time.Millisecond)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-	}
-
-	// Wait some time to expire keys properly
-	<-time.After(5 * time.Millisecond)
-
-	for i := 0; i < 100; i++ {
-		// Try to evict keys here. 100 is a random number
-		// to make the test less error prone.
-		s1.evictKeys()
-		s2.evictKeys()
-	}
-
-	for i := 0; i < 10; i++ {
-		_, err := dm.Get(testutil.ToKey(i))
-		if err != ErrKeyNotFound {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
-	}
-}
-
-func TestDMap_Expire_Cluster(t *testing.T) {
+func TestDMap_Expire_expireCommandHandler(t *testing.T) {
 	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-	testExpireWithConfig(t, s1, s2)
-}
-
-func TestDMap_Expire_Cluster_Sync_Backup(t *testing.T) {
-	cluster := testcluster.New(NewService)
-
-	c1 := testutil.NewConfig()
-	c1.ReplicaCount = 2
-	e1 := testcluster.NewEnvironment(c1)
-	s1 := cluster.AddMember(e1).(*Service)
-
-	c2 := testutil.NewConfig()
-	c2.ReplicaCount = 2
-	e2 := testcluster.NewEnvironment(c2)
-	s2 := cluster.AddMember(e2).(*Service)
-
-	defer cluster.Shutdown()
-	testExpireWithConfig(t, s1, s2)
-}
-
-func TestDMap_Expire_Cluster_Async_Backup(t *testing.T) {
-	cluster := testcluster.New(NewService)
-
-	c1 := testutil.NewConfig()
-	c1.ReplicaCount = 2
-	c1.ReplicationMode = config.AsyncReplicationMode
-	e1 := testcluster.NewEnvironment(c1)
-	s1 := cluster.AddMember(e1).(*Service)
-
-	c2 := testutil.NewConfig()
-	c2.ReplicaCount = 2
-	c2.ReplicationMode = config.AsyncReplicationMode
-	e2 := testcluster.NewEnvironment(c2)
-	s2 := cluster.AddMember(e2).(*Service)
-
+	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	testExpireWithConfig(t, s1, s2)
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	key := "mykey"
+	err = dm.Put(key, "myvalue")
+	require.NoError(t, err)
+
+	cmd := protocol.NewExpire("mydmap", "mykey", time.Duration(0.1*float64(time.Second))).Command(s.ctx)
+	rc := s.client.Get(s.rt.This().String())
+	err = rc.Process(s.ctx, cmd)
+	require.NoError(t, err)
+
+	<-time.After(200 * time.Millisecond)
+
+	// Get the value and check it.
+	_, err = dm.Get(key)
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestDMap_Expire_pexpireCommandHandler(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	key := "mykey"
+	err = dm.Put(key, "myvalue")
+	require.NoError(t, err)
+
+	cmd := protocol.NewPExpire("mydmap", "mykey", time.Millisecond).Command(s.ctx)
+	rc := s.client.Get(s.rt.This().String())
+	err = rc.Process(s.ctx, cmd)
+	require.NoError(t, err)
+
+	<-time.After(10 * time.Millisecond)
+
+	// Get the value and check it.
+	_, err = dm.Get(key)
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }

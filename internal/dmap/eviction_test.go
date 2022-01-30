@@ -21,6 +21,7 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Eviction_TTL(t *testing.T) {
@@ -29,15 +30,12 @@ func TestDMap_Eviction_TTL(t *testing.T) {
 	s2 := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s1.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
 	for i := 0; i < 100; i++ {
 		err = dm.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Millisecond)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	<-time.After(time.Millisecond)
@@ -57,35 +55,31 @@ func TestDMap_Eviction_TTL(t *testing.T) {
 			})
 		}
 	}
-	if length == 100 {
-		t.Fatalf("Expected key count is different than 100")
-	}
+	require.NotEqual(t, 100, length)
 }
 
 func TestDMap_Eviction_Config_TTLDuration(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
-		TTLDuration: 10 * time.Millisecond,
+		TTLDuration: time.Duration(0.1 * float64(time.Second)),
 		Engine:      config.NewEngine(),
 	}
+	require.NoError(t, c.DMaps.Engine.Sanitize())
+
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
-	<-time.After(110 * time.Millisecond)
+	<-time.After(200 * time.Millisecond)
 	for i := 0; i < 100; i++ {
 		s.evictKeys()
 	}
@@ -99,35 +93,31 @@ func TestDMap_Eviction_Config_TTLDuration(t *testing.T) {
 			return true
 		})
 	}
-	if length == 100 {
-		t.Fatalf("Expected key count is different than 100")
-	}
+	require.NotEqual(t, 100, length)
 }
 
 func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	c := testutil.NewConfig()
 	c.DMaps = &config.DMaps{
-		MaxIdleDuration: 10 * time.Millisecond,
+		MaxIdleDuration: 100 * time.Millisecond,
 		Engine:          config.NewEngine(),
 	}
+	require.NoError(t, c.DMaps.Engine.Sanitize())
+
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
-	<-time.After(15 * time.Millisecond)
+	<-time.After(150 * time.Millisecond)
 	for i := 0; i < 100; i++ {
 		s.evictKeys()
 	}
@@ -142,9 +132,7 @@ func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 		})
 	}
 
-	if length == 100 {
-		t.Fatalf("Expected key count is different than 100")
-	}
+	require.NotEqual(t, 100, length)
 }
 
 func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
@@ -155,20 +143,18 @@ func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 		EvictionPolicy: config.LRUEviction,
 		Engine:         config.NewEngine(),
 	}
+	require.NoError(t, c.DMaps.Engine.Sanitize())
+
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 	length := 0
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
@@ -180,9 +166,7 @@ func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 		})
 	}
 
-	if length == 100 {
-		t.Fatalf("Expected key count is different than 100")
-	}
+	require.NotEqual(t, 100, length)
 }
 
 func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
@@ -198,16 +182,12 @@ func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
 
-	dm, err := s.NewDMap("mymap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 	length := 0
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
@@ -219,7 +199,5 @@ func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 		})
 	}
 
-	if length == 100 {
-		t.Fatalf("Expected key count is different than 100")
-	}
+	require.NotEqual(t, 100, length)
 }

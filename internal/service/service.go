@@ -16,11 +16,10 @@ package service
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/protocol"
 )
 
 type Service interface {
 	Start() error
-	RegisterOperations(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
+	RegisterHandlers()
 	Shutdown(ctx context.Context) error
 }

@@ -24,7 +24,7 @@ import (
 
 func TestRoutingTable_tryWithInterval(t *testing.T) {
 	c := testutil.NewConfig()
-	srv := testutil.NewTransportServer(c)
+	srv := testutil.NewServer(c)
 	rt := newRoutingTableForTest(c, srv)
 
 	var foobarError = errors.New("foobar")
@@ -44,7 +44,7 @@ func TestRoutingTable_attemptToJoin(t *testing.T) {
 	c.MaxJoinAttempts = 3
 	c.JoinRetryInterval = 100 * time.Millisecond
 	c.Peers = []string{"127.0.0.1:0"} // An invalid peer
-	srv := testutil.NewTransportServer(c)
+	srv := testutil.NewServer(c)
 	rt := newRoutingTableForTest(c, srv)
 
 	err := rt.discovery.Start()

@@ -15,99 +15,75 @@
 package dmap
 
 import (
-	"fmt"
-	"reflect"
-	"time"
-
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
-func valueToInt(delta interface{}) (int, error) {
-	switch value := delta.(type) {
-	case int:
-		return value, nil
-	case int8:
-		return int(value), nil
-	case int16:
-		return int(value), nil
-	case int32:
-		return int(value), nil
-	case int64:
-		return int(value), nil
-	default:
-		return 0, fmt.Errorf("mismatched type: %v", reflect.TypeOf(delta))
+func (s *Service) incrDecrCommon(cmd, dmap, key string, delta int) (int, error) {
+	dm, err := s.getOrCreateDMap(dmap)
+	if err != nil {
+		return 0, err
 	}
+
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
+	return dm.atomicIncrDecr(cmd, e, delta)
 }
 
-func (s *Service) incrDecrOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) incrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	incrCmd, err := protocol.ParseIncrCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          req.DMap(),
-		key:           req.Key(),
-		timestamp:     time.Now().UnixNano(),
-		kind:          partitions.PRIMARY,
-	}
-	var delta interface{}
-	err = s.serializer.Unmarshal(req.Value(), &delta)
+	latest, err := s.incrDecrCommon(protocol.IncrCmd, incrCmd.DMap, incrCmd.Key, incrCmd.Delta)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-
-	v, err := valueToInt(delta)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-
-	latest, err := dm.atomicIncrDecr(req.Op, e, v)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-
-	value, err := s.serializer.Marshal(latest)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
+	conn.WriteInt(latest)
 }
 
-func (s *Service) getPutOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) decrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	decrCmd, err := protocol.ParseDecrCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
+		return
+	}
+	latest, err := s.incrDecrCommon(protocol.DecrCmd, decrCmd.DMap, decrCmd.Key, decrCmd.Delta)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteInt(latest)
+}
+
+func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	getPutCmd, err := protocol.ParseGetPutCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	dm, err := s.getOrCreateDMap(getPutCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
 		return
 	}
 
-	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          req.DMap(),
-		key:           req.Key(),
-		value:         req.Value(),
-		timestamp:     time.Now().UnixNano(),
-		kind:          partitions.PRIMARY,
-	}
+	e := newEnv()
+	e.dmap = getPutCmd.DMap
+	e.key = getPutCmd.Key
+	e.value = getPutCmd.Value
 	old, err := dm.getPut(e)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	if old != nil {
-		w.SetValue(old)
+
+	if old == nil {
+		conn.WriteNull()
+		return
 	}
-	w.SetStatus(protocol.StatusOK)
+	conn.WriteBulk(old.Value())
 }

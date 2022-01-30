@@ -24,7 +24,6 @@ import (
 	"runtime"
 
 	"github.com/buraksezer/olric"
-	"github.com/buraksezer/olric/cmd/olric-stats/query"
 	"github.com/sean-/seed"
 )
 
@@ -144,33 +143,33 @@ func main() {
 	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
 	// call to Init() failed in the past.
 	seed.MustInit()
+	/*
+		q, err := query.New(args.address, args.timeout, logger)
+		if err != nil {
+			logger.Fatalf("olric-stats: %v", err)
+		}
 
-	q, err := query.New(args.address, args.timeout, logger)
-	if err != nil {
-		logger.Fatalf("olric-stats: %v", err)
-	}
+		switch {
+		case args.dump:
+			err = q.Dump()
+		case args.runtime:
+			err = q.PrintRuntimeStats()
+		case args.partitions:
+			err = q.PrintPartitionStats(args.id, args.backup)
+		case args.members:
+			err = q.PrintClusterMembers()
+		case args.dmap:
+			err = q.PrintDMapStatistics()
+		case args.dtopic:
+			err = q.PrintDTopicStatistics()
+		case args.network:
+			err = q.PrintNetworkStatistics()
+		default:
+			usage()
+			return
+		}
 
-	switch {
-	case args.dump:
-		err = q.Dump()
-	case args.runtime:
-		err = q.PrintRuntimeStats()
-	case args.partitions:
-		err = q.PrintPartitionStats(args.id, args.backup)
-	case args.members:
-		err = q.PrintClusterMembers()
-	case args.dmap:
-		err = q.PrintDMapStatistics()
-	case args.dtopic:
-		err = q.PrintDTopicStatistics()
-	case args.network:
-		err = q.PrintNetworkStatistics()
-	default:
-		usage()
-		return
-	}
-
-	if err != nil {
-		logger.Fatalf("olric-stats: %v", err)
-	}
+		if err != nil {
+			logger.Fatalf("olric-stats: %v", err)
+		}*/
 }

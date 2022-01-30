@@ -88,7 +88,7 @@ func (s *Engine) Sanitize() error {
 	if s.Implementation == nil {
 		switch s.Name {
 		case DefaultStorageEngine:
-			s.Implementation = &kvstore.KVStore{}
+			s.Implementation = kvstore.New(nil)
 			s.Config = kvstore.DefaultConfig().ToMap()
 		default:
 			return fmt.Errorf("unknown storage engine: %s", s.Name)

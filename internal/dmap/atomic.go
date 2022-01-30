@@ -17,33 +17,33 @@ package dmap
 import (
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/util"
+	"github.com/buraksezer/olric/pkg/storage"
 )
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
 	entry, err := dm.get(e.key)
 	if errors.Is(err, ErrKeyNotFound) {
-		err = nil
+		return 0, nil
 	}
 	if err != nil {
 		return 0, err
 	}
 
-	var current int
-	if entry != nil {
-		var value interface{}
-		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
-			return 0, err
-		}
-		return valueToInt(value)
+	if entry == nil {
+		return 0, nil
 	}
-	return current, nil
+	nr, err := util.ParseInt(entry.Value(), 10, 64)
+	if err != nil {
+		return 0, nil
+	}
+	return int(nr), nil
 }
 
-func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
+func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 	atomicKey := e.dmap + e.key
 	dm.s.locker.Lock(atomicKey)
 	defer func() {
@@ -59,21 +59,26 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 	}
 
 	var updated int
-	switch {
-	case opcode == protocol.OpIncr:
+	switch cmd {
+	case protocol.IncrCmd:
 		updated = current + delta
-	case opcode == protocol.OpDecr:
+	case protocol.DecrCmd:
 		updated = current - delta
 	default:
 		return 0, fmt.Errorf("invalid operation")
 	}
 
-	val, err := dm.s.serializer.Marshal(updated)
+	valueBuf := pool.Get()
+	enc := encoding.New(valueBuf)
+	err = enc.Encode(updated)
 	if err != nil {
 		return 0, err
 	}
+	e.value = valueBuf.Bytes()
+	defer func() {
+		pool.Put(valueBuf)
+	}()
 
-	e.value = val
 	err = dm.put(e)
 	if err != nil {
 		return 0, err
@@ -84,31 +89,21 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (dm *DMap) Incr(key string, delta int) (int, error) {
-	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          dm.name,
-		key:           key,
-		timestamp:     time.Now().UnixNano(),
-		kind:          partitions.PRIMARY,
-	}
-	return dm.atomicIncrDecr(protocol.OpIncr, e, delta)
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
+	return dm.atomicIncrDecr(protocol.IncrCmd, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (dm *DMap) Decr(key string, delta int) (int, error) {
-	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          dm.name,
-		key:           key,
-		timestamp:     time.Now().UnixNano(),
-		kind:          partitions.PRIMARY,
-	}
-	return dm.atomicIncrDecr(protocol.OpDecr, e, delta)
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
+	return dm.atomicIncrDecr(protocol.DecrCmd, e, delta)
 }
 
-func (dm *DMap) getPut(e *env) ([]byte, error) {
+func (dm *DMap) getPut(e *env) (storage.Entry, error) {
 	atomicKey := e.dmap + e.key
 	dm.s.locker.Lock(atomicKey)
 	defer func() {
@@ -133,36 +128,35 @@ func (dm *DMap) getPut(e *env) ([]byte, error) {
 		// The value is nil.
 		return nil, nil
 	}
-	return entry.Value(), nil
+	return entry, nil
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
-func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
+func (dm *DMap) GetPut(key string, value interface{}) (*GetResponse, error) {
 	if value == nil {
 		value = struct{}{}
 	}
-	val, err := dm.s.serializer.Marshal(value)
+
+	valueBuf := pool.Get()
+	enc := encoding.New(valueBuf)
+	err := enc.Encode(value)
 	if err != nil {
 		return nil, err
 	}
-	e := &env{
-		opcode:        protocol.OpPut,
-		replicaOpcode: protocol.OpPutReplica,
-		dmap:          dm.name,
-		key:           key,
-		value:         val,
-		timestamp:     time.Now().UnixNano(),
-	}
+	defer func() {
+		pool.Put(valueBuf)
+	}()
+
+	e := newEnv()
+	e.dmap = dm.name
+	e.key = key
+	e.value = valueBuf.Bytes()
 	raw, err := dm.getPut(e)
 	if err != nil {
 		return nil, err
 	}
-
-	var old interface{}
-	if raw != nil {
-		if err = dm.s.serializer.Unmarshal(raw, &old); err != nil {
-			return nil, err
-		}
+	if raw == nil {
+		return nil, nil
 	}
-	return old, nil
+	return &GetResponse{entry: raw}, nil
 }

@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -26,12 +25,10 @@ import (
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
-	"github.com/buraksezer/olric/internal/transport"
 	"github.com/buraksezer/olric/pkg/flog"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/buraksezer/olric/serializer"
 )
 
 var errFragmentNotFound = errors.New("fragment not found")
@@ -44,42 +41,55 @@ type storageMap struct {
 type Service struct {
 	sync.RWMutex // protects dmaps map
 
-	log        *flog.Logger
-	config     *config.Config
-	client     *transport.Client
-	rt         *routingtable.RoutingTable
-	serializer serializer.Serializer
-	primary    *partitions.Partitions
-	backup     *partitions.Partitions
-	locker     *locker.Locker
-	dmaps      map[string]*DMap
-	operations map[protocol.OpCode]func(w, r protocol.EncodeDecoder)
-	storage    *storageMap
-	wg         sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
+	log     *flog.Logger
+	config  *config.Config
+	client  *server.Client
+	server  *server.Server
+	rt      *routingtable.RoutingTable
+	primary *partitions.Partitions
+	backup  *partitions.Partitions
+	locker  *locker.Locker
+	dmaps   map[string]*DMap
+	storage *storageMap
+	wg      sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+}
+
+func registerErrors() {
+	protocol.SetError("NOSUCHLOCK", ErrNoSuchLock)
+	protocol.SetError("LOCKNOTACQUIRED", ErrLockNotAcquired)
+	protocol.SetError("READQUORUM", ErrReadQuorum)
+	protocol.SetError("WRITEQUORUM", ErrWriteQuorum)
+	protocol.SetError("ENDOFQUERY", ErrEndOfQuery)
+	protocol.SetError("DMAPNOTFOUND", ErrDMapNotFound)
+	protocol.SetError("KEYTOOLARGE", ErrKeyTooLarge)
+	protocol.SetError("KEYNOTFOUND", ErrKeyNotFound)
+	protocol.SetError("KEYFOUND", ErrKeyFound)
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Service{
-		config:     e.Get("config").(*config.Config),
-		serializer: e.Get("config").(*config.Config).Serializer,
-		client:     e.Get("client").(*transport.Client),
-		log:        e.Get("logger").(*flog.Logger),
-		rt:         e.Get("routingtable").(*routingtable.RoutingTable),
-		primary:    e.Get("primary").(*partitions.Partitions),
-		backup:     e.Get("backup").(*partitions.Partitions),
-		locker:     e.Get("locker").(*locker.Locker),
+	s := &Service{
+		config:  e.Get("config").(*config.Config),
+		client:  e.Get("client").(*server.Client),
+		server:  e.Get("server").(*server.Server),
+		log:     e.Get("logger").(*flog.Logger),
+		rt:      e.Get("routingtable").(*routingtable.RoutingTable),
+		primary: e.Get("primary").(*partitions.Partitions),
+		backup:  e.Get("backup").(*partitions.Partitions),
+		locker:  e.Get("locker").(*locker.Locker),
 		storage: &storageMap{
 			engines: make(map[string]storage.Engine),
 			configs: make(map[string]map[string]interface{}),
 		},
-		dmaps:      make(map[string]*DMap),
-		operations: make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder)),
-		ctx:        ctx,
-		cancel:     cancel,
-	}, nil
+		dmaps:  make(map[string]*DMap),
+		ctx:    ctx,
+		cancel: cancel,
+	}
+	registerErrors()
+	s.RegisterHandlers()
+	return s, nil
 }
 
 func (s *Service) isAlive() bool {
@@ -90,51 +100,6 @@ func (s *Service) isAlive() bool {
 	default:
 	}
 	return true
-}
-
-func (s *Service) callCompactionOnStorage(f *fragment) {
-	defer s.wg.Done()
-	timer := time.NewTimer(50 * time.Millisecond)
-	defer timer.Stop()
-
-	for {
-		timer.Reset(50 * time.Millisecond)
-		select {
-		case <-timer.C:
-			f.Lock()
-			// Compaction returns false if the fragment is closed.
-			done, err := f.Compaction()
-			if err != nil {
-				s.log.V(3).Printf("[ERROR] Failed to run compaction on fragment: %v", err)
-			}
-			if done {
-				// Fragmented tables are merged. Quit.
-				f.Unlock()
-				return
-			}
-			f.Unlock()
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *Service) requestTo(addr string, req protocol.EncodeDecoder) (protocol.EncodeDecoder, error) {
-	resp, err := s.client.RequestTo(addr, req)
-	if err != nil {
-		return nil, err
-	}
-	status := resp.Status()
-	if status == protocol.StatusOK {
-		return resp, nil
-	}
-	switch resp.Status() {
-	case protocol.StatusErrInternalFailure:
-		return nil, neterrors.Wrap(neterrors.ErrInternalFailure, string(resp.Value()))
-	case protocol.StatusErrInvalidArgument:
-		return nil, neterrors.Wrap(neterrors.ErrInvalidArgument, string(resp.Value()))
-	}
-	return nil, neterrors.GetByCode(status)
 }
 
 // Start starts the distributed map service.

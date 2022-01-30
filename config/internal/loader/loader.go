@@ -24,7 +24,6 @@ type olricd struct {
 	ReplicationMode          int     `yaml:"replicationMode"`
 	PartitionCount           uint64  `yaml:"partitionCount"`
 	LoadFactor               float64 `yaml:"loadFactor"`
-	Serializer               string  `yaml:"serializer"`
 	KeepAlivePeriod          string  `yaml:"keepAlivePeriod"`
 	BootstrapTimeout         string  `yaml:"bootstrapTimeout"`
 	ReplicaCount             int     `yaml:"replicaCount"`
@@ -34,16 +33,23 @@ type olricd struct {
 	MemberCountQuorum        int32   `yaml:"memberCountQuorum"`
 	RoutingTablePushInterval string  `yaml:"routingTablePushInterval"`
 	TriggerBalancerInterval  string  `yaml:"triggerBalancerInterval"`
+	LeaveTimeout             string  `yaml:"leaveTimeout"`
 }
 
 type client struct {
-	DialTimeout  string `yaml:"dialTimeout"`
-	ReadTimeout  string `yaml:"readTimeout"`
-	WriteTimeout string `yaml:"writeTimeout"`
-	KeepAlive    string `yaml:"keepAlive"`
-	MinConn      int    `yaml:"minConn"`
-	MaxConn      int    `yaml:"maxConn"`
-	PoolTimeout  string `yaml:"poolTimeout"`
+	DialTimeout        string `yaml:"dialTimeout"`
+	ReadTimeout        string `yaml:"readTimeout"`
+	WriteTimeout       string `yaml:"writeTimeout"`
+	MaxRetries         int    `yaml:"maxRetries"`
+	MinRetryBackoff    string `yaml:"minRetryBackoff"`
+	MaxRetryBackoff    string `yaml:"maxRetryBackoff"`
+	PoolFIFO           bool   `yaml:"poolFIFO"`
+	PoolSize           int    `yaml:"poolSize"`
+	MinIdleConns       int    `yaml:"minIdleConns"`
+	MaxConnAge         string `yaml:"maxConnAge"`
+	PoolTimeout        string `yaml:"poolTimeout"`
+	IdleTimeout        string `yaml:"idleTimeout"`
+	IdleCheckFrequency string `yaml:"idleCheckFrequency"`
 }
 
 // logging contains configuration variables of logging section of config file.

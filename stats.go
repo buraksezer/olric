@@ -22,11 +22,8 @@ import (
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/dtopic"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/transport"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/stats"
-	"github.com/vmihailenco/msgpack"
 )
 
 func toMember(member discovery.Member) stats.Member {
@@ -92,11 +89,11 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 		Backups:            make(map[stats.PartitionID]stats.Partition),
 		ClusterMembers:     make(map[stats.MemberID]stats.Member),
 		Network: stats.Network{
-			ConnectionsTotal:   transport.ConnectionsTotal.Read(),
-			CurrentConnections: transport.CurrentConnections.Read(),
-			WrittenBytesTotal:  transport.WrittenBytesTotal.Read(),
-			ReadBytesTotal:     transport.ReadBytesTotal.Read(),
-			CommandsTotal:      transport.CommandsTotal.Read(),
+			ConnectionsTotal:   server.ConnectionsTotal.Read(),
+			CurrentConnections: server.CurrentConnections.Read(),
+			WrittenBytesTotal:  server.WrittenBytesTotal.Read(),
+			ReadBytesTotal:     server.ReadBytesTotal.Read(),
+			CommandsTotal:      server.CommandsTotal.Read(),
 		},
 		DMaps: stats.DMaps{
 			EntriesTotal: dmap.EntriesTotal.Read(),
@@ -144,21 +141,6 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	}
 
 	return s
-}
-
-func (db *Olric) statsOperation(w, r protocol.EncodeDecoder) {
-	extra := r.Extra().(protocol.StatsExtra)
-	cfg := statsConfig{
-		CollectRuntime: extra.CollectRuntime,
-	}
-	s := db.stats(cfg)
-	value, err := msgpack.Marshal(s)
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(value)
 }
 
 type statsConfig struct {

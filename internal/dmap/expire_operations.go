@@ -15,36 +15,66 @@
 package dmap
 
 import (
-	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
-func (s *Service) expireOperationCommon(w, r protocol.EncodeDecoder, f func(dm *DMap, r protocol.EncodeDecoder) error) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	expireCmd, err := protocol.ParseExpireCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	err = f(dm, r)
+
+	dm, err := s.getOrCreateDMap(expireCmd.DMap)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
+
+	pc := &putConfig{
+		OnlyUpdateTTL: true,
+	}
+
+	e := newEnv()
+	e.putConfig = pc
+	e.dmap = expireCmd.DMap
+	e.key = expireCmd.Key
+	e.timeout = expireCmd.Seconds
+	err = dm.put(e)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(protocol.StatusOK)
 }
 
-func (s *Service) expireReplicaOperation(w, r protocol.EncodeDecoder) {
-	s.expireOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		e := newEnvFromReq(r, partitions.BACKUP)
-		return dm.localExpireOnReplica(e)
-	})
-}
+func (s *Service) pexpireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	pexpireCmd, err := protocol.ParsePExpireCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
 
-func (s *Service) expireOperation(w, r protocol.EncodeDecoder) {
-	s.expireOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) error {
-		e := newEnvFromReq(r, partitions.PRIMARY)
-		return dm.expire(e)
-	})
+	dm, err := s.getOrCreateDMap(pexpireCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	pc := &putConfig{
+		OnlyUpdateTTL: true,
+	}
+
+	e := newEnv()
+	e.putConfig = pc
+	e.dmap = pexpireCmd.DMap
+	e.key = pexpireCmd.Key
+	e.timeout = pexpireCmd.Milliseconds
+	err = dm.put(e)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(protocol.StatusOK)
 }

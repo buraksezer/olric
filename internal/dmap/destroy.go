@@ -51,14 +51,15 @@ func (dm *DMap) destroyOnCluster() error {
 			}
 			defer sem.Release(1)
 
-			req := protocol.NewDMapMessage(protocol.OpDestroyDMapInternal)
-			req.SetDMap(dm.name)
+			// TODO: Improve logging
 			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
-			_, err := dm.s.requestTo(addr, req)
+			cmd := protocol.NewDestroy(dm.name).SetLocal().Command(dm.s.ctx)
+			rc := dm.s.client.Get(addr)
+			err := rc.Process(dm.s.ctx, cmd)
 			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to destroy DMap: %s on %s", dm.name, addr)
+				return err
 			}
-			return err
+			return cmd.Err()
 		})
 	}
 	return g.Wait()

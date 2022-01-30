@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +33,7 @@ func bval(i int) []byte {
 }
 
 func TestTable_Pack_EncodeDecode(t *testing.T) {
-	size := uint32(1 << 16)
+	size := uint64(1 << 16)
 	tb := New(size)
 
 	timestamp := time.Now().UnixNano()

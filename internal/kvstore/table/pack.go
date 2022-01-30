@@ -14,28 +14,37 @@
 
 package table
 
-import "github.com/vmihailenco/msgpack"
+import (
+	"github.com/RoaringBitmap/roaring/roaring64"
+	"github.com/vmihailenco/msgpack/v5"
+)
 
 type Pack struct {
-	Offset     uint32
-	Allocated  uint32
-	Inuse      uint32
-	Garbage    uint32
-	RecycledAt int64
-	State      State
-	HKeys      map[uint64]uint32
-	Memory     []byte
+	Offset      uint64
+	Allocated   uint64
+	Inuse       uint64
+	Garbage     uint64
+	RecycledAt  int64
+	State       State
+	HKeys       map[uint64]uint64
+	OffsetIndex []byte
+	Memory      []byte
 }
 
 func Encode(t *Table) ([]byte, error) {
+	offsetIndex, err := t.offsetIndex.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
 	p := Pack{
-		Offset:     t.offset,
-		Allocated:  t.allocated,
-		Inuse:      t.inuse,
-		Garbage:    t.garbage,
-		RecycledAt: t.recycledAt,
-		State:      t.state,
-		HKeys:      t.hkeys,
+		Offset:      t.offset,
+		Allocated:   t.allocated,
+		Inuse:       t.inuse,
+		Garbage:     t.garbage,
+		RecycledAt:  t.recycledAt,
+		State:       t.state,
+		HKeys:       t.hkeys,
+		OffsetIndex: offsetIndex,
 	}
 	p.Memory = make([]byte, t.offset)
 	copy(p.Memory, t.memory[:t.offset])
@@ -45,8 +54,13 @@ func Encode(t *Table) ([]byte, error) {
 
 func Decode(data []byte) (*Table, error) {
 	p := &Pack{}
-
 	err := msgpack.Unmarshal(data, p)
+	if err != nil {
+		return nil, err
+	}
+
+	rb := roaring64.New()
+	err = rb.UnmarshalBinary(p.OffsetIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +72,7 @@ func Decode(data []byte) (*Table, error) {
 	t.recycledAt = p.RecycledAt
 	t.state = p.State
 	t.hkeys = p.HKeys
+	t.offsetIndex = rb
 
 	copy(t.memory[:t.offset], p.Memory)
 

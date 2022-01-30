@@ -17,8 +17,10 @@ package table
 import (
 	"encoding/binary"
 	"fmt"
+	"regexp"
 	"time"
 
+	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/pkg/errors"
@@ -40,29 +42,31 @@ var (
 )
 
 type Stats struct {
-	Allocated  uint32
-	Inuse      uint32
-	Garbage    uint32
+	Allocated  uint64
+	Inuse      uint64
+	Garbage    uint64
 	Length     int
 	RecycledAt int64
 }
 
 type Table struct {
-	offset     uint32
-	allocated  uint32
-	inuse      uint32
-	garbage    uint32
-	recycledAt int64
-	state      State
-	hkeys      map[uint64]uint32
-	memory     []byte
+	offset      uint64
+	allocated   uint64
+	inuse       uint64
+	garbage     uint64
+	recycledAt  int64
+	state       State
+	hkeys       map[uint64]uint64
+	offsetIndex *roaring64.Bitmap
+	memory      []byte
 }
 
-func New(size uint32) *Table {
+func New(size uint64) *Table {
 	t := &Table{
-		hkeys:     make(map[uint64]uint32),
-		allocated: size,
-		state:     ReadWriteState,
+		hkeys:       make(map[uint64]uint64),
+		allocated:   size,
+		offsetIndex: roaring64.New(),
+		state:       ReadWriteState,
 	}
 	//  From builtin.go:
 	//
@@ -86,11 +90,12 @@ func (t *Table) State() State {
 
 func (t *Table) PutRaw(hkey uint64, value []byte) error {
 	// Check empty space on allocated memory area.
-	inuse := uint32(len(value))
+	inuse := uint64(len(value))
 	if inuse+t.offset >= t.allocated {
 		return ErrNotEnoughSpace
 	}
 	t.hkeys[hkey] = t.offset
+	t.offsetIndex.Add(t.offset)
 	copy(t.memory[t.offset:], value)
 	t.inuse += inuse
 	t.offset += inuse
@@ -99,7 +104,7 @@ func (t *Table) PutRaw(hkey uint64, value []byte) error {
 
 // In-memory layout for entry:
 //
-// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint64) | VALUE(bytes)
 func (t *Table) Put(hkey uint64, value storage.Entry) error {
 	if len(value.Key()) >= maxKeyLen {
 		return storage.ErrKeyTooLarge
@@ -108,7 +113,7 @@ func (t *Table) Put(hkey uint64, value storage.Entry) error {
 	// Check empty space on allocated memory area.
 
 	// TTL + Timestamp + LastAccess + + value-Length + key-Length
-	inuse := uint32(len(value.Key()) + len(value.Value()) + 29)
+	inuse := uint64(len(value.Key()) + len(value.Value()) + 29)
 	if inuse+t.offset >= t.allocated {
 		return ErrNotEnoughSpace
 	}
@@ -123,6 +128,7 @@ func (t *Table) Put(hkey uint64, value storage.Entry) error {
 	}
 
 	t.hkeys[hkey] = t.offset
+	t.offsetIndex.Add(t.offset)
 	t.inuse += inuse
 
 	// Set key length. It's 1 byte.
@@ -132,7 +138,7 @@ func (t *Table) Put(hkey uint64, value storage.Entry) error {
 
 	// Set the key.
 	copy(t.memory[t.offset:], value.Key())
-	t.offset += uint32(len(value.Key()))
+	t.offset += uint64(len(value.Key()))
 
 	// Set the TTL. It's 8 bytes.
 	binary.BigEndian.PutUint64(t.memory[t.offset:], uint64(value.TTL()))
@@ -152,7 +158,7 @@ func (t *Table) Put(hkey uint64, value storage.Entry) error {
 
 	// Set the value.
 	copy(t.memory[t.offset:], value.Value())
-	t.offset += uint32(len(value.Value()))
+	t.offset += uint64(len(value.Value()))
 	return nil
 }
 
@@ -165,8 +171,8 @@ func (t *Table) GetRaw(hkey uint64) ([]byte, error) {
 
 	// In-memory structure:
 	// 1                 | klen       | 8           | 8                  | 8                  | 4                    | vlen
-	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64)  | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
-	klen := uint32(t.memory[end])
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64)  | LASTACCESS(uint64) | VALUE-LENGTH(uint64) | VALUE(bytes)
+	klen := uint64(t.memory[end])
 	end++       // One byte to keep key length
 	end += klen // key length
 	end += 8    // TTL
@@ -174,13 +180,19 @@ func (t *Table) GetRaw(hkey uint64) ([]byte, error) {
 	end += 8    // LastAccess
 
 	vlen := binary.BigEndian.Uint32(t.memory[end : end+4])
-	end += 4    // 4 bytes to keep value length
-	end += vlen // value length
+	end += 4            // 4 bytes to keep value length
+	end += uint64(vlen) // value length
 
 	// Create a copy of the requested data.
 	rawval := make([]byte, end-start)
 	copy(rawval, t.memory[start:end])
 	return rawval, nil
+}
+
+func (t *Table) getRawKey(offset uint64) ([]byte, error) {
+	klen := uint64(t.memory[offset])
+	offset++
+	return t.memory[offset : offset+klen], nil
 }
 
 func (t *Table) GetRawKey(hkey uint64) ([]byte, error) {
@@ -189,9 +201,7 @@ func (t *Table) GetRawKey(hkey uint64) ([]byte, error) {
 		return nil, ErrHKeyNotFound
 	}
 
-	klen := uint32(t.memory[offset])
-	offset++
-	return t.memory[offset : offset+klen], nil
+	return t.getRawKey(offset)
 }
 
 func (t *Table) GetKey(hkey uint64) (string, error) {
@@ -208,7 +218,7 @@ func (t *Table) GetTTL(hkey uint64) (int64, error) {
 		return 0, ErrHKeyNotFound
 	}
 
-	klen := uint32(t.memory[offset])
+	klen := uint64(t.memory[offset])
 	offset++
 	offset += klen
 
@@ -221,7 +231,7 @@ func (t *Table) GetLastAccess(hkey uint64) (int64, error) {
 		return 0, ErrHKeyNotFound
 	}
 
-	klen := uint32(t.memory[offset])
+	klen := uint64(t.memory[offset])
 	offset++       // Key length
 	offset += klen // Key's itself
 	offset += 8    // TTL
@@ -230,17 +240,12 @@ func (t *Table) GetLastAccess(hkey uint64) (int64, error) {
 	return int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])), nil
 }
 
-func (t *Table) Get(hkey uint64) (storage.Entry, error) {
-	offset, ok := t.hkeys[hkey]
-	if !ok {
-		return nil, ErrHKeyNotFound
-	}
-
+func (t *Table) get(offset uint64) storage.Entry {
 	e := &entry.Entry{}
 	// In-memory structure:
 	//
 	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
-	klen := uint32(t.memory[offset])
+	klen := uint64(t.memory[offset])
 	offset++
 
 	e.SetKey(string(t.memory[offset : offset+klen]))
@@ -253,13 +258,48 @@ func (t *Table) Get(hkey uint64) (storage.Entry, error) {
 	offset += 8
 
 	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+
 	// Update the last access field
 	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
 	offset += 4
-	e.SetValue(t.memory[offset : offset+vlen])
+	e.SetValue(t.memory[offset : offset+uint64(vlen)])
+	return e
+}
+
+func (t *Table) Get(hkey uint64) (storage.Entry, error) {
+	offset, ok := t.hkeys[hkey]
+	if !ok {
+		return nil, ErrHKeyNotFound
+	}
+
+	e := &entry.Entry{}
+	// In-memory structure:
+	//
+	// KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint32) | VALUE(bytes)
+	klen := uint64(t.memory[offset])
+	offset++
+
+	e.SetKey(string(t.memory[offset : offset+klen]))
+	offset += klen
+
+	e.SetTTL(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	offset += 8
+
+	e.SetTimestamp(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	offset += 8
+
+	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+
+	// Update the last access field
+	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
+	offset += 8
+
+	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
+	offset += 4
+	e.SetValue(t.memory[offset : offset+uint64(vlen)])
 
 	return e, nil
 }
@@ -270,10 +310,14 @@ func (t *Table) Delete(hkey uint64) error {
 		// Try the previous tables.
 		return ErrHKeyNotFound
 	}
-	var garbage uint32
+	var garbage uint64
 
 	// key, 1 byte for key size, klen for key's actual length.
-	klen := uint32(t.memory[offset])
+	klen := uint64(t.memory[offset])
+
+	// Delete the offset from offsetIndex
+	t.offsetIndex.Remove(offset)
+
 	offset += 1 + klen
 	garbage += 1 + klen
 
@@ -291,7 +335,7 @@ func (t *Table) Delete(hkey uint64) error {
 
 	// value len and its header.
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
-	garbage += 4 + vlen
+	garbage += 4 + uint64(vlen)
 
 	// Delete it from metadata
 	delete(t.hkeys, hkey)
@@ -308,7 +352,7 @@ func (t *Table) UpdateTTL(hkey uint64, value storage.Entry) error {
 	}
 
 	// key, 1 byte for key size, klen for key's actual length.
-	klen := uint32(t.memory[offset])
+	klen := uint64(t.memory[offset])
 	offset += 1 + klen
 
 	// Set the new TTL. It's 8 bytes.
@@ -354,13 +398,80 @@ func (t *Table) Range(f func(hkey uint64, e storage.Entry) bool) {
 	}
 }
 
+func (t *Table) RangeHKey(f func(hkey uint64) bool) {
+	for hkey := range t.hkeys {
+		if !f(hkey) {
+			break
+		}
+	}
+}
+
 func (t *Table) Reset() {
 	if len(t.hkeys) != 0 {
-		t.hkeys = make(map[uint64]uint32)
+		t.hkeys = make(map[uint64]uint64)
 	}
 	t.SetState(RecycledState)
 	t.inuse = 0
 	t.garbage = 0
 	t.offset = 0
 	t.recycledAt = time.Now().UnixNano()
+}
+
+func (t *Table) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
+	it := t.offsetIndex.Iterator()
+	if cursor != 0 {
+		it.AdvanceIfNeeded(cursor)
+	}
+	var num int
+	for it.HasNext() && num < count {
+		offset := it.Next()
+		e := t.get(offset)
+		if !f(e) {
+			break
+		}
+		cursor = offset + 1
+		num++
+	}
+
+	if !it.HasNext() {
+		// end of the scan
+		cursor = 0
+	}
+
+	return cursor, nil
+}
+
+func (t *Table) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
+	r, err := regexp.Compile(expr)
+	if err != nil {
+		return 0, err
+	}
+
+	it := t.offsetIndex.Iterator()
+	if cursor != 0 {
+		it.AdvanceIfNeeded(cursor)
+	}
+
+	var num int
+	for it.HasNext() && num < count {
+		offset := it.Next()
+
+		key, _ := t.getRawKey(offset)
+		if !r.Match(key) {
+			continue
+		}
+
+		e := t.get(offset)
+		if !f(e) {
+			break
+		}
+		cursor = offset + 1
+		num++
+	}
+
+	if !it.HasNext() {
+		// end of the scan
+		cursor = 0
+	}
+	return cursor, nil
 }

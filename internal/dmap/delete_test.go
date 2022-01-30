@@ -15,7 +15,7 @@
 package dmap
 
 import (
-	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -205,20 +205,14 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	req := protocol.NewDMapMessage(protocol.OpDelete)
-	req.SetBuffer(new(bytes.Buffer))
-	req.SetDMap("mydmap")
-	req.SetKey("mykey")
-	resp := req.Response(nil)
-	s.deletePrevOperation(resp, req)
-	if resp.Status() != protocol.StatusOK {
-		t.Fatalf("Expected StatusOK (%d). Got: %d", protocol.StatusOK, resp.Status())
-	}
+	cmd := protocol.NewDelEntry("mydmap", "mykey").Command(context.Background())
+	rc := s.client.Get(s.rt.This().String())
+	err = rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+	require.NoError(t, cmd.Err())
 
 	_, err = dm.Get("mykey")
-	if err != ErrKeyNotFound {
-		t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-	}
+	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
 func TestDMap_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
@@ -309,9 +303,9 @@ func TestDMap_Delete_Compaction(t *testing.T) {
 	c.ReplicaCount = 2
 	c.DMaps.TriggerCompactionInterval = time.Millisecond
 	c.DMaps.Engine.Name = config.DefaultStorageEngine
-	c.DMaps.Engine.Implementation = &kvstore.KVStore{}
+	c.DMaps.Engine.Implementation = kvstore.New(nil)
 	c.DMaps.Engine.Config = map[string]interface{}{
-		"tableSize":           uint32(100), // overwrite tableSize to trigger compaction.
+		"tableSize":           uint64(100), // overwrite tableSize to trigger compaction.
 		"maxIdleTableTimeout": time.Millisecond,
 	}
 	e := testcluster.NewEnvironment(c)

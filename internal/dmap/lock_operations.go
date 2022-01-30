@@ -15,73 +15,121 @@
 package dmap
 
 import (
+	"encoding/hex"
 	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/pkg/neterrors"
+	"github.com/tidwall/redcon"
 )
 
-func (s *Service) lockOperationCommon(w, r protocol.EncodeDecoder,
-	f func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error)) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) unlockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	unlockCmd, err := protocol.ParseUnlockCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	ctx, err := f(dm, r)
+
+	dm, err := s.getOrCreateDMap(unlockCmd.DMap)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
-	w.SetValue(ctx.token)
+	token, err := hex.DecodeString(unlockCmd.Token)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	err = dm.unlock(unlockCmd.Key, token)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteString(protocol.StatusOK)
 }
 
-func (s *Service) lockWithTimeoutOperation(w, r protocol.EncodeDecoder) {
-	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
-		req := r.(*protocol.DMapMessage)
-		timeout := req.Extra().(protocol.LockWithTimeoutExtra).Timeout
-		deadline := req.Extra().(protocol.LockWithTimeoutExtra).Deadline
-		return dm.lockKey(protocol.OpPutIfEx, req.Key(), time.Duration(timeout), time.Duration(deadline))
-	})
+func (s *Service) lockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	lockCmd, err := protocol.ParseLockCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(lockCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	var timeout = nilTimeout
+	switch {
+	case lockCmd.EX != 0:
+		timeout = time.Duration(lockCmd.EX * float64(time.Second))
+	case lockCmd.PX != 0:
+		timeout = time.Duration(lockCmd.PX * int64(time.Millisecond))
+	}
+
+	var deadline = time.Duration(lockCmd.Deadline * float64(time.Second))
+	lctx, err := dm.lockKey(lockCmd.Key, timeout, deadline)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteString(hex.EncodeToString(lctx.token))
 }
 
-func (s *Service) lockOperation(w, r protocol.EncodeDecoder) {
-	s.lockOperationCommon(w, r, func(dm *DMap, r protocol.EncodeDecoder) (*LockContext, error) {
-		req := r.(*protocol.DMapMessage)
-		deadline := req.Extra().(protocol.LockExtra).Deadline
-		return dm.lockKey(protocol.OpPutIf, req.Key(), nilTimeout, time.Duration(deadline))
-	})
+func (s *Service) lockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	lockLeaseCmd, err := protocol.ParseLockLeaseCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(lockLeaseCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	timeout := time.Duration(lockLeaseCmd.Timeout * float64(time.Second))
+	token, err := hex.DecodeString(lockLeaseCmd.Token)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	err = dm.lease(lockLeaseCmd.Key, token, timeout)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(protocol.StatusOK)
 }
 
-func (s *Service) unlockOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+func (s *Service) plockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	plockLeaseCmd, err := protocol.ParsePLockLeaseCommand(cmd)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	err = dm.unlock(req.Key(), req.Value())
-	if err != nil {
-		neterrors.ErrorResponse(w, err)
-		return
-	}
-	w.SetStatus(protocol.StatusOK)
-}
 
-func (s *Service) leaseLockOperation(w, r protocol.EncodeDecoder) {
-	req := r.(*protocol.DMapMessage)
-	dm, err := s.getOrCreateDMap(req.DMap())
+	dm, err := s.getOrCreateDMap(plockLeaseCmd.DMap)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	timeout := req.Extra().(protocol.LockLeaseExtra).Timeout
-	err = dm.Lease(req.Key(), req.Value(), time.Duration(timeout))
+
+	timeout := time.Duration(plockLeaseCmd.Timeout * int64(time.Millisecond))
+	token, err := hex.DecodeString(plockLeaseCmd.Token)
 	if err != nil {
-		neterrors.ErrorResponse(w, err)
+		protocol.WriteError(conn, err)
 		return
 	}
-	w.SetStatus(protocol.StatusOK)
+	err = dm.lease(plockLeaseCmd.Key, token, timeout)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(protocol.StatusOK)
 }

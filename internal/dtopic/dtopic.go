@@ -15,12 +15,7 @@
 package dtopic
 
 import (
-	"errors"
-	"fmt"
-	"time"
-
 	"github.com/buraksezer/olric/internal/stats"
-	"github.com/buraksezer/olric/pkg/neterrors"
 )
 
 var (
@@ -42,8 +37,6 @@ const (
 	OrderedDelivery
 )
 
-var errListenerIDCollision = errors.New("given listenerID already exists")
-
 // Message is a message type for DTopic data structure.
 type Message struct {
 	Message       interface{}
@@ -57,21 +50,19 @@ type Message struct {
 //  * All data is in-memory, and the published messages are not stored in the cluster.
 //  * Fire&Forget: message delivery is not guaranteed.
 type DTopic struct {
-	name        string
-	flag        int16
-	concurrency int
-	s           *Service
+	name           string
+	numSubscribers int32
+	s              *Service
 }
 
 // NewDTopic returns a new distributed topic instance.
 // Parameters:
 //   * name: DTopic name.
 //   * concurrency: Maximum number of concurrently processing DTopic messages.
-//   * flag: Any flag to control DTopic behaviour.
 // Flags for delivery options:
 //   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
 //   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
-func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
+func (s *Service) NewDTopic(name string) (*DTopic, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -79,12 +70,6 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 		return dt, nil
 	}
 
-	if flag&UnorderedDelivery == 0 && flag&OrderedDelivery == 0 {
-		return nil, fmt.Errorf("%w: invalid delivery mode", neterrors.ErrInvalidArgument)
-	}
-	if flag&OrderedDelivery != 0 {
-		return nil, neterrors.ErrNotImplemented
-	}
 	// Check operation status first:
 	//
 	// * Checks member count in the cluster, returns ErrClusterQuorum if
@@ -100,16 +85,15 @@ func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, 
 	}
 
 	dt := &DTopic{
-		name:        name,
-		flag:        flag,
-		concurrency: concurrency,
-		s:           s,
+		name: name,
+		s:    s,
 	}
 
 	s.m[name] = dt
 	return dt, nil
 }
 
+/*
 // Publish publishes the given message to listeners of the topic. Message order and delivery are not guaranteed.
 func (d *DTopic) Publish(msg interface{}) error {
 	tm := &Message{
@@ -142,4 +126,4 @@ func (d *DTopic) RemoveListener(listenerID uint64) error {
 // recreated.
 func (d *DTopic) Destroy() error {
 	return d.s.destroyDTopicOnCluster(d.name)
-}
+}*/

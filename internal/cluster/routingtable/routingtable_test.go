@@ -27,39 +27,30 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/environment"
-	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/internal/transport"
 	"github.com/hashicorp/memberlist"
 	"golang.org/x/sync/errgroup"
 )
 
-func newRoutingTableForTest(c *config.Config, srv *transport.Server) *RoutingTable {
+func newRoutingTableForTest(c *config.Config, srv *server.Server) *RoutingTable {
 	e := environment.New()
 	e.Set("config", c)
 	e.Set("logger", testutil.NewFlogger(c))
 	e.Set("primary", partitions.New(c.PartitionCount, partitions.PRIMARY))
 	e.Set("backup", partitions.New(c.PartitionCount, partitions.BACKUP))
-	e.Set("client", transport.NewClient(c.Client))
+	e.Set("client", server.NewClient(c.Client))
+	e.Set("server", srv)
 
 	rt := New(e)
-	if srv != nil {
-		ops := make(map[protocol.OpCode]func(w, r protocol.EncodeDecoder))
-		rt.RegisterOperations(ops)
-
-		requestDispatcher := func(w, r protocol.EncodeDecoder) {
-			f := ops[r.OpCode()]
-			f(w, r)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil {
+			panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
 		}
-		srv.SetDispatcher(requestDispatcher)
-		go func() {
-			err := srv.ListenAndServe()
-			if err != nil {
-				panic(fmt.Sprintf("ListenAndServe returned an error: %v", err))
-			}
-		}()
-		<-srv.StartedCtx.Done()
-	}
+	}()
+	<-srv.StartedCtx.Done()
+
 	return rt
 }
 
@@ -94,7 +85,7 @@ func (t *testCluster) addNode(c *config.Config) (*RoutingTable, error) {
 	}
 	c.Peers = peers
 
-	srv := testutil.NewTransportServer(c)
+	srv := testutil.NewServer(c)
 	rt := newRoutingTableForTest(c, srv)
 	err = rt.Start()
 	if err != nil {
