@@ -32,14 +32,14 @@ func TestDTopic_Subscribe_And_Publish_Standalone(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	pubsub := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-topic")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := pubsub.Receive(ctx)
+	_, err := ps.Receive(ctx)
 	require.NoError(t, err)
 
 	// Go channel which receives messages.
-	ch := pubsub.Channel()
+	ch := ps.Channel()
 
 	expected := make(map[string]struct{})
 	for i := 0; i < 10; i++ {
@@ -76,16 +76,16 @@ func TestDTopic_Unsubscribe(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	pubsub := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-topic")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := pubsub.Receive(ctx)
+	_, err := ps.Receive(ctx)
 	require.NoError(t, err)
 
 	// Go channel which receives messages.
-	ch := pubsub.Channel()
+	ch := ps.Channel()
 
-	err = pubsub.Unsubscribe(ctx, "my-topic")
+	err = ps.Unsubscribe(ctx, "my-topic")
 	require.NoError(t, err)
 
 	err = rc.Publish(ctx, "my-topic", "hello, world!").Err()
@@ -109,14 +109,14 @@ func TestDTopic_PSubscribe_And_Publish_Standalone(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	pubsub := rc.PSubscribe(ctx, "h?llo")
+	ps := rc.PSubscribe(ctx, "h?llo")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := pubsub.Receive(ctx)
+	_, err := ps.Receive(ctx)
 	require.NoError(t, err)
 
 	// Go channel which receives messages.
-	ch := pubsub.Channel()
+	ch := ps.Channel()
 
 	expected := make(map[string]struct{})
 	for _, topic := range []string{"hello", "hallo", "hxllo"} {
@@ -154,16 +154,16 @@ func TestDTopic_PUnsubscribe(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	pubsub := rc.PSubscribe(ctx, "h?llo")
+	ps := rc.PSubscribe(ctx, "h?llo")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := pubsub.Receive(ctx)
+	_, err := ps.Receive(ctx)
 	require.NoError(t, err)
 
 	// Go channel which receives messages.
-	ch := pubsub.Channel()
+	ch := ps.Channel()
 
-	err = pubsub.PUnsubscribe(ctx, "h?llo")
+	err = ps.PUnsubscribe(ctx, "h?llo")
 	require.NoError(t, err)
 
 	for _, topic := range []string{"hello", "hallo", "hxllo"} {
@@ -190,16 +190,16 @@ func TestDTopic_Ping(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	pubsub := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-topic")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := pubsub.Receive(ctx)
+	_, err := ps.Receive(ctx)
 	require.NoError(t, err)
 
-	err = pubsub.Ping(ctx, "hello, world!")
+	err = ps.Ping(ctx, "hello, world!")
 	require.NoError(t, err)
 
-	msg, err := pubsub.Receive(ctx)
+	msg, err := ps.Receive(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "Pong<hello, world!>", msg.(*redis.Pong).String())
 }
@@ -211,16 +211,92 @@ func TestDTopic_Close(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	pubsub := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-topic")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := pubsub.Receive(ctx)
+	_, err := ps.Receive(ctx)
 	require.NoError(t, err)
 
-	err = pubsub.Close()
+	err = ps.Close()
 	require.NoError(t, err)
 
-	err = pubsub.Ping(ctx)
+	err = ps.Ping(ctx)
 	require.Error(t, err, "redis: client is closed")
 	// TODO: Control active subscriber count
+}
+
+func TestDTopic_PubSubChannels_Without_Patterns(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+	channels := make(map[string]struct{})
+	for i := 0; i < 10; i++ {
+		channel := fmt.Sprintf("my-topic-%d", i)
+		ps := rc.Subscribe(ctx, channel)
+		// Wait for confirmation that subscription is created before publishing anything.
+		_, err := ps.Receive(ctx)
+		require.NoError(t, err)
+		channels[channel] = struct{}{}
+	}
+
+	res := rc.PubSubChannels(ctx, "")
+	result, err := res.Result()
+	require.NoError(t, err)
+	require.Len(t, result, len(channels))
+
+	for _, channel := range result {
+		require.Contains(t, channels, channel)
+	}
+}
+
+func TestDTopic_PubSubChannels_With_Patterns(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+
+	channels := make(map[string]struct{})
+	for _, channel := range []string{"hello-1", "hello-2", "hello-3", "foobar"} {
+		ps := rc.Subscribe(ctx, channel)
+		// Wait for confirmation that subscription is created before publishing anything.
+		_, err := ps.Receive(ctx)
+		require.NoError(t, err)
+		channels[channel] = struct{}{}
+	}
+
+	res := rc.PubSubChannels(ctx, "h*")
+	result, err := res.Result()
+	require.NoError(t, err)
+	require.Len(t, result, len(channels)-1)
+	require.NotContains(t, result, "foobar")
+
+	for _, channel := range result {
+		require.Contains(t, channels, channel)
+	}
+}
+
+func TestDTopic_PubSub_Numpat(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+
+	for _, channel := range []string{"h*llo", "f*bar"} {
+		ps := rc.PSubscribe(ctx, channel)
+		// Wait for confirmation that subscription is created before publishing anything.
+		_, err := ps.Receive(ctx)
+		require.NoError(t, err)
+	}
+
+	res := rc.PubSubNumPat(ctx)
+	nr, err := res.Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(2), nr)
 }

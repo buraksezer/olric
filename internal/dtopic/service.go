@@ -49,6 +49,7 @@ func (s *Service) RegisterHandlers() {
 	s.server.ServeMux().HandleFunc(protocol.DTopic.Publish, s.publishCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubChannels, s.pubsubChannelsCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumpat, s.pubsubNumpatCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumsub, s.pubsubNumsubCommandHandler)
 
 }
 

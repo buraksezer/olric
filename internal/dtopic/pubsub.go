@@ -381,7 +381,7 @@ func (ps *PubSub) ChannelsWithPatterns(pattern string) []string {
 	for _, sconn := range ps.conns {
 		sconn.mu.Lock()
 		for ient := range sconn.entries {
-			if match.Match(pattern, ient.channel) {
+			if match.Match(ient.channel, pattern) {
 				channels = append(channels, ient.channel)
 			}
 		}

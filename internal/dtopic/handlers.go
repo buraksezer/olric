@@ -89,5 +89,5 @@ func (s *Service) pubsubNumsubCommandHandler(conn redcon.Conn, cmd redcon.Comman
 		return
 	}
 
-	conn.WriteInt(s.pubsub.Numpat())
+	// TODO: Implement PUBSUB NUMSUB [channel [channel ...]]
 }
