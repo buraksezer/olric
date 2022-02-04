@@ -21,7 +21,7 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/dtopic"
+	"github.com/buraksezer/olric/internal/pubsub"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/stats"
 )
@@ -103,10 +103,10 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 			GetHits:      dmap.GetHits.Read(),
 			EvictedTotal: dmap.EvictedTotal.Read(),
 		},
-		DTopics: stats.DTopics{
-			PublishedTotal:   dtopic.PublishedTotal.Read(),
-			CurrentListeners: dtopic.CurrentListeners.Read(),
-			ListenersTotal:   dtopic.ListenersTotal.Read(),
+		PubSub: stats.PubSub{
+			PublishedTotal:   pubsub.PublishedTotal.Read(),
+			CurrentListeners: pubsub.CurrentListeners.Read(),
+			ListenersTotal:   pubsub.ListenersTotal.Read(),
 		},
 	}
 

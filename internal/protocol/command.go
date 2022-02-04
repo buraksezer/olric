@@ -42,7 +42,7 @@ const (
 
 const StatusOK = "OK"
 
-type DTopicCommands struct {
+type PubSubCommands struct {
 	Publish        string
 	Subscribe      string
 	PSubscribe     string
@@ -51,7 +51,7 @@ type DTopicCommands struct {
 	PubSubNumsub   string
 }
 
-var DTopic = &DTopicCommands{
+var PubSub = &PubSubCommands{
 	Publish:        "publish",
 	Subscribe:      "subscribe",
 	PSubscribe:     "psubscribe",

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopic
+package pubsub
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func TestPubSub_Handler_Subscribe_And_Publish_Standalone(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
 	_, err := ps.Receive(ctx)
@@ -44,7 +44,7 @@ func TestPubSub_Handler_Subscribe_And_Publish_Standalone(t *testing.T) {
 	expected := make(map[string]struct{})
 	for i := 0; i < 10; i++ {
 		msg := fmt.Sprintf("my-message-%d", i)
-		err = rc.Publish(ctx, "my-topic", msg).Err()
+		err = rc.Publish(ctx, "my-channel", msg).Err()
 		require.NoError(t, err)
 		expected[msg] = struct{}{}
 	}
@@ -54,7 +54,7 @@ L:
 	for {
 		select {
 		case msg := <-ch:
-			require.Equal(t, "my-topic", msg.Channel)
+			require.Equal(t, "my-channel", msg.Channel)
 			consumed[msg.Payload] = struct{}{}
 			if len(consumed) == 10 {
 				// It would be OK
@@ -76,7 +76,7 @@ func TestPubSub_Handler_Unsubscribe(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
 	_, err := ps.Receive(ctx)
@@ -85,14 +85,14 @@ func TestPubSub_Handler_Unsubscribe(t *testing.T) {
 	// Go channel which receives messages.
 	ch := ps.Channel()
 
-	err = ps.Unsubscribe(ctx, "my-topic")
+	err = ps.Unsubscribe(ctx, "my-channel")
 	require.NoError(t, err)
 
 	// Wait for some time. Because the Redis client doesn't wait for the response after
 	// writing 'unsubscribe' command.
 	<-time.After(250 * time.Millisecond)
 
-	err = rc.Publish(ctx, "my-topic", "hello, world!").Err()
+	err = rc.Publish(ctx, "my-channel", "hello, world!").Err()
 	require.NoError(t, err)
 L:
 	for {
@@ -123,10 +123,10 @@ func TestPubSub_Handler_PSubscribe_And_Publish_Standalone(t *testing.T) {
 	ch := ps.Channel()
 
 	expected := make(map[string]struct{})
-	for _, topic := range []string{"hello", "hallo", "hxllo"} {
+	for _, channel := range []string{"hello", "hallo", "hxllo"} {
 		for i := 0; i < 10; i++ {
-			msg := fmt.Sprintf("my-message-%s-%d", topic, i)
-			err = rc.Publish(ctx, topic, msg).Err()
+			msg := fmt.Sprintf("my-message-%s-%d", channel, i)
+			err = rc.Publish(ctx, channel, msg).Err()
 			require.NoError(t, err)
 			expected[msg] = struct{}{}
 		}
@@ -174,8 +174,8 @@ func TestPubSub_Handler_PUnsubscribe(t *testing.T) {
 	// writing 'unsubscribe' command.
 	<-time.After(250 * time.Millisecond)
 
-	for _, topic := range []string{"hello", "hallo", "hxllo"} {
-		err = rc.Publish(ctx, topic, "hello, world!").Err()
+	for _, channel := range []string{"hello", "hallo", "hxllo"} {
+		err = rc.Publish(ctx, channel, "hello, world!").Err()
 		require.NoError(t, err)
 	}
 
@@ -198,7 +198,7 @@ func TestPubSub_Handler_Ping(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
 	_, err := ps.Receive(ctx)
@@ -219,7 +219,7 @@ func TestPubSub_Handler_Close(t *testing.T) {
 
 	rc := s.client.Get(s.rt.This().String())
 	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
 	_, err := ps.Receive(ctx)
@@ -242,7 +242,7 @@ func TestPubSub_Handler_PubSubChannels_Without_Patterns(t *testing.T) {
 	ctx := context.TODO()
 	channels := make(map[string]struct{})
 	for i := 0; i < 10; i++ {
-		channel := fmt.Sprintf("my-topic-%d", i)
+		channel := fmt.Sprintf("my-channel-%d", i)
 		ps := rc.Subscribe(ctx, channel)
 		// Wait for confirmation that subscription is created before publishing anything.
 		_, err := ps.Receive(ctx)

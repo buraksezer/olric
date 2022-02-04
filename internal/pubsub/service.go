@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopic
+package pubsub
 
 import (
 	"context"
@@ -43,12 +43,12 @@ type Service struct {
 }
 
 func (s *Service) RegisterHandlers() {
-	s.server.ServeMux().HandleFunc(protocol.DTopic.Subscribe, s.subscribeCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PSubscribe, s.psubscribeCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.Publish, s.publishCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubChannels, s.pubsubChannelsCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumpat, s.pubsubNumpatCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumsub, s.pubsubNumsubCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.Subscribe, s.subscribeCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PSubscribe, s.psubscribeCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.Publish, s.publishCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubChannels, s.pubsubChannelsCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubNumpat, s.pubsubNumpatCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubNumsub, s.pubsubNumsubCommandHandler)
 
 }
 

@@ -1,4 +1,4 @@
-package dtopic
+package pubsub
 
 import (
 	"bufio"

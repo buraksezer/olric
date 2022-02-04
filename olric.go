@@ -19,8 +19,7 @@ service.
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 a cluster of computers.
 
-Olric is designed to be a distributed cache. But it also provides distributed
-topics, data replication, failure detection and simple anti-entropy services.
+Olric is designed to be a distributed cache. But it also provides Publish/Subscribe, data replication, failure detection and simple anti-entropy services.
 So it can be used as an ordinary key/value data store to scale your cloud
 application.*/
 package olric
@@ -41,10 +40,10 @@ import (
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/dtopic"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/locker"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/pubsub"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/flog"
 	"github.com/hashicorp/logutils"
@@ -102,7 +101,7 @@ type Olric struct {
 	rt       *routingtable.RoutingTable
 	balancer *balancer.Balancer
 
-	dtopic *dtopic.Service
+	pubsub *pubsub.Service
 	dmap   *dmap.Service
 
 	// Structures for flow control
@@ -154,11 +153,11 @@ func initializeServices(db *Olric) error {
 	db.balancer = balancer.New(db.env)
 
 	// Add Services
-	dt, err := dtopic.NewService(db.env)
+	dt, err := pubsub.NewService(db.env)
 	if err != nil {
 		return err
 	}
-	db.dtopic = dt.(*dtopic.Service)
+	db.pubsub = dt.(*pubsub.Service)
 
 	dm, err := dmap.NewService(db.env)
 	if err != nil {
@@ -321,8 +320,8 @@ func (db *Olric) Start() error {
 		return err
 	}
 
-	// Start distributed topic service
-	if err := db.dtopic.Start(); err != nil {
+	// Start publish-subscribe service
+	if err := db.pubsub.Start(); err != nil {
 		return err
 	}
 
@@ -361,8 +360,8 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 
 	var latestError error
 
-	if err := db.dtopic.Shutdown(ctx); err != nil {
-		db.log.V(2).Printf("[ERROR] Failed to shutdown DTopic service: %v", err)
+	if err := db.pubsub.Shutdown(ctx); err != nil {
+		db.log.V(2).Printf("[ERROR] Failed to shutdown PubSub service: %v", err)
 		latestError = err
 	}
 

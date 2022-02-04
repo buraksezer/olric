@@ -142,15 +142,15 @@ type DMaps struct {
 	EvictedTotal int64
 }
 
-// DTopics holds global DTopic statistics.
-type DTopics struct {
-	// PublishedTotal is the total number of published messages to DTopics during the life of this instance.
+// PubSub holds global Pub/Sub statistics.
+type PubSub struct {
+	// PublishedTotal is the total number of published messages to PubSub during the life of this instance.
 	PublishedTotal int64
 
-	// CurrentListeners is the current number of DTopic listeners of DTopics.
+	// CurrentListeners is the current number of Pub/Sub listeners of PubSub.
 	CurrentListeners int64
 
-	// ListenersTotal is the total number of registered DTopic listeners during the life of this instance.
+	// ListenersTotal is the total number of registered Pub/Sub listeners during the life of this instance.
 	ListenersTotal int64
 }
 
@@ -189,6 +189,6 @@ type Stats struct {
 	// DMaps holds global DMap statistics.
 	DMaps DMaps
 
-	// DTopics holds global DTopic statistics.
-	DTopics DTopics
+	// PubSub holds global Pub/Sub statistics.
+	PubSub PubSub
 }
