@@ -17,14 +17,26 @@ package pubsub
 import (
 	"context"
 	"errors"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/server"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/flog"
+)
+
+var (
+	// PublishedTotal is the total number of published messages during the life of this instance.
+	PublishedTotal = stats.NewInt64Counter()
+
+	// CurrentListeners is the current number of listeners of DTopics.
+	CurrentListeners = stats.NewInt64Gauge()
+
+	// ListenersTotal is the total number of registered listeners during the life of this instance.
+	ListenersTotal = stats.NewInt64Counter()
 )
 
 var ErrServerGone = errors.New("server is gone")

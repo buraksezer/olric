@@ -73,7 +73,7 @@ func (p *Put) SetXX() *Put {
 
 func (p *Put) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, PutCmd)
+	args = append(args, DMap.Put)
 	args = append(args, p.DMap)
 	args = append(args, p.Key)
 	args = append(args, p.Value)
@@ -125,7 +125,7 @@ func NewPutEntry(dmap, key string, value []byte) *PutEntry {
 
 func (p *PutEntry) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, PutEntryCmd)
+	args = append(args, DMap.PutEntry)
 	args = append(args, p.DMap)
 	args = append(args, p.Key)
 	args = append(args, p.Value)
@@ -152,7 +152,7 @@ func (g *Get) SetRaw() *Get {
 
 func (g *Get) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, GetCmd)
+	args = append(args, DMap.Get)
 	args = append(args, g.DMap)
 	args = append(args, g.Key)
 	if g.Raw {
@@ -181,7 +181,7 @@ func (g *GetEntry) SetReplica() *GetEntry {
 
 func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, GetEntryCmd)
+	args = append(args, DMap.GetEntry)
 	args = append(args, g.DMap)
 	args = append(args, g.Key)
 	if g.Replica {
@@ -204,7 +204,7 @@ func NewDel(dmap, key string) *Del {
 
 func (d *Del) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, DelCmd)
+	args = append(args, DMap.Del)
 	args = append(args, d.DMap)
 	args = append(args, d.Key)
 	return redis.NewIntCmd(ctx, args...)
@@ -229,7 +229,7 @@ func (d *DelEntry) SetReplica() *DelEntry {
 func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
 	cmd := d.Del.Command(ctx)
 	args := cmd.Args()
-	args[0] = DelEntryCmd
+	args[0] = DMap.DelEntry
 	if d.Replica {
 		args = append(args, "RC")
 	}
@@ -252,7 +252,7 @@ func NewPExpire(dmap, key string, milliseconds time.Duration) *PExpire {
 
 func (p *PExpire) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, PExpireCmd)
+	args = append(args, DMap.PExpire)
 	args = append(args, p.DMap)
 	args = append(args, p.Key)
 	args = append(args, p.Milliseconds.Milliseconds())
@@ -275,7 +275,7 @@ func NewExpire(dmap, key string, seconds time.Duration) *Expire {
 
 func (e *Expire) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, ExpireCmd)
+	args = append(args, DMap.Expire)
 	args = append(args, e.DMap)
 	args = append(args, e.Key)
 	args = append(args, e.Seconds.Seconds())
@@ -300,44 +300,12 @@ func (d *Destroy) SetLocal() *Destroy {
 
 func (d *Destroy) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, DestroyCmd)
+	args = append(args, DMap.Destroy)
 	args = append(args, d.DMap)
 	if d.Local {
 		args = append(args, "LC")
 	}
 	return redis.NewStatusCmd(ctx, args...)
-}
-
-type Query struct {
-	DMap   string
-	PartID uint64
-	Query  []byte
-	Local  bool
-}
-
-func NewQuery(dmap string, partID uint64, query []byte) *Query {
-	return &Query{
-		DMap:   dmap,
-		PartID: partID,
-		Query:  query,
-	}
-}
-
-func (q *Query) SetLocal() *Query {
-	q.Local = true
-	return q
-}
-
-func (q *Query) Command(ctx context.Context) *redis.StringCmd {
-	var args []interface{}
-	args = append(args, QueryCmd)
-	args = append(args, q.DMap)
-	args = append(args, q.PartID)
-	args = append(args, q.Query)
-	if q.Local {
-		args = append(args, "LC")
-	}
-	return redis.NewStringCmd(ctx, args...)
 }
 
 type Scan struct {
@@ -374,7 +342,7 @@ func (s *Scan) SetReplica() *Scan {
 
 func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
 	var args []interface{}
-	args = append(args, ScanCmd)
+	args = append(args, DMap.Scan)
 	args = append(args, s.PartID)
 	args = append(args, s.DMap)
 	args = append(args, s.Cursor)
@@ -408,7 +376,7 @@ func NewIncr(dmap, key string, delta int) *Incr {
 
 func (i *Incr) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, IncrCmd)
+	args = append(args, DMap.Incr)
 	args = append(args, i.DMap)
 	args = append(args, i.Key)
 	args = append(args, i.Delta)
@@ -427,7 +395,7 @@ func NewDecr(dmap, key string, delta int) *Decr {
 
 func (d *Decr) Command(ctx context.Context) *redis.IntCmd {
 	cmd := d.Incr.Command(ctx)
-	cmd.Args()[0] = DecrCmd
+	cmd.Args()[0] = DMap.Decr
 	return cmd
 }
 
@@ -447,7 +415,7 @@ func NewGetPut(dmap, key string, value []byte) *GetPut {
 
 func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, GetPutCmd)
+	args = append(args, DMap.GetPut)
 	args = append(args, g.DMap)
 	args = append(args, g.Key)
 	args = append(args, g.Value)
@@ -484,7 +452,7 @@ func (l *Lock) SetPX(px int64) *Lock {
 
 func (l *Lock) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, LockCmd)
+	args = append(args, DMap.Lock)
 	args = append(args, l.DMap)
 	args = append(args, l.Key)
 	args = append(args, l.Deadline)
@@ -519,7 +487,7 @@ func NewUnlock(dmap, key, token string) *Unlock {
 
 func (u *Unlock) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, UnlockCmd)
+	args = append(args, DMap.Unlock)
 	args = append(args, u.DMap)
 	args = append(args, u.Key)
 	args = append(args, u.Token)
@@ -546,7 +514,7 @@ func NewLockLease(dmap, key, token string, timeout float64) *LockLease {
 
 func (l *LockLease) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, LockLeaseCmd)
+	args = append(args, DMap.LockLease)
 	args = append(args, l.DMap)
 	args = append(args, l.Key)
 	args = append(args, l.Token)
@@ -572,7 +540,7 @@ func NewPLockLease(dmap, key, token string, timeout int64) *PLockLease {
 
 func (p *PLockLease) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, PLockLeaseCmd)
+	args = append(args, DMap.PLockLease)
 	args = append(args, p.DMap)
 	args = append(args, p.Key)
 	args = append(args, p.Token)

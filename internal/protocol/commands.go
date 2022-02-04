@@ -1,0 +1,98 @@
+// Copyright 2018-2021 Burak Sezer
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package protocol
+
+const StatusOK = "OK"
+
+type InternalCommands struct {
+	MoveFragment        string
+	UpdateRouting       string
+	LengthOfPart        string
+	ClusterRoutingTable string
+}
+
+var Internal = &InternalCommands{
+	MoveFragment:        "internal.node.movefragment",
+	UpdateRouting:       "internal.node.updaterouting",
+	LengthOfPart:        "internal.node.lengthofpart",
+	ClusterRoutingTable: "internal.cluster.routingtable",
+}
+
+type GenericCommands struct {
+	Ping string
+}
+
+var Generic = &GenericCommands{
+	Ping: "ping",
+}
+
+type DMapCommands struct {
+	Get        string
+	GetEntry   string
+	Put        string
+	PutEntry   string
+	Del        string
+	DelEntry   string
+	Expire     string
+	PExpire    string
+	Destroy    string
+	Query      string
+	Incr       string
+	Decr       string
+	GetPut     string
+	Lock       string
+	Unlock     string
+	LockLease  string
+	PLockLease string
+	Scan       string
+}
+
+var DMap = &DMapCommands{
+	Get:        "dm.get",
+	GetEntry:   "dm.getentry",
+	Put:        "dm.put",
+	PutEntry:   "dm.putentry",
+	Del:        "dm.del",
+	DelEntry:   "dm.delentry",
+	Expire:     "dm.expire",
+	PExpire:    "dm.pexpire",
+	Destroy:    "dm.destroy",
+	Incr:       "dm.incr",
+	Decr:       "dm.decr",
+	GetPut:     "dm.getput",
+	Lock:       "dm.lock",
+	Unlock:     "dm.unlock",
+	LockLease:  "dm.locklease",
+	PLockLease: "dm.plocklease",
+	Scan:       "dm.scan",
+}
+
+type PubSubCommands struct {
+	Publish        string
+	Subscribe      string
+	PSubscribe     string
+	PubSubChannels string
+	PubSubNumpat   string
+	PubSubNumsub   string
+}
+
+var PubSub = &PubSubCommands{
+	Publish:        "publish",
+	Subscribe:      "subscribe",
+	PSubscribe:     "psubscribe",
+	PubSubChannels: "pubsub channels",
+	PubSubNumpat:   "pubsub numpat",
+	PubSubNumsub:   "pubsub numsub",
+}

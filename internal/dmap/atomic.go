@@ -60,9 +60,9 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 
 	var updated int
 	switch cmd {
-	case protocol.IncrCmd:
+	case protocol.DMap.Incr:
 		updated = current + delta
-	case protocol.DecrCmd:
+	case protocol.DMap.Decr:
 		updated = current - delta
 	default:
 		return 0, fmt.Errorf("invalid operation")
@@ -92,7 +92,7 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 	e := newEnv()
 	e.dmap = dm.name
 	e.key = key
-	return dm.atomicIncrDecr(protocol.IncrCmd, e, delta)
+	return dm.atomicIncrDecr(protocol.DMap.Incr, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
@@ -100,7 +100,7 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 	e := newEnv()
 	e.dmap = dm.name
 	e.key = key
-	return dm.atomicIncrDecr(protocol.DecrCmd, e, delta)
+	return dm.atomicIncrDecr(protocol.DMap.Decr, e, delta)
 }
 
 func (dm *DMap) getPut(e *env) (storage.Entry, error) {

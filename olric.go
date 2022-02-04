@@ -240,8 +240,8 @@ func (db *Olric) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
 }
 
 func (db *Olric) registerCommandHandlers() {
-	db.server.ServeMux().HandleFunc(protocol.PingCmd, db.pingCommandHandler)
-	db.server.ServeMux().HandleFunc(protocol.ClusterRoutingTableCmd, db.clusterRoutingTableCommandHandler)
+	db.server.ServeMux().HandleFunc(protocol.Generic.Ping, db.pingCommandHandler)
+	db.server.ServeMux().HandleFunc(protocol.Internal.ClusterRoutingTable, db.clusterRoutingTableCommandHandler)
 }
 
 // callStartedCallback checks passed checkpoint count and calls the callback
