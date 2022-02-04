@@ -19,7 +19,8 @@ service.
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across
 a cluster of computers.
 
-Olric is designed to be a distributed cache. But it also provides Publish/Subscribe, data replication, failure detection and simple anti-entropy services.
+Olric is designed to be a distributed cache. But it also provides Publish/Subscribe,
+data replication, failure detection and simple anti-entropy services.
 So it can be used as an ordinary key/value data store to scale your cloud
 application.*/
 package olric
