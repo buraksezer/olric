@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDTopic_Subscribe_And_Publish_Standalone(t *testing.T) {
+func TestPubSub_Handler_Subscribe_And_Publish_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -69,7 +69,7 @@ L:
 	require.Equal(t, expected, consumed)
 }
 
-func TestDTopic_Unsubscribe(t *testing.T) {
+func TestPubSub_Handler_Unsubscribe(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -88,6 +88,10 @@ func TestDTopic_Unsubscribe(t *testing.T) {
 	err = ps.Unsubscribe(ctx, "my-topic")
 	require.NoError(t, err)
 
+	// Wait for some time. Because the Redis client doesn't wait for the response after
+	// writing 'unsubscribe' command.
+	<-time.After(250 * time.Millisecond)
+
 	err = rc.Publish(ctx, "my-topic", "hello, world!").Err()
 	require.NoError(t, err)
 L:
@@ -102,7 +106,7 @@ L:
 	}
 }
 
-func TestDTopic_PSubscribe_And_Publish_Standalone(t *testing.T) {
+func TestPubSub_Handler_PSubscribe_And_Publish_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -147,7 +151,7 @@ L:
 	require.Equal(t, expected, consumed)
 }
 
-func TestDTopic_PUnsubscribe(t *testing.T) {
+func TestPubSub_Handler_PUnsubscribe(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -166,6 +170,10 @@ func TestDTopic_PUnsubscribe(t *testing.T) {
 	err = ps.PUnsubscribe(ctx, "h?llo")
 	require.NoError(t, err)
 
+	// Wait for some time. Because the Redis client doesn't wait for the response after
+	// writing 'unsubscribe' command.
+	<-time.After(250 * time.Millisecond)
+
 	for _, topic := range []string{"hello", "hallo", "hxllo"} {
 		err = rc.Publish(ctx, topic, "hello, world!").Err()
 		require.NoError(t, err)
@@ -183,7 +191,7 @@ L:
 	}
 }
 
-func TestDTopic_Ping(t *testing.T) {
+func TestPubSub_Handler_Ping(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -204,7 +212,7 @@ func TestDTopic_Ping(t *testing.T) {
 	require.Equal(t, "Pong<hello, world!>", msg.(*redis.Pong).String())
 }
 
-func TestDTopic_Close(t *testing.T) {
+func TestPubSub_Handler_Close(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -225,7 +233,7 @@ func TestDTopic_Close(t *testing.T) {
 	// TODO: Control active subscriber count
 }
 
-func TestDTopic_PubSubChannels_Without_Patterns(t *testing.T) {
+func TestPubSub_Handler_PubSubChannels_Without_Patterns(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -252,7 +260,7 @@ func TestDTopic_PubSubChannels_Without_Patterns(t *testing.T) {
 	}
 }
 
-func TestDTopic_PubSubChannels_With_Patterns(t *testing.T) {
+func TestPubSub_Handler_PubSubChannels_With_Patterns(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -280,7 +288,7 @@ func TestDTopic_PubSubChannels_With_Patterns(t *testing.T) {
 	}
 }
 
-func TestDTopic_PubSub_Numpat(t *testing.T) {
+func TestPubSub_Handler_PubSub_Numpat(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -299,4 +307,27 @@ func TestDTopic_PubSub_Numpat(t *testing.T) {
 	nr, err := res.Result()
 	require.NoError(t, err)
 	require.Equal(t, int64(2), nr)
+}
+
+func TestPubSub_Handler_PubSub_Numsub(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc := s.client.Get(s.rt.This().String())
+	ctx := context.TODO()
+
+	for _, channel := range []string{"hello", "hello", "foobar", "barfoo"} {
+		ps := rc.Subscribe(ctx, channel)
+		// Wait for confirmation that subscription is created before publishing anything.
+		_, err := ps.Receive(ctx)
+		require.NoError(t, err)
+	}
+
+	res := rc.PubSubNumSub(ctx, "hello", "foobar", "barfoo")
+	nr, err := res.Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(2), nr["hello"])
+	require.Equal(t, int64(1), nr["foobar"])
+	require.Equal(t, int64(1), nr["barfoo"])
 }

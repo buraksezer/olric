@@ -80,17 +80,17 @@ func ParsePubSubNumpatCommand(cmd redcon.Command) (*PubSubNumpat, error) {
 	return NewPubSubNumpat(), nil
 }
 
-func ParsePubSubNumsubCommand(cmd redcon.Command) (*Subscribe, error) {
+func ParsePubSubNumsubCommand(cmd redcon.Command) (*PubSubNumsub, error) {
 	if len(cmd.Args) < 2 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
 	var topics []string
-	args := cmd.Args[1:]
+	args := cmd.Args[2:]
 	for len(args) > 0 {
 		arg := util.BytesToString(args[0])
 		topics = append(topics, arg)
 		args = args[1:]
 	}
-	return NewSubscribe(topics...), nil
+	return NewPubSubNumsub(topics...), nil
 }

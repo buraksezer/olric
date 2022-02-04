@@ -78,7 +78,7 @@ func testPubSubServer(addr string, done chan bool) {
 	}, nil, nil))
 }
 
-func TestDTopic_PubSub(t *testing.T) {
+func TestPubSub(t *testing.T) {
 	addr := ":12346"
 	done := make(chan bool)
 	go testPubSubServer(addr, done)

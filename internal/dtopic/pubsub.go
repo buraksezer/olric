@@ -433,3 +433,25 @@ func (ps *PubSub) Numpat() int {
 
 	return len(set)
 }
+
+func (ps *PubSub) Numsub(channel string) int {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	if !ps.initd {
+		return 0
+	}
+
+	var result int
+	for _, sconn := range ps.conns {
+		sconn.mu.Lock()
+		for ient := range sconn.entries {
+			if ient.channel == channel {
+				result++
+			}
+		}
+		sconn.mu.Unlock()
+	}
+
+	return result
+}

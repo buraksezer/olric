@@ -75,6 +75,10 @@ func (m *ServeMux) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	if command == "pubsub" {
+		if len(cmd.Args) < 2 {
+			conn.WriteError(fmt.Sprintf("ERR wrong number of arguments for '%s' command", command))
+			return
+		}
 		command = fmt.Sprintf("%s %s", command, util.BytesToString(cmd.Args[1]))
 	}
 
@@ -83,5 +87,5 @@ func (m *ServeMux) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	conn.WriteError("ERR unknown command '" + command + "'")
+	conn.WriteError(fmt.Sprintf("ERR unknown command '%s'", command))
 }

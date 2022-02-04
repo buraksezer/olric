@@ -35,7 +35,6 @@ type Service struct {
 	log    *flog.Logger
 	pubsub *PubSub
 	rt     *routingtable.RoutingTable
-	m      map[string]*DTopic
 	server *server.Server
 	client *server.Client
 	wg     sync.WaitGroup
@@ -61,7 +60,6 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		server: e.Get("server").(*server.Server),
 		client: e.Get("client").(*server.Client),
 		pubsub: &PubSub{},
-		m:      make(map[string]*DTopic),
 		ctx:    ctx,
 		cancel: cancel,
 	}

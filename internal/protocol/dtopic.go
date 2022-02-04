@@ -111,17 +111,17 @@ func (ps *PubSubNumpat) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
-type PubSubNumSub struct {
+type PubSubNumsub struct {
 	Channels []string
 }
 
-func NewPubSubNumSub(channels ...string) *PubSubNumSub {
-	return &PubSubNumSub{
+func NewPubSubNumsub(channels ...string) *PubSubNumsub {
+	return &PubSubNumsub{
 		Channels: channels,
 	}
 }
 
-func (ps *PubSubNumSub) Command(ctx context.Context) *redis.SliceCmd {
+func (ps *PubSubNumsub) Command(ctx context.Context) *redis.SliceCmd {
 	var args []interface{}
 	args = append(args, DTopic.PubSubNumsub)
 	for _, channel := range ps.Channels {
