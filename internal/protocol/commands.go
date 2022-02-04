@@ -16,6 +16,14 @@ package protocol
 
 const StatusOK = "OK"
 
+type ClusterCommands struct {
+	RoutingTable string
+}
+
+var Cluster = &ClusterCommands{
+	RoutingTable: "cluster.routingtable",
+}
+
 type InternalCommands struct {
 	MoveFragment        string
 	UpdateRouting       string
@@ -24,10 +32,9 @@ type InternalCommands struct {
 }
 
 var Internal = &InternalCommands{
-	MoveFragment:        "internal.node.movefragment",
-	UpdateRouting:       "internal.node.updaterouting",
-	LengthOfPart:        "internal.node.lengthofpart",
-	ClusterRoutingTable: "internal.cluster.routingtable",
+	MoveFragment:  "internal.node.movefragment",
+	UpdateRouting: "internal.node.updaterouting",
+	LengthOfPart:  "internal.node.lengthofpart",
 }
 
 type GenericCommands struct {
