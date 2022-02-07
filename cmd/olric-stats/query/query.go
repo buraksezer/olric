@@ -246,9 +246,9 @@ func (q *Query) PrintPubSubStatistics() error {
 
 	q.log.Printf("PubSub statistics:\n")
 
-	q.log.Printf(" Listeners total: %d", data.PubSub.ListenersTotal)
+	q.log.Printf(" Listeners total: %d", data.PubSub.SubscribersTotal)
 	q.log.Printf(" Published total: %d", data.PubSub.PublishedTotal)
-	q.log.Printf(" Current listeners: %d", data.PubSub.CurrentListeners)
+	q.log.Printf(" Current listeners: %d", data.PubSub.CurrentSubscribers)
 
 	return nil
 }

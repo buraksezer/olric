@@ -104,9 +104,11 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 			EvictedTotal: dmap.EvictedTotal.Read(),
 		},
 		PubSub: stats.PubSub{
-			PublishedTotal:   pubsub.PublishedTotal.Read(),
-			CurrentListeners: pubsub.CurrentListeners.Read(),
-			ListenersTotal:   pubsub.ListenersTotal.Read(),
+			PublishedTotal:      pubsub.PublishedTotal.Read(),
+			CurrentSubscribers:  pubsub.CurrentSubscribers.Read(),
+			SubscribersTotal:    pubsub.SubscribersTotal.Read(),
+			CurrentPSubscribers: pubsub.CurrentPSubscribers.Read(),
+			PSubscribersTotal:   pubsub.PSubscribersTotal.Read(),
 		},
 	}
 

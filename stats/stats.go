@@ -147,11 +147,17 @@ type PubSub struct {
 	// PublishedTotal is the total number of published messages to PubSub during the life of this instance.
 	PublishedTotal int64
 
-	// CurrentListeners is the current number of Pub/Sub listeners of PubSub.
-	CurrentListeners int64
+	// CurrentSubscribers is the current number of Pub/Sub listeners of PubSub.
+	CurrentSubscribers int64
 
-	// ListenersTotal is the total number of registered Pub/Sub listeners during the life of this instance.
-	ListenersTotal int64
+	// SubscribersTotal is the total number of registered Pub/Sub listeners during the life of this instance.
+	SubscribersTotal int64
+
+	// CurrentSubscribers is the current number of Pub/Sub listeners of PubSub.
+	CurrentPSubscribers int64
+
+	// SubscribersTotal is the total number of registered Pub/Sub listeners during the life of this instance.
+	PSubscribersTotal int64
 }
 
 // Stats is a struct that exposes statistics about the current state of a member.

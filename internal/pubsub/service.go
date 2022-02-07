@@ -16,7 +16,6 @@ package pubsub
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
@@ -32,14 +31,15 @@ var (
 	// PublishedTotal is the total number of published messages during the life of this instance.
 	PublishedTotal = stats.NewInt64Counter()
 
-	// CurrentListeners is the current number of listeners of DTopics.
-	CurrentListeners = stats.NewInt64Gauge()
+	// CurrentSubscribers is the current number of listeners of Pub/Sub.
+	CurrentSubscribers = stats.NewInt64Gauge()
 
-	// ListenersTotal is the total number of registered listeners during the life of this instance.
-	ListenersTotal = stats.NewInt64Counter()
+	// SubscribersTotal is the total number of registered listeners during the life of this instance.
+	SubscribersTotal = stats.NewInt64Counter()
+
+	CurrentPSubscribers = stats.NewInt64Gauge()
+	PSubscribersTotal   = stats.NewInt64Counter()
 )
-
-var ErrServerGone = errors.New("server is gone")
 
 type Service struct {
 	sync.RWMutex
@@ -66,12 +66,20 @@ func (s *Service) RegisterHandlers() {
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	ps := &PubSub{
+		unsubscribeCallback: func() {
+			CurrentSubscribers.Decrease(1)
+		},
+		punsubscribeCallback: func() {
+			CurrentPSubscribers.Decrease(1)
+		},
+	}
 	s := &Service{
 		log:    e.Get("logger").(*flog.Logger),
 		rt:     e.Get("routingtable").(*routingtable.RoutingTable),
 		server: e.Get("server").(*server.Server),
 		client: e.Get("client").(*server.Client),
-		pubsub: &PubSub{},
+		pubsub: ps,
 		ctx:    ctx,
 		cancel: cancel,
 	}
