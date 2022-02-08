@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopic
+package pubsub
 
 import (
 	"context"
@@ -25,18 +25,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPubSub_Handler_Subscribe_And_Publish_Standalone(t *testing.T) {
+func TestPubSub_Handler_Subscribe(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ctx := context.Background()
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := ps.Receive(ctx)
+	msgi, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
+
+	subs := msgi.(*redis.Subscription)
+	require.Equal(t, "subscribe", subs.Kind)
+	require.Equal(t, "my-channel", subs.Channel)
+	require.Equal(t, 1, subs.Count)
 
 	// Go channel which receives messages.
 	ch := ps.Channel()
@@ -44,7 +49,7 @@ func TestPubSub_Handler_Subscribe_And_Publish_Standalone(t *testing.T) {
 	expected := make(map[string]struct{})
 	for i := 0; i < 10; i++ {
 		msg := fmt.Sprintf("my-message-%d", i)
-		err = rc.Publish(ctx, "my-topic", msg).Err()
+		err = rc.Publish(ctx, "my-channel", msg).Err()
 		require.NoError(t, err)
 		expected[msg] = struct{}{}
 	}
@@ -54,7 +59,7 @@ L:
 	for {
 		select {
 		case msg := <-ch:
-			require.Equal(t, "my-topic", msg.Channel)
+			require.Equal(t, "my-channel", msg.Channel)
 			consumed[msg.Payload] = struct{}{}
 			if len(consumed) == 10 {
 				// It would be OK
@@ -75,24 +80,24 @@ func TestPubSub_Handler_Unsubscribe(t *testing.T) {
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ctx := context.Background()
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := ps.Receive(ctx)
+	_, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
 
 	// Go channel which receives messages.
 	ch := ps.Channel()
 
-	err = ps.Unsubscribe(ctx, "my-topic")
+	err = ps.Unsubscribe(ctx, "my-channel")
 	require.NoError(t, err)
 
 	// Wait for some time. Because the Redis client doesn't wait for the response after
 	// writing 'unsubscribe' command.
 	<-time.After(250 * time.Millisecond)
 
-	err = rc.Publish(ctx, "my-topic", "hello, world!").Err()
+	err = rc.Publish(ctx, "my-channel", "hello, world!").Err()
 	require.NoError(t, err)
 L:
 	for {
@@ -106,27 +111,32 @@ L:
 	}
 }
 
-func TestPubSub_Handler_PSubscribe_And_Publish_Standalone(t *testing.T) {
+func TestPubSub_Handler_PSubscribe(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
+	ctx := context.Background()
 	ps := rc.PSubscribe(ctx, "h?llo")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := ps.Receive(ctx)
+	msgi, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
+
+	subs := msgi.(*redis.Subscription)
+	require.Equal(t, "psubscribe", subs.Kind)
+	require.Equal(t, "h?llo", subs.Channel)
+	require.Equal(t, 1, subs.Count)
 
 	// Go channel which receives messages.
 	ch := ps.Channel()
 
 	expected := make(map[string]struct{})
-	for _, topic := range []string{"hello", "hallo", "hxllo"} {
+	for _, channel := range []string{"hello", "hallo", "hxllo"} {
 		for i := 0; i < 10; i++ {
-			msg := fmt.Sprintf("my-message-%s-%d", topic, i)
-			err = rc.Publish(ctx, topic, msg).Err()
+			msg := fmt.Sprintf("my-message-%s-%d", channel, i)
+			err = rc.Publish(ctx, channel, msg).Err()
 			require.NoError(t, err)
 			expected[msg] = struct{}{}
 		}
@@ -157,11 +167,11 @@ func TestPubSub_Handler_PUnsubscribe(t *testing.T) {
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
+	ctx := context.Background()
 	ps := rc.PSubscribe(ctx, "h?llo")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := ps.Receive(ctx)
+	_, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
 
 	// Go channel which receives messages.
@@ -174,8 +184,8 @@ func TestPubSub_Handler_PUnsubscribe(t *testing.T) {
 	// writing 'unsubscribe' command.
 	<-time.After(250 * time.Millisecond)
 
-	for _, topic := range []string{"hello", "hallo", "hxllo"} {
-		err = rc.Publish(ctx, topic, "hello, world!").Err()
+	for _, channel := range []string{"hello", "hallo", "hxllo"} {
+		err = rc.Publish(ctx, channel, "hello, world!").Err()
 		require.NoError(t, err)
 	}
 
@@ -197,17 +207,17 @@ func TestPubSub_Handler_Ping(t *testing.T) {
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ctx := context.Background()
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := ps.Receive(ctx)
+	_, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
 
 	err = ps.Ping(ctx, "hello, world!")
 	require.NoError(t, err)
 
-	msg, err := ps.Receive(ctx)
+	msg, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
 	require.Equal(t, "Pong<hello, world!>", msg.(*redis.Pong).String())
 }
@@ -218,11 +228,11 @@ func TestPubSub_Handler_Close(t *testing.T) {
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
-	ps := rc.Subscribe(ctx, "my-topic")
+	ctx := context.Background()
+	ps := rc.Subscribe(ctx, "my-channel")
 
 	// Wait for confirmation that subscription is created before publishing anything.
-	_, err := ps.Receive(ctx)
+	_, err := ps.ReceiveTimeout(ctx, time.Second)
 	require.NoError(t, err)
 
 	err = ps.Close()
@@ -239,13 +249,13 @@ func TestPubSub_Handler_PubSubChannels_Without_Patterns(t *testing.T) {
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
+	ctx := context.Background()
 	channels := make(map[string]struct{})
 	for i := 0; i < 10; i++ {
-		channel := fmt.Sprintf("my-topic-%d", i)
+		channel := fmt.Sprintf("my-channel-%d", i)
 		ps := rc.Subscribe(ctx, channel)
 		// Wait for confirmation that subscription is created before publishing anything.
-		_, err := ps.Receive(ctx)
+		_, err := ps.ReceiveTimeout(ctx, time.Second)
 		require.NoError(t, err)
 		channels[channel] = struct{}{}
 	}
@@ -266,13 +276,13 @@ func TestPubSub_Handler_PubSubChannels_With_Patterns(t *testing.T) {
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	channels := make(map[string]struct{})
 	for _, channel := range []string{"hello-1", "hello-2", "hello-3", "foobar"} {
 		ps := rc.Subscribe(ctx, channel)
 		// Wait for confirmation that subscription is created before publishing anything.
-		_, err := ps.Receive(ctx)
+		_, err := ps.ReceiveTimeout(ctx, time.Second)
 		require.NoError(t, err)
 		channels[channel] = struct{}{}
 	}
@@ -288,18 +298,18 @@ func TestPubSub_Handler_PubSubChannels_With_Patterns(t *testing.T) {
 	}
 }
 
-func TestPubSub_Handler_PubSub_Numpat(t *testing.T) {
+func TestPubSub_Handler_PubSubNumpat(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	for _, channel := range []string{"h*llo", "f*bar"} {
 		ps := rc.PSubscribe(ctx, channel)
 		// Wait for confirmation that subscription is created before publishing anything.
-		_, err := ps.Receive(ctx)
+		_, err := ps.ReceiveTimeout(ctx, time.Second)
 		require.NoError(t, err)
 	}
 
@@ -309,18 +319,18 @@ func TestPubSub_Handler_PubSub_Numpat(t *testing.T) {
 	require.Equal(t, int64(2), nr)
 }
 
-func TestPubSub_Handler_PubSub_Numsub(t *testing.T) {
+func TestPubSub_Handler_PubSubNumsub(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
 	rc := s.client.Get(s.rt.This().String())
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	for _, channel := range []string{"hello", "hello", "foobar", "barfoo"} {
 		ps := rc.Subscribe(ctx, channel)
 		// Wait for confirmation that subscription is created before publishing anything.
-		_, err := ps.Receive(ctx)
+		_, err := ps.ReceiveTimeout(ctx, time.Second)
 		require.NoError(t, err)
 	}
 

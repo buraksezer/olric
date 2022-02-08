@@ -235,34 +235,6 @@ func ParseDestroyCommand(cmd redcon.Command) (*Destroy, error) {
 	return d, nil
 }
 
-func ParseQueryCommand(cmd redcon.Command) (*Query, error) {
-	if len(cmd.Args) < 4 {
-		return nil, errWrongNumber(cmd.Args)
-	}
-
-	partID, err := strconv.ParseUint(util.BytesToString(cmd.Args[2]), 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	q := NewQuery(
-		util.BytesToString(cmd.Args[1]),
-		partID,
-		cmd.Args[3],
-	)
-
-	if len(cmd.Args) == 5 {
-		arg := util.BytesToString(cmd.Args[4])
-		if arg == "LC" {
-			q.SetLocal()
-		} else {
-			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
-		}
-	}
-
-	return q, nil
-}
-
 func ParseIncrCommand(cmd redcon.Command) (*Incr, error) {
 	if len(cmd.Args) < 4 {
 		return nil, errWrongNumber(cmd.Args)

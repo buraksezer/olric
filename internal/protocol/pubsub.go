@@ -16,25 +16,26 @@ package protocol
 
 import (
 	"context"
+
 	"github.com/go-redis/redis/v8"
 )
 
 type Publish struct {
-	Topic   string
+	Channel string
 	Message string
 }
 
-func NewPublish(topic, message string) *Publish {
+func NewPublish(channel, message string) *Publish {
 	return &Publish{
-		Topic:   topic,
+		Channel: channel,
 		Message: message,
 	}
 }
 
 func (p *Publish) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, DTopic.Publish)
-	args = append(args, p.Topic)
+	args = append(args, PubSub.Publish)
+	args = append(args, p.Channel)
 	args = append(args, p.Message)
 	return redis.NewIntCmd(ctx, args...)
 }
@@ -51,7 +52,7 @@ func NewSubscribe(channels ...string) *Subscribe {
 
 func (s *Subscribe) Command(ctx context.Context) *redis.SliceCmd {
 	var args []interface{}
-	args = append(args, DTopic.Subscribe)
+	args = append(args, PubSub.Subscribe)
 	for _, channel := range s.Channels {
 		args = append(args, channel)
 	}
@@ -70,9 +71,9 @@ func NewPSubscribe(patterns ...string) *PSubscribe {
 
 func (s *PSubscribe) Command(ctx context.Context) *redis.SliceCmd {
 	var args []interface{}
-	args = append(args, DTopic.Subscribe)
-	for _, topic := range s.Patterns {
-		args = append(args, topic)
+	args = append(args, PubSub.Subscribe)
+	for _, channel := range s.Patterns {
+		args = append(args, channel)
 	}
 	return redis.NewSliceCmd(ctx, args...)
 }
@@ -92,7 +93,7 @@ func (ps *PubSubChannels) SetPattern(pattern string) *PubSubChannels {
 
 func (ps *PubSubChannels) Command(ctx context.Context) *redis.SliceCmd {
 	var args []interface{}
-	args = append(args, DTopic.PubSubChannels)
+	args = append(args, PubSub.PubSubChannels)
 	if ps.Pattern != "" {
 		args = append(args, ps.Pattern)
 	}
@@ -107,7 +108,7 @@ func NewPubSubNumpat() *PubSubNumpat {
 
 func (ps *PubSubNumpat) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, DTopic.PubSubChannels)
+	args = append(args, PubSub.PubSubChannels)
 	return redis.NewIntCmd(ctx, args...)
 }
 
@@ -123,7 +124,7 @@ func NewPubSubNumsub(channels ...string) *PubSubNumsub {
 
 func (ps *PubSubNumsub) Command(ctx context.Context) *redis.SliceCmd {
 	var args []interface{}
-	args = append(args, DTopic.PubSubNumsub)
+	args = append(args, PubSub.PubSubNumsub)
 	for _, channel := range ps.Channels {
 		args = append(args, channel)
 	}

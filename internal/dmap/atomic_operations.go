@@ -37,7 +37,7 @@ func (s *Service) incrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		protocol.WriteError(conn, err)
 		return
 	}
-	latest, err := s.incrDecrCommon(protocol.IncrCmd, incrCmd.DMap, incrCmd.Key, incrCmd.Delta)
+	latest, err := s.incrDecrCommon(protocol.DMap.Incr, incrCmd.DMap, incrCmd.Key, incrCmd.Delta)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
@@ -51,7 +51,7 @@ func (s *Service) decrCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		protocol.WriteError(conn, err)
 		return
 	}
-	latest, err := s.incrDecrCommon(protocol.DecrCmd, decrCmd.DMap, decrCmd.Key, decrCmd.Delta)
+	latest, err := s.incrDecrCommon(protocol.DMap.Decr, decrCmd.DMap, decrCmd.Key, decrCmd.Delta)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

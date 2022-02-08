@@ -31,7 +31,7 @@ func respEcho(t *testing.T, s *Server) {
 	_, err := rand.Read(data)
 	require.NoError(t, err)
 
-	s.ServeMux().HandleFunc(protocol.GetCmd, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(protocol.DMap.Get, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulk(data)
 	})
 
@@ -80,7 +80,7 @@ func TestHandler_ServeRESP_PreCondition_DontCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	// The node is bootstrapped by UpdateRoutingCmd. Don't check any preconditions to run that command.
-	s.ServeMux().HandleFunc(protocol.UpdateRoutingCmd, func(conn redcon.Conn, cmd redcon.Command) {
+	s.ServeMux().HandleFunc(protocol.Internal.UpdateRouting, func(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteBulk(data)
 	})
 

@@ -19,7 +19,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-package dtopic
+package pubsub
 
 import (
 	"fmt"
@@ -38,6 +38,10 @@ type PubSub struct {
 	initd  bool
 	chans  *btree.BTree
 	conns  map[redcon.Conn]*pubSubConn
+
+	// callbacks
+	unsubscribeCallback  func()
+	punsubscribeCallback func()
 }
 
 // Subscribe a connection to PubSub
@@ -322,8 +326,14 @@ func (ps *PubSub) unsubscribe(conn redcon.Conn, pattern, all bool, channel strin
 		}
 		sconn.dconn.WriteArray(3)
 		if pattern {
+			if ps.punsubscribeCallback != nil {
+				ps.punsubscribeCallback()
+			}
 			sconn.dconn.WriteBulkString("punsubscribe")
 		} else {
+			if ps.unsubscribeCallback != nil {
+				ps.unsubscribeCallback()
+			}
 			sconn.dconn.WriteBulkString("unsubscribe")
 		}
 		if entry != nil {

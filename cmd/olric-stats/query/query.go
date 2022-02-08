@@ -238,17 +238,17 @@ func (q *Query) PrintDMapStatistics() error {
 	return nil
 }
 
-func (q *Query) PrintDTopicStatistics() error {
+func (q *Query) PrintPubSubStatistics() error {
 	data, err := q.client.Stats(q.addr)
 	if err != nil {
 		return err
 	}
 
-	q.log.Printf("DTopic statistics:\n")
+	q.log.Printf("PubSub statistics:\n")
 
-	q.log.Printf(" Listeners total: %d", data.DTopics.ListenersTotal)
-	q.log.Printf(" Published total: %d", data.DTopics.PublishedTotal)
-	q.log.Printf(" Current listeners: %d", data.DTopics.CurrentListeners)
+	q.log.Printf(" Listeners total: %d", data.PubSub.SubscribersTotal)
+	q.log.Printf(" Published total: %d", data.PubSub.PublishedTotal)
+	q.log.Printf(" Current listeners: %d", data.PubSub.CurrentSubscribers)
 
 	return nil
 }

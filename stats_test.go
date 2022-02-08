@@ -15,10 +15,15 @@
 package olric
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
 
+	"github.com/buraksezer/olric/internal/pubsub"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/stats"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,4 +84,90 @@ func TestOlric_Stats_CollectRuntime(t *testing.T) {
 	if s.Runtime == nil {
 		t.Fatal("Runtime stats must be collected by default:", s.Runtime)
 	}
+}
+
+func TestStats_PubSub(t *testing.T) {
+	db := newTestOlric(t)
+	rc := redis.NewClient(&redis.Options{Addr: db.rt.This().String()})
+
+	ctx := context.Background()
+
+	t.Run("Subscribe", func(t *testing.T) {
+		defer func() {
+			pubsub.SubscribersTotal.Reset()
+			pubsub.CurrentPSubscribers.Reset()
+			pubsub.CurrentSubscribers.Reset()
+			pubsub.PSubscribersTotal.Reset()
+			pubsub.PublishedTotal.Reset()
+		}()
+
+		var subscribers []*redis.PubSub
+		for i := 0; i < 5; i++ {
+			ps := rc.Subscribe(ctx, "my-channel")
+			// Wait for confirmation that subscription is created before publishing anything.
+			_, err := ps.Receive(ctx)
+			require.NoError(t, err)
+			subscribers = append(subscribers, ps)
+		}
+
+		for i := 0; i < 10; i++ {
+			cmd := rc.Publish(ctx, "my-channel", fmt.Sprintf("message-%d", i))
+			res, err := cmd.Result()
+			require.Equal(t, int64(5), res)
+			require.NoError(t, err)
+		}
+		require.Equal(t, int64(50), pubsub.PublishedTotal.Read())
+		require.Equal(t, int64(5), pubsub.SubscribersTotal.Read())
+		require.Equal(t, int64(5), pubsub.CurrentSubscribers.Read())
+		require.Equal(t, int64(0), pubsub.PSubscribersTotal.Read())
+		require.Equal(t, int64(0), pubsub.CurrentPSubscribers.Read())
+
+		// Unsubscribe
+		for _, s := range subscribers {
+			err := s.Unsubscribe(ctx, "my-channel")
+			require.NoError(t, err)
+			<-time.After(100 * time.Millisecond)
+		}
+
+		require.Equal(t, int64(5), pubsub.SubscribersTotal.Read())
+		require.Equal(t, int64(0), pubsub.CurrentSubscribers.Read())
+		require.Equal(t, int64(0), pubsub.PSubscribersTotal.Read())
+		require.Equal(t, int64(0), pubsub.CurrentPSubscribers.Read())
+	})
+
+	t.Run("PSubscribe", func(t *testing.T) {
+		defer func() {
+			pubsub.SubscribersTotal.Reset()
+			pubsub.CurrentPSubscribers.Reset()
+			pubsub.CurrentSubscribers.Reset()
+			pubsub.PSubscribersTotal.Reset()
+			pubsub.PublishedTotal.Reset()
+		}()
+
+		ps := rc.PSubscribe(ctx, "h?llo")
+		// Wait for confirmation that subscription is created before publishing anything.
+		_, err := ps.Receive(ctx)
+		require.NoError(t, err)
+
+		cmd := rc.Publish(ctx, "hxllo", "message")
+		res, err := cmd.Result()
+		require.Equal(t, int64(1), res)
+		require.NoError(t, err)
+
+		require.Equal(t, int64(1), pubsub.PublishedTotal.Read())
+		require.Equal(t, int64(1), pubsub.PSubscribersTotal.Read())
+		require.Equal(t, int64(1), pubsub.CurrentPSubscribers.Read())
+
+		require.Equal(t, int64(0), pubsub.SubscribersTotal.Read())
+		require.Equal(t, int64(0), pubsub.CurrentSubscribers.Read())
+
+		err = ps.PUnsubscribe(ctx, "h?llo")
+		require.NoError(t, err)
+
+		<-time.After(100 * time.Millisecond)
+		require.Equal(t, int64(1), pubsub.PSubscribersTotal.Read())
+		require.Equal(t, int64(0), pubsub.CurrentPSubscribers.Read())
+		require.Equal(t, int64(0), pubsub.SubscribersTotal.Read())
+		require.Equal(t, int64(0), pubsub.CurrentSubscribers.Read())
+	})
 }

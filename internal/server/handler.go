@@ -53,7 +53,7 @@ func (h Handler) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 	}
 	// The node is updated by UpdateRoutingCmd. So it's a precondition for
 	// an operable node.
-	if command == protocol.UpdateRoutingCmd {
+	if command == protocol.Internal.UpdateRouting {
 		h.handler(conn, cmd)
 		return
 	}

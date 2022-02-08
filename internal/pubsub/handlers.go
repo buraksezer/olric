@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopic
+package pubsub
 
 import (
 	"github.com/buraksezer/olric/internal/protocol"
@@ -28,6 +28,8 @@ func (s *Service) subscribeCommandHandler(conn redcon.Conn, cmd redcon.Command) 
 
 	for _, channel := range subscribeCmd.Channels {
 		s.pubsub.Subscribe(conn, channel)
+		CurrentSubscribers.Increase(1)
+		SubscribersTotal.Increase(1)
 	}
 }
 
@@ -37,7 +39,8 @@ func (s *Service) publishCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		protocol.WriteError(conn, err)
 		return
 	}
-	count := s.pubsub.Publish(publishCmd.Topic, publishCmd.Message)
+	count := s.pubsub.Publish(publishCmd.Channel, publishCmd.Message)
+	PublishedTotal.Increase(int64(count))
 	conn.WriteInt(count)
 }
 
@@ -48,8 +51,10 @@ func (s *Service) psubscribeCommandHandler(conn redcon.Conn, cmd redcon.Command)
 		return
 	}
 
-	for _, topic := range psubscribeCmd.Patterns {
-		s.pubsub.Psubscribe(conn, topic)
+	for _, pattern := range psubscribeCmd.Patterns {
+		s.pubsub.Psubscribe(conn, pattern)
+		PSubscribersTotal.Increase(1)
+		CurrentPSubscribers.Increase(1)
 	}
 }
 

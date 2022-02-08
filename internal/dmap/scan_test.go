@@ -29,7 +29,7 @@ func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool, sc *sca
 	if sc == nil {
 		sc = &scanConfig{}
 	}
-	ctx := context.TODO()
+	ctx := context.Background()
 	rc := s.client.Get(s.rt.This().String())
 
 	var totalKeys int
@@ -309,7 +309,7 @@ func TestDMap_scanCommandHandler_count(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	rc := s.client.Get(s.rt.This().String())
 
 	var partID, cursor uint64

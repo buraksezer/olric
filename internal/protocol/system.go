@@ -35,7 +35,7 @@ func (p *Ping) SetMessage(m string) *Ping {
 
 func (p *Ping) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, PingCmd)
+	args = append(args, Generic.Ping)
 	if p.Message != "" {
 		args = append(args, p.Message)
 	}
@@ -54,7 +54,7 @@ func NewMoveFragment(payload []byte) *MoveFragment {
 
 func (m *MoveFragment) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
-	args = append(args, MoveFragmentCmd)
+	args = append(args, Internal.MoveFragment)
 	args = append(args, m.Payload)
 	return redis.NewStatusCmd(ctx, args...)
 }
@@ -73,7 +73,7 @@ func NewUpdateRouting(payload []byte, coordinatorID uint64) *UpdateRouting {
 
 func (u *UpdateRouting) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
-	args = append(args, UpdateRoutingCmd)
+	args = append(args, Internal.UpdateRouting)
 	args = append(args, u.Payload)
 	args = append(args, u.CoordinatorID)
 	return redis.NewStringCmd(ctx, args...)
@@ -97,7 +97,7 @@ func (l *LengthOfPart) SetReplica() *LengthOfPart {
 
 func (l *LengthOfPart) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, LengthOfPartCmd)
+	args = append(args, Internal.LengthOfPart)
 	args = append(args, l.PartID)
 	if l.Replica {
 		args = append(args, "RC")

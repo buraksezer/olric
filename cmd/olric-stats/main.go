@@ -37,7 +37,7 @@ type arguments struct {
 	backup     bool
 	dump       bool
 	dmap       bool
-	dtopic     bool
+	pubsub     bool
 	network    bool
 	members    bool
 	address    string
@@ -65,7 +65,7 @@ Options:
         --backup   Enable to query backup partitions.
   -d  --dump       Dump stats data in JSON format.
   -D  --dmap       Print DMap statistics.
-  -T  --dtopic     Print DTopic statistics.
+  -P  --pubsub     Print Pub/Sub statistics.
   -n  --network    Print network statistics.
   -m  --members    List current members of the cluster.
 
@@ -112,8 +112,8 @@ func main() {
 	f.BoolVar(&args.dmap, "D", false, "")
 	f.BoolVar(&args.dmap, "dmap", false, "")
 
-	f.BoolVar(&args.dtopic, "T", false, "")
-	f.BoolVar(&args.dtopic, "dtopic", false, "")
+	f.BoolVar(&args.pubsub, "P", false, "")
+	f.BoolVar(&args.pubsub, "pubsub", false, "")
 
 	f.BoolVar(&args.network, "n", false, "")
 	f.BoolVar(&args.network, "network", false, "")
@@ -160,8 +160,8 @@ func main() {
 			err = q.PrintClusterMembers()
 		case args.dmap:
 			err = q.PrintDMapStatistics()
-		case args.dtopic:
-			err = q.PrintDTopicStatistics()
+		case args.pubsub:
+			err = q.PrintPubSubStatistics()
 		case args.network:
 			err = q.PrintNetworkStatistics()
 		default:

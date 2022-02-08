@@ -29,6 +29,6 @@ func NewClusterRoutingTable() *ClusterRoutingTable {
 
 func (c *ClusterRoutingTable) Command(ctx context.Context) *redis.Cmd {
 	var args []interface{}
-	args = append(args, ClusterRoutingTableCmd)
+	args = append(args, Cluster.RoutingTable)
 	return redis.NewCmd(ctx, args...)
 }

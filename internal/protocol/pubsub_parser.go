@@ -25,7 +25,7 @@ func ParsePublishCommand(cmd redcon.Command) (*Publish, error) {
 	}
 
 	return NewPublish(
-		util.BytesToString(cmd.Args[1]), // Topic
+		util.BytesToString(cmd.Args[1]), // Channel
 		util.BytesToString(cmd.Args[2]), // Message
 	), nil
 }
@@ -35,14 +35,14 @@ func ParseSubscribeCommand(cmd redcon.Command) (*Subscribe, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	var topics []string
+	var channels []string
 	args := cmd.Args[1:]
 	for len(args) > 0 {
 		arg := util.BytesToString(args[0])
-		topics = append(topics, arg)
+		channels = append(channels, arg)
 		args = args[1:]
 	}
-	return NewSubscribe(topics...), nil
+	return NewSubscribe(channels...), nil
 }
 
 func ParsePSubscribeCommand(cmd redcon.Command) (*PSubscribe, error) {
@@ -85,12 +85,12 @@ func ParsePubSubNumsubCommand(cmd redcon.Command) (*PubSubNumsub, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	var topics []string
+	var channels []string
 	args := cmd.Args[2:]
 	for len(args) > 0 {
 		arg := util.BytesToString(args[0])
-		topics = append(topics, arg)
+		channels = append(channels, arg)
 		args = args[1:]
 	}
-	return NewPubSubNumsub(topics...), nil
+	return NewPubSubNumsub(channels...), nil
 }

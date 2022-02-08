@@ -12,22 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dtopic
+package pubsub
 
 import (
 	"context"
-	"errors"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/server"
 	"sync"
 
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
+	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/flog"
 )
 
-var ErrServerGone = errors.New("server is gone")
+var (
+	// PublishedTotal is the total number of published messages during the life of this instance.
+	PublishedTotal = stats.NewInt64Counter()
+
+	// CurrentSubscribers is the current number of listeners of Pub/Sub.
+	CurrentSubscribers = stats.NewInt64Gauge()
+
+	// SubscribersTotal is the total number of registered listeners during the life of this instance.
+	SubscribersTotal = stats.NewInt64Counter()
+
+	CurrentPSubscribers = stats.NewInt64Gauge()
+	PSubscribersTotal   = stats.NewInt64Counter()
+)
 
 type Service struct {
 	sync.RWMutex
@@ -43,23 +55,31 @@ type Service struct {
 }
 
 func (s *Service) RegisterHandlers() {
-	s.server.ServeMux().HandleFunc(protocol.DTopic.Subscribe, s.subscribeCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PSubscribe, s.psubscribeCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.Publish, s.publishCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubChannels, s.pubsubChannelsCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumpat, s.pubsubNumpatCommandHandler)
-	s.server.ServeMux().HandleFunc(protocol.DTopic.PubSubNumsub, s.pubsubNumsubCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.Subscribe, s.subscribeCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PSubscribe, s.psubscribeCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.Publish, s.publishCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubChannels, s.pubsubChannelsCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubNumpat, s.pubsubNumpatCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubNumsub, s.pubsubNumsubCommandHandler)
 
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+	ps := &PubSub{
+		unsubscribeCallback: func() {
+			CurrentSubscribers.Decrease(1)
+		},
+		punsubscribeCallback: func() {
+			CurrentPSubscribers.Decrease(1)
+		},
+	}
 	s := &Service{
 		log:    e.Get("logger").(*flog.Logger),
 		rt:     e.Get("routingtable").(*routingtable.RoutingTable),
 		server: e.Get("server").(*server.Server),
 		client: e.Get("client").(*server.Client),
-		pubsub: &PubSub{},
+		pubsub: ps,
 		ctx:    ctx,
 		cancel: cancel,
 	}
