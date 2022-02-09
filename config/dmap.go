@@ -29,6 +29,9 @@ type EvictionPolicy string
 // DMap denotes configuration for a particular distributed map. Most of the
 // fields are related with distributed cache implementation.
 type DMap struct {
+	// Engine contains storage engine configuration and their implementations.
+	// If you don't have a custom storage engine implementation or configuration for
+	// the default one, just leave it empty.
 	Engine *Engine
 
 	// MaxIdleDuration denotes maximum time for each entry to stay idle in the

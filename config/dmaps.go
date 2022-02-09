@@ -28,8 +28,9 @@ type DMaps struct {
 	// See Engine itself.
 	Engine *Engine
 
-	// NumEvictionWorkers denotes the number of goroutines that's used to find
-	// keys for eviction.
+	// NumEvictionWorkers denotes the number of goroutines that are used to find
+	// keys for eviction. This is a global configuration variable. So you cannot set
+	//	// different values per DMap.
 	NumEvictionWorkers int64
 
 	// MaxIdleDuration denotes maximum time for each entry to stay idle in the DMap.
@@ -63,11 +64,14 @@ type DMaps struct {
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
 
-	// CheckEmptyFragmentsInterval is interval between two sequential call of empty
-	// fragment cleaner.
+	// CheckEmptyFragmentsInterval is the interval between two sequential calls of empty
+	// fragment cleaner. This is a global configuration variable. So you cannot set
+	// different values per DMap.
 	CheckEmptyFragmentsInterval time.Duration
 
 	// TriggerCompactionInterval is interval between two sequential call of compaction worker.
+	// This is a global configuration variable. So you cannot set
+	// different values per DMap.
 	TriggerCompactionInterval time.Duration
 
 	// Custom is useful to set custom cache config per DMap instance.
