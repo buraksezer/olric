@@ -21,7 +21,6 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/buraksezer/olric/config/internal/loader"
@@ -31,18 +30,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func durationCondition(name string) bool {
-	return strings.HasSuffix(name, "Duration") ||
-		strings.HasSuffix(name, "Timeout") ||
-		strings.HasSuffix(name, "Period")
-}
-
-func keepaliveCondition(name string, field reflect.Value) bool {
-	return strings.EqualFold(name, "KEEPALIVE") && field.Kind() == reflect.Int64
-}
-
-// mapYamlToConfig maps a parsed yaml to related configuration struct.
-// TODO: Use this to create Olric and memberlist config from yaml file.
+// mapYamlToConfig maps a parsed YAML to related configuration struct.
 func mapYamlToConfig(rawDst, rawSrc interface{}) error {
 	dst := reflect.ValueOf(rawDst).Elem()
 	src := reflect.ValueOf(rawSrc).Elem()
@@ -54,16 +42,18 @@ func mapYamlToConfig(rawDst, rawSrc interface{}) error {
 					continue
 				}
 				// Special cases
-				name := src.Type().Field(j).Name
-				if src.Field(j).Kind() == reflect.String && !src.Field(j).IsZero() {
-					if durationCondition(name) || keepaliveCondition(name, dst.Field(i)) {
-						value, err := time.ParseDuration(src.Field(j).String())
+				if dst.Field(i).Type() == reflect.TypeOf(time.Duration(0)) {
+					rawValue := src.Field(j).String()
+					if rawValue != "" {
+						value, err := time.ParseDuration(rawValue)
 						if err != nil {
 							return err
 						}
 						dst.Field(i).Set(reflect.ValueOf(value))
 					}
+					continue
 				}
+				return fmt.Errorf("failed to map %s to an appropriate field in config", dst.Type().Field(j).Name)
 			}
 		}
 	}
