@@ -139,6 +139,14 @@ const (
 	// DefaultCheckEmptyFragmentsInterval is the default value of interval between
 	// two sequential call of empty fragment cleaner.
 	DefaultCheckEmptyFragmentsInterval = time.Minute
+
+	// DefaultKeepAlivePeriod is the default value of TCP keepalive. It's 300 seconds.
+	// This option is useful in order to detect dead peers (clients that cannot
+	// be reached even if they look connected). Moreover, if there is network
+	// equipment between clients and servers that need to see some traffic in
+	// order to take the connection open, the option will prevent unexpected
+	// connection closed events.
+	DefaultKeepAlivePeriod = 300 * time.Second
 )
 
 // Config is the configuration to create a Olric instance.
@@ -168,7 +176,11 @@ type Config struct {
 	Client *Client
 
 	// KeepAlivePeriod denotes whether the operating system should send
-	// keep-alive messages on the connection.
+	// keep-alive messages on the connection. This option is useful in order to
+	// detect dead peers (clients that cannot be reached even if they look
+	// connected). Moreover, if there is network equipment between clients and
+	// servers that need to see some traffic in order to take the connection open,
+	// the option will prevent unexpected connection closed events.
 	KeepAlivePeriod time.Duration
 
 	// Timeout for bootstrap control
@@ -409,6 +421,9 @@ func (c *Config) Sanitize() error {
 	}
 	if c.RoutingTablePushInterval == 0*time.Second {
 		c.RoutingTablePushInterval = DefaultRoutingTablePushInterval
+	}
+	if c.KeepAlivePeriod == 0*time.Second {
+		c.KeepAlivePeriod = DefaultKeepAlivePeriod
 	}
 
 	if c.Client == nil {
