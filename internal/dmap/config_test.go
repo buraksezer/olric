@@ -42,59 +42,37 @@ func TestDMap_Config(t *testing.T) {
 		LRUSamples:      20,
 		EvictionPolicy:  "NONE",
 		Engine: &config.Engine{
-			Name:   "olric.document-store",
-			Config: make(map[string]interface{}),
+			Name: "kvstore",
+			Config: map[string]interface{}{
+				"maxIdleTableTimeout": 15 * time.Minute,
+				"tableSize":           uint64(1048576),
+			},
 		},
 	}}
 
 	dc := dmapConfig{}
 	err := dc.load(c.DMaps, "mydmap")
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
-
-	if dc.ttlDuration != c.DMaps.TTLDuration {
-		t.Fatalf("Expected TTLDuration: %v. Got: %v", c.DMaps.TTLDuration, dc.ttlDuration)
-	}
-
-	if dc.maxKeys != c.DMaps.MaxKeys {
-		t.Fatalf("Expected MaxKeys: %v. Got: %v", c.DMaps.MaxKeys, dc.maxKeys)
-	}
-	if dc.maxInuse != c.DMaps.MaxInuse {
-		t.Fatalf("Expected MaxInuse: %v. Got: %v", c.DMaps.MaxInuse, dc.maxInuse)
-	}
-	if dc.lruSamples != c.DMaps.LRUSamples {
-		t.Fatalf("Expected LRUSamples: %v. Got: %v", c.DMaps.LRUSamples, dc.lruSamples)
-	}
-	if dc.evictionPolicy != c.DMaps.EvictionPolicy {
-		t.Fatalf("Expected EvictionPolicy: %v. Got: %v", c.DMaps.EvictionPolicy, dc.evictionPolicy)
-	}
+	require.NoError(t, err)
+	require.Equal(t, c.DMaps.TTLDuration, dc.ttlDuration)
+	require.Equal(t, c.DMaps.MaxKeys, dc.maxKeys)
+	require.Equal(t, c.DMaps.MaxInuse, dc.maxInuse)
+	require.Equal(t, c.DMaps.LRUSamples, dc.lruSamples)
+	require.Equal(t, c.DMaps.EvictionPolicy, dc.evictionPolicy)
 	require.Equal(t, c.DMaps.Engine.Name, dc.engine.Name)
 
 	t.Run("Custom config", func(t *testing.T) {
 		dcc := dmapConfig{}
 		err := dcc.load(c.DMaps, "foobar")
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
-		if dcc.ttlDuration != c.DMaps.Custom["foobar"].TTLDuration {
-			t.Fatalf("Expected TTLDuration: %v. Got: %v", c.DMaps.Custom["foobar"].TTLDuration, dcc.ttlDuration)
-		}
+		require.NoError(t, err)
+		require.Equal(t, c.DMaps.Custom["foobar"].TTLDuration, dcc.ttlDuration)
+		require.Equal(t, c.DMaps.Custom["foobar"].MaxKeys, dcc.maxKeys)
+		require.Equal(t, c.DMaps.Custom["foobar"].MaxInuse, dcc.maxInuse)
+		require.Equal(t, c.DMaps.Custom["foobar"].LRUSamples, dcc.lruSamples)
+		require.Equal(t, c.DMaps.Custom["foobar"].EvictionPolicy, dcc.evictionPolicy)
 
-		if dcc.maxKeys != c.DMaps.Custom["foobar"].MaxKeys {
-			t.Fatalf("Expected MaxKeys: %v. Got: %v", c.DMaps.Custom["foobar"].MaxKeys, dcc.maxKeys)
-		}
-		if dcc.maxInuse != c.DMaps.Custom["foobar"].MaxInuse {
-			t.Fatalf("Expected MaxInuse: %v. Got: %v", c.DMaps.Custom["foobar"].MaxInuse, dcc.maxInuse)
-		}
-		if dcc.lruSamples != c.DMaps.Custom["foobar"].LRUSamples {
-			t.Fatalf("Expected LRUSamples: %v. Got: %v", c.DMaps.Custom["foobar"].LRUSamples, dcc.lruSamples)
-		}
-		if dcc.evictionPolicy != c.DMaps.Custom["foobar"].EvictionPolicy {
-			t.Fatalf("Expected EvictionPolicy: %v. Got: %v", c.DMaps.Custom["foobar"].EvictionPolicy, dcc.evictionPolicy)
-		}
+		c.DMaps.Custom["foobar"].Engine.Implementation = nil
+		dcc.engine.Implementation = nil
 
 		require.Equal(t, c.DMaps.Custom["foobar"].Engine, dcc.engine)
-
 	})
 }

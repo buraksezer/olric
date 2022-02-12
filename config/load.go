@@ -42,11 +42,14 @@ func mapYamlToConfig(rawDst, rawSrc interface{}) error {
 				}
 				// Special cases
 				if dst.Field(i).Type() == reflect.TypeOf(time.Duration(0)) {
-					value, err := time.ParseDuration(src.Field(j).String())
-					if err != nil {
-						return err
+					rawValue := src.Field(j).String()
+					if rawValue != "" {
+						value, err := time.ParseDuration(rawValue)
+						if err != nil {
+							return err
+						}
+						dst.Field(i).Set(reflect.ValueOf(value))
 					}
-					dst.Field(i).Set(reflect.ValueOf(value))
 					continue
 				}
 				return fmt.Errorf("failed to map %s to an appropriate field in config", dst.Type().Field(j).Name)
