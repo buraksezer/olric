@@ -37,8 +37,8 @@ type DMaps struct {
 	// It limits the lifetime of the entries relative to the time of the last
 	// read or write access performed on them. The entries whose idle period exceeds
 	// this limit are expired and evicted automatically. An entry is idle if no Get,
-	// GetEntry, Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration of
-	// MaxIdleDuration feature varies by preferred deployment method.
+	// Put, Expire on it. Configuration of MaxIdleDuration feature varies by preferred
+	// deployment method.
 	MaxIdleDuration time.Duration
 
 	// TTLDuration is useful to set a default TTL for every key/value pair a

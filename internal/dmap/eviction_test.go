@@ -34,7 +34,7 @@ func TestDMap_Eviction_TTL(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
-		err = dm.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Millisecond)
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i), EX(time.Millisecond))
 		require.NoError(t, err)
 	}
 

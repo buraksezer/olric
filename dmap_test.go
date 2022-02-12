@@ -54,13 +54,14 @@ func TestOlric_DMap_Put(t *testing.T) {
 	require.NoError(t, err)
 }
 
+/*
 func TestOlric_DMap_PutIf_IfNotFound(t *testing.T) {
 	db := newTestOlric(t)
 
 	dm, err := db.NewDMap("mydmap")
 	require.NoError(t, err)
 
-	err = dm.PutIf("mykey", "myvalue", IfNotFound)
+	err = dm.Put("mykey", "myvalue", IfNotFound)
 	require.NoError(t, err)
 
 	value, err := dm.Get("mykey")
@@ -121,7 +122,7 @@ func TestOlric_DMap_PutIfEx_IfNotFound(t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	err = dm.PutIfEx("mykey", "myvalue", 100*time.Millisecond, IfNotFound)
 	require.NoError(t, err)
-}
+}*/
 
 func TestOlric_DMap_Expire(t *testing.T) {
 	db := newTestOlric(t)
@@ -140,50 +141,6 @@ func TestOlric_DMap_Expire(t *testing.T) {
 }
 
 /*
-func TestOlric_DMap_Query(t *testing.T) {
-	db := newTestOlric(t)
-
-	dm, err := db.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	for i := 0; i < 10; i++ {
-		var key string
-		if i%2 == 0 {
-			key = fmt.Sprintf("even:%d", i)
-		} else {
-			key = fmt.Sprintf("odd:%d", i)
-		}
-		err = dm.Put(key, "myvalue")
-		require.NoError(t, err)
-	}
-
-	c, err := dm.Query(query.M{
-		"$onKey": query.M{
-			"$regexMatch": "^even:",
-		},
-	})
-	require.NoError(t, err)
-
-	defer c.Close()
-	expected := map[string]string{
-		"even:8": "myvalue",
-		"even:0": "myvalue",
-		"even:6": "myvalue",
-		"even:2": "myvalue",
-		"even:4": "myvalue",
-	}
-	var count int
-	err = c.Range(func(key string, value interface{}) bool {
-		val, ok := expected[key]
-		require.Equal(t, true, ok)
-		require.Equal(t, val, value)
-		count++
-		return true
-	})
-	require.NoError(t, err)
-	require.Equal(t, len(expected), count)
-}*/
-
 func TestOlric_DMap_PutEx(t *testing.T) {
 	db := newTestOlric(t)
 
@@ -200,7 +157,7 @@ func TestOlric_DMap_PutEx(t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	_, err = dm.Get("mykey")
 	require.ErrorIs(t, err, ErrKeyNotFound)
-}
+}*/
 
 func TestOlric_DMap_Delete(t *testing.T) {
 	db := newTestOlric(t)
