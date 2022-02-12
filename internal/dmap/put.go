@@ -32,11 +32,6 @@ import (
 
 var pool = bufpool.New()
 
-const (
-	IfNotFound = int16(1) << iota
-	IfFound
-)
-
 // EntriesTotal is the total number of entries(including replicas)
 // stored during the life of this instance.
 var EntriesTotal = stats.NewInt64Counter()
@@ -452,56 +447,4 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 	e.key = key
 	e.value = valueBuf.Bytes()
 	return dm.put(e)
-}
-
-// PutEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	return dm.Put(key, value, PX(timeout))
-}
-
-// PutIf Put sets the value for the given key. It overwrites any previous value
-// for that key, and it's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-// Flag argument currently has two different options:
-//
-// IfNotFound: Only set the key if it does not already exist.
-// It returns ErrFound if the key already exist.
-//
-// IfFound: Only set the key if it already exists.
-// It returns ErrKeyNotFound if the key does not exist.
-func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
-	switch {
-	case flags&IfNotFound != 0:
-		return dm.Put(key, value, NX())
-	case flags&IfFound != 0:
-		return dm.Put(key, value, XX())
-	default:
-		return errors.New("invalid flag")
-	}
-}
-
-// PutIfEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-// Flag argument currently has two different options:
-//
-// IfNotFound: Only set the key if it does not already exist.
-// It returns ErrFound if the key already exist.
-//
-// IfFound: Only set the key if it already exists.
-// It returns ErrKeyNotFound if the key does not exist.
-func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
-	switch {
-	case flags&IfNotFound != 0:
-		return dm.Put(key, value, PX(timeout), NX())
-	case flags&IfFound != 0:
-		return dm.Put(key, value, PX(timeout), XX())
-	default:
-		return errors.New("invalid flag")
-	}
 }

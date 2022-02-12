@@ -29,13 +29,16 @@ type EvictionPolicy string
 // DMap denotes configuration for a particular distributed map. Most of the
 // fields are related with distributed cache implementation.
 type DMap struct {
+	// Engine contains storage engine configuration and their implementations.
+	// If you don't have a custom storage engine implementation or configuration for
+	// the default one, just leave it empty.
 	Engine *Engine
 
 	// MaxIdleDuration denotes maximum time for each entry to stay idle in the
 	// DMap. It limits the lifetime of the entries relative to the time of the
 	// last read or write access performed on them. The entries whose idle period
 	// exceeds this limit are expired and evicted automatically. An entry is idle
-	// if no Get, GetEntry, Put, PutEx, Expire, PutIf, PutIfEx on it. Configuration
+	// if no Get, GetEntry, Put, Expire on it. Configuration
 	// of MaxIdleDuration feature varies by preferred deployment method.
 	MaxIdleDuration time.Duration
 

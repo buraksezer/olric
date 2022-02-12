@@ -101,7 +101,7 @@ func (l *LockContext) Unlock() error {
 }
 
 // tryLock takes a deadline and env and sets a key-value pair by using
-// PutIf or PutIfEx commands. It tries to acquire the lock 100 times per second
+// Put with NX and PX commands. It tries to acquire the lock 100 times per second
 // if the lock is already acquired. It returns ErrLockNotAcquired if the deadline exceeds.
 func (dm *DMap) tryLock(e *env, deadline time.Duration) error {
 	err := dm.put(e)

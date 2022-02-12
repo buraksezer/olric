@@ -21,11 +21,6 @@ import (
 	"github.com/buraksezer/olric/internal/dmap"
 )
 
-const (
-	IfNotFound = int16(1) << iota
-	IfFound
-)
-
 var (
 	// ErrKeyNotFound means that returned when a key could not be found.
 	ErrKeyNotFound = errors.New("key not found")
@@ -56,12 +51,6 @@ var (
 	// Maximum length of a key is 256 bytes.
 	ErrKeyTooLarge = errors.New("key too large")
 )
-
-// NumConcurrentWorkers is the number of concurrent workers to run a query on the cluster.
-const NumConcurrentWorkers = 2
-
-// QueryResponse denotes returned data by a node for query.
-type QueryResponse map[string]interface{}
 
 func convertDMapError(err error) error {
 	switch {
@@ -172,53 +161,12 @@ func (l *LockContext) Unlock() error {
 	return convertDMapError(err)
 }
 
-// PutEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-func (dm *DMap) PutEx(key string, value interface{}, timeout time.Duration) error {
-	err := dm.dm.PutEx(key, value, timeout)
-	return convertDMapError(err)
-}
-
 // Put sets the value for the given key. It overwrites any previous value
 // for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(key string, value interface{}) error {
 	err := dm.dm.Put(key, value)
-	return convertDMapError(err)
-}
-
-// PutIf sets the value for the given key. It overwrites any previous value
-// for that key, and it's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-// Flag argument currently has two different options:
-//
-// IfNotFound: Only set the key if it does not already exist.
-// It returns ErrFound if the key already exist.
-//
-// IfFound: Only set the key if it already exists.
-// It returns ErrKeyNotFound if the key does not exist.
-func (dm *DMap) PutIf(key string, value interface{}, flags int16) error {
-	err := dm.dm.PutIf(key, value, flags)
-	return convertDMapError(err)
-}
-
-// PutIfEx sets the value for the given key with TTL. It overwrites any previous
-// value for that key. It's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-// Flag argument currently has two different options:
-//
-// IfNotFound: Only set the key if it does not already exist.
-// It returns ErrFound if the key already exist.
-//
-// IfFound: Only set the key if it already exist.
-// It returns ErrKeyNotFound if the key does not exist.
-func (dm *DMap) PutIfEx(key string, value interface{}, timeout time.Duration, flags int16) error {
-	err := dm.dm.PutIfEx(key, value, timeout, flags)
 	return convertDMapError(err)
 }
 
@@ -331,8 +279,8 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 }
 
 // Destroy flushes the given DMap on the cluster. You should know that there
-// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
-// concurrently on the cluster, Put/PutEx calls may set new values to the dmap.
+// is no global lock on DMaps. So if you call Put and Destroy methods
+// concurrently on the cluster, Put calls may set new values to the dmap.
 func (dm *DMap) Destroy() error {
 	err := dm.dm.Destroy()
 	return convertDMapError(err)

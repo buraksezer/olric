@@ -39,12 +39,19 @@ var testConfig = `olricd:
   memberCountQuorum: 1
 
 client:
-  dialTimeout: "10s"
-  readTimeout: "3s"
-  writeTimeout: "3s"
-  keepAlive: "15s"
-  minConn: 1
-  maxConn: 100
+  dialTimeout: 8s
+  readTimeout: 2s
+  writeTimeout: 2s
+  maxRetries: 5
+  minRetryBackoff: 10ms
+  maxRetryBackoff: 520ms
+  poolFIFO: true
+  poolSize: 10
+  minIdleConns: 5
+  maxConnAge: 2h
+  poolTimeout: 4s
+  idleTimeout: 6m
+  idleCheckFrequency: 8m
 
 logging:
   verbosity: 6
@@ -77,20 +84,20 @@ dmaps:
   engine:
     name: kvstore
     config:
-      tableSize: 102134
-  numEvictionWorkers: 1
-  maxIdleDuration: ""
-  ttlDuration: "100s"
-  maxKeys: 100000
-  maxInuse: 1000000
-  lruSamples: 10
+      tableSize: 202134
+  numEvictionWorkers: 2
+  maxIdleDuration: 100s
+  ttlDuration: 200s
+  maxKeys: 300000
+  maxInuse: 2000000
+  lruSamples: 20
   evictionPolicy: "LRU"
   custom:
     foobar:
-      maxIdleDuration: "60s"
-      ttlDuration: "300s"
-      maxKeys: 500000
-      lruSamples: 20
+      maxIdleDuration: "30s"
+      ttlDuration: "500s"
+      maxKeys: 600000
+      lruSamples: 60
       evictionPolicy: "NONE"
 
 serviceDiscovery:
@@ -144,12 +151,19 @@ func TestConfig(t *testing.T) {
 
 	c.DMaps.Engine = NewEngine()
 
-	c.Client.DialTimeout = 10 * time.Second
-	c.Client.ReadTimeout = 3 * time.Second
-	c.Client.WriteTimeout = 3 * time.Second
-	c.Client.KeepAlive = 15 * time.Second
-	c.Client.MinConn = 1
-	c.Client.MaxConn = 100
+	c.Client.DialTimeout = 8 * time.Second
+	c.Client.ReadTimeout = 2 * time.Second
+	c.Client.WriteTimeout = 2 * time.Second
+	c.Client.MaxRetries = 5
+	c.Client.MinRetryBackoff = 10 * time.Millisecond
+	c.Client.MaxRetryBackoff = 520 * time.Millisecond
+	c.Client.PoolFIFO = true
+	c.Client.PoolSize = 10
+	c.Client.MinIdleConns = 5
+	c.Client.MaxConnAge = 2 * time.Hour
+	c.Client.PoolTimeout = 4 * time.Second
+	c.Client.IdleTimeout = 6 * time.Minute
+	c.Client.IdleCheckFrequency = 8 * time.Minute
 
 	c.LogVerbosity = 6
 	c.LogLevel = "DEBUG"
@@ -171,19 +185,20 @@ func TestConfig(t *testing.T) {
 	c.MemberlistConfig.HandoffQueueDepth = 1024
 	c.MemberlistConfig.UDPBufferSize = 1400
 
-	c.DMaps.NumEvictionWorkers = 1
-	c.DMaps.TTLDuration = 100 * time.Second
-	c.DMaps.MaxKeys = 100000
-	c.DMaps.MaxInuse = 1000000
-	c.DMaps.LRUSamples = 10
+	c.DMaps.NumEvictionWorkers = 2
+	c.DMaps.TTLDuration = 200 * time.Second
+	c.DMaps.MaxIdleDuration = 100 * time.Second
+	c.DMaps.MaxKeys = 300000
+	c.DMaps.MaxInuse = 2000000
+	c.DMaps.LRUSamples = 20
 	c.DMaps.EvictionPolicy = LRUEviction
 	c.DMaps.Engine.Name = DefaultStorageEngine
 
 	c.DMaps.Custom = map[string]DMap{"foobar": {
-		MaxIdleDuration: 60 * time.Second,
-		TTLDuration:     300 * time.Second,
-		MaxKeys:         500000,
-		LRUSamples:      20,
+		MaxIdleDuration: 30 * time.Second,
+		TTLDuration:     500 * time.Second,
+		MaxKeys:         600000,
+		LRUSamples:      60,
 		EvictionPolicy:  "NONE",
 	}}
 
@@ -204,5 +219,8 @@ func TestConfig(t *testing.T) {
 	lc.LogOutput = nil
 	c.Logger = nil
 	lc.Logger = nil
+	c.Client.Dialer = nil
+	lc.Client.Dialer = nil
+
 	require.Equal(t, c, lc)
 }

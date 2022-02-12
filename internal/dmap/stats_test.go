@@ -15,12 +15,12 @@
 package dmap
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Stats(t *testing.T) {
@@ -36,49 +36,37 @@ func TestDMap_Stats(t *testing.T) {
 	// EntriesTotal
 	for i := 0; i < 10; i++ {
 		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	//GetHits
 	for i := 0; i < 10; i++ {
 		_, err = dm.Get(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// DeleteHits
 	for i := 0; i < 10; i++ {
 		err = dm.Delete(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// GetMisses
 	for i := 0; i < 10; i++ {
 		_, err = dm.Get(testutil.ToKey(i))
-		if !errors.Is(err, ErrKeyNotFound) {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 
 	// DeleteMisses
 	for i := 0; i < 10; i++ {
 		err = dm.Delete(testutil.ToKey(i))
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// EntriesTotal, EvictedTotal
 	for i := 0; i < 10; i++ {
-		err = dm.PutEx(testutil.ToKey(i), testutil.ToVal(i), time.Millisecond)
-		if err != nil {
-			t.Fatalf("Expected nil. Got: %v", err)
-		}
+		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i), EX(time.Millisecond))
+		require.NoError(t, err)
 	}
 
 	<-time.After(100 * time.Millisecond)
@@ -86,9 +74,7 @@ func TestDMap_Stats(t *testing.T) {
 	// GetMisses
 	for i := 0; i < 10; i++ {
 		_, err = dm.Get(testutil.ToKey(i))
-		if !errors.Is(err, ErrKeyNotFound) {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 
 	stats := map[string]int64{
