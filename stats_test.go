@@ -17,6 +17,8 @@ package olric
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/protocol"
 	"testing"
 	"time"
 
@@ -169,5 +171,115 @@ func TestStats_PubSub(t *testing.T) {
 		require.Equal(t, int64(0), pubsub.CurrentPSubscribers.Read())
 		require.Equal(t, int64(0), pubsub.SubscribersTotal.Read())
 		require.Equal(t, int64(0), pubsub.CurrentSubscribers.Read())
+	})
+}
+
+func TestStats_DMap(t *testing.T) {
+	db := newTestOlric(t)
+	rc := redis.NewClient(&redis.Options{Addr: db.rt.This().String()})
+	ctx := context.Background()
+
+	t.Run("DMap stats without eviction", func(t *testing.T) {
+		defer func() {
+			dmap.EntriesTotal.Reset()
+			dmap.GetMisses.Reset()
+			dmap.GetHits.Reset()
+			dmap.DeleteHits.Reset()
+			dmap.DeleteMisses.Reset()
+			dmap.EvictedTotal.Reset()
+		}()
+
+		// EntriesTotal
+		for i := 0; i < 10; i++ {
+			cmd := protocol.NewPut("mydmap", fmt.Sprintf("mykey-%d", i), []byte("myvalue")).Command(ctx)
+			err := rc.Process(ctx, cmd)
+			require.NoError(t, err)
+			require.NoError(t, cmd.Err())
+		}
+
+		// GetHits
+		for i := 0; i < 10; i++ {
+			cmd := protocol.NewGet("mydmap", fmt.Sprintf("mykey-%d", i)).Command(ctx)
+			err := rc.Process(ctx, cmd)
+			require.NoError(t, err)
+			require.NoError(t, cmd.Err())
+		}
+
+		// DeleteHits
+		for i := 0; i < 10; i++ {
+			cmd := protocol.NewDel("mydmap", fmt.Sprintf("mykey-%d", i)).Command(ctx)
+			err := rc.Process(ctx, cmd)
+			require.NoError(t, err)
+			require.NoError(t, cmd.Err())
+		}
+
+		// GetMisses
+		for i := 0; i < 10; i++ {
+			cmd := protocol.NewGet("mydmap", fmt.Sprintf("mykey-%d", i)).Command(ctx)
+			err := rc.Process(ctx, cmd)
+			err = protocol.ConvertError(err)
+			require.ErrorIs(t, err, dmap.ErrKeyNotFound)
+		}
+
+		// DeleteMisses
+		for i := 0; i < 10; i++ {
+			cmd := protocol.NewDel("mydmap", fmt.Sprintf("mykey-%d", i)).Command(ctx)
+			err := rc.Process(ctx, cmd)
+			require.NoError(t, err)
+			require.NoError(t, cmd.Err())
+		}
+
+		result := map[string]int64{
+			"EntriesTotal": dmap.EntriesTotal.Read(),
+			"GetMisses":    dmap.GetMisses.Read(),
+			"GetHits":      dmap.GetHits.Read(),
+			"DeleteHits":   dmap.DeleteHits.Read(),
+			"DeleteMisses": dmap.DeleteMisses.Read(),
+			"EvictedTotal": dmap.EvictedTotal.Read(),
+		}
+		expected := map[string]int64{
+			"EntriesTotal": 10,
+			"GetMisses":    10,
+			"GetHits":      10,
+			"DeleteHits":   10,
+			"DeleteMisses": 10,
+			"EvictedTotal": dmap.EvictedTotal.Read(),
+		}
+		require.Equal(t, expected, result)
+	})
+
+	t.Run("DMap eviction stats", func(t *testing.T) {
+		defer func() {
+			dmap.EntriesTotal.Reset()
+			dmap.GetMisses.Reset()
+			dmap.GetHits.Reset()
+			dmap.DeleteHits.Reset()
+			dmap.DeleteMisses.Reset()
+			dmap.EvictedTotal.Reset()
+		}()
+
+		// EntriesTotal, EvictedTotal
+		for i := 0; i < 10; i++ {
+			cmd := protocol.
+				NewPut("mydmap", fmt.Sprintf("mykey-%d", i), []byte("myvalue")).
+				SetPX(time.Millisecond.Milliseconds()).
+				Command(ctx)
+			err := rc.Process(ctx, cmd)
+			require.NoError(t, err)
+			require.NoError(t, cmd.Err())
+		}
+		<-time.After(100 * time.Millisecond)
+
+		// GetMisses
+		for i := 0; i < 10; i++ {
+			cmd := protocol.NewGet("mydmap", "mykey").Command(ctx)
+			err := rc.Process(ctx, cmd)
+			err = protocol.ConvertError(err)
+			require.ErrorIs(t, err, dmap.ErrKeyNotFound)
+		}
+
+		require.Greater(t, dmap.DeleteHits.Read(), int64(0))
+		require.Greater(t, dmap.EvictedTotal.Read(), int64(0))
+		require.Equal(t, int64(10), dmap.EntriesTotal.Read())
 	})
 }
