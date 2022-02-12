@@ -17,13 +17,13 @@ package olric
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/testutil"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/pubsub"
+	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/stats"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
