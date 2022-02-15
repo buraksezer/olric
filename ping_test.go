@@ -23,14 +23,16 @@ import (
 func TestOlric_Ping(t *testing.T) {
 	db := newTestOlric(t)
 
-	err := db.Ping(db.rt.This().String())
+	result, err := db.ping(db.rt.This().String(), "")
 	require.NoError(t, err)
+	require.Equal(t, PingResponse, result)
 }
 
 func TestOlric_PingWithMessage(t *testing.T) {
 	db := newTestOlric(t)
 
-	response, err := db.PingWithMessage(db.rt.This().String(), "Olric rocks!")
+	msg := "Olric rocks!"
+	response, err := db.ping(db.rt.This().String(), msg)
 	require.NoError(t, err)
-	require.Equal(t, "Olric rocks!", response)
+	require.Equal(t, []byte(msg), response)
 }

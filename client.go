@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/stats"
 )
 
 type PutOption func(*dmap.PutConfig)
@@ -70,6 +71,9 @@ type DMapOption func(*dmapOption)
 
 type DMap interface {
 	Put(ctx context.Context, key string, value interface{}, options ...PutOption) error
+	Get(ctx context.Context, key string) (*GetResponse, error)
+	Delete(ctx context.Context, key string) error
+	Incr(key string, delta int) (int, error)
 }
 
 type statsConfig struct {
@@ -80,8 +84,8 @@ type StatsOption func(*statsConfig)
 
 type Client interface {
 	NewDMap(name string, options ...DMapOption) (DMap, error)
-	Stats(options ...StatsOption)
+	Stats(options ...StatsOption) (stats.Stats, error)
 	Ping(addr string) error
-	PingWithMessage(addr, message string)
-	Close(ctx context.Context)
+	PingWithMessage(addr, message string) (string, error)
+	Close(ctx context.Context) error
 }

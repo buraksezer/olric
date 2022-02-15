@@ -144,22 +144,3 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 
 	return s
 }
-
-func CollectRuntime() StatsOption {
-	return func(cfg *statsConfig) {
-		cfg.CollectRuntime = true
-	}
-}
-
-// Stats exposes some useful metrics to monitor an Olric node.
-func (db *Olric) Stats(options ...StatsOption) (stats.Stats, error) {
-	if err := db.isOperable(); err != nil {
-		// this node is not bootstrapped yet.
-		return stats.Stats{}, err
-	}
-	var cfg statsConfig
-	for _, opt := range options {
-		opt(&cfg)
-	}
-	return db.stats(cfg), nil
-}

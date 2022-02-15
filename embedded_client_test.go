@@ -16,8 +16,10 @@ package olric
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEmbeddedClient_NewDMap(t *testing.T) {
@@ -37,4 +39,62 @@ func TestEmbeddedClient_DMap_Put(t *testing.T) {
 
 	err = dm.Put(context.Background(), "mykey", "myvalue")
 	require.NoError(t, err)
+}
+
+func TestEmbeddedClient_DMap_Get(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(context.Background(), "mykey", "myvalue")
+	require.NoError(t, err)
+
+	gr, err := dm.Get(context.Background(), "mykey")
+	require.NoError(t, err)
+
+	value, err := gr.String()
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
+}
+
+func TestEmbeddedClient_DMap_Delete(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(context.Background(), "mykey", "myvalue")
+	require.NoError(t, err)
+
+	err = dm.Delete(context.Background(), "mykey")
+	require.NoError(t, err)
+
+	_, err = dm.Get(context.Background(), "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Atomic_Incr(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	var errGr errgroup.Group
+	for i := 0; i < 100; i++ {
+		errGr.Go(func() error {
+			_, err = dm.Incr("mykey", 1)
+			return err
+		})
+	}
+	require.NoError(t, errGr.Wait())
+
+	gr, err := dm.Get(context.Background(), "mykey")
+	res, err := gr.Int()
+	require.NoError(t, err)
+	require.Equal(t, 100, res)
+
 }

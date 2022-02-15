@@ -14,19 +14,37 @@
 
 package olric
 
-/*
+import (
+	"context"
+	"fmt"
+	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/protocol"
+	"testing"
+	"time"
+
+	"github.com/buraksezer/olric/internal/pubsub"
+	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/stats"
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/require"
+)
+
 func TestOlric_Stats(t *testing.T) {
 	db := newTestOlric(t)
 
-	dm, err := db.NewDMap("mymap")
+	c := db.NewEmbeddedClient()
+	dm, err := c.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i))
 		require.NoError(t, err)
 	}
 
-	s, err := db.Stats()
+	s, err := c.Stats()
 	require.NoError(t, err)
 
 	if s.ClusterCoordinator.ID != db.rt.This().ID {
@@ -66,7 +84,8 @@ func TestOlric_Stats(t *testing.T) {
 func TestOlric_Stats_CollectRuntime(t *testing.T) {
 	db := newTestOlric(t)
 
-	s, err := db.Stats(CollectRuntime())
+	e := db.NewEmbeddedClient()
+	s, err := e.Stats(CollectRuntime())
 	require.NoError(t, err)
 
 	if s.Runtime == nil {
@@ -238,4 +257,4 @@ func TestStats_DMap(t *testing.T) {
 		require.Greater(t, dmap.EvictedTotal.Read(), int64(0))
 		require.GreaterOrEqual(t, dmap.EntriesTotal.Read(), int64(10))
 	})
-}*/
+}

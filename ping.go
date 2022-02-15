@@ -21,7 +21,9 @@ import (
 	"github.com/tidwall/redcon"
 )
 
-func (db *Olric) pingCommon(addr, message string) ([]byte, error) {
+const PingResponse = "PONG"
+
+func (db *Olric) ping(addr, message string) ([]byte, error) {
 	message = strings.TrimSpace(message)
 
 	pingCmd := protocol.NewPing()
@@ -38,23 +40,6 @@ func (db *Olric) pingCommon(addr, message string) ([]byte, error) {
 	return cmd.Bytes()
 }
 
-// Ping sends a dummy protocol message to the given host. This is useful to
-// measure RTT between hosts. It also can be used as aliveness check.
-func (db *Olric) Ping(addr string) error {
-	_, err := db.pingCommon(addr, "")
-	return err
-}
-
-// PingWithMessage sends a dummy protocol message to the given host. This is useful to
-// measure RTT between hosts. It also can be used as aliveness check.
-func (db *Olric) PingWithMessage(addr, message string) (string, error) {
-	response, err := db.pingCommon(addr, message)
-	if err != nil {
-		return "", err
-	}
-	return string(response), nil
-}
-
 func (db *Olric) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	pingCmd, err := protocol.ParsePingCommand(cmd)
 	if err != nil {
@@ -66,5 +51,5 @@ func (db *Olric) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteString(pingCmd.Message)
 		return
 	}
-	conn.WriteString("PONG")
+	conn.WriteString(PingResponse)
 }
