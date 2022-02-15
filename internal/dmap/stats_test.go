@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -33,39 +34,44 @@ func TestDMap_Stats(t *testing.T) {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
+	ctx := context.Background()
 	// EntriesTotal
 	for i := 0; i < 10; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
 	//GetHits
 	for i := 0; i < 10; i++ {
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 
 	// DeleteHits
 	for i := 0; i < 10; i++ {
-		err = dm.Delete(testutil.ToKey(i))
+		err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 
 	// GetMisses
 	for i := 0; i < 10; i++ {
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 
 	// DeleteMisses
 	for i := 0; i < 10; i++ {
-		err = dm.Delete(testutil.ToKey(i))
+		err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 
+	pc := &PutConfig{
+		HasEX: true,
+		EX:    time.Millisecond,
+	}
 	// EntriesTotal, EvictedTotal
 	for i := 0; i < 10; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i), EX(time.Millisecond))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
 		require.NoError(t, err)
 	}
 
@@ -73,7 +79,7 @@ func TestDMap_Stats(t *testing.T) {
 
 	// GetMisses
 	for i := 0; i < 10; i++ {
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 

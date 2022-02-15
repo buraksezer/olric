@@ -32,7 +32,7 @@ func (s *Service) getCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	raw, err := dm.get(getCmd.Key)
+	raw, err := dm.Get(s.ctx, getCmd.Key)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
@@ -62,7 +62,7 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		kind = partitions.BACKUP
 	}
 
-	e := newEnv()
+	e := newEnv(nil)
 	e.dmap = getEntryCmd.DMap
 	e.key = getEntryCmd.Key
 	e.hkey = partitions.HKey(getEntryCmd.DMap, getEntryCmd.Key)

@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -48,7 +49,7 @@ func TestDMap_Balance_FragmentMergeFunction(t *testing.T) {
 	dm, err := s.NewDMap("mymap")
 	require.NoError(t, err)
 
-	err = dm.Put("mykey", "myval")
+	err = dm.Put(context.Background(), "mykey", "myval", nil)
 	require.NoError(t, err)
 
 	hkey := partitions.HKey("mymap", "mykey")
@@ -78,10 +79,11 @@ func TestDMap_Balancer_JoinNewNode(t *testing.T) {
 	dm, err := db1.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	var totalKeys = 1000
 	for i := 0; i < totalKeys; i++ {
 		key := "balancer-test." + strconv.Itoa(i)
-		err = dm.Put(key, testutil.ToVal(i))
+		err = dm.Put(ctx, key, testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 

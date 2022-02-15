@@ -50,11 +50,11 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		options = append(options, PXAT(time.Duration(putCmd.PXAT*int64(time.Millisecond))))
 	}
 
-	var pc putConfig
+	var pc PutConfig
 	for _, opt := range options {
 		opt(&pc)
 	}
-	e := newEnv()
+	e := newEnv(nil)
 	e.putConfig = &pc
 	e.dmap = putCmd.DMap
 	e.key = putCmd.Key
@@ -80,7 +80,7 @@ func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	e := newEnv()
+	e := newEnv(nil)
 	e.hkey = partitions.HKey(putEntryCmd.DMap, putEntryCmd.Key)
 	e.dmap = putEntryCmd.DMap
 	e.key = putEntryCmd.Key

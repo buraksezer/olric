@@ -32,11 +32,11 @@ func (s *Service) expireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	pc := &putConfig{
+	pc := &PutConfig{
 		OnlyUpdateTTL: true,
 	}
 
-	e := newEnv()
+	e := newEnv(s.ctx)
 	e.putConfig = pc
 	e.dmap = expireCmd.DMap
 	e.key = expireCmd.Key
@@ -62,11 +62,11 @@ func (s *Service) pexpireCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	pc := &putConfig{
+	pc := &PutConfig{
 		OnlyUpdateTTL: true,
 	}
 
-	e := newEnv()
+	e := newEnv(s.ctx)
 	e.putConfig = pc
 	e.dmap = pexpireCmd.DMap
 	e.key = pexpireCmd.Key

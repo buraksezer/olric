@@ -60,10 +60,12 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	gr, err := dm.Get(key)
+	ctx := context.Background()
+	gr, err := dm.Get(ctx, key)
 	require.NoError(t, err)
 
-	res, err := gr.Int()
+	var res int
+	err = encoding.Scan(gr.Value(), &res)
 	require.NoError(t, err)
 	require.Equal(t, 100, res)
 }
@@ -99,10 +101,11 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	res, err := dm.Get(key)
+	res, err := dm.Get(context.Background(), key)
 	require.NoError(t, err)
 
-	value, err := res.Int()
+	var value int
+	err = encoding.Scan(res.Value(), &value)
 	require.NoError(t, err)
 	require.Equal(t, -100, value)
 }
@@ -120,13 +123,14 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 		<-start
 		defer wg.Done()
 
-		gr, err := dm.GetPut(key, i)
+		gr, err := dm.GetPut(context.Background(), key, i)
 		if err != nil {
 			s.log.V(2).Printf("[ERROR] Failed to call Decr: %v", err)
 			return
 		}
 		if gr != nil {
-			oldval, err := gr.Int()
+			var oldval int
+			err = encoding.Scan(gr.Value(), &oldval)
 			require.NoError(t, err)
 			atomic.AddInt64(&total, int64(oldval))
 		}
@@ -145,10 +149,11 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	gr, err := dm.Get(key)
+	gr, err := dm.Get(context.Background(), key)
 	require.NoError(t, err)
 
-	last, err := gr.Int()
+	var last int
+	err = encoding.Scan(gr.Value(), &last)
 	require.NoError(t, err)
 
 	atomic.AddInt64(&total, int64(last))
@@ -310,10 +315,11 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
-	gr, err := dm.Get("mykey")
+	gr, err := dm.Get(context.Background(), "mykey")
 	require.NoError(t, err)
 
-	last, err := gr.Int()
+	var last int
+	err = encoding.Scan(gr.Value(), &last)
 	require.NoError(t, err)
 
 	atomic.AddInt64(&total, int64(last))

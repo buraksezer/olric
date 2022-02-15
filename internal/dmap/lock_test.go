@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"encoding/hex"
 	"strconv"
 	"testing"
@@ -34,10 +35,10 @@ func TestDMap_LockWithTimeout_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(key, time.Second, time.Second)
+	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
-	err = ctx.Unlock()
+	err = ctx.Unlock(context.Background())
 	require.NoError(t, err)
 }
 
@@ -50,12 +51,12 @@ func TestDMap_Unlock_After_Timeout_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(key, time.Millisecond, time.Second)
+	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Millisecond, time.Second)
 	require.NoError(t, err)
 
 	<-time.After(10 * time.Millisecond)
 
-	err = ctx.Unlock()
+	err = ctx.Unlock(context.Background())
 	require.ErrorIs(t, err, ErrNoSuchLock)
 }
 
@@ -68,10 +69,10 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	_, err = dm.LockWithTimeout(key, time.Second, time.Second)
+	_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
-	_, err = dm.LockWithTimeout(key, time.Second, time.Millisecond)
+	_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Millisecond)
 	require.ErrorIs(t, err, ErrLockNotAcquired)
 }
 
@@ -84,13 +85,13 @@ func TestDMap_LockLease_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(key, time.Second, time.Second)
+	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
-	err = ctx.Lease(2 * time.Second)
+	err = ctx.Lease(context.Background(), 2*time.Second)
 	require.NoError(t, err)
 
-	e, err := dm.get(key)
+	e, err := dm.Get(context.Background(), key)
 	require.NoError(t, err)
 
 	if e.TTL()-(time.Now().UnixNano()/1000000) <= 1900 {
@@ -99,7 +100,7 @@ func TestDMap_LockLease_Standalone(t *testing.T) {
 
 	<-time.After(3 * time.Second)
 
-	err = ctx.Lease(3 * time.Second)
+	err = ctx.Lease(context.Background(), 3*time.Second)
 	require.ErrorIs(t, err, ErrNoSuchLock)
 }
 
@@ -112,10 +113,10 @@ func TestDMap_Lock_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.Lock(key, time.Second)
+	ctx, err := dm.Lock(context.Background(), key, time.Second)
 	require.NoError(t, err)
 
-	err = ctx.Unlock()
+	err = ctx.Unlock(context.Background())
 	require.NoError(t, err)
 }
 
@@ -128,10 +129,10 @@ func TestDMap_Lock_ErrLockNotAcquired_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	_, err = dm.Lock(key, time.Second)
+	_, err = dm.Lock(context.Background(), key, time.Second)
 	require.NoError(t, err)
 
-	_, err = dm.Lock(key, time.Millisecond)
+	_, err = dm.Lock(context.Background(), key, time.Millisecond)
 	require.ErrorIs(t, err, ErrLockNotAcquired)
 }
 
@@ -146,14 +147,14 @@ func TestDMap_LockWithTimeout_Cluster(t *testing.T) {
 	var lockContext []*LockContext
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.LockWithTimeout(key, time.Hour, time.Second)
+		ctx, err := dm.LockWithTimeout(context.Background(), key, time.Hour, time.Second)
 		require.NoError(t, err)
 		lockContext = append(lockContext, ctx)
 	}
 
 	cluster.AddMember(nil)
 	for _, ctx := range lockContext {
-		err = ctx.Unlock()
+		err = ctx.Unlock(context.Background())
 		require.NoError(t, err)
 	}
 }
@@ -169,14 +170,14 @@ func TestDMap_LockLease_Cluster(t *testing.T) {
 	var lockContext []*LockContext
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.LockWithTimeout(key, 5*time.Second, 10*time.Millisecond)
+		ctx, err := dm.LockWithTimeout(context.Background(), key, 5*time.Second, 10*time.Millisecond)
 		require.NoError(t, err)
 		lockContext = append(lockContext, ctx)
 	}
 
 	cluster.AddMember(nil)
 	for i := range lockContext {
-		err = lockContext[i].Lease(10 * time.Second)
+		err = lockContext[i].Lease(context.Background(), 10*time.Second)
 		require.NoError(t, err)
 	}
 }
@@ -192,14 +193,14 @@ func TestDMap_Lock_Cluster(t *testing.T) {
 	var lockContext []*LockContext
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.Lock(key, time.Second)
+		ctx, err := dm.Lock(context.Background(), key, time.Second)
 		require.NoError(t, err)
 		lockContext = append(lockContext, ctx)
 	}
 
 	cluster.AddMember(nil)
 	for _, ctx := range lockContext {
-		err = ctx.Unlock()
+		err = ctx.Unlock(context.Background())
 		require.NoError(t, err)
 	}
 }
@@ -214,7 +215,7 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err := dm.LockWithTimeout(key, time.Second, time.Second)
+		_, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
 		require.NoError(t, err)
 	}
 
@@ -222,7 +223,7 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err = dm.LockWithTimeout(key, time.Second, time.Millisecond)
+		_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Millisecond)
 		require.ErrorIs(t, err, ErrLockNotAcquired)
 	}
 }
@@ -237,14 +238,14 @@ func TestDMap_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err = dm.LockWithTimeout(key, time.Millisecond, time.Second)
+		_, err = dm.LockWithTimeout(context.Background(), key, time.Millisecond, time.Second)
 		require.NoError(t, err)
 	}
 
 	cluster.AddMember(nil)
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err = dm.Lock(key, time.Second)
+		_, err = dm.Lock(context.Background(), key, time.Second)
 		require.NoError(t, err)
 	}
 }
@@ -258,14 +259,14 @@ func TestDMap_tryLock(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	_, err = dm.LockWithTimeout(key, time.Second, time.Second)
+	_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
 	var i int
 	var acquired bool
 	for i <= 10 {
 		i++
-		_, err := dm.Lock(key, 100*time.Millisecond)
+		_, err := dm.Lock(context.Background(), key, 100*time.Millisecond)
 		if err == ErrLockNotAcquired {
 			// already acquired
 			continue
@@ -353,7 +354,7 @@ func TestDMap_lockLeaseCommandHandler(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(key, time.Second, time.Second)
+	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
 	// Update the timeout
@@ -365,7 +366,7 @@ func TestDMap_lockLeaseCommandHandler(t *testing.T) {
 
 	<-time.After(2 * time.Second)
 
-	err = ctx.Unlock()
+	err = ctx.Unlock(context.Background())
 	require.NoError(t, err)
 }
 
@@ -378,7 +379,7 @@ func TestDMap_plockLeaseCommandHandler(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(key, 250*time.Millisecond, time.Second)
+	ctx, err := dm.LockWithTimeout(context.Background(), key, 250*time.Millisecond, time.Second)
 	require.NoError(t, err)
 
 	// Update the timeout
@@ -390,6 +391,6 @@ func TestDMap_plockLeaseCommandHandler(t *testing.T) {
 
 	<-time.After(500 * time.Millisecond)
 
-	err = ctx.Unlock()
+	err = ctx.Unlock(context.Background())
 	require.NoError(t, err)
 }

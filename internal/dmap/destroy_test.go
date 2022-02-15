@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -33,20 +34,22 @@ func TestDMap_Destroy_Standalone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	err = dm.Destroy()
+	err = dm.Destroy(ctx)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	for i := 0; i < 100; i++ {
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		if err != ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
@@ -71,20 +74,22 @@ func TestDMap_Destroy_Cluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 	}
 
-	err = dm.Destroy()
+	err = dm.Destroy(ctx)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
 
 	for i := 0; i < 100; i++ {
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		if err != ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
@@ -101,8 +106,10 @@ func TestDMap_Destroy_destroyOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -114,7 +121,7 @@ func TestDMap_Destroy_destroyOperation(t *testing.T) {
 	require.NoError(t, cmd.Err())
 
 	for i := 0; i < 100; i++ {
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 }

@@ -12,36 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dmap
+package olric
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDMap_Get_GetResponse(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
+	cluster := testcluster.New(dmap.NewService)
+	s := cluster.AddMember(nil).(*dmap.Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	// Call DMap.Put on S1
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
-
 	t.Run("Scan", func(t *testing.T) {
 		var value = 100
-		err = dm.Put("mykey-scan", value)
+		err = dm.Put(context.Background(), "mykey-scan", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-scan")
+		e, err := dm.Get(ctx, "mykey-scan")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue := new(int)
 		err = gr.Scan(scannedValue)
 		require.NoError(t, err)
@@ -50,12 +53,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Byte", func(t *testing.T) {
 		var value = []byte("olric")
-		err = dm.Put("mykey-byte", value)
+		err = dm.Put(context.Background(), "mykey-byte", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-byte")
+		e, err := dm.Get(ctx, "mykey-byte")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Byte()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -63,12 +67,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int", func(t *testing.T) {
 		var value = 100
-		err = dm.Put("mykey-Int", value)
+		err = dm.Put(context.Background(), "mykey-Int", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Int")
+		e, err := dm.Get(ctx, "mykey-Int")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Int()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -76,12 +81,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("String", func(t *testing.T) {
 		var value = "olric"
-		err = dm.Put("mykey-String", value)
+		err = dm.Put(context.Background(), "mykey-String", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-String")
+		e, err := dm.Get(ctx, "mykey-String")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.String()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -89,12 +95,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int8", func(t *testing.T) {
 		var value int8 = 10
-		err = dm.Put("mykey-Int8", value)
+		err = dm.Put(context.Background(), "mykey-Int8", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Int8")
+		e, err := dm.Get(ctx, "mykey-Int8")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Int8()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -102,12 +109,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int16", func(t *testing.T) {
 		var value int16 = 10
-		err = dm.Put("mykey-Int16", value)
+		err = dm.Put(context.Background(), "mykey-Int16", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Int16")
+		e, err := dm.Get(ctx, "mykey-Int16")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Int16()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -115,12 +123,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int32", func(t *testing.T) {
 		var value int32 = 10
-		err = dm.Put("mykey-Int32", value)
+		err = dm.Put(context.Background(), "mykey-Int32", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Int32")
+		e, err := dm.Get(ctx, "mykey-Int32")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Int32()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -128,12 +137,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int64", func(t *testing.T) {
 		var value int64 = 10
-		err = dm.Put("mykey-Int64", value)
+		err = dm.Put(context.Background(), "mykey-Int64", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Int64")
+		e, err := dm.Get(ctx, "mykey-Int64")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Int64()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -141,12 +151,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int64", func(t *testing.T) {
 		var value int64 = 10
-		err = dm.Put("mykey-Int64", value)
+		err = dm.Put(context.Background(), "mykey-Int64", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Int64")
+		e, err := dm.Get(ctx, "mykey-Int64")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Int64()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -154,12 +165,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint", func(t *testing.T) {
 		var value uint = 10
-		err = dm.Put("mykey-Uint", value)
+		err = dm.Put(context.Background(), "mykey-Uint", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Uint")
+		e, err := dm.Get(ctx, "mykey-Uint")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Uint()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -167,12 +179,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint8", func(t *testing.T) {
 		var value uint8 = 10
-		err = dm.Put("mykey-Uint8", value)
+		err = dm.Put(context.Background(), "mykey-Uint8", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Uint8")
+		e, err := dm.Get(ctx, "mykey-Uint8")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Uint8()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -180,12 +193,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint16", func(t *testing.T) {
 		var value uint16 = 10
-		err = dm.Put("mykey-Uint16", value)
+		err = dm.Put(ctx, "mykey-Uint16", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Uint16")
+		e, err := dm.Get(ctx, "mykey-Uint16")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Uint16()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -193,12 +207,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint32", func(t *testing.T) {
 		var value uint32 = 10
-		err = dm.Put("mykey-Uint32", value)
+		err = dm.Put(ctx, "mykey-Uint32", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Uint32")
+		e, err := dm.Get(ctx, "mykey-Uint32")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Uint32()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -206,12 +221,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint64", func(t *testing.T) {
 		var value uint64 = 10
-		err = dm.Put("mykey-Uint64", value)
+		err = dm.Put(ctx, "mykey-Uint64", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Uint64")
+		e, err := dm.Get(ctx, "mykey-Uint64")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Uint64()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -219,12 +235,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Float32", func(t *testing.T) {
 		var value float32 = 10.12
-		err = dm.Put("mykey-Float32", value)
+		err = dm.Put(ctx, "mykey-Float32", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Float32")
+		e, err := dm.Get(ctx, "mykey-Float32")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Float32()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
@@ -232,24 +249,26 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Float64", func(t *testing.T) {
 		var value = 10.12
-		err = dm.Put("mykey-Float64", value)
+		err = dm.Put(ctx, "mykey-Float64", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Float64")
+		e, err := dm.Get(ctx, "mykey-Float64")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Float64()
 		require.NoError(t, err)
 		require.Equal(t, value, scannedValue)
 	})
 
 	t.Run("Bool", func(t *testing.T) {
-		err = dm.Put("mykey-Bool", true)
+		err = dm.Put(ctx, "mykey-Bool", true, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-Bool")
+		e, err := dm.Get(ctx, "mykey-Bool")
 		require.NoError(t, err)
 
+		gr := &GetResponse{entry: e}
 		scannedValue, err := gr.Bool()
 		require.NoError(t, err)
 		require.Equal(t, true, scannedValue)
@@ -257,11 +276,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("time.Time", func(t *testing.T) {
 		var value = time.Now()
-		err = dm.Put("mykey-time.Time", value)
+		err = dm.Put(ctx, "mykey-time.Time", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-time.Time")
+		e, err := dm.Get(ctx, "mykey-time.Time")
 		require.NoError(t, err)
+
+		gr := &GetResponse{entry: e}
 
 		buf := bytes.NewBuffer(nil)
 		enc := encoding.New(buf)
@@ -279,11 +300,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("time.Duration", func(t *testing.T) {
 		var value = time.Second
-		err = dm.Put("mykey-time.Duration", value)
+		err = dm.Put(ctx, "mykey-time.Duration", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-time.Duration")
+		e, err := dm.Get(ctx, "mykey-time.Duration")
 		require.NoError(t, err)
+
+		gr := &GetResponse{entry: e}
 
 		buf := bytes.NewBuffer(nil)
 		enc := encoding.New(buf)
@@ -303,11 +326,13 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 		var value = &myType{
 			Database: "olric",
 		}
-		err = dm.Put("mykey-BinaryUnmarshaler", value)
+		err = dm.Put(ctx, "mykey-BinaryUnmarshaler", value, nil)
 		require.NoError(t, err)
 
-		gr, err := dm.Get("mykey-BinaryUnmarshaler")
+		e, err := dm.Get(ctx, "mykey-BinaryUnmarshaler")
 		require.NoError(t, err)
+
+		gr := &GetResponse{entry: e}
 
 		v := myType{}
 		err = gr.Scan(&v)

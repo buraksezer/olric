@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -28,23 +29,24 @@ func TestDMap_Expire(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	key := "mykey"
-	err = dm.Put(key, "myvalue")
+	err = dm.Put(ctx, key, "myvalue", nil)
 	require.NoError(t, err)
 
-	_, err = dm.Get(key)
+	_, err = dm.Get(ctx, key)
 	require.NoError(t, err)
 
-	err = dm.Expire(key, time.Millisecond)
+	err = dm.Expire(ctx, key, time.Millisecond)
 	require.NoError(t, err)
 
 	<-time.After(time.Millisecond)
 
 	// Get the value and check it.
-	_, err = dm.Get(key)
+	_, err = dm.Get(ctx, key)
 	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
@@ -56,7 +58,7 @@ func TestDMap_Expire_ErrKeyNotFound(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
-	err = dm.Expire("mykey", time.Millisecond)
+	err = dm.Expire(context.Background(), "mykey", time.Millisecond)
 	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
@@ -65,22 +67,23 @@ func TestDMap_Expire_expireCommandHandler(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	key := "mykey"
-	err = dm.Put(key, "myvalue")
+	err = dm.Put(ctx, key, "myvalue", nil)
 	require.NoError(t, err)
 
 	cmd := protocol.NewExpire("mydmap", "mykey", time.Duration(0.1*float64(time.Second))).Command(s.ctx)
 	rc := s.client.Get(s.rt.This().String())
-	err = rc.Process(s.ctx, cmd)
+	err = rc.Process(ctx, cmd)
 	require.NoError(t, err)
 
 	<-time.After(200 * time.Millisecond)
 
 	// Get the value and check it.
-	_, err = dm.Get(key)
+	_, err = dm.Get(ctx, key)
 	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
@@ -89,21 +92,22 @@ func TestDMap_Expire_pexpireCommandHandler(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	key := "mykey"
-	err = dm.Put(key, "myvalue")
+	err = dm.Put(ctx, key, "myvalue", nil)
 	require.NoError(t, err)
 
 	cmd := protocol.NewPExpire("mydmap", "mykey", time.Millisecond).Command(s.ctx)
 	rc := s.client.Get(s.rt.This().String())
-	err = rc.Process(s.ctx, cmd)
+	err = rc.Process(ctx, cmd)
 	require.NoError(t, err)
 
 	<-time.After(10 * time.Millisecond)
 
 	// Get the value and check it.
-	_, err = dm.Get(key)
+	_, err = dm.Get(ctx, key)
 	require.ErrorIs(t, err, ErrKeyNotFound)
 }

@@ -40,7 +40,7 @@ func (s *Service) unlockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	err = dm.unlock(unlockCmd.Key, token)
+	err = dm.unlock(s.ctx, unlockCmd.Key, token)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
@@ -71,7 +71,7 @@ func (s *Service) lockCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	var deadline = time.Duration(lockCmd.Deadline * float64(time.Second))
-	lctx, err := dm.lockKey(lockCmd.Key, timeout, deadline)
+	lctx, err := dm.lockKey(s.ctx, lockCmd.Key, timeout, deadline)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
@@ -99,7 +99,7 @@ func (s *Service) lockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command) 
 		protocol.WriteError(conn, err)
 		return
 	}
-	err = dm.lease(lockLeaseCmd.Key, token, timeout)
+	err = dm.lease(s.ctx, lockLeaseCmd.Key, token, timeout)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
@@ -126,7 +126,7 @@ func (s *Service) plockLeaseCommandHandler(conn redcon.Conn, cmd redcon.Command)
 		protocol.WriteError(conn, err)
 		return
 	}
-	err = dm.lease(plockLeaseCmd.Key, token, timeout)
+	err = dm.lease(s.ctx, plockLeaseCmd.Key, token, timeout)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

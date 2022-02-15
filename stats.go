@@ -145,12 +145,6 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	return s
 }
 
-type statsConfig struct {
-	CollectRuntime bool
-}
-
-type StatsOption func(*statsConfig)
-
 func CollectRuntime() StatsOption {
 	return func(cfg *statsConfig) {
 		cfg.CollectRuntime = true

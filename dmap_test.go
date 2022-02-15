@@ -14,14 +14,7 @@
 
 package olric
 
-import (
-	"testing"
-	"time"
-
-	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/stretchr/testify/require"
-)
-
+/*
 func TestOlric_DMap_Get(t *testing.T) {
 	db := newTestOlric(t)
 
@@ -54,7 +47,7 @@ func TestOlric_DMap_Put(t *testing.T) {
 	require.NoError(t, err)
 }
 
-/*
+
 func TestOlric_DMap_PutIf_IfNotFound(t *testing.T) {
 	db := newTestOlric(t)
 
@@ -122,7 +115,7 @@ func TestOlric_DMap_PutIfEx_IfNotFound(t *testing.T) {
 	<-time.After(100 * time.Millisecond)
 	err = dm.PutIfEx("mykey", "myvalue", 100*time.Millisecond, IfNotFound)
 	require.NoError(t, err)
-}*/
+}
 
 func TestOlric_DMap_Expire(t *testing.T) {
 	db := newTestOlric(t)
@@ -139,25 +132,6 @@ func TestOlric_DMap_Expire(t *testing.T) {
 	_, err = dm.Get("mykey")
 	require.NoError(t, err)
 }
-
-/*
-func TestOlric_DMap_PutEx(t *testing.T) {
-	db := newTestOlric(t)
-
-	dm, err := db.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	err = dm.PutEx("mykey", "myvalue", 100*time.Millisecond)
-	require.NoError(t, err)
-
-	value, err := dm.Get("mykey")
-	require.NoError(t, err)
-	require.Equal(t, "myvalue", value)
-
-	<-time.After(100 * time.Millisecond)
-	_, err = dm.Get("mykey")
-	require.ErrorIs(t, err, ErrKeyNotFound)
-}*/
 
 func TestOlric_DMap_Delete(t *testing.T) {
 	db := newTestOlric(t)
@@ -293,4 +267,4 @@ func TestOlric_DMap_Lock_Deadline(t *testing.T) {
 
 	_, errTwo := dm.Lock("mykey", time.Millisecond)
 	require.ErrorIs(t, ErrLockNotAcquired, errTwo)
-}
+}*/

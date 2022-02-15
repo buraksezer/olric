@@ -72,13 +72,14 @@ func TestDMap_scanCommandHandler_Standalone(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	allKeys := make(map[string]bool)
 
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
+		err = dm.Put(ctx, testutil.ToKey(i), i, nil)
 		require.NoError(t, err)
 
 		allKeys[testutil.ToKey(i)] = false
@@ -108,12 +109,13 @@ func TestDMap_scanCommandHandler_Cluster(t *testing.T) {
 
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	dm, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
 	allKeys := make(map[string]bool)
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
+		err = dm.Put(ctx, testutil.ToKey(i), i, nil)
 		require.NoError(t, err)
 
 		allKeys[testutil.ToKey(i)] = false
@@ -151,9 +153,10 @@ func TestDMap_Scan(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	allKeys := make(map[string]bool)
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
+		err = dm.Put(ctx, testutil.ToKey(i), i, nil)
 		require.NoError(t, err)
 		allKeys[testutil.ToKey(i)] = false
 	}
@@ -189,9 +192,11 @@ func TestDMap_Scan_Cluster(t *testing.T) {
 	dm, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	allKeys := make(map[string]bool)
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
+		err = dm.Put(ctx, testutil.ToKey(i), i, nil)
 		require.NoError(t, err)
 
 		allKeys[testutil.ToKey(i)] = false
@@ -216,6 +221,8 @@ func TestDMap_ScanMatch(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
+
 	evenKeys := make(map[string]bool)
 	for i := 0; i < 100; i++ {
 		var key string
@@ -225,7 +232,7 @@ func TestDMap_ScanMatch(t *testing.T) {
 		} else {
 			key = fmt.Sprintf("odd:%s", testutil.ToKey(i))
 		}
-		err = dm.Put(key, i)
+		err = dm.Put(ctx, key, i, nil)
 		require.NoError(t, err)
 	}
 	i, err := dm.Scan(Match("^even:"))
@@ -248,8 +255,9 @@ func TestDMap_Scan_Close(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
+		err = dm.Put(ctx, testutil.ToKey(i), i, nil)
 		require.NoError(t, err)
 	}
 	i, err := dm.Scan()
@@ -272,6 +280,7 @@ func TestDMap_scanCommandHandler_match(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	evenKeys := make(map[string]bool)
 	for i := 0; i < 100; i++ {
 		var key string
@@ -281,7 +290,7 @@ func TestDMap_scanCommandHandler_match(t *testing.T) {
 		} else {
 			key = fmt.Sprintf("odd:%s", testutil.ToKey(i))
 		}
-		err = dm.Put(key, i)
+		err = dm.Put(ctx, key, i, nil)
 		require.NoError(t, err)
 	}
 
@@ -304,14 +313,13 @@ func TestDMap_scanCommandHandler_count(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), i)
+		err = dm.Put(ctx, testutil.ToKey(i), i, nil)
 		require.NoError(t, err)
 	}
 
-	ctx := context.Background()
 	rc := s.client.Get(s.rt.This().String())
-
 	var partID, cursor uint64
 	r := protocol.NewScan(partID, "mydmap", cursor)
 	r.SetCount(5)

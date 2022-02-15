@@ -14,21 +14,7 @@
 
 package olric
 
-import (
-	"context"
-	"fmt"
-	"testing"
-	"time"
-
-	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/pubsub"
-	"github.com/buraksezer/olric/internal/testutil"
-	"github.com/buraksezer/olric/stats"
-	"github.com/go-redis/redis/v8"
-	"github.com/stretchr/testify/require"
-)
-
+/*
 func TestOlric_Stats(t *testing.T) {
 	db := newTestOlric(t)
 
@@ -252,4 +238,4 @@ func TestStats_DMap(t *testing.T) {
 		require.Greater(t, dmap.EvictedTotal.Read(), int64(0))
 		require.GreaterOrEqual(t, dmap.EntriesTotal.Read(), int64(10))
 	})
-}
+}*/

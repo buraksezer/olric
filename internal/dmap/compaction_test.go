@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -60,8 +61,9 @@ func TestDMap_Compaction(t *testing.T) {
 	dm, err := s.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 10000; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
@@ -72,7 +74,7 @@ func TestDMap_Compaction(t *testing.T) {
 			continue
 		}
 
-		err = dm.Delete(testutil.ToKey(i))
+		err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 

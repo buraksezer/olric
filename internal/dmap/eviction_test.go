@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -33,8 +34,13 @@ func TestDMap_Eviction_TTL(t *testing.T) {
 	dm, err := s1.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
+	pc := &PutConfig{
+		HasEX: true,
+		EX:    time.Millisecond,
+	}
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i), EX(time.Millisecond))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
 		require.NoError(t, err)
 	}
 
@@ -74,8 +80,9 @@ func TestDMap_Eviction_Config_TTLDuration(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
@@ -112,8 +119,9 @@ func TestDMap_Eviction_Config_MaxIdleDuration(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
@@ -152,8 +160,9 @@ func TestDMap_Eviction_LRU_Config_MaxKeys(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 	length := 0
@@ -185,8 +194,9 @@ func TestDMap_Eviction_LRU_Config_MaxInuse(t *testing.T) {
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 	length := 0

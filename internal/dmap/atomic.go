@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -25,7 +26,7 @@ import (
 )
 
 func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
-	entry, err := dm.get(e.key)
+	entry, err := dm.Get(e.ctx, e.key)
 	if errors.Is(err, ErrKeyNotFound) {
 		return 0, nil
 	}
@@ -89,7 +90,7 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
 func (dm *DMap) Incr(key string, delta int) (int, error) {
-	e := newEnv()
+	e := newEnv(nil)
 	e.dmap = dm.name
 	e.key = key
 	return dm.atomicIncrDecr(protocol.DMap.Incr, e, delta)
@@ -97,7 +98,7 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
 func (dm *DMap) Decr(key string, delta int) (int, error) {
-	e := newEnv()
+	e := newEnv(nil)
 	e.dmap = dm.name
 	e.key = key
 	return dm.atomicIncrDecr(protocol.DMap.Decr, e, delta)
@@ -113,7 +114,7 @@ func (dm *DMap) getPut(e *env) (storage.Entry, error) {
 		}
 	}()
 
-	entry, err := dm.get(e.key)
+	entry, err := dm.Get(e.ctx, e.key)
 	if errors.Is(err, ErrKeyNotFound) {
 		err = nil
 	}
@@ -132,7 +133,7 @@ func (dm *DMap) getPut(e *env) (storage.Entry, error) {
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
-func (dm *DMap) GetPut(key string, value interface{}) (*GetResponse, error) {
+func (dm *DMap) GetPut(ctx context.Context, key string, value interface{}) (storage.Entry, error) {
 	if value == nil {
 		value = struct{}{}
 	}
@@ -147,7 +148,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (*GetResponse, error) {
 		pool.Put(valueBuf)
 	}()
 
-	e := newEnv()
+	e := newEnv(ctx)
 	e.dmap = dm.name
 	e.key = key
 	e.value = valueBuf.Bytes()
@@ -158,5 +159,5 @@ func (dm *DMap) GetPut(key string, value interface{}) (*GetResponse, error) {
 	if raw == nil {
 		return nil, nil
 	}
-	return &GetResponse{entry: raw}, nil
+	return raw, nil
 }

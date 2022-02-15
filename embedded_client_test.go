@@ -12,23 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dmap
+package olric
 
 import (
 	"context"
-	"time"
+	"github.com/stretchr/testify/require"
+	"testing"
 )
 
-// Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
-// DB does not contain the key. It's thread-safe.
-func (dm *DMap) Expire(ctx context.Context, key string, timeout time.Duration) error {
-	pc := &PutConfig{
-		OnlyUpdateTTL: true,
-	}
-	e := newEnv(ctx)
-	e.putConfig = pc
-	e.dmap = dm.name
-	e.key = key
-	e.timeout = timeout
-	return dm.put(e)
+func TestEmbeddedClient_NewDMap(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	_, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+}
+
+func TestEmbeddedClient_DMap_Put(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(context.Background(), "mykey", "myvalue")
+	require.NoError(t, err)
 }
