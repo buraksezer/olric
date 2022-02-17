@@ -40,13 +40,13 @@ type Iterator struct {
 	finished map[uint64]struct{}
 	cursors  map[uint64]uint64 // member id => cursor
 	partID   uint64            // current partition id
-	config   *scanConfig
+	config   *ScanConfig
 	ctx      context.Context
 	cancel   context.CancelFunc
 }
 
 func (dm *DMap) Scan(options ...ScanOption) (*Iterator, error) {
-	var sc scanConfig
+	var sc ScanConfig
 	for _, opt := range options {
 		opt(&sc)
 	}
@@ -142,13 +142,13 @@ func (i *Iterator) next() bool {
 	i.resetPage()
 
 	primaryOwners := i.dm.s.primary.PartitionOwnersByID(i.partID)
-	i.config.replica = false
+	i.config.Replica = false
 	if err := i.scanOnOwners(primaryOwners); err != nil {
 		return false
 	}
 
 	replicaOwners := i.dm.s.backup.PartitionOwnersByID(i.partID)
-	i.config.replica = true
+	i.config.Replica = true
 	if err := i.scanOnOwners(replicaOwners); err != nil {
 		return false
 	}

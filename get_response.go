@@ -15,17 +15,23 @@
 package olric
 
 import (
+	"errors"
 	"time"
 
 	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
+var ErrNilResponse = errors.New("storage entry is nil")
+
 type GetResponse struct {
 	entry storage.Entry
 }
 
 func (g *GetResponse) Scan(v interface{}) error {
+	if g.entry == nil {
+		return ErrNilResponse
+	}
 	return encoding.Scan(g.entry.Value(), v)
 }
 

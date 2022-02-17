@@ -38,11 +38,12 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	var start chan struct{}
 	key := "incr"
 
+	ctx := context.Background()
 	incr := func(dm *DMap) {
 		<-start
 		defer wg.Done()
 
-		_, err := dm.Incr(key, 1)
+		_, err := dm.Incr(ctx, key, 1)
 		if err != nil {
 			s.log.V(2).Printf("[ERROR] Failed to call Incr: %v", err)
 			return
@@ -60,7 +61,6 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	ctx := context.Background()
 	gr, err := dm.Get(ctx, key)
 	require.NoError(t, err)
 
@@ -79,11 +79,13 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	var start chan struct{}
 	key := "decr"
 
+	ctx := context.Background()
+
 	decr := func(dm *DMap) {
 		<-start
 		defer wg.Done()
 
-		_, err := dm.Decr(key, 1)
+		_, err := dm.Decr(ctx, key, 1)
 		if err != nil {
 			s.log.V(2).Printf("[ERROR] Failed to call Decr: %v", err)
 			return

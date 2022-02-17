@@ -16,10 +16,12 @@ package olric
 
 import (
 	"context"
-	"golang.org/x/sync/errgroup"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestEmbeddedClient_NewDMap(t *testing.T) {
@@ -83,10 +85,11 @@ func TestEmbeddedClient_DMap_Atomic_Incr(t *testing.T) {
 	dm, err := e.NewDMap("mydmap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	var errGr errgroup.Group
 	for i := 0; i < 100; i++ {
 		errGr.Go(func() error {
-			_, err = dm.Incr("mykey", 1)
+			_, err = dm.Incr(ctx, "mykey", 1)
 			return err
 		})
 	}
@@ -96,5 +99,268 @@ func TestEmbeddedClient_DMap_Atomic_Incr(t *testing.T) {
 	res, err := gr.Int()
 	require.NoError(t, err)
 	require.Equal(t, 100, res)
+}
 
+func TestEmbeddedClient_DMap_Atomic_Decr(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = dm.Put(ctx, "mykey", 100)
+	require.NoError(t, err)
+
+	var errGr errgroup.Group
+	for i := 0; i < 100; i++ {
+		errGr.Go(func() error {
+			_, err = dm.Decr(ctx, "mykey", 1)
+			return err
+		})
+	}
+	require.NoError(t, errGr.Wait())
+
+	gr, err := dm.Get(context.Background(), "mykey")
+	res, err := gr.Int()
+	require.NoError(t, err)
+	require.Equal(t, 0, res)
+}
+
+func TestEmbeddedClient_DMap_GetPut(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	gr, err := dm.GetPut(context.Background(), "mykey", "myvalue")
+	require.NoError(t, err)
+
+	_, err = gr.String()
+	require.ErrorIs(t, err, ErrNilResponse)
+
+	gr, err = dm.GetPut(context.Background(), "mykey", "myvalue-2")
+	require.NoError(t, err)
+
+	value, err := gr.String()
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
+}
+
+func TestEmbeddedClient_DMap_Expire(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = dm.Put(ctx, "mykey", "myvalue")
+	require.NoError(t, err)
+
+	err = dm.Expire(ctx, "mykey", time.Millisecond)
+	require.NoError(t, err)
+
+	<-time.After(2 * time.Millisecond)
+
+	_, err = dm.Get(context.Background(), "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Destroy(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	for i := 0; i < 100; i++ {
+		err = dm.Put(ctx, fmt.Sprintf("mykey-%d", i), "myvalue")
+		require.NoError(t, err)
+	}
+
+	err = dm.Destroy(ctx)
+	require.NoError(t, err)
+
+	// Destroy is an async command. Wait for some time to see its effect.
+	<-time.After(100 * time.Millisecond)
+
+	stats, err := e.Stats()
+	require.NoError(t, err)
+	var total int
+	for _, part := range stats.Partitions {
+		total += part.Length
+	}
+	require.Greater(t, 100, total)
+}
+
+func TestEmbeddedClient_DMap_Lock(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.Lock(ctx, key, time.Second)
+	require.NoError(t, err)
+
+	err = lx.Unlock(ctx)
+	require.NoError(t, err)
+}
+
+func TestEmbeddedClient_DMap_Lock_ErrLockNotAcquired(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	_, err = dm.Lock(ctx, key, time.Second)
+	require.NoError(t, err)
+
+	_, err = dm.Lock(ctx, key, time.Millisecond)
+	require.ErrorIs(t, err, ErrLockNotAcquired)
+}
+
+func TestEmbeddedClient_DMap_Lock_ErrNoSuchLock(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.Lock(ctx, key, time.Second)
+	require.NoError(t, err)
+
+	err = lx.Unlock(ctx)
+	require.NoError(t, err)
+
+	err = lx.Unlock(ctx)
+	require.ErrorIs(t, err, ErrNoSuchLock)
+}
+
+func TestEmbeddedClient_DMap_LockWithTimeout(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.LockWithTimeout(ctx, key, 5*time.Second, time.Second)
+	require.NoError(t, err)
+
+	err = lx.Unlock(ctx)
+	require.NoError(t, err)
+}
+
+func TestEmbeddedClient_DMap_LockWithTimeout_Timeout(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.LockWithTimeout(ctx, key, time.Millisecond, time.Second)
+	require.NoError(t, err)
+
+	<-time.After(2 * time.Millisecond)
+
+	err = lx.Unlock(ctx)
+	require.ErrorIs(t, err, ErrNoSuchLock)
+}
+
+func TestEmbeddedClient_DMap_LockWithTimeout_ErrLockNotAcquired(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	_, err = dm.LockWithTimeout(ctx, key, 10*time.Second, time.Second)
+	require.NoError(t, err)
+
+	_, err = dm.LockWithTimeout(ctx, key, 10*time.Second, time.Millisecond)
+	require.ErrorIs(t, err, ErrLockNotAcquired)
+}
+
+func TestEmbeddedClient_DMap_LockWithTimeout_ErrNoSuchLock(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.LockWithTimeout(ctx, key, time.Second, time.Second)
+	require.NoError(t, err)
+
+	err = lx.Unlock(ctx)
+	require.NoError(t, err)
+
+	err = lx.Unlock(ctx)
+	require.ErrorIs(t, err, ErrNoSuchLock)
+}
+
+func TestEmbeddedClient_DMap_LockWithTimeout_ErrNoSuchLock_Timeout(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.LockWithTimeout(ctx, key, time.Millisecond, time.Second)
+	require.NoError(t, err)
+
+	<-time.After(time.Millisecond)
+
+	err = lx.Unlock(ctx)
+	require.ErrorIs(t, err, ErrNoSuchLock)
+}
+
+func TestEmbeddedClient_DMap_LockWithTimeout_Then_Lease(t *testing.T) {
+	db := newTestOlric(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	key := "lock.key.test"
+
+	lx, err := dm.LockWithTimeout(ctx, key, 50*time.Millisecond, time.Second)
+	require.NoError(t, err)
+
+	// Expand its timeout value
+	err = lx.Lease(ctx, time.Hour)
+	require.NoError(t, err)
+
+	<-time.After(100 * time.Millisecond)
+
+	_, err = dm.Lock(ctx, key, time.Millisecond)
+	require.ErrorIs(t, err, ErrLockNotAcquired)
 }

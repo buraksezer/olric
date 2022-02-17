@@ -89,16 +89,16 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 }
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
-func (dm *DMap) Incr(key string, delta int) (int, error) {
-	e := newEnv(nil)
+func (dm *DMap) Incr(ctx context.Context, key string, delta int) (int, error) {
+	e := newEnv(ctx)
 	e.dmap = dm.name
 	e.key = key
 	return dm.atomicIncrDecr(protocol.DMap.Incr, e, delta)
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
-func (dm *DMap) Decr(key string, delta int) (int, error) {
-	e := newEnv(nil)
+func (dm *DMap) Decr(ctx context.Context, key string, delta int) (int, error) {
+	e := newEnv(ctx)
 	e.dmap = dm.name
 	e.key = key
 	return dm.atomicIncrDecr(protocol.DMap.Decr, e, delta)

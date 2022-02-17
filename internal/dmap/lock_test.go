@@ -17,16 +17,16 @@ package dmap
 import (
 	"context"
 	"encoding/hex"
+	"github.com/buraksezer/olric/internal/protocol"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDMap_LockWithTimeout_Standalone(t *testing.T) {
+func TestDMap_Lock_With_Timeout_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -35,10 +35,11 @@ func TestDMap_LockWithTimeout_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
+	ctx := context.Background()
+	token, err := dm.Lock(ctx, key, time.Second, time.Second)
 	require.NoError(t, err)
 
-	err = ctx.Unlock(context.Background())
+	err = dm.Unlock(ctx, key, token)
 	require.NoError(t, err)
 }
 
@@ -51,16 +52,17 @@ func TestDMap_Unlock_After_Timeout_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Millisecond, time.Second)
+	ctx := context.Background()
+	token, err := dm.Lock(context.Background(), key, time.Millisecond, time.Second)
 	require.NoError(t, err)
 
 	<-time.After(10 * time.Millisecond)
 
-	err = ctx.Unlock(context.Background())
+	err = dm.Unlock(ctx, key, token)
 	require.ErrorIs(t, err, ErrNoSuchLock)
 }
 
-func TestDMap_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
+func TestDMap_Lock_With_Timeout_ErrLockNotAcquired_Standalone(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -69,10 +71,11 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
+	ctx := context.Background()
+	_, err = dm.Lock(ctx, key, time.Second, time.Second)
 	require.NoError(t, err)
 
-	_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Millisecond)
+	_, err = dm.Lock(context.Background(), key, time.Second, time.Millisecond)
 	require.ErrorIs(t, err, ErrLockNotAcquired)
 }
 
@@ -85,13 +88,14 @@ func TestDMap_LockLease_Standalone(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
+	ctx := context.Background()
+	token, err := dm.Lock(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
-	err = ctx.Lease(context.Background(), 2*time.Second)
+	err = dm.Lease(ctx, key, token, 2*time.Second)
 	require.NoError(t, err)
 
-	e, err := dm.Get(context.Background(), key)
+	e, err := dm.Get(ctx, key)
 	require.NoError(t, err)
 
 	if e.TTL()-(time.Now().UnixNano()/1000000) <= 1900 {
@@ -100,7 +104,7 @@ func TestDMap_LockLease_Standalone(t *testing.T) {
 
 	<-time.After(3 * time.Second)
 
-	err = ctx.Lease(context.Background(), 3*time.Second)
+	err = dm.Lease(ctx, key, token, 3*time.Second)
 	require.ErrorIs(t, err, ErrNoSuchLock)
 }
 
@@ -109,14 +113,15 @@ func TestDMap_Lock_Standalone(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	key := "lock.test.foo"
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.Lock(context.Background(), key, time.Second)
+	token, err := dm.Lock(ctx, key, nilTimeout, time.Second)
 	require.NoError(t, err)
 
-	err = ctx.Unlock(context.Background())
+	err = dm.Unlock(ctx, key, token)
 	require.NoError(t, err)
 }
 
@@ -125,14 +130,15 @@ func TestDMap_Lock_ErrLockNotAcquired_Standalone(t *testing.T) {
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
 
+	ctx := context.Background()
 	key := "lock.test.foo"
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	_, err = dm.Lock(context.Background(), key, time.Second)
+	_, err = dm.Lock(ctx, key, nilTimeout, time.Second)
 	require.NoError(t, err)
 
-	_, err = dm.Lock(context.Background(), key, time.Millisecond)
+	_, err = dm.Lock(ctx, key, nilTimeout, time.Millisecond)
 	require.ErrorIs(t, err, ErrLockNotAcquired)
 }
 
@@ -144,17 +150,18 @@ func TestDMap_LockWithTimeout_Cluster(t *testing.T) {
 	dm, err := s1.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	var lockContext []*LockContext
+	ctx := context.Background()
+	tokens := make(map[string][]byte)
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.LockWithTimeout(context.Background(), key, time.Hour, time.Second)
+		token, err := dm.Lock(ctx, key, time.Hour, time.Second)
 		require.NoError(t, err)
-		lockContext = append(lockContext, ctx)
+		tokens[key] = token
 	}
 
 	cluster.AddMember(nil)
-	for _, ctx := range lockContext {
-		err = ctx.Unlock(context.Background())
+	for key, token := range tokens {
+		err = dm.Unlock(ctx, key, token)
 		require.NoError(t, err)
 	}
 }
@@ -167,17 +174,18 @@ func TestDMap_LockLease_Cluster(t *testing.T) {
 	dm, err := s1.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	var lockContext []*LockContext
+	ctx := context.Background()
+	tokens := make(map[string][]byte)
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.LockWithTimeout(context.Background(), key, 5*time.Second, 10*time.Millisecond)
+		token, err := dm.Lock(ctx, key, 5*time.Second, 10*time.Millisecond)
 		require.NoError(t, err)
-		lockContext = append(lockContext, ctx)
+		tokens[key] = token
 	}
 
 	cluster.AddMember(nil)
-	for i := range lockContext {
-		err = lockContext[i].Lease(context.Background(), 10*time.Second)
+	for key, token := range tokens {
+		err = dm.Lease(ctx, key, token, 10*time.Second)
 		require.NoError(t, err)
 	}
 }
@@ -190,17 +198,18 @@ func TestDMap_Lock_Cluster(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	var lockContext []*LockContext
+	ctx := context.Background()
+	tokens := make(map[string][]byte)
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		ctx, err := dm.Lock(context.Background(), key, time.Second)
+		token, err := dm.Lock(ctx, key, nilTimeout, time.Second)
 		require.NoError(t, err)
-		lockContext = append(lockContext, ctx)
+		tokens[key] = token
 	}
 
 	cluster.AddMember(nil)
-	for _, ctx := range lockContext {
-		err = ctx.Unlock(context.Background())
+	for key, token := range tokens {
+		err = dm.Unlock(ctx, key, token)
 		require.NoError(t, err)
 	}
 }
@@ -213,9 +222,10 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
+		_, err := dm.Lock(ctx, key, time.Second, time.Second)
 		require.NoError(t, err)
 	}
 
@@ -223,12 +233,12 @@ func TestDMap_LockWithTimeout_ErrLockNotAcquired_Cluster(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Millisecond)
+		_, err = dm.Lock(ctx, key, time.Second, time.Millisecond)
 		require.ErrorIs(t, err, ErrLockNotAcquired)
 	}
 }
 
-func TestDMap_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
+func TestDMap_Lock_After_Lock_With_Timeout_Cluster(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
 	defer cluster.Shutdown()
@@ -236,16 +246,17 @@ func TestDMap_Lock_After_LockWithTimeout_Cluster(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err = dm.LockWithTimeout(context.Background(), key, time.Millisecond, time.Second)
+		_, err = dm.Lock(ctx, key, time.Millisecond, time.Second)
 		require.NoError(t, err)
 	}
 
 	cluster.AddMember(nil)
 	for i := 0; i < 100; i++ {
 		key := "lock.test.foo." + strconv.Itoa(i)
-		_, err = dm.Lock(context.Background(), key, time.Second)
+		_, err = dm.Lock(ctx, key, nilTimeout, time.Second)
 		require.NoError(t, err)
 	}
 }
@@ -259,14 +270,14 @@ func TestDMap_tryLock(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	_, err = dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
+	_, err = dm.Lock(context.Background(), key, time.Second, time.Second)
 	require.NoError(t, err)
 
 	var i int
 	var acquired bool
 	for i <= 10 {
 		i++
-		_, err := dm.Lock(context.Background(), key, 100*time.Millisecond)
+		_, err := dm.Lock(context.Background(), key, nilTimeout, 100*time.Millisecond)
 		if err == ErrLockNotAcquired {
 			// already acquired
 			continue
@@ -354,19 +365,21 @@ func TestDMap_lockLeaseCommandHandler(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(context.Background(), key, time.Second, time.Second)
+	ctx := context.Background()
+
+	token, err := dm.Lock(ctx, key, time.Second, time.Second)
 	require.NoError(t, err)
 
 	// Update the timeout
-	token := hex.EncodeToString(ctx.token)
-	cmd := protocol.NewLockLease("lock.test", "lock.test.foo", token, 10).Command(s.ctx)
+	etoken := hex.EncodeToString(token)
+	cmd := protocol.NewLockLease("lock.test", key, etoken, 10).Command(s.ctx)
 	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
 	<-time.After(2 * time.Second)
 
-	err = ctx.Unlock(context.Background())
+	err = dm.Unlock(ctx, key, token)
 	require.NoError(t, err)
 }
 
@@ -379,18 +392,20 @@ func TestDMap_plockLeaseCommandHandler(t *testing.T) {
 	dm, err := s.NewDMap("lock.test")
 	require.NoError(t, err)
 
-	ctx, err := dm.LockWithTimeout(context.Background(), key, 250*time.Millisecond, time.Second)
+	ctx := context.Background()
+
+	token, err := dm.Lock(ctx, key, 250*time.Millisecond, time.Second)
 	require.NoError(t, err)
 
 	// Update the timeout
-	token := hex.EncodeToString(ctx.token)
-	cmd := protocol.NewPLockLease("lock.test", "lock.test.foo", token, 2000).Command(s.ctx)
+	etoken := hex.EncodeToString(token)
+	cmd := protocol.NewPLockLease("lock.test", key, etoken, 2000).Command(s.ctx)
 	rc := s.client.Get(s.rt.This().String())
 	err = rc.Process(s.ctx, cmd)
 	require.NoError(t, err)
 
 	<-time.After(500 * time.Millisecond)
 
-	err = ctx.Unlock(context.Background())
+	err = dm.Unlock(ctx, key, token)
 	require.NoError(t, err)
 }

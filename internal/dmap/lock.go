@@ -35,14 +35,6 @@ var (
 	ErrNoSuchLock = errors.New("no such lock")
 )
 
-// LockContext is returned by Lock and LockWithTimeout methods.
-// It should be stored in a proper way to release the lock.
-type LockContext struct {
-	key   string
-	token []byte
-	dm    *DMap
-}
-
 // unlockKey tries to unlock the lock by verifying the lock with token.
 func (dm *DMap) unlockKey(ctx context.Context, key string, token []byte) error {
 	lkey := dm.name + key
@@ -77,9 +69,9 @@ func (dm *DMap) unlockKey(ctx context.Context, key string, token []byte) error {
 	return nil
 }
 
-// unlock takes key and token and tries to unlock the key.
+// Unlock takes key and token and tries to unlock the key.
 // It redirects the request to the partition owner, if required.
-func (dm *DMap) unlock(ctx context.Context, key string, token []byte) error {
+func (dm *DMap) Unlock(ctx context.Context, key string, token []byte) error {
 	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
@@ -93,11 +85,6 @@ func (dm *DMap) unlock(ctx context.Context, key string, token []byte) error {
 		return protocol.ConvertError(err)
 	}
 	return protocol.ConvertError(cmd.Err())
-}
-
-// Unlock releases the lock.
-func (l *LockContext) Unlock(ctx context.Context) error {
-	return l.dm.unlock(ctx, l.key, l.token)
 }
 
 // tryLock takes a deadline and env and sets a key-value pair by using
@@ -147,8 +134,8 @@ LOOP:
 	return nil
 }
 
-// lockKey prepares a token and env, then calls tryLock
-func (dm *DMap) lockKey(ctx context.Context, key string, timeout, deadline time.Duration) (*LockContext, error) {
+// Lock prepares a token and env, then calls tryLock
+func (dm *DMap) Lock(ctx context.Context, key string, timeout, deadline time.Duration) ([]byte, error) {
 	token := make([]byte, 16)
 	_, err := rand.Read(token)
 	if err != nil {
@@ -175,30 +162,8 @@ func (dm *DMap) lockKey(ctx context.Context, key string, timeout, deadline time.
 	if err != nil {
 		return nil, err
 	}
-	return &LockContext{
-		key:   key,
-		token: token,
-		dm:    dm,
-	}, nil
-}
 
-// LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
-// it automatically releases the lock. Acquired lock is only for the key in this dmap.
-//
-// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
-//
-// You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMap) LockWithTimeout(ctx context.Context, key string, timeout, deadline time.Duration) (*LockContext, error) {
-	return dm.lockKey(ctx, key, timeout, deadline)
-}
-
-// Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
-//
-// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
-//
-// You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMap) Lock(ctx context.Context, key string, deadline time.Duration) (*LockContext, error) {
-	return dm.lockKey(ctx, key, nilTimeout, deadline)
+	return token, nil
 }
 
 // leaseKey tries to update the expiry of the key by verifying token.
@@ -242,7 +207,7 @@ func (dm *DMap) leaseKey(ctx context.Context, key string, token []byte, timeout 
 
 // Lease takes key and token and tries to update the expiry with duration.
 // It redirects the request to the partition owner, if required.
-func (dm *DMap) lease(ctx context.Context, key string, token []byte, timeout time.Duration) error {
+func (dm *DMap) Lease(ctx context.Context, key string, token []byte, timeout time.Duration) error {
 	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
@@ -256,9 +221,4 @@ func (dm *DMap) lease(ctx context.Context, key string, token []byte, timeout tim
 		return protocol.ConvertError(err)
 	}
 	return protocol.ConvertError(cmd.Err())
-}
-
-// Lease takes the duration to update the expiry for the given Lock.
-func (l *LockContext) Lease(ctx context.Context, duration time.Duration) error {
-	return l.dm.lease(ctx, l.key, l.token, duration)
 }

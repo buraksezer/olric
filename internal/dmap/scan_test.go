@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool, sc *scanConfig) int {
+func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool, sc *ScanConfig) int {
 	if sc == nil {
-		sc = &scanConfig{}
+		sc = &ScanConfig{}
 	}
 	ctx := context.Background()
 	rc := s.client.Get(s.rt.This().String())
@@ -36,7 +36,7 @@ func testScanIterator(t *testing.T, s *Service, allKeys map[string]bool, sc *sca
 	var partID, cursor uint64
 	for {
 		r := protocol.NewScan(partID, "mydmap", cursor)
-		if sc.replica {
+		if sc.Replica {
 			r.SetReplica()
 		}
 		if sc.HasMatch {
@@ -134,7 +134,7 @@ func TestDMap_scanCommandHandler_Cluster(t *testing.T) {
 
 	t.Run("Scan on replicas", func(t *testing.T) {
 		var totalKeys int
-		sc := &scanConfig{replica: true}
+		sc := &ScanConfig{Replica: true}
 		totalKeys += testScanIterator(t, s1, allKeys, sc)
 		totalKeys += testScanIterator(t, s2, allKeys, sc)
 
@@ -294,7 +294,7 @@ func TestDMap_scanCommandHandler_match(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	sc := &scanConfig{
+	sc := &ScanConfig{
 		HasMatch: true,
 		Match:    "^even:",
 	}

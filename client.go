@@ -22,6 +22,11 @@ import (
 	"github.com/buraksezer/olric/stats"
 )
 
+type LockContext interface {
+	Unlock(ctx context.Context) error
+	Lease(ctx context.Context, duration time.Duration) error
+}
+
 type PutOption func(*dmap.PutConfig)
 
 func EX(ex time.Duration) PutOption {
@@ -64,16 +69,43 @@ func XX() PutOption {
 	}
 }
 
-type dmapOption struct {
+type dmapConfig struct {
 }
 
-type DMapOption func(*dmapOption)
+type DMapOption func(*dmapConfig)
 
 type DMap interface {
+	// Name exposes name of the DMap.
+	Name() string
+
+	// Put sets the value for the given key. It overwrites any previous value for
+	// that key, and it's thread-safe. The key has to be string. value type is arbitrary.
+	// It is safe to modify the contents of the arguments after Put returns but not before.
 	Put(ctx context.Context, key string, value interface{}, options ...PutOption) error
+
 	Get(ctx context.Context, key string) (*GetResponse, error)
 	Delete(ctx context.Context, key string) error
-	Incr(key string, delta int) (int, error)
+	Incr(ctx context.Context, key string, delta int) (int, error)
+	Decr(ctx context.Context, key string, delta int) (int, error)
+	GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error)
+	Expire(ctx context.Context, key string, timeout time.Duration) error
+
+	// Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
+	//
+	// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+	//
+	// You should know that the locks are approximate, and only to be used for non-critical purposes.
+	Lock(ctx context.Context, key string, deadline time.Duration) (LockContext, error)
+
+	// LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
+	// it automatically releases the lock. Acquired lock is only for the key in this dmap.
+	//
+	// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+	//
+	// You should know that the locks are approximate, and only to be used for non-critical purposes.
+	LockWithTimeout(ctx context.Context, key string, timeout, deadline time.Duration) (LockContext, error)
+
+	Destroy(ctx context.Context) error
 }
 
 type statsConfig struct {
