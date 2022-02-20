@@ -84,6 +84,7 @@ func registerErrors() {
 }
 
 func New(e *environment.Environment) *RoutingTable {
+	// The routing table has to be started properly before accepting connections.
 	checkpoint.Add()
 	c := e.Get("config").(*config.Config)
 	log := e.Get("logger").(*flog.Logger)

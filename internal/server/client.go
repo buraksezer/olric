@@ -15,9 +15,10 @@
 package server
 
 import (
-	"github.com/buraksezer/olric/config"
+	"fmt"
 	"sync"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -29,6 +30,13 @@ type Client struct {
 }
 
 func NewClient(c *config.Client) *Client {
+	if c == nil {
+		c = config.NewClient()
+		err := c.Sanitize()
+		if err != nil {
+			panic(fmt.Sprintf("failed to sanitize client config: %s", err))
+		}
+	}
 	return &Client{
 		config:  c,
 		clients: make(map[string]*redis.Client),

@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -22,7 +23,8 @@ import (
 )
 
 func TestOlric_ClusterRoutingTable_clusterRoutingTableCommandHandler(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
 	rc := db.client.Get(db.rt.This().String())
@@ -42,8 +44,10 @@ func TestOlric_ClusterRoutingTable_clusterRoutingTableCommandHandler(t *testing.
 }
 
 func TestOlric_RoutingTable_Standalone(t *testing.T) {
-	db := newTestOlric(t)
-	rt, err := db.RoutingTable()
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	rt, err := db.routingTable(context.Background())
 	require.NoError(t, err)
 	require.Len(t, rt, int(db.config.PartitionCount))
 	for _, route := range rt {

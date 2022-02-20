@@ -25,7 +25,8 @@ import (
 )
 
 func TestEmbeddedClient_NewDMap(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	_, err := e.NewDMap("mydmap")
@@ -33,7 +34,8 @@ func TestEmbeddedClient_NewDMap(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Put(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -44,7 +46,8 @@ func TestEmbeddedClient_DMap_Put(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Get(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -62,7 +65,8 @@ func TestEmbeddedClient_DMap_Get(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Delete(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -79,7 +83,8 @@ func TestEmbeddedClient_DMap_Delete(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Atomic_Incr(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -102,7 +107,8 @@ func TestEmbeddedClient_DMap_Atomic_Incr(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Atomic_Decr(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -128,7 +134,8 @@ func TestEmbeddedClient_DMap_Atomic_Decr(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_GetPut(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -149,7 +156,8 @@ func TestEmbeddedClient_DMap_GetPut(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Expire(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -169,7 +177,8 @@ func TestEmbeddedClient_DMap_Expire(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Destroy(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -197,7 +206,8 @@ func TestEmbeddedClient_DMap_Destroy(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Lock(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -214,7 +224,8 @@ func TestEmbeddedClient_DMap_Lock(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Lock_ErrLockNotAcquired(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -231,7 +242,8 @@ func TestEmbeddedClient_DMap_Lock_ErrLockNotAcquired(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_Lock_ErrNoSuchLock(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -251,7 +263,8 @@ func TestEmbeddedClient_DMap_Lock_ErrNoSuchLock(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_LockWithTimeout(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -268,7 +281,8 @@ func TestEmbeddedClient_DMap_LockWithTimeout(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_LockWithTimeout_Timeout(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -287,7 +301,8 @@ func TestEmbeddedClient_DMap_LockWithTimeout_Timeout(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_LockWithTimeout_ErrLockNotAcquired(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -304,7 +319,8 @@ func TestEmbeddedClient_DMap_LockWithTimeout_ErrLockNotAcquired(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_LockWithTimeout_ErrNoSuchLock(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -324,7 +340,8 @@ func TestEmbeddedClient_DMap_LockWithTimeout_ErrNoSuchLock(t *testing.T) {
 }
 
 func TestEmbeddedClient_DMap_LockWithTimeout_ErrNoSuchLock_Timeout(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -343,7 +360,8 @@ func TestEmbeddedClient_DMap_LockWithTimeout_ErrNoSuchLock_Timeout(t *testing.T)
 }
 
 func TestEmbeddedClient_DMap_LockWithTimeout_Then_Lease(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
 	dm, err := e.NewDMap("mydmap")
@@ -363,4 +381,38 @@ func TestEmbeddedClient_DMap_LockWithTimeout_Then_Lease(t *testing.T) {
 
 	_, err = dm.Lock(ctx, key, time.Millisecond)
 	require.ErrorIs(t, err, ErrLockNotAcquired)
+}
+
+func TestEmbeddedClient_RoutingTable(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	rt, err := e.RoutingTable(context.Background())
+	require.NoError(t, err)
+	require.Len(t, rt, int(db.config.PartitionCount))
+	for _, route := range rt {
+		require.Len(t, route.PrimaryOwners, 1)
+		require.Equal(t, db.rt.This().String(), route.PrimaryOwners[0])
+		require.Len(t, route.ReplicaOwners, 0)
+	}
+}
+
+func TestEmbeddedClient_RoutingTable_Cluster(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+	cluster.addMember(t)
+	cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	rt, err := e.RoutingTable(context.Background())
+	require.NoError(t, err)
+	require.Len(t, rt, int(db.config.PartitionCount))
+	owners := make(map[string]struct{})
+	for _, route := range rt {
+		for _, owner := range route.PrimaryOwners {
+			owners[owner] = struct{}{}
+		}
+	}
+	require.Len(t, owners, 3)
 }

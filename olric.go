@@ -302,8 +302,7 @@ func (db *Olric) Start() error {
 
 	select {
 	case <-db.server.StartedCtx.Done():
-		// TCP server is started
-		checkpoint.Pass()
+		// The TCP server has been started
 	case <-ctx.Done():
 		if err := db.Shutdown(context.Background()); err != nil {
 			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
@@ -357,6 +356,12 @@ func (db *Olric) Start() error {
 
 // Shutdown stops background servers and leaves the cluster.
 func (db *Olric) Shutdown(ctx context.Context) error {
+	select {
+	case <-db.ctx.Done():
+		return nil
+	default:
+	}
+
 	db.cancel()
 
 	var latestError error

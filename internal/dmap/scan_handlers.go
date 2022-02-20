@@ -50,7 +50,7 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *ScanConfig) ([]st
 	return items, cursor, nil
 }
 
-func (dm *DMap) scan(partID, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
+func (dm *DMap) Scan2(partID, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
 	var part *partitions.Partition
 	if sc.Replica {
 		part = dm.s.backup.PartitionByID(partID)
@@ -115,7 +115,7 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 
 	var result []string
 	var cursor uint64
-	result, cursor, err = dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
+	result, cursor, err = dm.Scan2(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

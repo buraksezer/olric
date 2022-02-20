@@ -33,12 +33,12 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 	defer cluster.Shutdown()
 
 	ctx := context.Background()
-	// Call DMap.Put on S1
 	dm, err := s.NewDMap("mydmap")
 	require.NoError(t, err)
+
 	t.Run("Scan", func(t *testing.T) {
 		var value = 100
-		err = dm.Put(context.Background(), "mykey-scan", value, nil)
+		err = dm.Put(ctx, "mykey-scan", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-scan")
@@ -53,7 +53,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Byte", func(t *testing.T) {
 		var value = []byte("olric")
-		err = dm.Put(context.Background(), "mykey-byte", value, nil)
+		err = dm.Put(ctx, "mykey-byte", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-byte")
@@ -67,7 +67,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int", func(t *testing.T) {
 		var value = 100
-		err = dm.Put(context.Background(), "mykey-Int", value, nil)
+		err = dm.Put(ctx, "mykey-Int", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Int")
@@ -81,7 +81,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("String", func(t *testing.T) {
 		var value = "olric"
-		err = dm.Put(context.Background(), "mykey-String", value, nil)
+		err = dm.Put(ctx, "mykey-String", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-String")
@@ -95,7 +95,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int8", func(t *testing.T) {
 		var value int8 = 10
-		err = dm.Put(context.Background(), "mykey-Int8", value, nil)
+		err = dm.Put(ctx, "mykey-Int8", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Int8")
@@ -109,7 +109,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int16", func(t *testing.T) {
 		var value int16 = 10
-		err = dm.Put(context.Background(), "mykey-Int16", value, nil)
+		err = dm.Put(ctx, "mykey-Int16", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Int16")
@@ -123,7 +123,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int32", func(t *testing.T) {
 		var value int32 = 10
-		err = dm.Put(context.Background(), "mykey-Int32", value, nil)
+		err = dm.Put(ctx, "mykey-Int32", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Int32")
@@ -137,7 +137,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int64", func(t *testing.T) {
 		var value int64 = 10
-		err = dm.Put(context.Background(), "mykey-Int64", value, nil)
+		err = dm.Put(ctx, "mykey-Int64", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Int64")
@@ -151,7 +151,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Int64", func(t *testing.T) {
 		var value int64 = 10
-		err = dm.Put(context.Background(), "mykey-Int64", value, nil)
+		err = dm.Put(ctx, "mykey-Int64", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Int64")
@@ -165,7 +165,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint", func(t *testing.T) {
 		var value uint = 10
-		err = dm.Put(context.Background(), "mykey-Uint", value, nil)
+		err = dm.Put(ctx, "mykey-Uint", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Uint")
@@ -179,7 +179,7 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 
 	t.Run("Uint8", func(t *testing.T) {
 		var value uint8 = 10
-		err = dm.Put(context.Background(), "mykey-Uint8", value, nil)
+		err = dm.Put(ctx, "mykey-Uint8", value, nil)
 		require.NoError(t, err)
 
 		e, err := dm.Get(ctx, "mykey-Uint8")

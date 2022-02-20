@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/stats"
 )
@@ -49,9 +51,33 @@ type EmbeddedClient struct {
 
 // EmbeddedDMap is an DMap client implementation for embedded-member scenario.
 type EmbeddedDMap struct {
+	config        *config.Config
+	member        discovery.Member
 	dm            *dmap.DMap
+	client        *EmbeddedClient
 	name          string
 	storageEngine string
+}
+
+func (dm *EmbeddedDMap) Scan(ctx context.Context, options ...ScanOption) (Iterator, error) {
+	var sc dmap.ScanConfig
+	for _, opt := range options {
+		opt(&sc)
+	}
+	if sc.Count == 0 {
+		sc.Count = DefaultScanCount
+	}
+	ictx, cancel := context.WithCancel(ctx)
+	return &EmbeddedIterator{
+		client:   dm.client,
+		dm:       dm.dm,
+		config:   &sc,
+		allKeys:  make(map[string]struct{}),
+		finished: make(map[uint64]struct{}),
+		cursors:  make(map[uint64]uint64),
+		ctx:      ictx,
+		cancel:   cancel,
+	}, nil
 }
 
 // Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
@@ -153,8 +179,10 @@ func (e *EmbeddedClient) NewDMap(name string, options ...DMapOption) (DMap, erro
 		return nil, convertDMapError(err)
 	}
 	return &EmbeddedDMap{
-		dm:   dm,
-		name: name,
+		dm:     dm,
+		name:   name,
+		client: e,
+		member: e.db.rt.This(),
 	}, nil
 }
 
@@ -198,157 +226,11 @@ func (e *EmbeddedClient) PingWithMessage(addr, message string) (string, error) {
 	return string(response), nil
 }
 
+func (e *EmbeddedClient) RoutingTable(ctx context.Context) (RoutingTable, error) {
+	return e.db.routingTable(ctx)
+}
+
 var (
 	_ Client = (*EmbeddedClient)(nil)
 	_ DMap   = (*EmbeddedDMap)(nil)
 )
-
-/*
-// Iterator implements distributed query on DMaps.
-type Iterator struct {
-	mtx sync.Mutex
-
-	pos      int
-	page     []string
-	dm       DMap
-	allKeys  map[string]struct{}
-	finished map[uint64]struct{}
-	cursors  map[uint64]uint64 // member id => cursor
-	partID   uint64            // current partition id
-	config   *dmap.ScanConfig
-	ctx      context.Context
-	cancel   context.CancelFunc
-}
-
-func (i *Iterator) updateIterator(keys []string, cursor, ownerID uint64) {
-	if cursor == 0 {
-		i.finished[ownerID] = struct{}{}
-	}
-	i.cursors[ownerID] = cursor
-	for _, key := range keys {
-		if _, ok := i.allKeys[key]; !ok {
-			i.page = append(i.page, key)
-			i.allKeys[key] = struct{}{}
-		}
-	}
-}
-
-func (i *Iterator) scanOnOwners(owners []discovery.Member) error {
-	for _, owner := range owners {
-		if _, ok := i.finished[owner.ID]; ok {
-			continue
-		}
-		if owner.CompareByID(i.dm.s.rt.This()) {
-			keys, cursor, err := i.dm.scan(i.partID, i.cursors[owner.ID], i.config)
-			if err != nil {
-				return err
-			}
-			i.updateIterator(keys, cursor, owner.ID)
-			continue
-		}
-
-		s := protocol.NewScan(i.partID, i.dm.Name(), i.cursors[owner.ID])
-		if i.config.HasCount {
-			s.SetCount(i.config.Count)
-		}
-		if i.config.HasMatch {
-			s.SetMatch(s.Match)
-		}
-		scanCmd := s.Command(i.ctx)
-		rc := i.dm.s.client.Get(owner.String())
-		err := rc.Process(i.ctx, scanCmd)
-		if err != nil {
-			return err
-		}
-		keys, cursor, err := scanCmd.Result()
-		if err != nil {
-			return err
-		}
-		i.updateIterator(keys, cursor, owner.ID)
-	}
-
-	return nil
-}
-
-func (i *Iterator) resetPage() {
-	if len(i.page) != 0 {
-		i.page = []string{}
-	}
-	i.pos = 0
-}
-
-func (i *Iterator) reset() {
-	// Reset
-	for memberID := range i.cursors {
-		delete(i.cursors, memberID)
-		delete(i.finished, memberID)
-	}
-	i.resetPage()
-}
-
-func (i *Iterator) next() bool {
-	if len(i.page) != 0 {
-		i.pos++
-		if i.pos <= len(i.page) {
-			return true
-		}
-	}
-
-	i.resetPage()
-
-	primaryOwners := i.dm.s.primary.PartitionOwnersByID(i.partID)
-	i.config.Replica = false
-	if err := i.scanOnOwners(primaryOwners); err != nil {
-		return false
-	}
-
-	replicaOwners := i.dm.s.backup.PartitionOwnersByID(i.partID)
-	i.config.Replica = true
-	if err := i.scanOnOwners(replicaOwners); err != nil {
-		return false
-	}
-
-	if len(i.page) == 0 {
-		i.partID++
-		if i.dm.s.config.PartitionCount <= i.partID {
-			return false
-		}
-		i.reset()
-		return i.next()
-	}
-	i.pos = 1
-	return true
-}
-
-func (i *Iterator) Next() bool {
-	i.mtx.Lock()
-	defer i.mtx.Unlock()
-
-	select {
-	case <-i.ctx.Done():
-		return false
-	default:
-	}
-
-	return i.next()
-}
-
-func (i *Iterator) Key() string {
-	i.mtx.Lock()
-	defer i.mtx.Unlock()
-
-	var key string
-	if i.pos > 0 && i.pos <= len(i.page) {
-		key = i.page[i.pos-1]
-	}
-	return key
-}
-
-func (i *Iterator) Close() {
-	select {
-	case <-i.ctx.Done():
-		return
-	default:
-	}
-	i.cancel()
-}*/

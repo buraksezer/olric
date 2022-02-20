@@ -21,15 +21,17 @@ import (
 )
 
 func TestOlric_Ping(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	result, err := db.ping(db.rt.This().String(), "")
 	require.NoError(t, err)
-	require.Equal(t, PingResponse, result)
+	require.Equal(t, []byte(PingResponse), result)
 }
 
 func TestOlric_PingWithMessage(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	msg := "Olric rocks!"
 	response, err := db.ping(db.rt.This().String(), msg)
