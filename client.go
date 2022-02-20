@@ -77,8 +77,7 @@ func XX() PutOption {
 	}
 }
 
-type dmapConfig struct {
-}
+type dmapConfig struct{}
 
 type DMapOption func(*dmapConfig)
 

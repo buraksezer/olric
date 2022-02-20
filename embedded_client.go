@@ -18,7 +18,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/stats"
@@ -51,7 +50,7 @@ type EmbeddedClient struct {
 
 // EmbeddedDMap is an DMap client implementation for embedded-member scenario.
 type EmbeddedDMap struct {
-	config        *config.Config
+	config        *dmapConfig
 	member        discovery.Member
 	dm            *dmap.DMap
 	client        *EmbeddedClient
@@ -166,11 +165,11 @@ func (dm *EmbeddedDMap) Put(ctx context.Context, key string, value interface{}, 
 	for _, opt := range options {
 		opt(&pc)
 	}
-	return dm.dm.Put(ctx, key, value, &pc)
-}
-
-func (db *Olric) NewEmbeddedClient() *EmbeddedClient {
-	return &EmbeddedClient{db: db}
+	err := dm.dm.Put(ctx, key, value, &pc)
+	if err != nil {
+		return convertDMapError(err)
+	}
+	return nil
 }
 
 func (e *EmbeddedClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
@@ -178,7 +177,14 @@ func (e *EmbeddedClient) NewDMap(name string, options ...DMapOption) (DMap, erro
 	if err != nil {
 		return nil, convertDMapError(err)
 	}
+
+	var dc dmapConfig
+	for _, opt := range options {
+		opt(&dc)
+	}
+
 	return &EmbeddedDMap{
+		config: &dc,
 		dm:     dm,
 		name:   name,
 		client: e,
@@ -228,6 +234,10 @@ func (e *EmbeddedClient) PingWithMessage(addr, message string) (string, error) {
 
 func (e *EmbeddedClient) RoutingTable(ctx context.Context) (RoutingTable, error) {
 	return e.db.routingTable(ctx)
+}
+
+func (db *Olric) NewEmbeddedClient() *EmbeddedClient {
+	return &EmbeddedClient{db: db}
 }
 
 var (

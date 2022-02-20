@@ -111,38 +111,6 @@ func TestDMap_Put_AsyncReplicationMode(t *testing.T) {
 	}
 }
 
-func TestDMap_Put_PX(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s1 := cluster.AddMember(nil).(*Service)
-	s2 := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	ctx := context.Background()
-	dm1, err := s1.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	pc := &PutConfig{
-		HasPX: true,
-		PX:    time.Millisecond,
-	}
-	for i := 0; i < 10; i++ {
-		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
-		require.NoError(t, err)
-	}
-
-	<-time.After(10 * time.Millisecond)
-
-	dm2, err := s2.NewDMap("mydmap")
-	require.NoError(t, err)
-
-	for i := 0; i < 10; i++ {
-		_, err := dm2.Get(ctx, testutil.ToKey(i))
-		if err != ErrKeyNotFound {
-			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
-		}
-	}
-}
-
 func TestDMap_Put_WriteQuorum(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	// Create DMap services with custom configuration
@@ -173,6 +141,38 @@ func TestDMap_Put_WriteQuorum(t *testing.T) {
 	}
 	if !hit {
 		t.Fatalf("No keys checked on %v", s1)
+	}
+}
+
+func TestDMap_Put_PX(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	pc := &PutConfig{
+		HasPX: true,
+		PX:    time.Millisecond,
+	}
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
+		require.NoError(t, err)
+	}
+
+	<-time.After(10 * time.Millisecond)
+
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		_, err := dm2.Get(ctx, testutil.ToKey(i))
+		if err != ErrKeyNotFound {
+			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+		}
 	}
 }
 
@@ -233,5 +233,97 @@ func TestDMap_Put_XX(t *testing.T) {
 		if !errors.Is(err, ErrKeyNotFound) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
+	}
+}
+
+func TestDMap_Put_EX(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	pc := &PutConfig{
+		HasEX: true,
+		EX:    time.Second / 4,
+	}
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
+		require.NoError(t, err)
+	}
+
+	<-time.After(time.Second)
+
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		_, err := dm2.Get(ctx, testutil.ToKey(i))
+		if err != ErrKeyNotFound {
+			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
+		}
+	}
+}
+
+func TestDMap_Put_EXAT(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	pc := &PutConfig{
+		HasEXAT: true,
+		EXAT:    time.Duration(time.Now().Add(time.Second).UnixNano()),
+	}
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
+		require.NoError(t, err)
+	}
+
+	<-time.After(time.Second)
+
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		_, err := dm2.Get(ctx, testutil.ToKey(i))
+		require.ErrorIs(t, err, ErrKeyNotFound)
+	}
+}
+
+func TestDMap_Put_PXAT(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	pc := &PutConfig{
+		HasPXAT: true,
+		PXAT:    time.Duration(time.Now().Add(time.Millisecond).UnixNano()),
+	}
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), pc)
+		require.NoError(t, err)
+	}
+
+	<-time.After(10 * time.Millisecond)
+
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		_, err := dm2.Get(ctx, testutil.ToKey(i))
+		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 }

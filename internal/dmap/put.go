@@ -381,48 +381,6 @@ type PutConfig struct {
 	OnlyUpdateTTL bool
 }
 
-type PutOption func(*PutConfig)
-
-func EX(ex time.Duration) PutOption {
-	return func(cfg *PutConfig) {
-		cfg.HasEX = true
-		cfg.EX = ex
-	}
-}
-
-func PX(px time.Duration) PutOption {
-	return func(cfg *PutConfig) {
-		cfg.HasPX = true
-		cfg.PX = px
-	}
-}
-
-func EXAT(exat time.Duration) PutOption {
-	return func(cfg *PutConfig) {
-		cfg.HasEXAT = true
-		cfg.EXAT = exat
-	}
-}
-
-func PXAT(pxat time.Duration) PutOption {
-	return func(cfg *PutConfig) {
-		cfg.HasPXAT = true
-		cfg.PX = pxat
-	}
-}
-
-func NX() PutOption {
-	return func(cfg *PutConfig) {
-		cfg.HasNX = true
-	}
-}
-
-func XX() PutOption {
-	return func(cfg *PutConfig) {
-		cfg.HasXX = true
-	}
-}
-
 // Put sets the value for the given key. It overwrites any previous value
 // for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after

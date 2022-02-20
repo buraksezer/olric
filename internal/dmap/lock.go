@@ -142,15 +142,11 @@ func (dm *DMap) Lock(ctx context.Context, key string, timeout, deadline time.Dur
 		return nil, err
 	}
 
-	var options []PutOption
-	options = append(options, NX())
-	if timeout.Milliseconds() != 0 {
-		options = append(options, PX(timeout))
-	}
-
 	var pc PutConfig
-	for _, opt := range options {
-		opt(&pc)
+	pc.HasNX = true
+	if timeout.Milliseconds() != 0 {
+		pc.HasPX = true
+		pc.PX = timeout
 	}
 
 	e := newEnv(ctx)

@@ -45,6 +45,109 @@ func TestEmbeddedClient_DMap_Put(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestEmbeddedClient_DMap_Put_EX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", EX(time.Second))
+	require.NoError(t, err)
+
+	<-time.After(time.Second)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Put_PX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", PX(time.Millisecond))
+	require.NoError(t, err)
+
+	<-time.After(time.Millisecond)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Put_EXAT(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", EXAT(time.Duration(time.Now().Add(time.Second).UnixNano())))
+	require.NoError(t, err)
+
+	<-time.After(time.Second)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Put_PXAT(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", PXAT(time.Duration(time.Now().Add(time.Millisecond).UnixNano())))
+	require.NoError(t, err)
+
+	<-time.After(time.Millisecond)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Put_NX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", NX())
+	require.NoError(t, err)
+
+	<-time.After(time.Millisecond)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.NoError(t, err)
+}
+
+func TestEmbeddedClient_DMap_Put_XX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", XX())
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
 func TestEmbeddedClient_DMap_Get(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
