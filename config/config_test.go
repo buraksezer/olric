@@ -45,7 +45,7 @@ storageEngines:
     - {{.TmpPluginPath}}
   config:
     kvstore:
-      tableSize: 102134
+      tableSize: 1048576
 
 client:
   dialTimeout: "10s"
