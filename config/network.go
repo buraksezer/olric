@@ -108,6 +108,8 @@ func getBindIP(ifname, address string) (string, error) {
 			return "", fmt.Errorf("failed to get private interface addresses: %w", err)
 		}
 
+		// Here is the source of this fix and the story behind it: https://github.com/buraksezer/olric/pull/143
+		//
 		// if we could not find a private address, we need to expand our search to a public
 		// ip address
 		if ipStr == "" {
