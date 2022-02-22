@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"context"
 	"strings"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -23,7 +24,7 @@ import (
 
 const PingResponse = "PONG"
 
-func (db *Olric) ping(addr, message string) ([]byte, error) {
+func (db *Olric) ping(ctx context.Context, addr, message string) ([]byte, error) {
 	message = strings.TrimSpace(message)
 
 	pingCmd := protocol.NewPing()
@@ -31,9 +32,9 @@ func (db *Olric) ping(addr, message string) ([]byte, error) {
 		pingCmd = pingCmd.SetMessage(message)
 	}
 
-	cmd := pingCmd.Command(db.ctx)
+	cmd := pingCmd.Command(ctx)
 	rc := db.client.Get(addr)
-	err := rc.Process(db.ctx, cmd)
+	err := rc.Process(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}

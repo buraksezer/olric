@@ -45,7 +45,7 @@ func TestOlric_Stats(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	s, err := c.Stats()
+	s, err := c.Stats(ctx)
 	require.NoError(t, err)
 
 	if s.ClusterCoordinator.ID != db.rt.This().ID {
@@ -87,7 +87,7 @@ func TestOlric_Stats_CollectRuntime(t *testing.T) {
 	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
-	s, err := e.Stats(CollectRuntime())
+	s, err := e.Stats(context.Background(), CollectRuntime())
 	require.NoError(t, err)
 
 	if s.Runtime == nil {

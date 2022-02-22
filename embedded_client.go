@@ -199,7 +199,7 @@ func CollectRuntime() StatsOption {
 }
 
 // Stats exposes some useful metrics to monitor an Olric node.
-func (e *EmbeddedClient) Stats(options ...StatsOption) (stats.Stats, error) {
+func (e *EmbeddedClient) Stats(_ context.Context, options ...StatsOption) (stats.Stats, error) {
 	if err := e.db.isOperable(); err != nil {
 		// this node is not bootstrapped yet.
 		return stats.Stats{}, err
@@ -217,15 +217,15 @@ func (e *EmbeddedClient) Close(_ context.Context) error {
 
 // Ping sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
-func (e *EmbeddedClient) Ping(addr string) error {
-	_, err := e.db.ping(addr, "")
+func (e *EmbeddedClient) Ping(ctx context.Context, addr string) error {
+	_, err := e.db.ping(ctx, addr, "")
 	return err
 }
 
 // PingWithMessage sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
-func (e *EmbeddedClient) PingWithMessage(addr, message string) (string, error) {
-	response, err := e.db.ping(addr, message)
+func (e *EmbeddedClient) PingWithMessage(ctx context.Context, addr, message string) (string, error) {
+	response, err := e.db.ping(ctx, addr, message)
 	if err != nil {
 		return "", err
 	}

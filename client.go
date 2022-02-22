@@ -170,9 +170,9 @@ type StatsOption func(*statsConfig)
 
 type Client interface {
 	NewDMap(name string, options ...DMapOption) (DMap, error)
-	Stats(options ...StatsOption) (stats.Stats, error)
-	Ping(addr string) error
-	PingWithMessage(addr, message string) (string, error)
+	Stats(ctx context.Context, options ...StatsOption) (stats.Stats, error)
+	Ping(ctx context.Context, addr string) error
+	PingWithMessage(ctx context.Context, addr, message string) (string, error)
 	RoutingTable(ctx context.Context) (RoutingTable, error)
 	Close(ctx context.Context) error
 }

@@ -129,7 +129,7 @@ func TestOlricCluster_StartAndShutdown(t *testing.T) {
 	require.Len(t, cluster.members, 2)
 
 	e := db.NewEmbeddedClient()
-	st, err := e.Stats()
+	st, err := e.Stats(context.Background())
 	require.NoError(t, err)
 	require.Len(t, st.ClusterMembers, 2)
 	for _, member := range cluster.members {

@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/RoaringBitmap/roaring v0.9.4
-	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
+	github.com/buraksezer/consistent v0.9.0
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/hashicorp/go-multierror v1.1.1

@@ -299,7 +299,7 @@ func TestEmbeddedClient_DMap_Destroy(t *testing.T) {
 	// Destroy is an async command. Wait for some time to see its effect.
 	<-time.After(100 * time.Millisecond)
 
-	stats, err := e.Stats()
+	stats, err := e.Stats(ctx)
 	require.NoError(t, err)
 	var total int
 	for _, part := range stats.Partitions {
