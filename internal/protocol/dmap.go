@@ -403,6 +403,7 @@ type GetPut struct {
 	DMap  string
 	Key   string
 	Value []byte
+	Raw   bool
 }
 
 func NewGetPut(dmap, key string, value []byte) *GetPut {
@@ -413,12 +414,20 @@ func NewGetPut(dmap, key string, value []byte) *GetPut {
 	}
 }
 
+func (g *GetPut) SetRaw() *GetPut {
+	g.Raw = true
+	return g
+}
+
 func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
 	var args []interface{}
 	args = append(args, DMap.GetPut)
 	args = append(args, g.DMap)
 	args = append(args, g.Key)
 	args = append(args, g.Value)
+	if g.Raw {
+		args = append(args, "RW")
+	}
 	return redis.NewStringCmd(ctx, args...)
 }
 

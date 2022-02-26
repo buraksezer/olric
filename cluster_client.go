@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/go-redis/redis/v8"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -50,6 +51,9 @@ func (dm *ClusterDMap) Name() string {
 func processProtocolError(err error) error {
 	if err == nil {
 		return nil
+	}
+	if err == redis.Nil {
+		return ErrKeyNotFound
 	}
 	return convertDMapError(protocol.ConvertError(err))
 }
@@ -199,10 +203,15 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 		return nil, err
 	}
 
-	cmd := protocol.NewGetPut(dm.name, key, valueBuf.Bytes()).Command(ctx)
+	cmd := protocol.NewGetPut(dm.name, key, valueBuf.Bytes()).SetRaw().Command(ctx)
 	err = rc.Process(ctx, cmd)
+	err = processProtocolError(err)
 	if err != nil {
-		return nil, processProtocolError(err)
+		// First try to set a key/value with GetPut
+		if err == ErrKeyNotFound {
+			return nil, nil
+		}
+		return nil, err
 	}
 
 	raw, err := cmd.Bytes()

@@ -227,6 +227,32 @@ func TestClusterClient_Decr(t *testing.T) {
 	require.Equal(t, 0, result)
 }
 
+func TestClusterClient_GetPut(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	gr, err := dm.GetPut(ctx, "mykey", "myvalue")
+	require.NoError(t, err)
+	require.Nil(t, gr)
+
+	gr, err = dm.GetPut(ctx, "mykey", "myvalue-2")
+	require.NoError(t, err)
+
+	value, err := gr.String()
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
+}
+
 func TestClusterClient_Expire(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
