@@ -48,6 +48,9 @@ func (dm *ClusterDMap) Name() string {
 }
 
 func processProtocolError(err error) error {
+	if err == nil {
+		return nil
+	}
 	return convertDMapError(protocol.ConvertError(err))
 }
 
@@ -140,11 +143,7 @@ func (dm *ClusterDMap) Delete(ctx context.Context, key string) error {
 		return processProtocolError(err)
 	}
 
-	err = cmd.Err()
-	if err != nil {
-		return processProtocolError(err)
-	}
-	return nil
+	return processProtocolError(cmd.Err())
 }
 
 func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, error) {
@@ -161,7 +160,7 @@ func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, er
 	// TODO: Consider returning uint64 as response
 	res, err := cmd.Uint64()
 	if err != nil {
-		return 0, err
+		return 0, processProtocolError(cmd.Err())
 	}
 	return int(res), nil
 }
@@ -180,7 +179,7 @@ func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, er
 	// TODO: Consider returning uint64 as response
 	res, err := cmd.Uint64()
 	if err != nil {
-		return 0, err
+		return 0, processProtocolError(cmd.Err())
 	}
 	return int(res), nil
 }
@@ -326,11 +325,7 @@ func (dm *ClusterDMap) Destroy(ctx context.Context) error {
 		return processProtocolError(err)
 	}
 
-	err = cmd.Err()
-	if err != nil {
-		return processProtocolError(err)
-	}
-	return nil
+	return processProtocolError(cmd.Err())
 }
 
 type ClusterClient struct {
@@ -369,9 +364,10 @@ func (cl *ClusterClient) Ping(ctx context.Context, addr string) error {
 	rc := cl.client.Get(addr)
 	err := rc.Process(ctx, cmd)
 	if err != nil {
-		return err
+		return processProtocolError(err)
 	}
-	return cmd.Err()
+	return processProtocolError(cmd.Err())
+
 }
 
 func (cl *ClusterClient) PingWithMessage(ctx context.Context, addr, message string) (string, error) {
@@ -379,14 +375,16 @@ func (cl *ClusterClient) PingWithMessage(ctx context.Context, addr, message stri
 	rc := cl.client.Get(addr)
 	err := rc.Process(ctx, cmd)
 	if err != nil {
-		return "", err
+		return "", processProtocolError(err)
+
 	}
 	if err = cmd.Err(); err != nil {
-		return "", err
+		return "", processProtocolError(err)
+
 	}
 	res, err := cmd.Bytes()
 	if err != nil {
-		return "", err
+		return "", processProtocolError(err)
 	}
 	return string(res), nil
 }
@@ -400,16 +398,17 @@ func (cl *ClusterClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 
 	err = rc.Process(ctx, cmd)
 	if err != nil {
-		return RoutingTable{}, err
+		return RoutingTable{}, processProtocolError(err)
 	}
 
 	if err = cmd.Err(); err != nil {
-		return RoutingTable{}, err
+		return RoutingTable{}, processProtocolError(err)
 	}
 
 	result, err := cmd.Slice()
 	if err != nil {
-		return RoutingTable{}, err
+		return RoutingTable{}, processProtocolError(err)
+
 	}
 	return mapToRoutingTable(result)
 }

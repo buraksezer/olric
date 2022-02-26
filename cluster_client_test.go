@@ -28,10 +28,13 @@ func TestClusterClient_Ping(t *testing.T) {
 	cluster.addMember(t)
 	db := cluster.addMember(t)
 
-	c, err := NewClusterClient([]string{}, nil)
-	require.NoError(t, err)
-
 	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
 	err = c.Ping(ctx, db.rt.This().String())
 	require.NoError(t, err)
 }
@@ -41,10 +44,13 @@ func TestClusterClient_PingWithMessage(t *testing.T) {
 	cluster.addMember(t)
 	db := cluster.addMember(t)
 
-	c, err := NewClusterClient([]string{}, nil)
-	require.NoError(t, err)
-
 	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
 	message := "Olric is the best!"
 	result, err := c.PingWithMessage(ctx, db.rt.This().String(), message)
 	require.NoError(t, err)
@@ -55,10 +61,13 @@ func TestClusterClient_RoutingTable(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	rt, err := c.RoutingTable(ctx)
 	require.NoError(t, err)
 
@@ -69,10 +78,13 @@ func TestClusterClient_Put(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -84,10 +96,13 @@ func TestClusterClient_Get(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -107,10 +122,13 @@ func TestClusterClient_Delete(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -128,10 +146,13 @@ func TestClusterClient_Destroy(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -149,10 +170,13 @@ func TestClusterClient_Incr(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -175,10 +199,13 @@ func TestClusterClient_Decr(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -204,10 +231,13 @@ func TestClusterClient_Expire(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -227,10 +257,13 @@ func TestClusterClient_Lock_Unlock(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -245,10 +278,13 @@ func TestClusterClient_Lock_Lease(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -268,10 +304,13 @@ func TestClusterClient_Lock_ErrLockNotAcquired(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -286,10 +325,13 @@ func TestClusterClient_LockWithTimeout(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -304,10 +346,13 @@ func TestClusterClient_LockWithTimeout_ErrNoSuchLock(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -324,10 +369,13 @@ func TestClusterClient_LockWithTimeout_Then_Lease(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
@@ -348,10 +396,13 @@ func TestClusterClient_LockWithTimeout_ErrLockNotAcquired(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
+	ctx := context.Background()
 	c, err := NewClusterClient([]string{db.name}, nil)
 	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
 
-	ctx := context.Background()
 	dm, err := c.NewDMap("mydmap")
 	require.NoError(t, err)
 
