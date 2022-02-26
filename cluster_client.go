@@ -30,6 +30,12 @@ import (
 
 var pool = bufpool.New()
 
+type ClusterLockContext struct {
+	key   string
+	token string
+	dm    *ClusterDMap
+}
+
 type ClusterDMap struct {
 	name   string
 	config *dmapConfig
@@ -39,6 +45,10 @@ type ClusterDMap struct {
 
 func (dm *ClusterDMap) Name() string {
 	return dm.name
+}
+
+func processProtocolError(err error) error {
+	return convertDMapError(protocol.ConvertError(err))
 }
 
 func (dm *ClusterDMap) writePutCommand(c *dmap.PutConfig, key string, value []byte) *protocol.Put {
@@ -93,10 +103,6 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 	return processProtocolError(cmd.Err())
 }
 
-func processProtocolError(err error) error {
-	return convertDMapError(protocol.ConvertError(err))
-}
-
 func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -142,33 +148,165 @@ func (dm *ClusterDMap) Delete(ctx context.Context, key string) error {
 }
 
 func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, error) {
-	//TODO implement me
-	panic("implement me")
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return 0, err
+	}
+
+	cmd := protocol.NewIncr(dm.name, key, delta).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return 0, processProtocolError(err)
+	}
+	// TODO: Consider returning uint64 as response
+	res, err := cmd.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return int(res), nil
 }
 
 func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, error) {
-	//TODO implement me
-	panic("implement me")
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return 0, err
+	}
+
+	cmd := protocol.NewDecr(dm.name, key, delta).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return 0, processProtocolError(err)
+	}
+	// TODO: Consider returning uint64 as response
+	res, err := cmd.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return int(res), nil
 }
 
 func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
-	//TODO implement me
-	panic("implement me")
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return nil, err
+	}
+
+	valueBuf := pool.Get()
+	defer pool.Put(valueBuf)
+
+	enc := encoding.New(valueBuf)
+	err = enc.Encode(value)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := protocol.NewGetPut(dm.name, key, valueBuf.Bytes()).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+
+	raw, err := cmd.Bytes()
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+
+	// TODO: We have to create a new entry with a callback function
+	e := entry.New()
+	e.Decode(raw)
+	return &GetResponse{
+		entry: e,
+	}, nil
 }
 
 func (dm *ClusterDMap) Expire(ctx context.Context, key string, timeout time.Duration) error {
-	//TODO implement me
-	panic("implement me")
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return err
+	}
+
+	cmd := protocol.NewExpire(dm.name, key, timeout).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return processProtocolError(err)
+	}
+	return processProtocolError(cmd.Err())
 }
 
 func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Duration) (LockContext, error) {
-	//TODO implement me
-	panic("implement me")
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Inconsistency: TIMEOUT, duration or second?
+	cmd := protocol.NewLock(dm.name, key, deadline.Seconds()).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+
+	token, err := cmd.Bytes()
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+	return &ClusterLockContext{
+		key:   key,
+		token: string(token),
+		dm:    dm,
+	}, nil
 }
 
 func (dm *ClusterDMap) LockWithTimeout(ctx context.Context, key string, timeout, deadline time.Duration) (LockContext, error) {
-	//TODO implement me
-	panic("implement me")
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Inconsistency: TIMEOUT, duration or second?
+	cmd := protocol.NewLock(dm.name, key, deadline.Seconds()).SetPX(timeout.Milliseconds()).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+
+	token, err := cmd.Bytes()
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+
+	return &ClusterLockContext{
+		key:   key,
+		token: string(token),
+		dm:    dm,
+	}, nil
+}
+
+func (c *ClusterLockContext) Unlock(ctx context.Context) error {
+	rc, err := c.dm.client.Pick()
+	if err != nil {
+		return err
+	}
+	cmd := protocol.NewUnlock(c.dm.name, c.key, c.token).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return processProtocolError(err)
+	}
+	return processProtocolError(cmd.Err())
+}
+
+func (c ClusterLockContext) Lease(ctx context.Context, duration time.Duration) error {
+	rc, err := c.dm.client.Pick()
+	if err != nil {
+		return err
+	}
+	// TODO: Inconsistency!
+	cmd := protocol.NewLockLease(c.dm.name, c.key, c.token, duration.Seconds()).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return processProtocolError(err)
+	}
+	return processProtocolError(cmd.Err())
 }
 
 func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterator, error) {

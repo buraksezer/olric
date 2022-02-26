@@ -175,7 +175,7 @@ func (dm *DMap) leaseKey(ctx context.Context, key string, token []byte, timeout 
 	}()
 
 	// get the key to check its value
-	entry, err := dm.Get(ctx, key)
+	e, err := dm.Get(ctx, key)
 	if errors.Is(err, ErrKeyNotFound) {
 		return ErrNoSuchLock
 	}
@@ -184,12 +184,13 @@ func (dm *DMap) leaseKey(ctx context.Context, key string, token []byte, timeout 
 	}
 
 	// the lock is released by the node(timeout) or the user
-	if !bytes.Equal(entry.Value(), token) {
+	if !bytes.Equal(e.Value(), token) {
 		return ErrNoSuchLock
 	}
 
-	// already expired
-	if (time.Now().UnixNano() / 1000000) >= entry.TTL() {
+	ttl := e.TTL()
+	if ttl > 0 && (time.Now().UnixNano()/1000000) >= ttl {
+		// already expired
 		return ErrNoSuchLock
 	}
 
