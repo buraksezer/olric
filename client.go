@@ -61,7 +61,7 @@ func EXAT(exat time.Duration) PutOption {
 func PXAT(pxat time.Duration) PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasPXAT = true
-		cfg.PX = pxat
+		cfg.PXAT = pxat
 	}
 }
 

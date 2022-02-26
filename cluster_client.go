@@ -16,7 +16,6 @@ package olric
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -27,6 +26,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/go-redis/redis/v8"
 )
 
 var pool = bufpool.New()

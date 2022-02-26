@@ -438,3 +438,141 @@ func TestClusterClient_LockWithTimeout_ErrLockNotAcquired(t *testing.T) {
 	_, err = dm.Lock(ctx, "lock.foo.key", time.Millisecond)
 	require.Equal(t, err, ErrLockNotAcquired)
 }
+
+func TestClusterClient_Put_Ex(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", EX(time.Second))
+	require.NoError(t, err)
+
+	<-time.After(time.Second)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestClusterClient_Put_PX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", PX(time.Millisecond))
+	require.NoError(t, err)
+
+	<-time.After(time.Millisecond)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestClusterClient_Put_EXAT(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", EXAT(time.Duration(time.Now().Add(time.Second).UnixNano())))
+	require.NoError(t, err)
+
+	<-time.After(time.Second)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestClusterClient_Put_PXAT(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue", PXAT(time.Duration(time.Now().Add(time.Millisecond).UnixNano())))
+	require.NoError(t, err)
+
+	<-time.After(time.Millisecond)
+
+	_, err = dm.Get(ctx, "mykey")
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestClusterClient_Put_NX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue-2", NX())
+	require.ErrorIs(t, err, ErrKeyFound)
+
+	gr, err := dm.Get(ctx, "mykey")
+	require.NoError(t, err)
+
+	value, err := gr.String()
+	require.NoError(t, err)
+	require.Equal(t, "myvalue", value)
+}
+
+func TestClusterClient_Put_XX(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "mykey", "myvalue-2", XX())
+	require.ErrorIs(t, err, ErrKeyNotFound)
+}
