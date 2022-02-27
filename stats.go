@@ -15,15 +15,18 @@
 package olric
 
 import (
+	"encoding/json"
 	"os"
 	"runtime"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/pubsub"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/stats"
+	"github.com/tidwall/redcon"
 )
 
 func toMember(member discovery.Member) stats.Member {
@@ -143,4 +146,21 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	}
 
 	return s
+}
+
+func (db *Olric) statsCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	_, err := protocol.ParseStatsCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	sc := statsConfig{}
+	memberStats := db.stats(sc)
+	data, err := json.Marshal(memberStats)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteBulk(data)
 }

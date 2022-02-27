@@ -74,3 +74,11 @@ func ParseLengthOfPartCommand(cmd redcon.Command) (*LengthOfPart, error) {
 
 	return l, nil
 }
+
+func ParseStatsCommand(cmd redcon.Command) (*Stats, error) {
+	if len(cmd.Args) < 1 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewStats(), nil
+}

@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/stats"
 	"testing"
 	"time"
 
@@ -575,4 +576,21 @@ func TestClusterClient_Put_XX(t *testing.T) {
 
 	err = dm.Put(ctx, "mykey", "myvalue-2", XX())
 	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestClusterClient_Stats(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	var empty stats.Stats
+	s, err := c.Stats(ctx)
+	require.NoError(t, err)
+	require.NotEqual(t, empty, s)
 }

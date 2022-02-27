@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/storage"
+	"github.com/buraksezer/olric/stats"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -454,6 +456,43 @@ func (cl *ClusterClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 	return mapToRoutingTable(result)
 }
 
+func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (stats.Stats, error) {
+	var cfg statsConfig
+	for _, opt := range options {
+		opt(&cfg)
+	}
+
+	cmd := protocol.NewStats().Command(ctx)
+	rc, err := cl.client.Pick()
+	if err != nil {
+		return stats.Stats{}, err
+	}
+
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+
+	if err = cmd.Err(); err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+	data, err := cmd.Bytes()
+	if err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+	var s stats.Stats
+	err = json.Unmarshal(data, &s)
+	if err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+	return s, nil
+}
+
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	return cl.client.Shutdown(ctx)
 }
+
+var (
+	_ Client = (*ClusterClient)(nil)
+	_ DMap   = (*ClusterDMap)(nil)
+)

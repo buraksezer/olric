@@ -104,3 +104,15 @@ func (l *LengthOfPart) Command(ctx context.Context) *redis.IntCmd {
 	}
 	return redis.NewIntCmd(ctx, args...)
 }
+
+type Stats struct{}
+
+func NewStats() *Stats {
+	return &Stats{}
+}
+
+func (s *Stats) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, Generic.Stats)
+	return redis.NewStringCmd(ctx, args...)
+}
