@@ -462,7 +462,12 @@ func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (sta
 		opt(&cfg)
 	}
 
-	cmd := protocol.NewStats().Command(ctx)
+	statsCmd := protocol.NewStats()
+	if cfg.CollectRuntime {
+		statsCmd.SetCollectRuntime()
+	}
+
+	cmd := statsCmd.Command(ctx)
 	rc, err := cl.client.Pick()
 	if err != nil {
 		return stats.Stats{}, err

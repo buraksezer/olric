@@ -16,9 +16,10 @@ package protocol
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
-	"strconv"
 )
 
 func ParsePingCommand(cmd redcon.Command) (*Ping, error) {
@@ -80,5 +81,15 @@ func ParseStatsCommand(cmd redcon.Command) (*Stats, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return NewStats(), nil
+	s := NewStats()
+	if len(cmd.Args) == 2 {
+		arg := util.BytesToString(cmd.Args[1])
+		if arg == "CR" {
+			s.SetCollectRuntime()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return s, nil
 }

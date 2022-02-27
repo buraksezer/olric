@@ -149,13 +149,16 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 }
 
 func (db *Olric) statsCommandHandler(conn redcon.Conn, cmd redcon.Command) {
-	_, err := protocol.ParseStatsCommand(cmd)
+	statsCmd, err := protocol.ParseStatsCommand(cmd)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
 	}
 
 	sc := statsConfig{}
+	if statsCmd.CollectRuntime {
+		sc.CollectRuntime = true
+	}
 	memberStats := db.stats(sc)
 	data, err := json.Marshal(memberStats)
 	if err != nil {

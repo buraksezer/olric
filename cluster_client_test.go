@@ -592,5 +592,24 @@ func TestClusterClient_Stats(t *testing.T) {
 	var empty stats.Stats
 	s, err := c.Stats(ctx)
 	require.NoError(t, err)
+	require.Nil(t, s.Runtime)
+	require.NotEqual(t, empty, s)
+}
+
+func TestClusterClient_Stats_CollectRuntime(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name}, nil)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	var empty stats.Stats
+	s, err := c.Stats(ctx, CollectRuntime())
+	require.NoError(t, err)
+	require.NotNil(t, s.Runtime)
 	require.NotEqual(t, empty, s)
 }
