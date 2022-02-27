@@ -16,6 +16,8 @@ package olric
 
 import (
 	"context"
+	"log"
+	"os"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -38,10 +40,11 @@ type ClusterLockContext struct {
 }
 
 type ClusterDMap struct {
-	name   string
-	config *dmapConfig
-	engine storage.Entry
-	client *server.Client
+	name          string
+	config        *dmapConfig
+	engine        storage.Entry
+	client        *server.Client
+	clusterClient *ClusterClient
 }
 
 func (dm *ClusterDMap) Name() string {
@@ -303,7 +306,7 @@ func (c *ClusterLockContext) Unlock(ctx context.Context) error {
 	return processProtocolError(cmd.Err())
 }
 
-func (c ClusterLockContext) Lease(ctx context.Context, duration time.Duration) error {
+func (c *ClusterLockContext) Lease(ctx context.Context, duration time.Duration) error {
 	rc, err := c.dm.client.Pick()
 	if err != nil {
 		return err
@@ -318,8 +321,36 @@ func (c ClusterLockContext) Lease(ctx context.Context, duration time.Duration) e
 }
 
 func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterator, error) {
-	//TODO implement me
-	panic("implement me")
+	var sc dmap.ScanConfig
+	for _, opt := range options {
+		opt(&sc)
+	}
+	if sc.Count == 0 {
+		sc.Count = DefaultScanCount
+	}
+	if sc.Logger == nil {
+		sc.Logger = log.New(os.Stderr, "logger: ", log.Lshortfile)
+	}
+	ictx, cancel := context.WithCancel(ctx)
+	i := &ClusterIterator{
+		dm:            dm,
+		clusterClient: dm.clusterClient,
+		config:        &sc,
+		allKeys:       make(map[string]struct{}),
+		finished:      make(map[string]struct{}),
+		cursors:       make(map[string]uint64),
+		ctx:           ictx,
+		cancel:        cancel,
+	}
+
+	if err := i.fetchRoutingTable(); err != nil {
+		return nil, err
+	}
+
+	i.wg.Add(1)
+	go i.fetchRoutingTablePeriodically()
+
+	return i, nil
 }
 
 func (dm *ClusterDMap) Destroy(ctx context.Context) error {
@@ -364,7 +395,8 @@ func NewClusterClient(addresses []string, c *config.Client) (*ClusterClient, err
 
 func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
 	return &ClusterDMap{name: name,
-		client: cl.client,
+		client:        cl.client, // TODO: Rename this
+		clusterClient: cl,
 	}, nil
 }
 

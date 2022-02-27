@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -73,6 +74,7 @@ type ScanConfig struct {
 	HasMatch bool
 	Match    string
 	Replica  bool
+	Logger   *log.Logger
 }
 
 type ScanOption func(*ScanConfig)

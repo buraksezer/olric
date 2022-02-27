@@ -43,12 +43,12 @@ func (l *EmbeddedLockContext) Lease(ctx context.Context, duration time.Duration)
 	return convertDMapError(err)
 }
 
-// EmbeddedClient is an Olric client implementation for embedded-member scenario.
+// EmbeddedClient is an Olric rc implementation for embedded-member scenario.
 type EmbeddedClient struct {
 	db *Olric
 }
 
-// EmbeddedDMap is an DMap client implementation for embedded-member scenario.
+// EmbeddedDMap is an DMap rc implementation for embedded-member scenario.
 type EmbeddedDMap struct {
 	config        *dmapConfig
 	member        discovery.Member

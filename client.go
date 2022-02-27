@@ -97,7 +97,7 @@ func Match(s string) ScanOption {
 	}
 }
 
-// DMap describes a distributed map client.
+// DMap describes a distributed map rc.
 type DMap interface {
 	// Name exposes name of the DMap.
 	Name() string

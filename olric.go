@@ -65,14 +65,14 @@ var (
 	ErrInternalServerError = errors.New("internal server error")
 
 	// ErrUnknownOperation means that an unidentified message has been
-	// received from a client.
+	// received from a rc.
 	ErrUnknownOperation = errors.New("unknown operation")
 
 	// ErrServerGone means that a cluster member is closed unexpectedly.
 	ErrServerGone = errors.New("server is gone")
 
 	// ErrInvalidArgument means that an invalid parameter is sent by the
-	// client or a cluster member.
+	// rc or a cluster member.
 	ErrInvalidArgument = errors.New("invalid argument")
 
 	// ErrNotImplemented means that the requested feature has not been implemented

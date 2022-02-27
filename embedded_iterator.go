@@ -78,7 +78,7 @@ func (i *EmbeddedIterator) scanOnOwners(owners []discovery.Member) error {
 		}
 
 		scanCmd := s.Command(i.ctx)
-		// Fetch a redis client for the given owner.
+		// Fetch a redis rc for the given owner.
 		rc := i.client.db.client.Get(owner.String())
 		err := rc.Process(i.ctx, scanCmd)
 		if err != nil {
