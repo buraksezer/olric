@@ -274,11 +274,21 @@ func ParseGetPutCommand(cmd redcon.Command) (*GetPut, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return NewGetPut(
+	g := NewGetPut(
 		util.BytesToString(cmd.Args[1]), // DMap
 		util.BytesToString(cmd.Args[2]), // Key
 		cmd.Args[3],                     // Value
-	), nil
+	)
+
+	if len(cmd.Args) == 5 {
+		arg := util.BytesToString(cmd.Args[4])
+		if arg == "RW" {
+			g.SetRaw()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+	return g, nil
 }
 
 func ParseLockCommand(cmd redcon.Command) (*Lock, error) {

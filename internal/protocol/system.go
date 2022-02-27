@@ -104,3 +104,25 @@ func (l *LengthOfPart) Command(ctx context.Context) *redis.IntCmd {
 	}
 	return redis.NewIntCmd(ctx, args...)
 }
+
+type Stats struct {
+	CollectRuntime bool
+}
+
+func NewStats() *Stats {
+	return &Stats{}
+}
+
+func (s *Stats) SetCollectRuntime() *Stats {
+	s.CollectRuntime = true
+	return s
+}
+
+func (s *Stats) Command(ctx context.Context) *redis.StringCmd {
+	var args []interface{}
+	args = append(args, Generic.Stats)
+	if s.CollectRuntime {
+		args = append(args, "CR")
+	}
+	return redis.NewStringCmd(ctx, args...)
+}

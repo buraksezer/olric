@@ -15,15 +15,18 @@
 package olric
 
 import (
+	"encoding/json"
 	"os"
 	"runtime"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/pubsub"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/stats"
+	"github.com/tidwall/redcon"
 )
 
 func toMember(member discovery.Member) stats.Member {
@@ -145,27 +148,22 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	return s
 }
 
-type statsConfig struct {
-	CollectRuntime bool
-}
-
-type StatsOption func(*statsConfig)
-
-func CollectRuntime() StatsOption {
-	return func(cfg *statsConfig) {
-		cfg.CollectRuntime = true
+func (db *Olric) statsCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	statsCmd, err := protocol.ParseStatsCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
 	}
-}
 
-// Stats exposes some useful metrics to monitor an Olric node.
-func (db *Olric) Stats(options ...StatsOption) (stats.Stats, error) {
-	if err := db.isOperable(); err != nil {
-		// this node is not bootstrapped yet.
-		return stats.Stats{}, err
+	sc := statsConfig{}
+	if statsCmd.CollectRuntime {
+		sc.CollectRuntime = true
 	}
-	var cfg statsConfig
-	for _, opt := range options {
-		opt(&cfg)
+	memberStats := db.stats(sc)
+	data, err := json.Marshal(memberStats)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
 	}
-	return db.stats(cfg), nil
+	conn.WriteBulk(data)
 }

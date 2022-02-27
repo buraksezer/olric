@@ -15,6 +15,7 @@
 package olric
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/buraksezer/olric/internal/protocol"
@@ -130,15 +131,15 @@ func (db *Olric) fillRoutingTable() RoutingTable {
 	return rt
 }
 
-func (db *Olric) RoutingTable() (RoutingTable, error) {
+func (db *Olric) routingTable(ctx context.Context) (RoutingTable, error) {
 	coordinator := db.rt.Discovery().GetCoordinator()
 	if coordinator.CompareByID(db.rt.This()) {
 		return db.fillRoutingTable(), nil
 	}
 
-	rtCmd := protocol.NewClusterRoutingTable().Command(db.ctx)
+	rtCmd := protocol.NewClusterRoutingTable().Command(ctx)
 	rc := db.client.Get(coordinator.String())
-	err := rc.Process(db.ctx, rtCmd)
+	err := rc.Process(ctx, rtCmd)
 	if err != nil {
 		return nil, err
 	}

@@ -38,11 +38,13 @@ var Internal = &InternalCommands{
 }
 
 type GenericCommands struct {
-	Ping string
+	Ping  string
+	Stats string
 }
 
 var Generic = &GenericCommands{
-	Ping: "ping",
+	Ping:  "ping",
+	Stats: "stats",
 }
 
 type DMapCommands struct {

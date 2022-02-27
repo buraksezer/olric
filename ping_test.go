@@ -15,22 +15,27 @@
 package olric
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestOlric_Ping(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
-	err := db.Ping(db.rt.This().String())
+	result, err := db.ping(context.Background(), db.rt.This().String(), "")
 	require.NoError(t, err)
+	require.Equal(t, []byte(PingResponse), result)
 }
 
 func TestOlric_PingWithMessage(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
-	response, err := db.PingWithMessage(db.rt.This().String(), "Olric rocks!")
+	msg := "Olric rocks!"
+	response, err := db.ping(context.Background(), db.rt.This().String(), msg)
 	require.NoError(t, err)
-	require.Equal(t, "Olric rocks!", response)
+	require.Equal(t, []byte(msg), response)
 }

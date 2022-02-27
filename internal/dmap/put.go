@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -359,14 +360,14 @@ func (dm *DMap) put(e *env) error {
 		return err
 	}
 	rc := dm.s.client.Get(member.String())
-	err = rc.Process(dm.s.ctx, cmd)
+	err = rc.Process(e.ctx, cmd)
 	if err != nil {
 		return protocol.ConvertError(err)
 	}
 	return protocol.ConvertError(cmd.Err())
 }
 
-type putConfig struct {
+type PutConfig struct {
 	HasEX         bool
 	EX            time.Duration
 	HasPX         bool
@@ -380,53 +381,11 @@ type putConfig struct {
 	OnlyUpdateTTL bool
 }
 
-type PutOption func(*putConfig)
-
-func EX(ex time.Duration) PutOption {
-	return func(cfg *putConfig) {
-		cfg.HasEX = true
-		cfg.EX = ex
-	}
-}
-
-func PX(px time.Duration) PutOption {
-	return func(cfg *putConfig) {
-		cfg.HasPX = true
-		cfg.PX = px
-	}
-}
-
-func EXAT(exat time.Duration) PutOption {
-	return func(cfg *putConfig) {
-		cfg.HasEXAT = true
-		cfg.EXAT = exat
-	}
-}
-
-func PXAT(pxat time.Duration) PutOption {
-	return func(cfg *putConfig) {
-		cfg.HasPXAT = true
-		cfg.PX = pxat
-	}
-}
-
-func NX() PutOption {
-	return func(cfg *putConfig) {
-		cfg.HasNX = true
-	}
-}
-
-func XX() PutOption {
-	return func(cfg *putConfig) {
-		cfg.HasXX = true
-	}
-}
-
 // Put sets the value for the given key. It overwrites any previous value
 // for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
-func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
+func (dm *DMap) Put(ctx context.Context, key string, value interface{}, cfg *PutConfig) error {
 	valueBuf := pool.Get()
 	enc := encoding.New(valueBuf)
 	err := enc.Encode(value)
@@ -434,15 +393,15 @@ func (dm *DMap) Put(key string, value interface{}, options ...PutOption) error {
 		return err
 	}
 	defer func() {
+		// FIXME: This can be harmful for async replication
 		pool.Put(valueBuf)
 	}()
 
-	var pc putConfig
-	for _, opt := range options {
-		opt(&pc)
+	if cfg == nil {
+		cfg = &PutConfig{}
 	}
-	e := newEnv()
-	e.putConfig = &pc
+	e := newEnv(ctx)
+	e.putConfig = cfg
 	e.dmap = dm.name
 	e.key = key
 	e.value = valueBuf.Bytes()

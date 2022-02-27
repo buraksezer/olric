@@ -34,27 +34,27 @@ func (s *Service) putCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	var options []PutOption
+	var pc PutConfig
 	switch {
 	case putCmd.NX:
-		options = append(options, NX())
+		pc.HasNX = true
 	case putCmd.XX:
-		options = append(options, XX())
+		pc.HasXX = true
 	case putCmd.EX != 0:
-		options = append(options, EX(time.Duration(putCmd.EX*float64(time.Second))))
+		pc.HasEX = true
+		pc.EX = time.Duration(putCmd.EX * float64(time.Second))
 	case putCmd.PX != 0:
-		options = append(options, PX(time.Duration(putCmd.PX*int64(time.Millisecond))))
+		pc.HasPX = true
+		pc.PX = time.Duration(putCmd.PX * int64(time.Millisecond))
 	case putCmd.EXAT != 0:
-		options = append(options, EXAT(time.Duration(putCmd.EXAT*float64(time.Second))))
+		pc.HasEXAT = true
+		pc.EXAT = time.Duration(putCmd.EXAT * float64(time.Second))
 	case putCmd.PXAT != 0:
-		options = append(options, PXAT(time.Duration(putCmd.PXAT*int64(time.Millisecond))))
+		pc.HasPXAT = true
+		pc.PXAT = time.Duration(putCmd.PXAT * int64(time.Millisecond))
 	}
 
-	var pc putConfig
-	for _, opt := range options {
-		opt(&pc)
-	}
-	e := newEnv()
+	e := newEnv(nil)
 	e.putConfig = &pc
 	e.dmap = putCmd.DMap
 	e.key = putCmd.Key
@@ -80,7 +80,7 @@ func (s *Service) putEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	e := newEnv()
+	e := newEnv(nil)
 	e.hkey = partitions.HKey(putEntryCmd.DMap, putEntryCmd.Key)
 	e.dmap = putEntryCmd.DMap
 	e.key = putEntryCmd.Key

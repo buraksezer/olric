@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"runtime"
 
 	"github.com/buraksezer/olric/internal/discovery"
@@ -23,7 +24,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func (dm *DMap) destroyOnCluster() error {
+func (dm *DMap) destroyOnCluster(ctx context.Context) error {
 	num := int64(runtime.NumCPU())
 	sem := semaphore.NewWeighted(num)
 
@@ -55,7 +56,7 @@ func (dm *DMap) destroyOnCluster() error {
 			dm.s.log.V(6).Printf("[DEBUG] Calling Destroy command on %s for %s", addr, dm.name)
 			cmd := protocol.NewDestroy(dm.name).SetLocal().Command(dm.s.ctx)
 			rc := dm.s.client.Get(addr)
-			err := rc.Process(dm.s.ctx, cmd)
+			err := rc.Process(ctx, cmd)
 			if err != nil {
 				return err
 			}
@@ -68,6 +69,6 @@ func (dm *DMap) destroyOnCluster() error {
 // Destroy flushes the given DMap on the cluster. You should know that there
 // is no global lock on DMaps. So if you call Put, Put with EX and Destroy methods
 // concurrently on the cluster, Put and Put with EX calls may set new values to the DMap.
-func (dm *DMap) Destroy() error {
-	return dm.destroyOnCluster()
+func (dm *DMap) Destroy(ctx context.Context) error {
+	return dm.destroyOnCluster(ctx)
 }

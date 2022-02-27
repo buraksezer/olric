@@ -14,15 +14,18 @@
 
 package dmap
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
 // DB does not contain the key. It's thread-safe.
-func (dm *DMap) Expire(key string, timeout time.Duration) error {
-	pc := &putConfig{
+func (dm *DMap) Expire(ctx context.Context, key string, timeout time.Duration) error {
+	pc := &PutConfig{
 		OnlyUpdateTTL: true,
 	}
-	e := newEnv()
+	e := newEnv(ctx)
 	e.putConfig = pc
 	e.dmap = dm.name
 	e.key = key

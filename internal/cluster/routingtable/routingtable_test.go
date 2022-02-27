@@ -137,7 +137,7 @@ func TestRoutingTable_SingleNode(t *testing.T) {
 	}
 
 	if rt.Signature() == 0 {
-		t.Fatalf("RoutingTable.signature is zero")
+		t.Fatalf("routingTable.signature is zero")
 	}
 
 	if rt.OwnedPartitionCount() != c.PartitionCount {
@@ -182,7 +182,7 @@ func TestRoutingTable_Cluster(t *testing.T) {
 	}
 
 	if firstSignature == rt2.Signature() {
-		t.Fatalf("RoutingTable signature did not changed after node join")
+		t.Fatalf("routingTable signature did not changed after node join")
 	}
 
 	if rt1.OwnedPartitionCount() == c1.PartitionCount {

@@ -30,17 +30,22 @@ import (
 )
 
 func TestOlric_Stats(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
-	dm, err := db.NewDMap("mymap")
+	c := db.NewEmbeddedClient()
+	dm, err := c.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i))
 		require.NoError(t, err)
 	}
 
-	s, err := db.Stats()
+	s, err := c.Stats(ctx)
 	require.NoError(t, err)
 
 	if s.ClusterCoordinator.ID != db.rt.This().ID {
@@ -78,9 +83,11 @@ func TestOlric_Stats(t *testing.T) {
 }
 
 func TestOlric_Stats_CollectRuntime(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
-	s, err := db.Stats(CollectRuntime())
+	e := db.NewEmbeddedClient()
+	s, err := e.Stats(context.Background(), CollectRuntime())
 	require.NoError(t, err)
 
 	if s.Runtime == nil {
@@ -89,9 +96,10 @@ func TestOlric_Stats_CollectRuntime(t *testing.T) {
 }
 
 func TestStats_PubSub(t *testing.T) {
-	db := newTestOlric(t)
-	rc := redis.NewClient(&redis.Options{Addr: db.rt.This().String()})
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
+	rc := redis.NewClient(&redis.Options{Addr: db.rt.This().String()})
 	ctx := context.Background()
 
 	t.Run("Subscribe", func(t *testing.T) {
@@ -175,7 +183,9 @@ func TestStats_PubSub(t *testing.T) {
 }
 
 func TestStats_DMap(t *testing.T) {
-	db := newTestOlric(t)
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
 	rc := redis.NewClient(&redis.Options{Addr: db.rt.This().String()})
 	ctx := context.Background()
 

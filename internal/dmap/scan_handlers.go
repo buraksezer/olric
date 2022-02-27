@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -23,7 +24,7 @@ import (
 	"github.com/tidwall/redcon"
 )
 
-func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
+func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -50,9 +51,9 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *scanConfig) ([]st
 	return items, cursor, nil
 }
 
-func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, error) {
+func (dm *DMap) Scan2(partID, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
 	var part *partitions.Partition
-	if sc.replica {
+	if sc.Replica {
 		part = dm.s.backup.PartitionByID(partID)
 	} else {
 		part = dm.s.primary.PartitionByID(partID)
@@ -67,25 +68,26 @@ func (dm *DMap) scan(partID, cursor uint64, sc *scanConfig) ([]string, uint64, e
 	return dm.scanOnFragment(f, cursor, sc)
 }
 
-type scanConfig struct {
+type ScanConfig struct {
 	HasCount bool
 	Count    int
 	HasMatch bool
 	Match    string
-	replica  bool
+	Replica  bool
+	Logger   *log.Logger
 }
 
-type ScanOption func(*scanConfig)
+type ScanOption func(*ScanConfig)
 
 func Count(c int) ScanOption {
-	return func(cfg *scanConfig) {
+	return func(cfg *ScanConfig) {
 		cfg.HasCount = true
 		cfg.Count = c
 	}
 }
 
 func Match(s string) ScanOption {
-	return func(cfg *scanConfig) {
+	return func(cfg *ScanConfig) {
 		cfg.HasMatch = true
 		cfg.Match = s
 	}
@@ -104,18 +106,18 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	var sc scanConfig
+	var sc ScanConfig
 	var options []ScanOption
 	options = append(options, Count(scanCmd.Count))
 	options = append(options, Match(scanCmd.Match))
 	for _, opt := range options {
 		opt(&sc)
 	}
-	sc.replica = scanCmd.Replica
+	sc.Replica = scanCmd.Replica
 
 	var result []string
 	var cursor uint64
-	result, cursor, err = dm.scan(scanCmd.PartID, scanCmd.Cursor, &sc)
+	result, cursor, err = dm.Scan2(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

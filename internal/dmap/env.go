@@ -15,13 +15,15 @@
 package dmap
 
 import (
+	"context"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 )
 
 type env struct {
-	putConfig *putConfig
+	ctx       context.Context
+	putConfig *PutConfig
 	hkey      uint64
 	timestamp int64
 	dmap      string
@@ -32,9 +34,13 @@ type env struct {
 	fragment  *fragment
 }
 
-func newEnv() *env {
+func newEnv(ctx context.Context) *env {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return &env{
-		putConfig: &putConfig{},
+		ctx:       ctx,
+		putConfig: &PutConfig{},
 		timestamp: time.Now().UnixNano(),
 		kind:      partitions.PRIMARY,
 	}

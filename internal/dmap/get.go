@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"errors"
 	"sort"
 
@@ -250,7 +251,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			}
 
 			f.Lock()
-			e := newEnv()
+			e := newEnv(nil)
 			e.hkey = hkey
 			e.fragment = f
 			err = dm.putEntryOnFragment(e, winner.entry)
@@ -313,7 +314,10 @@ func (dm *DMap) getOnCluster(hkey uint64, key string) (storage.Entry, error) {
 	return winner.entry, nil
 }
 
-func (dm *DMap) get(key string) (storage.Entry, error) {
+// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
+// does not contain the key. It's thread-safe. It is safe to modify the contents
+// of the returned value.
+func (dm *DMap) Get(ctx context.Context, key string) (storage.Entry, error) {
 	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	// We are on the partition owner
@@ -335,7 +339,7 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	// Redirect to the partition owner
 	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
 	rc := dm.s.client.Get(member.String())
-	err := rc.Process(dm.s.ctx, cmd)
+	err := rc.Process(ctx, cmd)
 	if err != nil {
 		return nil, protocol.ConvertError(err)
 	}
@@ -351,15 +355,4 @@ func (dm *DMap) get(key string) (storage.Entry, error) {
 	entry := dm.engine.NewEntry()
 	entry.Decode(value)
 	return entry, nil
-}
-
-// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value.
-func (dm *DMap) Get(key string) (*GetResponse, error) {
-	raw, err := dm.get(key)
-	if err != nil {
-		return nil, err
-	}
-	return &GetResponse{entry: raw}, nil
 }

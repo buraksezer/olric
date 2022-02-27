@@ -85,7 +85,7 @@ func (s *Service) destroyCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	if destroyCmd.Local {
 		err = s.destroyLocalDMap(destroyCmd.DMap)
 	} else {
-		err = dm.destroyOnCluster()
+		err = dm.destroyOnCluster(s.ctx)
 	}
 
 	if err != nil {

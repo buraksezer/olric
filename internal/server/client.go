@@ -15,9 +15,11 @@
 package server
 
 import (
-	"github.com/buraksezer/olric/config"
+	"context"
+	"fmt"
 	"sync"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/go-redis/redis/v8"
 )
 
@@ -29,6 +31,13 @@ type Client struct {
 }
 
 func NewClient(c *config.Client) *Client {
+	if c == nil {
+		c = config.NewClient()
+		err := c.Sanitize()
+		if err != nil {
+			panic(fmt.Sprintf("failed to sanitize client config: %s", err))
+		}
+	}
 	return &Client{
 		config:  c,
 		clients: make(map[string]*redis.Client),
@@ -51,8 +60,17 @@ func (c *Client) Get(addr string) *redis.Client {
 	opt.Addr = addr
 	rc = redis.NewClient(opt)
 	c.clients[addr] = rc
-	rc.PoolStats()
 	return rc
+}
+
+func (c *Client) Pick() (*redis.Client, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, rc := range c.clients {
+		return rc, nil
+	}
+	return nil, fmt.Errorf("no available client found")
 }
 
 func (c *Client) Close(addr string) error {
@@ -63,6 +81,26 @@ func (c *Client) Close(addr string) error {
 	if ok {
 		err := rc.Close()
 		if err != nil {
+			return err
+		}
+		delete(c.clients, addr)
+	}
+
+	return nil
+}
+
+func (c *Client) Shutdown(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for addr, rc := range c.clients {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if err := rc.Close(); err != nil {
 			return err
 		}
 		delete(c.clients, addr)

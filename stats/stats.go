@@ -28,74 +28,74 @@ type (
 // SlabInfo denotes memory usage of the storage engine(a hash indexed, append only byte slice).
 type SlabInfo struct {
 	// Total allocated space by the append-only byte slice.
-	Allocated int
+	Allocated int `json:"allocated"`
 
 	// Total inuse memory space in the append-only byte slice.
-	Inuse int
+	Inuse int `json:"inuse"`
 
 	// Total garbage(deleted key/value pairs) space in the append-only byte slice.
-	Garbage int
+	Garbage int `json:"garbage"`
 }
 
 // DMap denotes a distributed map instance on the cluster.
 type DMap struct {
 	// Number of keys in the DMap.
-	Length int
+	Length int `json:"length"`
 
 	// Statistics about memory representation of a DMap.
-	SlabInfo SlabInfo
+	SlabInfo SlabInfo `json:"slab_info"`
 
 	// Number of tables in a storage instance.
-	NumTables int
+	NumTables int `json:"num_tables"`
 }
 
 // Partition denotes a partition and its metadata in the cluster.
 type Partition struct {
 	// PreviousOwners is a list of members whose still owns some fragments.
-	PreviousOwners []Member
+	PreviousOwners []Member `json:"previous_owners"`
 
 	// Backups is a list of members whose holds replicas of this partition.
-	Backups []Member
+	Backups []Member `json:"backups"`
 
 	// Total number of entries in the partition.
-	Length int
+	Length int `json:"length"`
 
 	// DMaps is a map that contains statistics of DMaps in this partition.
-	DMaps map[string]DMap
+	DMaps map[string]DMap `json:"dmaps"`
 }
 
 // Runtime exposes memory stats and various metrics from Go runtime.
 type Runtime struct {
 	// GOOS is the running program's operating system target
-	GOOS string
+	GOOS string `json:"goos"`
 
 	// GOARCH is the running program's architecture target
-	GOARCH string
+	GOARCH string `json:"goarch"`
 
 	// Version returns the Go tree's version string.
-	Version string
+	Version string `json:"version"`
 
 	// NumCPU returns the number of logical CPUs usable by the current process.
-	NumCPU int
+	NumCPU int `json:"num_cpu"`
 
 	// NumGoroutine returns the number of goroutines that currently exist.
-	NumGoroutine int
+	NumGoroutine int `json:"num_goroutine"`
 
 	// MemStats records statistics about the memory allocator.
-	MemStats runtime.MemStats
+	MemStats runtime.MemStats `json:"mem_stats"`
 }
 
 // Member denotes a cluster member.
 type Member struct {
 	// Name is name of the node in the cluster.
-	Name string
+	Name string `json:"name"`
 
 	// ID is the unique identifier of this node in the cluster. It's derived
 	// from Name and Birthdate.
-	ID uint64
+	ID uint64 `json:"id"`
 
 	// Birthdate is UNIX time in nanoseconds.
-	Birthdate int64
+	Birthdate int64 `json:"birthdate"`
 }
 
 // String returns the member name.
@@ -106,95 +106,95 @@ func (m Member) String() string {
 // Network holds network statistics.
 type Network struct {
 	// ConnectionsTotal is total number of connections opened since the server started running.
-	ConnectionsTotal int64
+	ConnectionsTotal int64 `json:"connections_total"`
 
 	// CurrentConnections is current number of open connections.
-	CurrentConnections int64
+	CurrentConnections int64 `json:"current_connections"`
 
 	// WrittenBytesTotal is total number of bytes sent by this server to network.
-	WrittenBytesTotal int64
+	WrittenBytesTotal int64 `json:"written_bytes_total"`
 
 	// ReadBytesTotal is total number of bytes read by this server from network.
-	ReadBytesTotal int64
+	ReadBytesTotal int64 `json:"read_bytes_total"`
 
 	// CommandsTotal is total number of all requests (get, put, etc.).
-	CommandsTotal int64
+	CommandsTotal int64 `json:"commands_total"`
 }
 
 // DMaps holds global DMap statistics.
 type DMaps struct {
 	// EntriesTotal is the total number of entries(including replicas) stored during the life of this instance.
-	EntriesTotal int64
+	EntriesTotal int64 `json:"entries_total"`
 
 	// DeleteHits is the number of deletion reqs resulting in an item being removed.
-	DeleteHits int64
+	DeleteHits int64 `json:"delete_hits"`
 
 	// DeleteMisses is the number of deletions reqs for missing keys
-	DeleteMisses int64
+	DeleteMisses int64 `json:"delete_misses"`
 
 	// GetMisses is the number of entries that have been requested and not found
-	GetMisses int64
+	GetMisses int64 `json:"get_misses"`
 
 	// GetHits is the number of entries that have been requested and found present
-	GetHits int64
+	GetHits int64 `json:"get_hits"`
 
 	// EvictedTotal is the number of entries removed from cache to free memory for new entries.
-	EvictedTotal int64
+	EvictedTotal int64 `json:"evicted_total"`
 }
 
 // PubSub holds global Pub/Sub statistics.
 type PubSub struct {
 	// PublishedTotal is the total number of published messages to PubSub during the life of this instance.
-	PublishedTotal int64
+	PublishedTotal int64 `json:"published_total"`
 
 	// CurrentSubscribers is the current number of Pub/Sub listeners of PubSub.
-	CurrentSubscribers int64
+	CurrentSubscribers int64 `json:"current_subscribers"`
 
 	// SubscribersTotal is the total number of registered Pub/Sub listeners during the life of this instance.
-	SubscribersTotal int64
+	SubscribersTotal int64 `json:"subscribers_total"`
 
 	// CurrentSubscribers is the current number of Pub/Sub listeners of PubSub.
-	CurrentPSubscribers int64
+	CurrentPSubscribers int64 `json:"current_psubscribers"`
 
 	// SubscribersTotal is the total number of registered Pub/Sub listeners during the life of this instance.
-	PSubscribersTotal int64
+	PSubscribersTotal int64 `json:"psubscribers_total"`
 }
 
 // Stats is a struct that exposes statistics about the current state of a member.
 type Stats struct {
 	// Cmdline holds the command-line arguments, starting with the program name.
-	Cmdline []string
+	Cmdline []string `json:"cmdline"`
 
 	// ReleaseVersion is the current Olric version
-	ReleaseVersion string
+	ReleaseVersion string `json:"release_version"`
 
 	// UptimeSeconds is number of seconds since the server started.
-	UptimeSeconds int64
+	UptimeSeconds int64 `json:"uptime_seconds"`
 
 	// Stats from Golang runtime
-	Runtime *Runtime
+	Runtime *Runtime `json:"runtime"`
 
 	// ClusterCoordinator is the current cluster coordinator.
-	ClusterCoordinator Member
+	ClusterCoordinator Member `json:"cluster_coordinator"`
 
 	// Member denotes the current member.
-	Member Member
+	Member Member `json:"member"`
 
 	// Partitions is a map that contains partition statistics.
-	Partitions map[PartitionID]Partition
+	Partitions map[PartitionID]Partition `json:"partitions"`
 
 	// Backups is a map that contains backup partition statistics.
-	Backups map[PartitionID]Partition
+	Backups map[PartitionID]Partition `json:"backups"`
 
 	// ClusterMembers is a map that contains bootstrapped cluster members
-	ClusterMembers map[MemberID]Member
+	ClusterMembers map[MemberID]Member `json:"cluster_members"`
 
 	// Network holds network statistics.
-	Network Network
+	Network Network `json:"network"`
 
 	// DMaps holds global DMap statistics.
-	DMaps DMaps
+	DMaps DMaps `json:"dmaps"`
 
 	// PubSub holds global Pub/Sub statistics.
-	PubSub PubSub
+	PubSub PubSub `json:"pub_sub"`
 }

@@ -78,8 +78,9 @@ func TestDMap_Delete_Cluster(t *testing.T) {
 	dm1, err := s1.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 10; i++ {
-		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
@@ -87,10 +88,10 @@ func TestDMap_Delete_Cluster(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		err = dm2.Delete(testutil.ToKey(i))
+		err = dm2.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 
-		_, err = dm2.Get(testutil.ToKey(i))
+		_, err = dm2.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 }
@@ -104,8 +105,9 @@ func TestDMap_Delete_Lookup(t *testing.T) {
 	dm1, err := s1.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 10; i++ {
-		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
@@ -115,10 +117,10 @@ func TestDMap_Delete_Lookup(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		err = dm2.Delete(testutil.ToKey(i))
+		err = dm2.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 
-		_, err = dm2.Get(testutil.ToKey(i))
+		_, err = dm2.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 }
@@ -141,8 +143,9 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -154,12 +157,12 @@ func TestDMap_Delete_StaleFragments(t *testing.T) {
 	}
 
 	for i := 0; i < 100; i++ {
-		err = dm2.Delete(testutil.ToKey(i))
+		err = dm2.Delete(ctx, testutil.ToKey(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		_, err = dm2.Get(testutil.ToKey(i))
+		_, err = dm2.Get(ctx, testutil.ToKey(i))
 		if !errors.Is(err, ErrKeyNotFound) {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
@@ -201,7 +204,7 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	err = dm.Put("mykey", "myvalue")
+	err = dm.Put(context.Background(), "mykey", "myvalue", nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -211,7 +214,7 @@ func TestDMap_Delete_PreviousOwner(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, cmd.Err())
 
-	_, err = dm.Get("mykey")
+	_, err = dm.Get(context.Background(), "mykey")
 	require.ErrorIs(t, err, ErrKeyNotFound)
 }
 
@@ -225,7 +228,7 @@ func TestDMap_Delete_DeleteKeyValFromPreviousOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
-	err = dm.Put("mykey", "myvalue")
+	err = dm.Put(context.Background(), "mykey", "myvalue", nil)
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -271,8 +274,10 @@ func TestDMap_Delete_Backup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
+
+	ctx := context.Background()
 	for i := 0; i < 10; i++ {
-		err = dm1.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
@@ -284,12 +289,12 @@ func TestDMap_Delete_Backup(t *testing.T) {
 	}
 
 	for i := 0; i < 10; i++ {
-		err = dm2.Delete(testutil.ToKey(i))
+		err = dm2.Delete(ctx, testutil.ToKey(i))
 		if err != nil {
 			t.Fatalf("Expected nil. Got: %v", err)
 		}
 
-		_, err = dm2.Get(testutil.ToKey(i))
+		_, err = dm2.Get(ctx, testutil.ToKey(i))
 		if err != ErrKeyNotFound {
 			t.Fatalf("Expected ErrKeyNotFound. Got: %v", err)
 		}
@@ -316,16 +321,17 @@ func TestDMap_Delete_Compaction(t *testing.T) {
 	dm, err := s.NewDMap("mymap")
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	for i := 0; i < 100; i++ {
-		err = dm.Put(testutil.ToKey(i), testutil.ToVal(i))
+		err = dm.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
 		require.NoError(t, err)
 	}
 
 	for i := 0; i < 100; i++ {
-		err = dm.Delete(testutil.ToKey(i))
+		err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 
-		_, err = dm.Get(testutil.ToKey(i))
+		_, err = dm.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
 	checkEmptyStorageEngine(t, s)

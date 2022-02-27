@@ -16,8 +16,6 @@ package olric
 
 import (
 	"errors"
-	"time"
-
 	"github.com/buraksezer/olric/internal/dmap"
 )
 
@@ -77,6 +75,7 @@ func convertDMapError(err error) error {
 	}
 }
 
+/*
 // Entry is a DMap entry with its metadata.
 type Entry struct {
 	Key       string
@@ -96,31 +95,31 @@ type Cursor struct {
 	//cursor *dmap.Cursor
 }
 
-// DMap represents a distributed map instance.
-type DMap struct {
+// DMapLegacy represents a distributed map instance.
+type DMapLegacy struct {
 	dm *dmap.DMap
 }
 
 // NewDMap creates an returns a new DMap instance.
-func (db *Olric) NewDMap(name string) (*DMap, error) {
+func (db *Olric) NewDMap(name string) (*DMapLegacy, error) {
 	dm, err := db.dmap.NewDMap(name)
 	if err != nil {
 		return nil, convertDMapError(err)
 	}
-	return &DMap{
+	return &DMapLegacy{
 		dm: dm,
 	}, nil
 }
 
 // Name exposes name of the DMap.
-func (dm *DMap) Name() string {
+func (dm *DMapLegacy) Name() string {
 	return dm.dm.Name()
 }
 
 // Get gets the value for the given key. It returns ErrKeyNotFound if the DB
 // does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value.
-func (dm *DMap) Get(key string) (interface{}, error) {
+func (dm *DMapLegacy) Get(key string) (interface{}, error) {
 	value, err := dm.dm.Get(key)
 	if err != nil {
 		return nil, convertDMapError(err)
@@ -134,7 +133,7 @@ func (dm *DMap) Get(key string) (interface{}, error) {
 // It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
+func (dm *DMapLegacy) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
 	ctx, err := dm.dm.LockWithTimeout(key, timeout, deadline)
 	if err != nil {
 		return nil, convertDMapError(err)
@@ -147,7 +146,7 @@ func (dm *DMap) LockWithTimeout(key string, timeout, deadline time.Duration) (*L
 // It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
 //
 // You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMap) Lock(key string, deadline time.Duration) (*LockContext, error) {
+func (dm *DMapLegacy) Lock(key string, deadline time.Duration) (*LockContext, error) {
 	ctx, err := dm.dm.Lock(key, deadline)
 	if err != nil {
 		return nil, convertDMapError(err)
@@ -165,94 +164,27 @@ func (l *LockContext) Unlock() error {
 // for that key, and it's thread-safe. The key has to be string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
-func (dm *DMap) Put(key string, value interface{}) error {
-	err := dm.dm.Put(key, value)
+func (dm *DMapLegacy) Put(key string, value interface{}) error {
+	err := dm.dm.Put(context.Background(), key, value, &dmap.PutConfig{})
 	return convertDMapError(err)
 }
 
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
 // DB does not contain the key. It's thread-safe.
-func (dm *DMap) Expire(key string, timeout time.Duration) error {
+func (dm *DMapLegacy) Expire(key string, timeout time.Duration) error {
 	err := dm.dm.Expire(key, timeout)
 	return convertDMapError(err)
 }
 
-/*
-// Query runs a distributed query on a dmap instance.
-// Olric supports a very simple query DSL and now, it only scans keys. The query DSL has very
-// few keywords:
-//
-// $onKey: Runs the given query on keys or manages options on keys for a given query.
-//
-// $onValue: Runs the given query on values or manages options on values for a given query.
-//
-// $options: Useful to modify data returned from a query
-//
-// Keywords for $options:
-//
-// $ignore: Ignores a value.
-//
-// A distributed query looks like the following:
-//
-//   query.M{
-// 	  "$onKey": query.M{
-// 		  "$regexMatch": "^even:",
-// 		  "$options": query.M{
-// 			  "$onValue": query.M{
-// 				  "$ignore": true,
-// 			  },
-// 		  },
-// 	  },
-//   }
-//
-// This query finds the keys starts with "even:", drops the values and returns only keys.
-// If you also want to retrieve the values, just remove the $options directive:
-//
-//   query.M{
-// 	  "$onKey": query.M{
-// 		  "$regexMatch": "^even:",
-// 	  },
-//   }
-//
-// In order to iterate over all the keys:
-//
-//   query.M{
-// 	  "$onKey": query.M{
-// 		  "$regexMatch": "",
-// 	  },
-//   }
-//
-// Query function returns a cursor which has Range and Close methods. Please take look at the Range
-// function for further info.
-func (dm *DMap) Query(q query.M) (*Cursor, error) {
-	c, err := dm.dm.Query(q)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-	return &Cursor{cursor: c}, nil
-}
-
-// Range calls f sequentially for each key and value yielded from the cursor. If f returns false,
-// range stops the iteration.
-func (c *Cursor) Range(f func(key string, value interface{}) bool) error {
-	err := c.cursor.Range(f)
-	return convertDMapError(err)
-}
-
-// Close cancels the underlying context and background goroutines stops running.
-func (c *Cursor) Close() {
-	c.cursor.Close()
-}*/
-
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
-func (dm *DMap) Delete(key string) error {
+func (dm *DMapLegacy) Delete(key string) error {
 	err := dm.dm.Delete(key)
 	return convertDMapError(err)
 }
 
 // Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
-func (dm *DMap) Incr(key string, delta int) (int, error) {
+func (dm *DMapLegacy) Incr(key string, delta int) (int, error) {
 	value, err := dm.dm.Incr(key, delta)
 	if err != nil {
 		return 0, convertDMapError(err)
@@ -261,7 +193,7 @@ func (dm *DMap) Incr(key string, delta int) (int, error) {
 }
 
 // Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
-func (dm *DMap) Decr(key string, delta int) (int, error) {
+func (dm *DMapLegacy) Decr(key string, delta int) (int, error) {
 	value, err := dm.dm.Decr(key, delta)
 	if err != nil {
 		return 0, convertDMapError(err)
@@ -270,7 +202,7 @@ func (dm *DMap) Decr(key string, delta int) (int, error) {
 }
 
 // GetPut atomically sets key to value and returns the old value stored at key.
-func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
+func (dm *DMapLegacy) GetPut(key string, value interface{}) (interface{}, error) {
 	prev, err := dm.dm.GetPut(key, value)
 	if err != nil {
 		return nil, convertDMapError(err)
@@ -281,7 +213,7 @@ func (dm *DMap) GetPut(key string, value interface{}) (interface{}, error) {
 // Destroy flushes the given DMap on the cluster. You should know that there
 // is no global lock on DMaps. So if you call Put and Destroy methods
 // concurrently on the cluster, Put calls may set new values to the dmap.
-func (dm *DMap) Destroy() error {
+func (dm *DMapLegacy) Destroy() error {
 	err := dm.dm.Destroy()
 	return convertDMapError(err)
-}
+}*/

@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"errors"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -118,7 +119,7 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 	return nil
 }
 
-func (dm *DMap) deleteKey(key string) error {
+func (dm *DMap) deleteKey(ctx context.Context, key string) error {
 	hkey := partitions.HKey(dm.name, key)
 	member := dm.s.primary.PartitionByHKey(hkey).Owner()
 	if member.CompareByName(dm.s.rt.This()) {
@@ -143,7 +144,7 @@ func (dm *DMap) deleteKey(key string) error {
 
 	cmd := protocol.NewDel(dm.name, key).Command(dm.s.ctx)
 	rc := dm.s.client.Get(member.String())
-	err := rc.Process(dm.s.ctx, cmd)
+	err := rc.Process(ctx, cmd)
 	if err != nil {
 		return protocol.ConvertError(err)
 	}
@@ -152,6 +153,6 @@ func (dm *DMap) deleteKey(key string) error {
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
-func (dm *DMap) Delete(key string) error {
-	return dm.deleteKey(key)
+func (dm *DMap) Delete(ctx context.Context, key string) error {
+	return dm.deleteKey(ctx, key)
 }

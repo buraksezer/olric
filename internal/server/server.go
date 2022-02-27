@@ -105,6 +105,7 @@ type Server struct {
 
 // New creates and returns a new Server.
 func New(c *Config, l *flog.Logger) *Server {
+	// The server has to be started properly before accepting connections.
 	checkpoint.Add()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -162,7 +163,9 @@ func (s *Server) ListenAndServe() error {
 		},
 	)
 	s.server = srv
+	// The TCP server has been started
 	s.started()
+	checkpoint.Pass()
 	return s.server.Serve(lw)
 }
 
