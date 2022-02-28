@@ -3,7 +3,7 @@ module github.com/buraksezer/olric
 go 1.13
 
 require (
-	github.com/buraksezer/connpool v0.4.0
+	github.com/buraksezer/connpool v0.5.0
 	github.com/buraksezer/consistent v0.0.0-20191006190839-693edf70fd72
 	github.com/cespare/xxhash v1.1.0
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
