@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/stats"
 )
 
@@ -77,9 +78,17 @@ func XX() PutOption {
 	}
 }
 
-type dmapConfig struct{}
+type dmapConfig struct {
+	storageEntryImplementation func() storage.Entry
+}
 
 type DMapOption func(*dmapConfig)
+
+func StorageEntryImplementation(e func() storage.Entry) DMapOption {
+	return func(cfg *dmapConfig) {
+		cfg.storageEntryImplementation = e
+	}
+}
 
 type ScanOption func(*dmap.ScanConfig)
 

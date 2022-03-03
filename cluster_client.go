@@ -17,6 +17,7 @@ package olric
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -43,6 +44,7 @@ type ClusterLockContext struct {
 
 type ClusterDMap struct {
 	name          string
+	newEntry      func() storage.Entry
 	config        *dmapConfig
 	engine        storage.Entry
 	client        *server.Client
@@ -132,8 +134,7 @@ func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error
 		return nil, processProtocolError(err)
 	}
 
-	// TODO: We have to create a new entry with a callback function
-	e := entry.New()
+	e := dm.newEntry()
 	e.Decode(raw)
 	return &GetResponse{
 		entry: e,
@@ -224,8 +225,7 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 		return nil, processProtocolError(err)
 	}
 
-	// TODO: We have to create a new entry with a callback function
-	e := entry.New()
+	e := dm.newEntry()
 	e.Decode(raw)
 	return &GetResponse{
 		entry: e,
@@ -374,34 +374,6 @@ type ClusterClient struct {
 	client *server.Client
 }
 
-func NewClusterClient(addresses []string, c *config.Client) (*ClusterClient, error) {
-	if c == nil {
-		c = config.NewClient()
-	}
-
-	if err := c.Sanitize(); err != nil {
-		return nil, err
-	}
-	if err := c.Validate(); err != nil {
-		return nil, err
-	}
-
-	cl := &ClusterClient{
-		client: server.NewClient(c),
-	}
-	for _, address := range addresses {
-		cl.client.Get(address)
-	}
-	return cl, nil
-}
-
-func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
-	return &ClusterDMap{name: name,
-		client:        cl.client, // TODO: Rename this
-		clusterClient: cl,
-	}, nil
-}
-
 func (cl *ClusterClient) Ping(ctx context.Context, addr string) error {
 	cmd := protocol.NewPing().Command(ctx)
 	rc := cl.client.Get(addr)
@@ -495,6 +467,51 @@ func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (sta
 
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	return cl.client.Shutdown(ctx)
+}
+
+func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
+	var dc dmapConfig
+	for _, opt := range options {
+		opt(&dc)
+	}
+
+	if dc.storageEntryImplementation == nil {
+		dc.storageEntryImplementation = func() storage.Entry {
+			return entry.New()
+		}
+	}
+
+	return &ClusterDMap{name: name,
+		config:        &dc,
+		newEntry:      dc.storageEntryImplementation,
+		client:        cl.client,
+		clusterClient: cl,
+	}, nil
+}
+
+func NewClusterClient(addresses []string, c *config.Client) (*ClusterClient, error) {
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("addresses cannot be empty")
+	}
+
+	if c == nil {
+		c = config.NewClient()
+	}
+
+	if err := c.Sanitize(); err != nil {
+		return nil, err
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+
+	cl := &ClusterClient{
+		client: server.NewClient(c),
+	}
+	for _, address := range addresses {
+		cl.client.Get(address)
+	}
+	return cl, nil
 }
 
 var (
