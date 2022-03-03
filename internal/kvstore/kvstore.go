@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/RoaringBitmap/roaring/roaring64"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/kvstore/table"
 	"github.com/buraksezer/olric/pkg/storage"
@@ -41,7 +40,6 @@ type KVStore struct {
 	coefficient         uint64
 	tablesByCoefficient map[uint64]*table.Table
 	tables              []*table.Table
-	bitmap              *roaring64.Bitmap
 	config              *storage.Config
 }
 
@@ -56,7 +54,6 @@ func New(c *storage.Config) *KVStore {
 	return &KVStore{
 		tablesByCoefficient: make(map[uint64]*table.Table),
 		config:              c,
-		bitmap:              roaring64.New(),
 	}
 }
 
