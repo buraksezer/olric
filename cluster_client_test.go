@@ -16,10 +16,13 @@ package olric
 
 import (
 	"context"
-	"github.com/buraksezer/olric/stats"
+	"github.com/buraksezer/olric/config"
+	"log"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/stats"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -30,7 +33,7 @@ func TestClusterClient_Ping(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -46,7 +49,7 @@ func TestClusterClient_PingWithMessage(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -63,7 +66,7 @@ func TestClusterClient_RoutingTable(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -80,7 +83,7 @@ func TestClusterClient_Put(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -98,7 +101,7 @@ func TestClusterClient_Get(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -124,7 +127,7 @@ func TestClusterClient_Delete(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -148,7 +151,7 @@ func TestClusterClient_Destroy(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -172,7 +175,7 @@ func TestClusterClient_Incr(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -201,7 +204,7 @@ func TestClusterClient_Decr(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -233,7 +236,7 @@ func TestClusterClient_GetPut(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -259,7 +262,7 @@ func TestClusterClient_Expire(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -285,7 +288,7 @@ func TestClusterClient_Lock_Unlock(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -306,7 +309,7 @@ func TestClusterClient_Lock_Lease(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -332,7 +335,7 @@ func TestClusterClient_Lock_ErrLockNotAcquired(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -353,7 +356,7 @@ func TestClusterClient_LockWithTimeout(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -374,7 +377,7 @@ func TestClusterClient_LockWithTimeout_ErrNoSuchLock(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -397,7 +400,7 @@ func TestClusterClient_LockWithTimeout_Then_Lease(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -424,7 +427,7 @@ func TestClusterClient_LockWithTimeout_ErrLockNotAcquired(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -445,7 +448,7 @@ func TestClusterClient_Put_Ex(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -468,7 +471,7 @@ func TestClusterClient_Put_PX(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -491,7 +494,7 @@ func TestClusterClient_Put_EXAT(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -514,7 +517,7 @@ func TestClusterClient_Put_PXAT(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -537,7 +540,7 @@ func TestClusterClient_Put_NX(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -565,7 +568,7 @@ func TestClusterClient_Put_XX(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -583,7 +586,7 @@ func TestClusterClient_Stats(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -601,7 +604,7 @@ func TestClusterClient_Stats_CollectRuntime(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -612,4 +615,22 @@ func TestClusterClient_Stats_CollectRuntime(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, s.Runtime)
 	require.NotEqual(t, empty, s)
+}
+
+func TestClusterClient_Set_Options(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+
+	lg := log.New(os.Stderr, "logger: ", log.Lshortfile)
+	cfg := config.NewClient()
+	c, err := NewClusterClient([]string{db.name}, WithConfig(cfg), WithLogger(lg))
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	require.Equal(t, cfg, c.config.config)
+	require.Equal(t, lg, c.config.logger)
 }
