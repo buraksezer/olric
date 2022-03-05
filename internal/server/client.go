@@ -67,6 +67,7 @@ func (c *Client) Pick() (*redis.Client, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	// TODO: Implement round-robin scheduling algorithm.
 	for _, rc := range c.clients {
 		return rc, nil
 	}

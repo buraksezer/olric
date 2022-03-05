@@ -58,6 +58,7 @@ func (s *Service) RegisterHandlers() {
 	s.server.ServeMux().HandleFunc(protocol.PubSub.Subscribe, s.subscribeCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.PubSub.PSubscribe, s.psubscribeCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.PubSub.Publish, s.publishCommandHandler)
+	s.server.ServeMux().HandleFunc(protocol.PubSub.PublishInternal, s.publishInternalCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubChannels, s.pubsubChannelsCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubNumpat, s.pubsubNumpatCommandHandler)
 	s.server.ServeMux().HandleFunc(protocol.PubSub.PubSubNumsub, s.pubsubNumsubCommandHandler)

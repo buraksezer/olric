@@ -39,8 +39,43 @@ func (s *Service) publishCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		protocol.WriteError(conn, err)
 		return
 	}
-	count := s.pubsub.Publish(publishCmd.Channel, publishCmd.Message)
-	PublishedTotal.Increase(int64(count))
+
+	var total int64
+	members := s.rt.Discovery().GetMembers()
+	for _, member := range members {
+		if member.CompareByID(s.rt.This()) {
+			count := s.pubsub.Publish(publishCmd.Channel, publishCmd.Message)
+			total += int64(count)
+			PublishedTotal.Increase(int64(count))
+			continue
+		}
+
+		pi := protocol.NewPublishInternal(publishCmd.Channel, publishCmd.Message).Command(s.ctx)
+		rc := s.client.Get(member.String())
+		err = rc.Process(s.ctx, pi)
+		if err != nil {
+			protocol.WriteError(conn, err)
+			return
+		}
+		pcount, err := pi.Result()
+		if err != nil {
+			protocol.WriteError(conn, err)
+			return
+		}
+		total += pcount
+		PublishedTotal.Increase(pcount)
+	}
+
+	conn.WriteInt64(total)
+}
+
+func (s *Service) publishInternalCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	publishInternalCmd, err := protocol.ParsePublishInternalCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	count := s.pubsub.Publish(publishInternalCmd.Channel, publishInternalCmd.Message)
 	conn.WriteInt(count)
 }
 

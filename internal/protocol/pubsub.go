@@ -40,6 +40,26 @@ func (p *Publish) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
+type PublishInternal struct {
+	Channel string
+	Message string
+}
+
+func NewPublishInternal(channel, message string) *PublishInternal {
+	return &PublishInternal{
+		Channel: channel,
+		Message: message,
+	}
+}
+
+func (p *PublishInternal) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, PubSub.PublishInternal)
+	args = append(args, p.Channel)
+	args = append(args, p.Message)
+	return redis.NewIntCmd(ctx, args...)
+}
+
 type Subscribe struct {
 	Channels []string
 }

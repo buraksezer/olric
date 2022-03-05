@@ -341,3 +341,54 @@ func TestPubSub_Handler_PubSubNumsub(t *testing.T) {
 	require.Equal(t, int64(1), nr["foobar"])
 	require.Equal(t, int64(1), nr["barfoo"])
 }
+
+func TestPubSub_Cluster(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	rc1 := s1.client.Get(s1.rt.This().String())
+	ctx := context.Background()
+	ps := rc1.Subscribe(ctx, "my-channel")
+
+	// Wait for confirmation that subscription is created before publishing anything.
+	msgi, err := ps.ReceiveTimeout(ctx, time.Second)
+	require.NoError(t, err)
+
+	subs := msgi.(*redis.Subscription)
+	require.Equal(t, "subscribe", subs.Kind)
+	require.Equal(t, "my-channel", subs.Channel)
+	require.Equal(t, 1, subs.Count)
+
+	// Go channel which receives messages.
+	ch := ps.Channel()
+
+	rc2 := s2.client.Get(s2.rt.This().String())
+	expected := make(map[string]struct{})
+	for i := 0; i < 10; i++ {
+		msg := fmt.Sprintf("my-message-%d", i)
+		err = rc2.Publish(ctx, "my-channel", msg).Err()
+		require.NoError(t, err)
+		expected[msg] = struct{}{}
+	}
+
+	consumed := make(map[string]struct{})
+L:
+	for {
+		select {
+		case msg := <-ch:
+			require.Equal(t, "my-channel", msg.Channel)
+			consumed[msg.Payload] = struct{}{}
+			if len(consumed) == 10 {
+				// It would be OK
+				break L
+			}
+		case <-time.After(5 * time.Second):
+			// Enough. Break it and check the consumed items.
+			break L
+		}
+	}
+
+	require.Equal(t, expected, consumed)
+}

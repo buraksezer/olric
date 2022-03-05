@@ -30,6 +30,17 @@ func ParsePublishCommand(cmd redcon.Command) (*Publish, error) {
 	), nil
 }
 
+func ParsePublishInternalCommand(cmd redcon.Command) (*PublishInternal, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewPublishInternal(
+		util.BytesToString(cmd.Args[1]), // Channel
+		util.BytesToString(cmd.Args[2]), // Message
+	), nil
+}
+
 func ParseSubscribeCommand(cmd redcon.Command) (*Subscribe, error) {
 	if len(cmd.Args) < 2 {
 		return nil, errWrongNumber(cmd.Args)
