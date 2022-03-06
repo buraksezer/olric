@@ -17,10 +17,9 @@ package server
 import (
 	"context"
 	"fmt"
-	"sync"
-
 	"github.com/buraksezer/olric/config"
 	"github.com/go-redis/redis/v8"
+	"sync"
 )
 
 type Client struct {
@@ -60,6 +59,8 @@ func (c *Client) Get(addr string) *redis.Client {
 	opt.Addr = addr
 	rc = redis.NewClient(opt)
 	c.clients[addr] = rc
+	// TODO: Remove unhealthy redis client periodically.
+	// TODO: Send a pig command after calling NewClient.
 	return rc
 }
 

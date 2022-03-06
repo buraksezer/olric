@@ -16,12 +16,12 @@ package olric
 
 import (
 	"context"
-	"github.com/buraksezer/olric/config"
 	"log"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/stats"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"

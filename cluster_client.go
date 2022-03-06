@@ -470,6 +470,10 @@ func (cl *ClusterClient) Close(ctx context.Context) error {
 	return cl.client.Shutdown(ctx)
 }
 
+func (cl *ClusterClient) NewPubSub(options ...PubSubOption) (*PubSub, error) {
+	return newPubSub(cl.client, options...)
+}
+
 func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
 	var dc dmapConfig
 	for _, opt := range options {
