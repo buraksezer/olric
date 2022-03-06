@@ -26,7 +26,6 @@ import (
 
 func pubsubTestRunner(t *testing.T, ps *PubSub, kind, channel string) {
 	ctx := context.Background()
-
 	var rp *redis.PubSub
 	switch kind {
 	case "subscribe":
@@ -82,7 +81,6 @@ L:
 
 func TestPubSub_Publish_Subscribe(t *testing.T) {
 	cluster := newTestOlricCluster(t)
-	cluster.addMember(t)
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
@@ -100,7 +98,6 @@ func TestPubSub_Publish_Subscribe(t *testing.T) {
 
 func TestPubSub_Publish_PSubscribe(t *testing.T) {
 	cluster := newTestOlricCluster(t)
-	cluster.addMember(t)
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
@@ -117,7 +114,6 @@ func TestPubSub_Publish_PSubscribe(t *testing.T) {
 
 func TestPubSub_PubSubChannels(t *testing.T) {
 	cluster := newTestOlricCluster(t)
-	cluster.addMember(t)
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
@@ -148,7 +144,6 @@ func TestPubSub_PubSubChannels(t *testing.T) {
 
 func TestPubSub_PubSubNumSub(t *testing.T) {
 	cluster := newTestOlricCluster(t)
-	cluster.addMember(t)
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
@@ -183,7 +178,6 @@ func TestPubSub_PubSubNumSub(t *testing.T) {
 
 func TestPubSub_PubSubNumPat(t *testing.T) {
 	cluster := newTestOlricCluster(t)
-	cluster.addMember(t)
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
@@ -209,4 +203,61 @@ func TestPubSub_PubSubNumPat(t *testing.T) {
 	numpat, err := ps.PubSubNumPat(ctx)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), numpat)
+}
+
+func TestPubSub_Cluster(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db1 := cluster.addMember(t)
+	db2 := cluster.addMember(t)
+
+	// Create a subscriber
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db1.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	ps1, err := c.NewPubSub(ToAddress(db1.rt.This().String()))
+	require.NoError(t, err)
+
+	rp := ps1.Subscribe(ctx, "my-channel")
+	defer func() {
+		require.NoError(t, rp.Close())
+	}()
+	// Wait for confirmation that subscription is created before publishing anything.
+	_, err = rp.ReceiveTimeout(ctx, time.Second)
+	require.NoError(t, err)
+	receiveChan := rp.Channel()
+
+	// Create a publisher
+
+	e := db2.NewEmbeddedClient()
+	ps2, err := e.NewPubSub(ToAddress(db2.rt.This().String()))
+	require.NoError(t, err)
+	expected := make(map[string]struct{})
+	for i := 0; i < 10; i++ {
+		msg := fmt.Sprintf("my-message-%d", i)
+		count, err := ps2.Publish(ctx, "my-channel", msg)
+		require.Equal(t, int64(1), count)
+		require.NoError(t, err)
+		expected[msg] = struct{}{}
+	}
+
+	consumed := make(map[string]struct{})
+L:
+	for {
+		select {
+		case msg := <-receiveChan:
+			require.Equal(t, "my-channel", msg.Channel)
+			consumed[msg.Payload] = struct{}{}
+			if len(consumed) == 10 {
+				// It would be OK
+				break L
+			}
+		case <-time.After(5 * time.Second):
+			// Enough. Break it and check the consumed items.
+			break L
+		}
+	}
 }
