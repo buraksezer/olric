@@ -26,3 +26,12 @@ func ParseClusterRoutingTable(cmd redcon.Command) (*ClusterRoutingTable, error) 
 	c := NewClusterRoutingTable()
 	return c, nil
 }
+
+func ParseClusterMembers(cmd redcon.Command) (*ClusterMembers, error) {
+	if len(cmd.Args) < 1 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	c := NewClusterMembers()
+	return c, nil
+}

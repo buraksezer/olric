@@ -19,8 +19,6 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-type ClusterRoutingTableCommand struct{}
-
 type ClusterRoutingTable struct{}
 
 func NewClusterRoutingTable() *ClusterRoutingTable {
@@ -30,5 +28,17 @@ func NewClusterRoutingTable() *ClusterRoutingTable {
 func (c *ClusterRoutingTable) Command(ctx context.Context) *redis.Cmd {
 	var args []interface{}
 	args = append(args, Cluster.RoutingTable)
+	return redis.NewCmd(ctx, args...)
+}
+
+type ClusterMembers struct{}
+
+func NewClusterMembers() *ClusterMembers {
+	return &ClusterMembers{}
+}
+
+func (c *ClusterMembers) Command(ctx context.Context) *redis.Cmd {
+	var args []interface{}
+	args = append(args, Cluster.Members)
 	return redis.NewCmd(ctx, args...)
 }

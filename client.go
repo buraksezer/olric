@@ -25,6 +25,13 @@ import (
 
 const DefaultScanCount = 10
 
+type Member struct {
+	Name      string
+	NameHash  uint64 // TODO: Consider removing this
+	ID        uint64
+	Birthdate int64
+}
+
 type Iterator interface {
 	Next() bool
 	Key() string
@@ -196,5 +203,6 @@ type Client interface {
 	Ping(ctx context.Context, addr string) error
 	PingWithMessage(ctx context.Context, addr, message string) (string, error)
 	RoutingTable(ctx context.Context) (RoutingTable, error)
+	Members(ctx context.Context) ([]Member, error)
 	Close(ctx context.Context) error
 }

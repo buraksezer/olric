@@ -244,6 +244,7 @@ func (db *Olric) registerCommandHandlers() {
 	db.server.ServeMux().HandleFunc(protocol.Generic.Ping, db.pingCommandHandler)
 	db.server.ServeMux().HandleFunc(protocol.Cluster.RoutingTable, db.clusterRoutingTableCommandHandler)
 	db.server.ServeMux().HandleFunc(protocol.Generic.Stats, db.statsCommandHandler)
+	db.server.ServeMux().HandleFunc(protocol.Cluster.Members, db.clusterMembersCommandHandler)
 }
 
 // callStartedCallback checks passed checkpoint count and calls the callback

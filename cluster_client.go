@@ -466,6 +466,52 @@ func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (sta
 	return s, nil
 }
 
+func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
+	rc, err := cl.client.Pick()
+	if err != nil {
+		return []Member{}, err
+	}
+
+	cmd := protocol.NewClusterMembers().Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return []Member{}, processProtocolError(err)
+	}
+
+	if err = cmd.Err(); err != nil {
+		return []Member{}, processProtocolError(err)
+	}
+
+	items, err := cmd.Slice()
+	if err != nil {
+		return []Member{}, processProtocolError(err)
+	}
+	var members []Member
+	for _, rawItem := range items {
+		m := Member{}
+		item := rawItem.([]interface{})
+		m.Name = item[0].(string)
+
+		switch namehash := item[2].(type) {
+		case uint64:
+			m.NameHash = namehash
+		case int64:
+			m.NameHash = uint64(namehash)
+		}
+
+		switch id := item[2].(type) {
+		case uint64:
+			m.ID = id
+		case int64:
+			m.ID = uint64(id)
+		}
+
+		m.Birthdate = item[3].(int64)
+		members = append(members, m)
+	}
+	return members, nil
+}
+
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	return cl.client.Shutdown(ctx)
 }

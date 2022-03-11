@@ -634,3 +634,27 @@ func TestClusterClient_Set_Options(t *testing.T) {
 	require.Equal(t, cfg, c.config.config)
 	require.Equal(t, lg, c.config.logger)
 }
+
+func TestClusterClient_Members(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	cluster.addMember(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	members, err := c.Members(ctx)
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+
+	for _, member := range members {
+		require.NotEqual(t, "", member.Name)
+		require.NotEqual(t, 0, member.NameHash)
+		require.NotEqual(t, 0, member.ID)
+		require.NotEqual(t, 0, member.Birthdate)
+	}
+}

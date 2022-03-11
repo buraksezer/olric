@@ -236,6 +236,20 @@ func (e *EmbeddedClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 	return e.db.routingTable(ctx)
 }
 
+func (e *EmbeddedClient) Members(ctx context.Context) ([]Member, error) {
+	members := e.db.rt.Discovery().GetMembers()
+	var result []Member
+	for _, member := range members {
+		result = append(result, Member{
+			Name:      member.Name,
+			NameHash:  member.NameHash,
+			ID:        member.ID,
+			Birthdate: member.Birthdate,
+		})
+	}
+	return result, nil
+}
+
 func (e *EmbeddedClient) NewPubSub(options ...PubSubOption) (*PubSub, error) {
 	return newPubSub(e.db.client, options...)
 }

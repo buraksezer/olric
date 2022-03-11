@@ -18,10 +18,12 @@ const StatusOK = "OK"
 
 type ClusterCommands struct {
 	RoutingTable string
+	Members      string
 }
 
 var Cluster = &ClusterCommands{
 	RoutingTable: "cluster.routingtable",
+	Members:      "cluster.members",
 }
 
 type InternalCommands struct {

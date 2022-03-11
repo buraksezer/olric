@@ -61,7 +61,6 @@ func registerErrors() {
 	protocol.SetError("LOCKNOTACQUIRED", ErrLockNotAcquired)
 	protocol.SetError("READQUORUM", ErrReadQuorum)
 	protocol.SetError("WRITEQUORUM", ErrWriteQuorum)
-	protocol.SetError("ENDOFQUERY", ErrEndOfQuery)
 	protocol.SetError("DMAPNOTFOUND", ErrDMapNotFound)
 	protocol.SetError("KEYTOOLARGE", ErrKeyTooLarge)
 	protocol.SetError("KEYNOTFOUND", ErrKeyNotFound)
