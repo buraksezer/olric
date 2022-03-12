@@ -60,24 +60,8 @@ var (
 	// ErrOperationTimeout is returned when an operation times out.
 	ErrOperationTimeout = errors.New("operation timeout")
 
-	// ErrInternalServerError means that something unintentionally went
-	// wrong while processing the request.
-	ErrInternalServerError = errors.New("internal server error")
-
-	// ErrUnknownOperation means that an unidentified message has been
-	// received from a rc.
-	ErrUnknownOperation = errors.New("unknown operation")
-
 	// ErrServerGone means that a cluster member is closed unexpectedly.
 	ErrServerGone = errors.New("server is gone")
-
-	// ErrInvalidArgument means that an invalid parameter is sent by the
-	// rc or a cluster member.
-	ErrInvalidArgument = errors.New("invalid argument")
-
-	// ErrNotImplemented means that the requested feature has not been implemented
-	// yet.
-	ErrNotImplemented = errors.New("not implemented")
 )
 
 // Olric implements a distributed cache and in-memory key/value data store.
@@ -95,7 +79,7 @@ type Olric struct {
 	primary *partitions.Partitions
 	backup  *partitions.Partitions
 
-	// RESP experiment
+	// RESP server and clients.
 	server *server.Server
 	client *server.Client
 
