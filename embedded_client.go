@@ -242,7 +242,6 @@ func (e *EmbeddedClient) Members(ctx context.Context) ([]Member, error) {
 	for _, member := range members {
 		result = append(result, Member{
 			Name:      member.Name,
-			NameHash:  member.NameHash,
 			ID:        member.ID,
 			Birthdate: member.Birthdate,
 		})

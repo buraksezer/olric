@@ -160,9 +160,8 @@ func (db *Olric) clusterMembersCommandHandler(conn redcon.Conn, cmd redcon.Comma
 	members := db.rt.Discovery().GetMembers()
 	conn.WriteArray(len(members))
 	for _, member := range members {
-		conn.WriteArray(4)
+		conn.WriteArray(3)
 		conn.WriteBulkString(member.Name)
-		conn.WriteUint64(member.NameHash)
 		conn.WriteUint64(member.ID)
 		conn.WriteInt64(member.Birthdate)
 	}

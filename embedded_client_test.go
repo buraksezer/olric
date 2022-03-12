@@ -531,7 +531,6 @@ func TestEmbeddedClient_Member(t *testing.T) {
 	require.Len(t, members, 2)
 	for _, member := range members {
 		require.NotEqual(t, "", member.Name)
-		require.NotEqual(t, 0, member.NameHash)
 		require.NotEqual(t, 0, member.ID)
 		require.NotEqual(t, 0, member.Birthdate)
 	}

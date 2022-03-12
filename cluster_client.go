@@ -492,21 +492,14 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 		item := rawItem.([]interface{})
 		m.Name = item[0].(string)
 
-		switch namehash := item[2].(type) {
-		case uint64:
-			m.NameHash = namehash
-		case int64:
-			m.NameHash = uint64(namehash)
-		}
-
-		switch id := item[2].(type) {
+		switch id := item[1].(type) {
 		case uint64:
 			m.ID = id
 		case int64:
 			m.ID = uint64(id)
 		}
 
-		m.Birthdate = item[3].(int64)
+		m.Birthdate = item[2].(int64)
 		members = append(members, m)
 	}
 	return members, nil

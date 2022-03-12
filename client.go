@@ -27,7 +27,6 @@ const DefaultScanCount = 10
 
 type Member struct {
 	Name      string
-	NameHash  uint64 // TODO: Consider removing this
 	ID        uint64
 	Birthdate int64
 }
