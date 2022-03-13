@@ -16,14 +16,35 @@ package protocol
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestProtocol_ParseClusterRoutingTable(t *testing.T) {
+func TestProtocol_ClusterRoutingTable(t *testing.T) {
 	rtCmd := NewClusterRoutingTable()
 
 	cmd := stringToCommand(rtCmd.Command(context.Background()).String())
 	_, err := ParseClusterRoutingTable(cmd)
 	require.NoError(t, err)
+
+	t.Run("CLUSTER.ROUTINGTABLE invalid command", func(t *testing.T) {
+		cmd := stringToCommand("cluster routing table foobar")
+		_, err = ParseClusterRoutingTable(cmd)
+		require.Error(t, err)
+	})
+}
+
+func TestProtocol_ClusterMembers(t *testing.T) {
+	membersCmd := NewClusterMembers()
+
+	cmd := stringToCommand(membersCmd.Command(context.Background()).String())
+	_, err := ParseClusterMembers(cmd)
+	require.NoError(t, err)
+
+	t.Run("CLUSTER.MEMBERS invalid command", func(t *testing.T) {
+		cmd := stringToCommand("cluster members foobar")
+		_, err = ParseClusterMembers(cmd)
+		require.Error(t, err)
+	})
 }

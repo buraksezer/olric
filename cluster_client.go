@@ -500,6 +500,9 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 		}
 
 		m.Birthdate = item[2].(int64)
+		if item[3] == "true" {
+			m.Coordinator = true
+		}
 		members = append(members, m)
 	}
 	return members, nil

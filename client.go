@@ -26,9 +26,10 @@ import (
 const DefaultScanCount = 10
 
 type Member struct {
-	Name      string
-	ID        uint64
-	Birthdate int64
+	Name        string
+	ID          uint64
+	Birthdate   int64
+	Coordinator bool
 }
 
 type Iterator interface {

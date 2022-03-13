@@ -529,9 +529,15 @@ func TestEmbeddedClient_Member(t *testing.T) {
 	members, err := e.Members(context.Background())
 	require.NoError(t, err)
 	require.Len(t, members, 2)
+	coordinator := db.rt.Discovery().GetCoordinator()
 	for _, member := range members {
 		require.NotEqual(t, "", member.Name)
 		require.NotEqual(t, 0, member.ID)
 		require.NotEqual(t, 0, member.Birthdate)
+		if coordinator.ID == member.ID {
+			require.True(t, member.Coordinator)
+		} else {
+			require.False(t, member.Coordinator)
+		}
 	}
 }

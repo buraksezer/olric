@@ -238,13 +238,18 @@ func (e *EmbeddedClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 
 func (e *EmbeddedClient) Members(ctx context.Context) ([]Member, error) {
 	members := e.db.rt.Discovery().GetMembers()
+	coordinator := e.db.rt.Discovery().GetCoordinator()
 	var result []Member
 	for _, member := range members {
-		result = append(result, Member{
+		m := Member{
 			Name:      member.Name,
 			ID:        member.ID,
 			Birthdate: member.Birthdate,
-		})
+		}
+		if coordinator.ID == member.ID {
+			m.Coordinator = true
+		}
+		result = append(result, m)
 	}
 	return result, nil
 }

@@ -23,6 +23,8 @@ import (
 	"github.com/tidwall/redcon"
 )
 
+var ErrInvalidArgument = errors.New("invalid argument")
+
 var GenericError = "ERR"
 
 var errorWithPrefix = struct {

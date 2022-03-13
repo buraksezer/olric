@@ -16,9 +16,15 @@ package protocol
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/go-redis/redis/v8"
+	"github.com/tidwall/redcon"
 )
 
 type Put struct {
@@ -109,6 +115,68 @@ func (p *Put) Command(ctx context.Context) *redis.StatusCmd {
 	return redis.NewStatusCmd(ctx, args...)
 }
 
+func ParsePutCommand(cmd redcon.Command) (*Put, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	p := NewPut(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		cmd.Args[3],                     // Value
+	)
+
+	args := cmd.Args[4:]
+	for len(args) > 0 {
+		switch arg := strings.ToUpper(util.BytesToString(args[0])); arg {
+		case "NX":
+			p.SetNX()
+			args = args[1:]
+			continue
+		case "XX":
+			p.SetXX()
+			args = args[1:]
+			continue
+		case "PX":
+			px, err := strconv.ParseInt(util.BytesToString(args[1]), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetPX(px)
+			args = args[2:]
+			continue
+		case "EX":
+			ex, err := strconv.ParseFloat(util.BytesToString(args[1]), 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetEX(ex)
+			args = args[2:]
+			continue
+		case "EXAT":
+			exat, err := strconv.ParseFloat(util.BytesToString(args[1]), 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetEXAT(exat)
+			args = args[2:]
+			continue
+		case "PXAT":
+			pxat, err := strconv.ParseInt(util.BytesToString(args[1]), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			p.SetPXAT(pxat)
+			args = args[2:]
+			continue
+		default:
+			return nil, errors.New("syntax error")
+		}
+	}
+
+	return p, nil
+}
+
 type PutEntry struct {
 	DMap  string
 	Key   string
@@ -130,6 +198,18 @@ func (p *PutEntry) Command(ctx context.Context) *redis.StatusCmd {
 	args = append(args, p.Key)
 	args = append(args, p.Value)
 	return redis.NewStatusCmd(ctx, args...)
+}
+
+func ParsePutEntryCommand(cmd redcon.Command) (*PutEntry, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewPutEntry(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		cmd.Args[3],
+	), nil
 }
 
 type Get struct {
@@ -161,6 +241,28 @@ func (g *Get) Command(ctx context.Context) *redis.StringCmd {
 	return redis.NewStringCmd(ctx, args...)
 }
 
+func ParseGetCommand(cmd redcon.Command) (*Get, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	g := NewGet(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RW" {
+			g.SetRaw()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return g, nil
+}
+
 type GetEntry struct {
 	DMap    string
 	Key     string
@@ -190,6 +292,28 @@ func (g *GetEntry) Command(ctx context.Context) *redis.StringCmd {
 	return redis.NewStringCmd(ctx, args...)
 }
 
+func ParseGetEntryCommand(cmd redcon.Command) (*GetEntry, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	g := NewGetEntry(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RC" {
+			g.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return g, nil
+}
+
 type Del struct {
 	DMap string
 	Key  string
@@ -208,6 +332,17 @@ func (d *Del) Command(ctx context.Context) *redis.IntCmd {
 	args = append(args, d.DMap)
 	args = append(args, d.Key)
 	return redis.NewIntCmd(ctx, args...)
+}
+
+func ParseDelCommand(cmd redcon.Command) (*Del, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewDel(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	), nil
 }
 
 type DelEntry struct {
@@ -236,6 +371,28 @@ func (d *DelEntry) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
+func ParseDelEntryCommand(cmd redcon.Command) (*DelEntry, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	d := NewDelEntry(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+	)
+
+	if len(cmd.Args) == 4 {
+		arg := util.BytesToString(cmd.Args[3])
+		if arg == "RC" {
+			d.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return d, nil
+}
+
 type PExpire struct {
 	DMap         string
 	Key          string
@@ -259,6 +416,24 @@ func (p *PExpire) Command(ctx context.Context) *redis.StatusCmd {
 	return redis.NewStatusCmd(ctx, args...)
 }
 
+func ParsePExpireCommand(cmd redcon.Command) (*PExpire, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	rawMilliseconds := util.BytesToString(cmd.Args[3])
+	milliseconds, err := strconv.ParseInt(rawMilliseconds, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	p := NewPExpire(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		time.Duration(milliseconds*int64(time.Millisecond)),
+	)
+	return p, nil
+}
+
 type Expire struct {
 	DMap    string
 	Key     string
@@ -280,6 +455,24 @@ func (e *Expire) Command(ctx context.Context) *redis.StatusCmd {
 	args = append(args, e.Key)
 	args = append(args, e.Seconds.Seconds())
 	return redis.NewStatusCmd(ctx, args...)
+}
+
+func ParseExpireCommand(cmd redcon.Command) (*Expire, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	rawSeconds := util.BytesToString(cmd.Args[3])
+	seconds, err := strconv.ParseFloat(rawSeconds, 64)
+	if err != nil {
+		return nil, err
+	}
+	e := NewExpire(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		time.Duration(seconds*float64(time.Second)),
+	)
+	return e, nil
 }
 
 type Destroy struct {
@@ -306,6 +499,27 @@ func (d *Destroy) Command(ctx context.Context) *redis.StatusCmd {
 		args = append(args, "LC")
 	}
 	return redis.NewStatusCmd(ctx, args...)
+}
+
+func ParseDestroyCommand(cmd redcon.Command) (*Destroy, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	d := NewDestroy(
+		util.BytesToString(cmd.Args[1]),
+	)
+
+	if len(cmd.Args) == 3 {
+		arg := util.BytesToString(cmd.Args[2])
+		if arg == "LC" {
+			d.SetLocal()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return d, nil
 }
 
 type Scan struct {
@@ -360,6 +574,59 @@ func (s *Scan) Command(ctx context.Context) *redis.ScanCmd {
 	return redis.NewScanCmd(ctx, nil, args...)
 }
 
+const DefaultScanCount = 10
+
+func ParseScanCommand(cmd redcon.Command) (*Scan, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	rawPartID := util.BytesToString(cmd.Args[1])
+	partID, err := strconv.ParseUint(rawPartID, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	rawCursor := util.BytesToString(cmd.Args[3])
+	cursor, err := strconv.ParseUint(rawCursor, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	s := NewScan(
+		partID,
+		util.BytesToString(cmd.Args[2]), // DMap
+		cursor,
+	)
+
+	args := cmd.Args[4:]
+	for len(args) > 0 {
+		switch arg := strings.ToUpper(util.BytesToString(args[0])); arg {
+		case "MATCH":
+			s.SetMatch(util.BytesToString(args[1]))
+			args = args[2:]
+			continue
+		case "COUNT":
+			count, err := strconv.Atoi(util.BytesToString(args[1]))
+			if err != nil {
+				return nil, err
+			}
+			s.SetCount(count)
+			args = args[2:]
+			continue
+		case "RC":
+			s.SetReplica()
+			args = args[1:]
+		}
+	}
+
+	if s.Count == 0 {
+		s.SetCount(DefaultScanCount)
+	}
+
+	return s, nil
+}
+
 type Incr struct {
 	DMap  string
 	Key   string
@@ -383,6 +650,23 @@ func (i *Incr) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
+func ParseIncrCommand(cmd redcon.Command) (*Incr, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	delta, err := strconv.Atoi(util.BytesToString(cmd.Args[3]))
+	if err != nil {
+		return nil, err
+	}
+
+	return NewIncr(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		delta,
+	), nil
+}
+
 type Decr struct {
 	*Incr
 }
@@ -397,6 +681,23 @@ func (d *Decr) Command(ctx context.Context) *redis.IntCmd {
 	cmd := d.Incr.Command(ctx)
 	cmd.Args()[0] = DMap.Decr
 	return cmd
+}
+
+func ParseDecrCommand(cmd redcon.Command) (*Decr, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	delta, err := strconv.Atoi(util.BytesToString(cmd.Args[3]))
+	if err != nil {
+		return nil, err
+	}
+
+	return NewDecr(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		delta,
+	), nil
 }
 
 type GetPut struct {
@@ -429,6 +730,28 @@ func (g *GetPut) Command(ctx context.Context) *redis.StringCmd {
 		args = append(args, "RW")
 	}
 	return redis.NewStringCmd(ctx, args...)
+}
+
+func ParseGetPutCommand(cmd redcon.Command) (*GetPut, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	g := NewGetPut(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		cmd.Args[3],                     // Value
+	)
+
+	if len(cmd.Args) == 5 {
+		arg := util.BytesToString(cmd.Args[4])
+		if arg == "RW" {
+			g.SetRaw()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+	return g, nil
 }
 
 // TODO: Add PLock
@@ -480,6 +803,49 @@ func (l *Lock) Command(ctx context.Context) *redis.StringCmd {
 	return redis.NewStringCmd(ctx, args...)
 }
 
+func ParseLockCommand(cmd redcon.Command) (*Lock, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	deadline, err := strconv.ParseFloat(util.BytesToString(cmd.Args[3]), 64)
+	if err != nil {
+		return nil, err
+	}
+
+	l := NewLock(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		deadline,                        // Deadline
+	)
+
+	// EX or PX are optional.
+	if len(cmd.Args) > 4 {
+		if len(cmd.Args) == 5 {
+			return nil, fmt.Errorf("%w: %s needs a numerical argument", ErrInvalidArgument, util.BytesToString(cmd.Args[5]))
+		}
+
+		switch arg := strings.ToUpper(util.BytesToString(cmd.Args[4])); arg {
+		case "PX":
+			px, err := strconv.ParseInt(util.BytesToString(cmd.Args[5]), 10, 64)
+			if err != nil {
+				return nil, err
+			}
+			l.PX = px
+		case "EX":
+			ex, err := strconv.ParseFloat(util.BytesToString(cmd.Args[5]), 64)
+			if err != nil {
+				return nil, err
+			}
+			l.EX = ex
+		default:
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return l, nil
+}
+
 type Unlock struct {
 	DMap  string
 	Key   string
@@ -503,7 +869,17 @@ func (u *Unlock) Command(ctx context.Context) *redis.StatusCmd {
 	return redis.NewStatusCmd(ctx, args...)
 }
 
-// TODO: Add PLockLease
+func ParseUnlockCommand(cmd redcon.Command) (*Unlock, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewUnlock(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		util.BytesToString(cmd.Args[3]), // Token
+	), nil
+}
 
 type LockLease struct {
 	DMap    string
@@ -531,6 +907,24 @@ func (l *LockLease) Command(ctx context.Context) *redis.StatusCmd {
 	return redis.NewStatusCmd(ctx, args...)
 }
 
+func ParseLockLeaseCommand(cmd redcon.Command) (*LockLease, error) {
+	if len(cmd.Args) < 5 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	timeout, err := strconv.ParseFloat(util.BytesToString(cmd.Args[4]), 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewLockLease(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		util.BytesToString(cmd.Args[3]), // Token
+		timeout,                         // Timeout
+	), nil
+}
+
 type PLockLease struct {
 	DMap    string
 	Key     string
@@ -555,4 +949,22 @@ func (p *PLockLease) Command(ctx context.Context) *redis.StatusCmd {
 	args = append(args, p.Token)
 	args = append(args, p.Timeout)
 	return redis.NewStatusCmd(ctx, args...)
+}
+
+func ParsePLockLeaseCommand(cmd redcon.Command) (*PLockLease, error) {
+	if len(cmd.Args) < 5 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	timeout, err := strconv.ParseInt(util.BytesToString(cmd.Args[4]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewPLockLease(
+		util.BytesToString(cmd.Args[1]), // DMap
+		util.BytesToString(cmd.Args[2]), // Key
+		util.BytesToString(cmd.Args[3]), // Token
+		timeout,                         // Timeout
+	), nil
 }
