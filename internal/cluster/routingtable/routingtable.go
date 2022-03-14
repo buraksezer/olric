@@ -189,6 +189,12 @@ func (r *RoutingTable) IsBootstrapped() bool {
 // CheckBootstrap is called for every request and checks whether the node is bootstrapped.
 // It has to be very fast for a smooth operation.
 func (r *RoutingTable) CheckBootstrap() error {
+	// Prevent creating expensive structures for every request,
+	// Just check an integer value atomically.
+	if r.IsBootstrapped() {
+		return nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), r.config.BootstrapTimeout)
 	defer cancel()
 	return r.tryWithInterval(ctx, 100*time.Millisecond, func() error {
