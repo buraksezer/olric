@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
@@ -65,7 +66,8 @@ func (db *Olric) collectPartitionMetrics(partID uint64, part *partitions.Partiti
 		tmp.SlabInfo.Allocated = st.Allocated
 		tmp.SlabInfo.Garbage = st.Garbage
 		tmp.SlabInfo.Inuse = st.Inuse
-		p.DMaps[name.(string)] = tmp
+		dmapName := strings.TrimPrefix(name.(string), "dmap.")
+		p.DMaps[dmapName] = tmp
 		return true
 	})
 	return p

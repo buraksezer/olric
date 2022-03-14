@@ -62,7 +62,7 @@ func TestOlric_Stats(t *testing.T) {
 	var total int
 	for partID, part := range s.Partitions {
 		total += part.Length
-		if _, ok := part.DMaps["dmap.mymap"]; !ok {
+		if _, ok := part.DMaps["mymap"]; !ok {
 			t.Fatalf("Expected dmap check result is true. Got false")
 		}
 		if len(part.PreviousOwners) != 0 {
