@@ -17,9 +17,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"github.com/buraksezer/olric/config"
 	"github.com/go-redis/redis/v8"
-	"sync"
 )
 
 type Client struct {

@@ -194,7 +194,7 @@ func NewPubSubNumpat() *PubSubNumpat {
 
 func (ps *PubSubNumpat) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, PubSub.PubSubChannels)
+	args = append(args, PubSub.PubSubNumpat)
 	return redis.NewIntCmd(ctx, args...)
 }
 
