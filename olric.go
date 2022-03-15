@@ -194,7 +194,7 @@ func New(c *config.Config) (*Olric, error) {
 		cancel:   cancel,
 	}
 
-	// RESP experiment
+	// Create a Redcon server instance
 	rc := &server.Config{
 		BindAddr: c.BindAddr,
 		BindPort: c.BindPort,
@@ -372,7 +372,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
-	// RESP experiment
+	// Shutdown Redcon server
 	if err := db.server.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestError = err

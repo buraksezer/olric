@@ -17,7 +17,7 @@ The current production version is [v0.4.3](https://github.com/buraksezer/olric/t
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Embeddable but can be used as a language-independent service with *olricd*,
 * Supports different eviction algorithms,
-* Fast binary protocol,
+* Supports Redis protocol,
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP (indeed PA/EC) solution,
 * Supports replication by default (with sync and async options),

@@ -25,9 +25,9 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/stats"
@@ -97,7 +97,7 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 	valueBuf := pool.Get()
 	defer pool.Put(valueBuf)
 
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err = enc.Encode(value)
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 	valueBuf := pool.Get()
 	defer pool.Put(valueBuf)
 
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err = enc.Encode(value)
 	if err != nil {
 		return nil, err
