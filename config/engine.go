@@ -16,8 +16,6 @@ package config
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -26,10 +24,6 @@ import (
 // If you don't have a custom storage engine implementation or configuration for
 // the default one, just call NewStorageEngine() function to use it with sane defaults.
 type Engine struct {
-	// Plugins is an array that contains the paths of storage engine plugins.
-	// These plugins have to implement storage.Engine interface.
-	Plugin string
-
 	Name string
 
 	Implementation storage.Engine
@@ -54,28 +48,6 @@ func (s *Engine) Validate() error {
 	if s.Config == nil {
 		s.Config = make(map[string]interface{})
 	}
-	return nil
-}
-
-func (s *Engine) LoadPlugin() error {
-	if s.Plugin == "" {
-		return nil
-	}
-
-	_, err := os.Stat(s.Plugin)
-	if os.IsNotExist(err) {
-		return fmt.Errorf("storage engine plugin could not be found on disk: %s", s.Plugin)
-	}
-	if err != nil {
-		return err
-	}
-
-	engine, err := storage.LoadAsPlugin(s.Plugin)
-	if err != nil {
-		return err
-	}
-	s.Implementation = engine
-	s.Name = engine.Name()
 	return nil
 }
 

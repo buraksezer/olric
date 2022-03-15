@@ -91,7 +91,6 @@ type memberlist struct {
 }
 
 type engine struct {
-	Plugin string                 `yaml:"plugin"`
 	Name   string                 `yaml:"name"`
 	Config map[string]interface{} `yaml:"config"`
 }

@@ -101,7 +101,6 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 
 	if c.DMaps.Engine != nil {
 		e := NewEngine()
-		e.Plugin = c.DMaps.Engine.Plugin
 		e.Name = c.DMaps.Engine.Name
 		e.Config = c.DMaps.Engine.Config
 		res.Engine = e
@@ -118,7 +117,6 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 			}
 			if dc.Engine != nil {
 				e := NewEngine()
-				e.Plugin = dc.Engine.Plugin
 				e.Name = dc.Engine.Name
 				e.Config = dc.Engine.Config
 				cc.Engine = e
