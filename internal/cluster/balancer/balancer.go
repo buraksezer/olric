@@ -76,16 +76,17 @@ func (b *Balancer) scanPartition(sign uint64, part *partitions.Partition, owners
 		return strings.Join(names, ",")
 	}()
 
-	part.Map().Range(func(name, tmp interface{}) bool {
-		f := tmp.(partitions.Fragment)
+	part.Map().Range(func(rawName, rawFragment interface{}) bool {
+		f := rawFragment.(partitions.Fragment)
 		if f.Length() == 0 {
 			return false
 		}
+		name := strings.TrimPrefix(rawName.(string), "dmap.")
 
 		b.log.V(2).Printf("[INFO] Moving %s fragment: %s (kind: %s) on PartID: %d to %s",
 			f.Name(), name, part.Kind(), part.ID(), ownersStr)
 
-		err := f.Move(part, name.(string), owners)
+		err := f.Move(part, name, owners)
 		if err != nil {
 			b.log.V(2).Printf("[ERROR] Failed to move %s fragment: %s on PartID: %d to %s: %v",
 				f.Name(), name, part.ID(), ownersStr, err)

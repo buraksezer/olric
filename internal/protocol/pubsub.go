@@ -17,7 +17,9 @@ package protocol
 import (
 	"context"
 
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/go-redis/redis/v8"
+	"github.com/tidwall/redcon"
 )
 
 type Publish struct {
@@ -40,6 +42,48 @@ func (p *Publish) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
+func ParsePublishCommand(cmd redcon.Command) (*Publish, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewPublish(
+		util.BytesToString(cmd.Args[1]), // Channel
+		util.BytesToString(cmd.Args[2]), // Message
+	), nil
+}
+
+type PublishInternal struct {
+	Channel string
+	Message string
+}
+
+func NewPublishInternal(channel, message string) *PublishInternal {
+	return &PublishInternal{
+		Channel: channel,
+		Message: message,
+	}
+}
+
+func (p *PublishInternal) Command(ctx context.Context) *redis.IntCmd {
+	var args []interface{}
+	args = append(args, PubSub.PublishInternal)
+	args = append(args, p.Channel)
+	args = append(args, p.Message)
+	return redis.NewIntCmd(ctx, args...)
+}
+
+func ParsePublishInternalCommand(cmd redcon.Command) (*PublishInternal, error) {
+	if len(cmd.Args) < 3 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewPublishInternal(
+		util.BytesToString(cmd.Args[1]), // Channel
+		util.BytesToString(cmd.Args[2]), // Message
+	), nil
+}
+
 type Subscribe struct {
 	Channels []string
 }
@@ -59,6 +103,21 @@ func (s *Subscribe) Command(ctx context.Context) *redis.SliceCmd {
 	return redis.NewSliceCmd(ctx, args...)
 }
 
+func ParseSubscribeCommand(cmd redcon.Command) (*Subscribe, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	var channels []string
+	args := cmd.Args[1:]
+	for len(args) > 0 {
+		arg := util.BytesToString(args[0])
+		channels = append(channels, arg)
+		args = args[1:]
+	}
+	return NewSubscribe(channels...), nil
+}
+
 type PSubscribe struct {
 	Patterns []string
 }
@@ -76,6 +135,21 @@ func (s *PSubscribe) Command(ctx context.Context) *redis.SliceCmd {
 		args = append(args, channel)
 	}
 	return redis.NewSliceCmd(ctx, args...)
+}
+
+func ParsePSubscribeCommand(cmd redcon.Command) (*PSubscribe, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	var patterns []string
+	args := cmd.Args[1:]
+	for len(args) > 0 {
+		arg := util.BytesToString(args[0])
+		patterns = append(patterns, arg)
+		args = args[1:]
+	}
+	return NewPSubscribe(patterns...), nil
 }
 
 type PubSubChannels struct {
@@ -100,6 +174,18 @@ func (ps *PubSubChannels) Command(ctx context.Context) *redis.SliceCmd {
 	return redis.NewSliceCmd(ctx, args...)
 }
 
+func ParsePubSubChannelsCommand(cmd redcon.Command) (*PubSubChannels, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	ps := NewPubSubChannels()
+	if len(cmd.Args) >= 3 {
+		ps.SetPattern(util.BytesToString(cmd.Args[2]))
+	}
+	return ps, nil
+}
+
 type PubSubNumpat struct{}
 
 func NewPubSubNumpat() *PubSubNumpat {
@@ -108,8 +194,16 @@ func NewPubSubNumpat() *PubSubNumpat {
 
 func (ps *PubSubNumpat) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, PubSub.PubSubChannels)
+	args = append(args, PubSub.PubSubNumpat)
 	return redis.NewIntCmd(ctx, args...)
+}
+
+func ParsePubSubNumpatCommand(cmd redcon.Command) (*PubSubNumpat, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewPubSubNumpat(), nil
 }
 
 type PubSubNumsub struct {
@@ -129,4 +223,19 @@ func (ps *PubSubNumsub) Command(ctx context.Context) *redis.SliceCmd {
 		args = append(args, channel)
 	}
 	return redis.NewSliceCmd(ctx, args...)
+}
+
+func ParsePubSubNumsubCommand(cmd redcon.Command) (*PubSubNumsub, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	var channels []string
+	args := cmd.Args[2:]
+	for len(args) > 0 {
+		arg := util.BytesToString(args[0])
+		channels = append(channels, arg)
+		args = args[1:]
+	}
+	return NewPubSubNumsub(channels...), nil
 }

@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/buraksezer/olric/pkg/storage"
 )
@@ -70,7 +70,7 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 	}
 
 	valueBuf := pool.Get()
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err = enc.Encode(updated)
 	if err != nil {
 		return 0, err
@@ -139,7 +139,7 @@ func (dm *DMap) GetPut(ctx context.Context, key string, value interface{}) (stor
 	}
 
 	valueBuf := pool.Get()
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err := enc.Encode(value)
 	if err != nil {
 		return nil, err

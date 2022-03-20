@@ -25,6 +25,13 @@ import (
 
 const DefaultScanCount = 10
 
+type Member struct {
+	Name        string
+	ID          uint64
+	Birthdate   int64
+	Coordinator bool
+}
+
 type Iterator interface {
 	Next() bool
 	Key() string
@@ -177,11 +184,25 @@ type statsConfig struct {
 
 type StatsOption func(*statsConfig)
 
+type pubsubConfig struct {
+	Address string
+}
+
+func ToAddress(addr string) PubSubOption {
+	return func(cfg *pubsubConfig) {
+		cfg.Address = addr
+	}
+}
+
+type PubSubOption func(option *pubsubConfig)
+
 type Client interface {
 	NewDMap(name string, options ...DMapOption) (DMap, error)
+	NewPubSub(options ...PubSubOption) (*PubSub, error)
 	Stats(ctx context.Context, options ...StatsOption) (stats.Stats, error)
 	Ping(ctx context.Context, addr string) error
 	PingWithMessage(ctx context.Context, addr, message string) (string, error)
 	RoutingTable(ctx context.Context) (RoutingTable, error)
+	Members(ctx context.Context) ([]Member, error)
 	Close(ctx context.Context) error
 }

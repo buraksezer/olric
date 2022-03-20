@@ -62,21 +62,23 @@ func (k *KVStore) SetConfig(c *storage.Config) {
 }
 
 func (k *KVStore) makeTable() error {
+	if len(k.tables) != 0 {
+		head := k.tables[len(k.tables)-1]
+		head.SetState(table.ReadOnlyState)
+
+		for i, t := range k.tables {
+			if t.State() == table.RecycledState {
+				k.tables = append(k.tables, t)
+				k.tables = append(k.tables[:i], k.tables[i+1:]...)
+				t.SetState(table.ReadWriteState)
+				return nil
+			}
+		}
+	}
+
 	size, err := k.config.Get("tableSize")
 	if err != nil {
 		return err
-	}
-
-	head := k.tables[len(k.tables)-1]
-	head.SetState(table.ReadOnlyState)
-
-	for i, t := range k.tables {
-		if t.State() == table.RecycledState {
-			k.tables = append(k.tables, t)
-			k.tables = append(k.tables[:i], k.tables[i+1:]...)
-			t.SetState(table.ReadWriteState)
-			return nil
-		}
 	}
 
 	current := table.New(size.(uint64))

@@ -28,7 +28,7 @@ func TestClusterClient_ScanMatch(t *testing.T) {
 	db := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))
@@ -67,7 +67,7 @@ func TestClusterClient_Scan(t *testing.T) {
 	cl.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db.name}, nil)
+	c, err := NewClusterClient([]string{db.name})
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))

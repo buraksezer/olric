@@ -122,10 +122,6 @@ func (dm *DMaps) Sanitize() error {
 		}
 	}
 
-	if err := dm.Engine.LoadPlugin(); err != nil {
-		return fmt.Errorf("failed to load storage engine plugin: %w", err)
-	}
-
 	if err := dm.Engine.Sanitize(); err != nil {
 		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
 	}

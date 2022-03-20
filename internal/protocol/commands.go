@@ -18,10 +18,12 @@ const StatusOK = "OK"
 
 type ClusterCommands struct {
 	RoutingTable string
+	Members      string
 }
 
 var Cluster = &ClusterCommands{
 	RoutingTable: "cluster.routingtable",
+	Members:      "cluster.members",
 }
 
 type InternalCommands struct {
@@ -89,19 +91,21 @@ var DMap = &DMapCommands{
 }
 
 type PubSubCommands struct {
-	Publish        string
-	Subscribe      string
-	PSubscribe     string
-	PubSubChannels string
-	PubSubNumpat   string
-	PubSubNumsub   string
+	Publish         string
+	PublishInternal string
+	Subscribe       string
+	PSubscribe      string
+	PubSubChannels  string
+	PubSubNumpat    string
+	PubSubNumsub    string
 }
 
 var PubSub = &PubSubCommands{
-	Publish:        "publish",
-	Subscribe:      "subscribe",
-	PSubscribe:     "psubscribe",
-	PubSubChannels: "pubsub channels",
-	PubSubNumpat:   "pubsub numpat",
-	PubSubNumsub:   "pubsub numsub",
+	Publish:         "publish",
+	PublishInternal: "publish.internal",
+	Subscribe:       "subscribe",
+	PSubscribe:      "psubscribe",
+	PubSubChannels:  "pubsub channels",
+	PubSubNumpat:    "pubsub numpat",
+	PubSubNumsub:    "pubsub numsub",
 }

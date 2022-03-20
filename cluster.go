@@ -149,3 +149,26 @@ func (db *Olric) routingTable(ctx context.Context) (RoutingTable, error) {
 	}
 	return mapToRoutingTable(slice)
 }
+
+func (db *Olric) clusterMembersCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	_, err := protocol.ParseClusterMembers(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	coordinator := db.rt.Discovery().GetCoordinator()
+	members := db.rt.Discovery().GetMembers()
+	conn.WriteArray(len(members))
+	for _, member := range members {
+		conn.WriteArray(4)
+		conn.WriteBulkString(member.Name)
+		conn.WriteUint64(member.ID)
+		conn.WriteInt64(member.Birthdate)
+		if coordinator.CompareByID(member) {
+			conn.WriteBulkString("true")
+		} else {
+			conn.WriteBulkString("false")
+		}
+	}
+}

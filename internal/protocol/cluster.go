@@ -16,10 +16,10 @@ package protocol
 
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
-)
 
-type ClusterRoutingTableCommand struct{}
+	"github.com/go-redis/redis/v8"
+	"github.com/tidwall/redcon"
+)
 
 type ClusterRoutingTable struct{}
 
@@ -31,4 +31,34 @@ func (c *ClusterRoutingTable) Command(ctx context.Context) *redis.Cmd {
 	var args []interface{}
 	args = append(args, Cluster.RoutingTable)
 	return redis.NewCmd(ctx, args...)
+}
+
+func ParseClusterRoutingTable(cmd redcon.Command) (*ClusterRoutingTable, error) {
+	if len(cmd.Args) > 1 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	c := NewClusterRoutingTable()
+	return c, nil
+}
+
+type ClusterMembers struct{}
+
+func NewClusterMembers() *ClusterMembers {
+	return &ClusterMembers{}
+}
+
+func (c *ClusterMembers) Command(ctx context.Context) *redis.Cmd {
+	var args []interface{}
+	args = append(args, Cluster.Members)
+	return redis.NewCmd(ctx, args...)
+}
+
+func ParseClusterMembers(cmd redcon.Command) (*ClusterMembers, error) {
+	if len(cmd.Args) > 1 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	c := NewClusterMembers()
+	return c, nil
 }

@@ -15,7 +15,6 @@
 package dmap
 
 import (
-	"log"
 	"strconv"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -51,7 +50,7 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *ScanConfig) ([]st
 	return items, cursor, nil
 }
 
-func (dm *DMap) Scan2(partID, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
+func (dm *DMap) Scan(partID, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
 	var part *partitions.Partition
 	if sc.Replica {
 		part = dm.s.backup.PartitionByID(partID)
@@ -74,7 +73,6 @@ type ScanConfig struct {
 	HasMatch bool
 	Match    string
 	Replica  bool
-	Logger   *log.Logger
 }
 
 type ScanOption func(*ScanConfig)
@@ -117,7 +115,7 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 
 	var result []string
 	var cursor uint64
-	result, cursor, err = dm.Scan2(scanCmd.PartID, scanCmd.Cursor, &sc)
+	result, cursor, err = dm.Scan(scanCmd.PartID, scanCmd.Cursor, &sc)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

@@ -24,8 +24,8 @@ import (
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
-	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/go-redis/redis/v8"
@@ -387,7 +387,7 @@ type PutConfig struct {
 // Put returns but not before.
 func (dm *DMap) Put(ctx context.Context, key string, value interface{}, cfg *PutConfig) error {
 	valueBuf := pool.Get()
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err := enc.Encode(value)
 	if err != nil {
 		return err

@@ -16,8 +16,12 @@ package protocol
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/go-redis/redis/v8"
+	"github.com/tidwall/redcon"
 )
 
 type Ping struct {
@@ -42,6 +46,18 @@ func (p *Ping) Command(ctx context.Context) *redis.StringCmd {
 	return redis.NewStringCmd(ctx, args...)
 }
 
+func ParsePingCommand(cmd redcon.Command) (*Ping, error) {
+	if len(cmd.Args) < 1 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	p := NewPing()
+	if len(cmd.Args) == 2 {
+		p.SetMessage(util.BytesToString(cmd.Args[1]))
+	}
+	return p, nil
+}
+
 type MoveFragment struct {
 	Payload []byte
 }
@@ -57,6 +73,14 @@ func (m *MoveFragment) Command(ctx context.Context) *redis.StatusCmd {
 	args = append(args, Internal.MoveFragment)
 	args = append(args, m.Payload)
 	return redis.NewStatusCmd(ctx, args...)
+}
+
+func ParseMoveFragmentCommand(cmd redcon.Command) (*MoveFragment, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	return NewMoveFragment(cmd.Args[1]), nil
 }
 
 type UpdateRouting struct {
@@ -77,6 +101,18 @@ func (u *UpdateRouting) Command(ctx context.Context) *redis.StringCmd {
 	args = append(args, u.Payload)
 	args = append(args, u.CoordinatorID)
 	return redis.NewStringCmd(ctx, args...)
+}
+
+func ParseUpdateRoutingCommand(cmd redcon.Command) (*UpdateRouting, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+	coordinatorID, err := strconv.ParseUint(util.BytesToString(cmd.Args[2]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewUpdateRouting(cmd.Args[1], coordinatorID), nil
 }
 
 type LengthOfPart struct {
@@ -105,6 +141,28 @@ func (l *LengthOfPart) Command(ctx context.Context) *redis.IntCmd {
 	return redis.NewIntCmd(ctx, args...)
 }
 
+func ParseLengthOfPartCommand(cmd redcon.Command) (*LengthOfPart, error) {
+	if len(cmd.Args) < 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+	partID, err := strconv.ParseUint(util.BytesToString(cmd.Args[1]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	l := NewLengthOfPart(partID)
+	if len(cmd.Args) == 3 {
+		arg := util.BytesToString(cmd.Args[2])
+		if arg == "RC" {
+			l.SetReplica()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return l, nil
+}
+
 type Stats struct {
 	CollectRuntime bool
 }
@@ -125,4 +183,22 @@ func (s *Stats) Command(ctx context.Context) *redis.StringCmd {
 		args = append(args, "CR")
 	}
 	return redis.NewStringCmd(ctx, args...)
+}
+
+func ParseStatsCommand(cmd redcon.Command) (*Stats, error) {
+	if len(cmd.Args) < 1 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	s := NewStats()
+	if len(cmd.Args) == 2 {
+		arg := util.BytesToString(cmd.Args[1])
+		if arg == "CR" {
+			s.SetCollectRuntime()
+		} else {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidArgument, arg)
+		}
+	}
+
+	return s, nil
 }

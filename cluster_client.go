@@ -25,9 +25,9 @@ import (
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/buraksezer/olric/stats"
@@ -97,7 +97,7 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 	valueBuf := pool.Get()
 	defer pool.Put(valueBuf)
 
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err = enc.Encode(value)
 	if err != nil {
 		return err
@@ -203,7 +203,7 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 	valueBuf := pool.Get()
 	defer pool.Put(valueBuf)
 
-	enc := encoding.New(valueBuf)
+	enc := resp.New(valueBuf)
 	err = enc.Encode(value)
 	if err != nil {
 		return nil, err
@@ -330,14 +330,13 @@ func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterato
 	if sc.Count == 0 {
 		sc.Count = DefaultScanCount
 	}
-	if sc.Logger == nil {
-		sc.Logger = log.New(os.Stderr, "logger: ", log.Lshortfile)
-	}
+
 	ictx, cancel := context.WithCancel(ctx)
 	i := &ClusterIterator{
 		dm:            dm,
 		clusterClient: dm.clusterClient,
 		config:        &sc,
+		logger:        dm.clusterClient.logger,
 		allKeys:       make(map[string]struct{}),
 		finished:      make(map[string]struct{}),
 		cursors:       make(map[string]uint64),
@@ -372,6 +371,8 @@ func (dm *ClusterDMap) Destroy(ctx context.Context) error {
 
 type ClusterClient struct {
 	client *server.Client
+	config *clusterClientConfig
+	logger *log.Logger
 }
 
 func (cl *ClusterClient) Ping(ctx context.Context, addr string) error {
@@ -465,8 +466,54 @@ func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (sta
 	return s, nil
 }
 
+func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
+	rc, err := cl.client.Pick()
+	if err != nil {
+		return []Member{}, err
+	}
+
+	cmd := protocol.NewClusterMembers().Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return []Member{}, processProtocolError(err)
+	}
+
+	if err = cmd.Err(); err != nil {
+		return []Member{}, processProtocolError(err)
+	}
+
+	items, err := cmd.Slice()
+	if err != nil {
+		return []Member{}, processProtocolError(err)
+	}
+	var members []Member
+	for _, rawItem := range items {
+		m := Member{}
+		item := rawItem.([]interface{})
+		m.Name = item[0].(string)
+
+		switch id := item[1].(type) {
+		case uint64:
+			m.ID = id
+		case int64:
+			m.ID = uint64(id)
+		}
+
+		m.Birthdate = item[2].(int64)
+		if item[3] == "true" {
+			m.Coordinator = true
+		}
+		members = append(members, m)
+	}
+	return members, nil
+}
+
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	return cl.client.Shutdown(ctx)
+}
+
+func (cl *ClusterClient) NewPubSub(options ...PubSubOption) (*PubSub, error) {
+	return newPubSub(cl.client, options...)
 }
 
 func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
@@ -489,24 +536,54 @@ func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, erro
 	}, nil
 }
 
-func NewClusterClient(addresses []string, c *config.Client) (*ClusterClient, error) {
+type ClusterClientOption func(c *clusterClientConfig)
+
+type clusterClientConfig struct {
+	logger *log.Logger
+	config *config.Client
+}
+
+func WithLogger(l *log.Logger) ClusterClientOption {
+	return func(cfg *clusterClientConfig) {
+		cfg.logger = l
+	}
+}
+
+func WithConfig(c *config.Client) ClusterClientOption {
+	return func(cfg *clusterClientConfig) {
+		cfg.config = c
+	}
+}
+
+func NewClusterClient(addresses []string, options ...ClusterClientOption) (*ClusterClient, error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("addresses cannot be empty")
 	}
 
-	if c == nil {
-		c = config.NewClient()
+	var cc clusterClientConfig
+	for _, opt := range options {
+		opt(&cc)
 	}
 
-	if err := c.Sanitize(); err != nil {
+	if cc.logger == nil {
+		cc.logger = log.New(os.Stderr, "logger: ", log.Lshortfile)
+	}
+
+	if cc.config == nil {
+		cc.config = config.NewClient()
+	}
+
+	if err := cc.config.Sanitize(); err != nil {
 		return nil, err
 	}
-	if err := c.Validate(); err != nil {
+	if err := cc.config.Validate(); err != nil {
 		return nil, err
 	}
 
 	cl := &ClusterClient{
-		client: server.NewClient(c),
+		client: server.NewClient(cc.config),
+		config: &cc,
+		logger: cc.logger,
 	}
 	for _, address := range addresses {
 		cl.client.Get(address)

@@ -21,8 +21,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/buraksezer/olric/internal/encoding"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func TestDMap_Atomic_Incr(t *testing.T) {
 	require.NoError(t, err)
 
 	var res int
-	err = encoding.Scan(gr.Value(), &res)
+	err = resp.Scan(gr.Value(), &res)
 	require.NoError(t, err)
 	require.Equal(t, 100, res)
 }
@@ -107,7 +107,7 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	require.NoError(t, err)
 
 	var value int
-	err = encoding.Scan(res.Value(), &value)
+	err = resp.Scan(res.Value(), &value)
 	require.NoError(t, err)
 	require.Equal(t, -100, value)
 }
@@ -132,7 +132,7 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 		}
 		if gr != nil {
 			var oldval int
-			err = encoding.Scan(gr.Value(), &oldval)
+			err = resp.Scan(gr.Value(), &oldval)
 			require.NoError(t, err)
 			atomic.AddInt64(&total, int64(oldval))
 		}
@@ -155,7 +155,7 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 	require.NoError(t, err)
 
 	var last int
-	err = encoding.Scan(gr.Value(), &last)
+	err = resp.Scan(gr.Value(), &last)
 	require.NoError(t, err)
 
 	atomic.AddInt64(&total, int64(last))
@@ -190,7 +190,7 @@ func TestDMap_incrCommandHandler(t *testing.T) {
 	value, err := cmd.Bytes()
 	require.NoError(t, err)
 	v := new(int)
-	err = encoding.Scan(value, v)
+	err = resp.Scan(value, v)
 	require.NoError(t, err)
 	require.Equal(t, 100, *v)
 }
@@ -238,7 +238,7 @@ func TestDMap_decrCommandHandler(t *testing.T) {
 	value, err := cmd.Bytes()
 	require.NoError(t, err)
 	v := new(int)
-	err = encoding.Scan(value, v)
+	err = resp.Scan(value, v)
 	require.NoError(t, err)
 	require.Equal(t, -100, *v)
 }
@@ -271,7 +271,7 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 		<-start
 
 		buf := bytes.NewBuffer(nil)
-		enc := encoding.New(buf)
+		enc := resp.New(buf)
 		err := enc.Encode(i)
 		if err != nil {
 			return err
@@ -293,7 +293,7 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 
 		if len(val) != 0 {
 			oldval := new(int)
-			err = encoding.Scan(val, oldval)
+			err = resp.Scan(val, oldval)
 			if err != nil {
 				return err
 			}
@@ -321,7 +321,7 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 	require.NoError(t, err)
 
 	var last int
-	err = encoding.Scan(gr.Value(), &last)
+	err = resp.Scan(gr.Value(), &last)
 	require.NoError(t, err)
 
 	atomic.AddInt64(&total, int64(last))

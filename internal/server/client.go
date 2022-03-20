@@ -20,14 +20,16 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/roundrobin"
 	"github.com/go-redis/redis/v8"
 )
 
 type Client struct {
 	mu sync.RWMutex
 
-	config  *config.Client
-	clients map[string]*redis.Client
+	config     *config.Client
+	clients    map[string]*redis.Client
+	roundRobin *roundrobin.RoundRobin
 }
 
 func NewClient(c *config.Client) *Client {
@@ -39,8 +41,9 @@ func NewClient(c *config.Client) *Client {
 		}
 	}
 	return &Client{
-		config:  c,
-		clients: make(map[string]*redis.Client),
+		config:     c,
+		clients:    make(map[string]*redis.Client),
+		roundRobin: roundrobin.New(nil),
 	}
 }
 
@@ -60,6 +63,9 @@ func (c *Client) Get(addr string) *redis.Client {
 	opt.Addr = addr
 	rc = redis.NewClient(opt)
 	c.clients[addr] = rc
+	c.roundRobin.Add(addr)
+	// TODO: Remove unhealthy redis client periodically.
+	// TODO: Send a pig command after calling NewClient.
 	return rc
 }
 
@@ -67,10 +73,18 @@ func (c *Client) Pick() (*redis.Client, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	for _, rc := range c.clients {
-		return rc, nil
+	addr, err := c.roundRobin.Get()
+	if err == roundrobin.ErrEmptyInstance {
+		return nil, fmt.Errorf("no available client found")
 	}
-	return nil, fmt.Errorf("no available client found")
+	if err != nil {
+		return nil, err
+	}
+	rc, ok := c.clients[addr]
+	if !ok {
+		return nil, fmt.Errorf("client could not be found: %s", addr)
+	}
+	return rc, nil
 }
 
 func (c *Client) Close(addr string) error {
@@ -83,6 +97,7 @@ func (c *Client) Close(addr string) error {
 		if err != nil {
 			return err
 		}
+		c.roundRobin.Delete(addr)
 		delete(c.clients, addr)
 	}
 
@@ -104,6 +119,7 @@ func (c *Client) Shutdown(ctx context.Context) error {
 			return err
 		}
 		delete(c.clients, addr)
+		c.roundRobin.Delete(addr)
 	}
 
 	return nil

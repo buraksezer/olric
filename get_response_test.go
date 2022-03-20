@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/buraksezer/olric/internal/dmap"
-	"github.com/buraksezer/olric/internal/encoding"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/stretchr/testify/require"
 )
@@ -285,12 +285,12 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 		gr := &GetResponse{entry: e}
 
 		buf := bytes.NewBuffer(nil)
-		enc := encoding.New(buf)
+		enc := resp.New(buf)
 		err = enc.Encode(value)
 		require.NoError(t, err)
 
 		expectedValue := new(time.Time)
-		err = encoding.Scan(buf.Bytes(), expectedValue)
+		err = resp.Scan(buf.Bytes(), expectedValue)
 		require.NoError(t, err)
 
 		scannedValue, err := gr.Time()
@@ -309,12 +309,12 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 		gr := &GetResponse{entry: e}
 
 		buf := bytes.NewBuffer(nil)
-		enc := encoding.New(buf)
+		enc := resp.New(buf)
 		err = enc.Encode(value)
 		require.NoError(t, err)
 
 		expectedValue := new(time.Duration)
-		err = encoding.Scan(buf.Bytes(), expectedValue)
+		err = resp.Scan(buf.Bytes(), expectedValue)
 		require.NoError(t, err)
 
 		scannedValue, err := gr.Duration()

@@ -83,7 +83,11 @@ func newServerWithPreConditionFunc(t *testing.T, precond func(conn redcon.Conn, 
 }
 
 func newServer(t *testing.T) *Server {
-	return newServerWithPreConditionFunc(t, nil)
+	srv := newServerWithPreConditionFunc(t, nil)
+	t.Cleanup(func() {
+		require.NoError(t, srv.Shutdown(context.Background()))
+	})
+	return srv
 }
 
 func defaultRedisOptions(c *Config) *redis.Options {
@@ -94,17 +98,13 @@ func defaultRedisOptions(c *Config) *redis.Options {
 
 func TestServer_RESP(t *testing.T) {
 	s := newServer(t)
-	defer func() {
-		require.NoError(t, s.Shutdown(context.Background()))
-	}()
+
 	respEcho(t, s)
 }
 
 func TestServer_RESP_Stats(t *testing.T) {
 	s := newServer(t)
-	defer func() {
-		require.NoError(t, s.Shutdown(context.Background()))
-	}()
+
 	respEcho(t, s)
 
 	require.NotEqual(t, int64(0), CommandsTotal.Read())

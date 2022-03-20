@@ -38,10 +38,6 @@ var (
 	// ErrNoSuchLock is returned when the requested lock does not exist
 	ErrNoSuchLock = errors.New("no such lock")
 
-	// ErrEndOfQuery is the error returned by Range when no more data is available.
-	// Functions should return ErrEndOfQuery only to signal a graceful end of input.
-	ErrEndOfQuery = errors.New("end of query")
-
 	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
 	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
 
@@ -58,8 +54,6 @@ func convertDMapError(err error) error {
 		return ErrKeyNotFound
 	case errors.Is(err, dmap.ErrDMapNotFound):
 		return ErrKeyNotFound
-	case errors.Is(err, dmap.ErrEndOfQuery):
-		return ErrEndOfQuery
 	case errors.Is(err, dmap.ErrLockNotAcquired):
 		return ErrLockNotAcquired
 	case errors.Is(err, dmap.ErrNoSuchLock):
@@ -74,146 +68,3 @@ func convertDMapError(err error) error {
 		return convertClusterError(err)
 	}
 }
-
-/*
-// Entry is a DMap entry with its metadata.
-type Entry struct {
-	Key       string
-	Value     interface{}
-	TTL       int64
-	Timestamp int64
-}
-
-// LockContext is returned by Lock and LockWithTimeout methods.
-// It should be stored in a proper way to release the lock.
-type LockContext struct {
-	ctx *dmap.LockContext
-}
-
-// Cursor implements distributed query on DMaps.
-type Cursor struct {
-	//cursor *dmap.Cursor
-}
-
-// DMapLegacy represents a distributed map instance.
-type DMapLegacy struct {
-	dm *dmap.DMap
-}
-
-// NewDMap creates an returns a new DMap instance.
-func (db *Olric) NewDMap(name string) (*DMapLegacy, error) {
-	dm, err := db.dmap.NewDMap(name)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-	return &DMapLegacy{
-		dm: dm,
-	}, nil
-}
-
-// Name exposes name of the DMap.
-func (dm *DMapLegacy) Name() string {
-	return dm.dm.Name()
-}
-
-// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value.
-func (dm *DMapLegacy) Get(key string) (interface{}, error) {
-	value, err := dm.dm.Get(key)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-	return value, nil
-}
-
-// LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time,
-// it automatically releases the lock. Acquired lock is only for the key in this dmap.
-//
-// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
-//
-// You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMapLegacy) LockWithTimeout(key string, timeout, deadline time.Duration) (*LockContext, error) {
-	ctx, err := dm.dm.LockWithTimeout(key, timeout, deadline)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-	return &LockContext{ctx: ctx}, nil
-}
-
-// Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.
-//
-// It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
-//
-// You should know that the locks are approximate, and only to be used for non-critical purposes.
-func (dm *DMapLegacy) Lock(key string, deadline time.Duration) (*LockContext, error) {
-	ctx, err := dm.dm.Lock(key, deadline)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-	return &LockContext{ctx: ctx}, nil
-}
-
-// Unlock releases the lock.
-func (l *LockContext) Unlock() error {
-	err := l.ctx.Unlock()
-	return convertDMapError(err)
-}
-
-// Put sets the value for the given key. It overwrites any previous value
-// for that key, and it's thread-safe. The key has to be string. value type
-// is arbitrary. It is safe to modify the contents of the arguments after
-// Put returns but not before.
-func (dm *DMapLegacy) Put(key string, value interface{}) error {
-	err := dm.dm.Put(context.Background(), key, value, &dmap.PutConfig{})
-	return convertDMapError(err)
-}
-
-// Expire updates the expiry for the given key. It returns ErrKeyNotFound if the
-// DB does not contain the key. It's thread-safe.
-func (dm *DMapLegacy) Expire(key string, timeout time.Duration) error {
-	err := dm.dm.Expire(key, timeout)
-	return convertDMapError(err)
-}
-
-// Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
-// It is safe to modify the contents of the argument after Delete returns.
-func (dm *DMapLegacy) Delete(key string) error {
-	err := dm.dm.Delete(key)
-	return convertDMapError(err)
-}
-
-// Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
-func (dm *DMapLegacy) Incr(key string, delta int) (int, error) {
-	value, err := dm.dm.Incr(key, delta)
-	if err != nil {
-		return 0, convertDMapError(err)
-	}
-	return value, nil
-}
-
-// Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
-func (dm *DMapLegacy) Decr(key string, delta int) (int, error) {
-	value, err := dm.dm.Decr(key, delta)
-	if err != nil {
-		return 0, convertDMapError(err)
-	}
-	return value, nil
-}
-
-// GetPut atomically sets key to value and returns the old value stored at key.
-func (dm *DMapLegacy) GetPut(key string, value interface{}) (interface{}, error) {
-	prev, err := dm.dm.GetPut(key, value)
-	if err != nil {
-		return nil, convertDMapError(err)
-	}
-	return prev, nil
-}
-
-// Destroy flushes the given DMap on the cluster. You should know that there
-// is no global lock on DMaps. So if you call Put and Destroy methods
-// concurrently on the cluster, Put calls may set new values to the dmap.
-func (dm *DMapLegacy) Destroy() error {
-	err := dm.dm.Destroy()
-	return convertDMapError(err)
-}*/

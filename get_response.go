@@ -18,7 +18,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/buraksezer/olric/internal/encoding"
+	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
@@ -32,7 +32,7 @@ func (g *GetResponse) Scan(v interface{}) error {
 	if g.entry == nil {
 		return ErrNilResponse
 	}
-	return encoding.Scan(g.entry.Value(), v)
+	return resp.Scan(g.entry.Value(), v)
 }
 
 func (g *GetResponse) Int() (int, error) {

@@ -1,9 +1,8 @@
-package encoding
+package resp
 
 import (
 	"encoding"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/buraksezer/olric/internal/util"
@@ -118,63 +117,5 @@ func Scan(b []byte, v interface{}) error {
 	default:
 		return fmt.Errorf(
 			"olric: can't unmarshal %T (consider implementing BinaryUnmarshaler)", v)
-	}
-}
-
-func ScanSlice(data []string, slice interface{}) error {
-	v := reflect.ValueOf(slice)
-	if !v.IsValid() {
-		return fmt.Errorf("olric: ScanSlice(nil)")
-	}
-	if v.Kind() != reflect.Ptr {
-		return fmt.Errorf("olric: ScanSlice(non-pointer %T)", slice)
-	}
-	v = v.Elem()
-	if v.Kind() != reflect.Slice {
-		return fmt.Errorf("olric: ScanSlice(non-slice %T)", slice)
-	}
-
-	next := makeSliceNextElemFunc(v)
-	for i, s := range data {
-		elem := next()
-		if err := Scan([]byte(s), elem.Addr().Interface()); err != nil {
-			err = fmt.Errorf("olric: ScanSlice index=%d value=%q failed: %w", i, s, err)
-			return err
-		}
-	}
-
-	return nil
-}
-
-func makeSliceNextElemFunc(v reflect.Value) func() reflect.Value {
-	elemType := v.Type().Elem()
-
-	if elemType.Kind() == reflect.Ptr {
-		elemType = elemType.Elem()
-		return func() reflect.Value {
-			if v.Len() < v.Cap() {
-				v.Set(v.Slice(0, v.Len()+1))
-				elem := v.Index(v.Len() - 1)
-				if elem.IsNil() {
-					elem.Set(reflect.New(elemType))
-				}
-				return elem.Elem()
-			}
-
-			elem := reflect.New(elemType)
-			v.Set(reflect.Append(v, elem))
-			return elem.Elem()
-		}
-	}
-
-	zero := reflect.Zero(elemType)
-	return func() reflect.Value {
-		if v.Len() < v.Cap() {
-			v.Set(v.Slice(0, v.Len()+1))
-			return v.Index(v.Len() - 1)
-		}
-
-		v.Set(reflect.Append(v, zero))
-		return v.Index(v.Len() - 1)
 	}
 }
