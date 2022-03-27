@@ -64,8 +64,6 @@ func (c *Client) Get(addr string) *redis.Client {
 	rc = redis.NewClient(opt)
 	c.clients[addr] = rc
 	c.roundRobin.Add(addr)
-	// TODO: Remove unhealthy redis client periodically.
-	// TODO: Send a pig command after calling NewClient.
 	return rc
 }
 

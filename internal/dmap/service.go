@@ -17,9 +17,11 @@ package dmap
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/events"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
@@ -99,6 +101,30 @@ func (s *Service) isAlive() bool {
 	default:
 	}
 	return true
+}
+
+func getType(data interface{}) string {
+	t := reflect.TypeOf(data)
+	if t.Kind() == reflect.Ptr {
+		return t.Elem().Name()
+	}
+	return t.Name()
+}
+
+func (s *Service) publishEvent(e events.Event) {
+	defer s.wg.Done()
+
+	rc := s.client.Get(s.rt.This().String())
+	data, err := e.Encode()
+	if err != nil {
+		s.log.V(3).Printf("[ERROR] Failed to encode %s: %v", getType(e), err)
+		return
+	}
+	err = rc.Publish(s.ctx, events.ClusterEventsChannel, data).Err()
+	if err != nil {
+		s.log.V(3).Printf("[ERROR] Failed to publish %s to %s: %v",
+			getType(e), events.ClusterEventsChannel, err)
+	}
 }
 
 // Start starts the distributed map service.

@@ -6,7 +6,7 @@ require (
 	github.com/RoaringBitmap/roaring v0.9.4
 	github.com/buraksezer/consistent v0.9.0
 	github.com/cespare/xxhash/v2 v2.1.2
-	github.com/go-redis/redis/v8 v8.11.4
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-sockaddr v1.0.2
 	github.com/hashicorp/logutils v1.0.0
@@ -22,5 +22,3 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	gopkg.in/yaml.v2 v2.4.0
 )
-
-replace github.com/go-redis/redis/v8 v8.11.4 => github.com/buraksezer/redis/v8 v8.11.5-0.20220311192848-e41c68a594e0

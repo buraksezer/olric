@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/buraksezer/olric/internal/discovery"
 	"log"
 	"os"
 	"time"
@@ -491,16 +492,13 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 		m := Member{}
 		item := rawItem.([]interface{})
 		m.Name = item[0].(string)
+		m.Birthdate = item[1].(int64)
 
-		switch id := item[1].(type) {
-		case uint64:
-			m.ID = id
-		case int64:
-			m.ID = uint64(id)
-		}
+		// go-redis/redis package cannot handle uint64 type. At the time of this writing,
+		// there is no solution for this, and I don't want to use a soft fork to repair it.
+		m.ID = discovery.MemberID(m.Name, m.Birthdate)
 
-		m.Birthdate = item[2].(int64)
-		if item[3] == "true" {
+		if item[2] == "true" {
 			m.Coordinator = true
 		}
 		members = append(members, m)

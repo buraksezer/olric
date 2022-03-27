@@ -42,6 +42,8 @@ olricd:
   memberCountQuorum: 1
   routingTablePushInterval: 1m
 
+  enableClusterEventsChannel: true
+
 storageEngines:
   config:
     kvstore:
@@ -186,7 +188,7 @@ dmaps:
   engine:
     name: kvstore
     config:
-      tableSize: 4096
+      tableSize: 1048576
 #  checkEmptyFragmentsInterval: 1m
 #  triggerCompactionInterval: 10m
 #  numEvictionWorkers: 1

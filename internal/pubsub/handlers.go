@@ -40,12 +40,12 @@ func (s *Service) publishCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	var total int64
+	var total int
 	members := s.rt.Discovery().GetMembers()
 	for _, member := range members {
 		if member.CompareByID(s.rt.This()) {
 			count := s.pubsub.Publish(publishCmd.Channel, publishCmd.Message)
-			total += int64(count)
+			total += count
 			PublishedTotal.Increase(int64(count))
 			continue
 		}
@@ -62,11 +62,11 @@ func (s *Service) publishCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 			protocol.WriteError(conn, err)
 			return
 		}
-		total += pcount
+		total += int(pcount)
 		PublishedTotal.Increase(pcount)
 	}
 
-	conn.WriteInt64(total)
+	conn.WriteInt(total)
 }
 
 func (s *Service) publishInternalCommandHandler(conn redcon.Conn, cmd redcon.Command) {

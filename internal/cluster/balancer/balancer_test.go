@@ -182,7 +182,7 @@ func TestBalance_Primary_Move(t *testing.T) {
 		require.NotNil(t, result[partitions.PRIMARY])
 		r := result[partitions.PRIMARY]
 		require.NotNil(t, r[partID])
-		require.Equal(t, "dmap.test-data", r[partID].Name)
+		require.Equal(t, "test-data", r[partID].Name)
 		require.Equal(t, []discovery.Member{b2.rt.This()}, r[partID].Owners)
 	}
 }
@@ -288,7 +288,7 @@ func TestBalance_Backup_Move(t *testing.T) {
 		require.NotNil(t, result[partitions.BACKUP])
 		r := result[partitions.BACKUP]
 		require.NotNil(t, r[partID])
-		require.Equal(t, "dmap.test-data", r[partID].Name)
+		require.Equal(t, "test-data", r[partID].Name)
 		require.Equal(t, []discovery.Member{b2.rt.This()}, r[partID].Owners)
 	}
 }

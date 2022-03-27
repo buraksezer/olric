@@ -16,6 +16,10 @@ package dmap
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/buraksezer/olric/events"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/tidwall/redcon"
 	"strconv"
 	"testing"
 	"time"
@@ -129,4 +133,86 @@ func TestDMap_Balancer_WrongOwnership(t *testing.T) {
 	}
 	// invalid argument: partID: 1 (kind: Primary) doesn't belong to 127.0.0.1:62096
 	require.Error(t, db1.validateFragmentPack(fp))
+}
+
+func TestDMap_Balancer_ClusterEvents(t *testing.T) {
+	c1 := testutil.NewConfig()
+	c1.TriggerBalancerInterval = time.Millisecond
+	c1.EnableClusterEventsChannel = true
+	e1 := testcluster.NewEnvironment(c1)
+
+	cluster := testcluster.New(NewService)
+	db1 := cluster.AddMember(e1).(*Service)
+	defer cluster.Shutdown()
+
+	result := make(chan string, 1)
+	db1.server.ServeMux().HandleFunc(protocol.PubSub.Publish, func(conn redcon.Conn, cmd redcon.Command) {
+		publishCmd, err := protocol.ParsePublishCommand(cmd)
+		require.NoError(t, err)
+		require.Equal(t, events.ClusterEventsChannel, publishCmd.Channel)
+
+		result <- publishCmd.Message
+
+		conn.WriteInt(1)
+	})
+
+	dm, err := db1.NewDMap("mymap")
+	require.NoError(t, err)
+
+	var totalKeys = 1000
+	for i := 0; i < totalKeys; i++ {
+		key := "balancer-test." + strconv.Itoa(i)
+		err = dm.Put(context.Background(), key, testutil.ToVal(i), nil)
+		require.NoError(t, err)
+	}
+
+	go func() {
+		c2 := testutil.NewConfig()
+		c1.TriggerBalancerInterval = time.Millisecond
+		c2.EnableClusterEventsChannel = true
+		e2 := testcluster.NewEnvironment(c2)
+		s2 := testutil.NewServer(c2)
+		s2.ServeMux().HandleFunc(protocol.PubSub.Publish, func(conn redcon.Conn, cmd redcon.Command) {
+			publishCmd, err := protocol.ParsePublishCommand(cmd)
+			require.NoError(t, err)
+			require.Equal(t, events.ClusterEventsChannel, publishCmd.Channel)
+
+			result <- publishCmd.Message
+
+			conn.WriteInt(1)
+		})
+		e2.Set("server", s2)
+		cluster.AddMember(e2)
+	}()
+
+	fragmentEvents := make(map[uint64]map[string]struct{})
+L:
+	for {
+		select {
+		case msg := <-result:
+			value := make(map[string]interface{})
+			err = json.Unmarshal([]byte(msg), &value)
+			require.NoError(t, err)
+
+			kind := value["kind"].(string)
+			if kind == events.KindFragmentMigrationEvent || kind == events.KindFragmentReceivedEvent {
+				partID := uint64(value["partition_id"].(float64))
+				ev, ok := fragmentEvents[partID]
+				if ok {
+					ev[kind] = struct{}{}
+				} else {
+					fragmentEvents[partID] = map[string]struct{}{kind: {}}
+				}
+			}
+		case <-time.After(time.Second):
+			break L
+		}
+	}
+
+	for partID, data := range fragmentEvents {
+		require.Len(t, data, 2)
+		part := db1.primary.PartitionByID(partID)
+		// Transferred to db2
+		require.NotEqual(t, part.Owner().ID, db1.rt.This().ID)
+	}
 }

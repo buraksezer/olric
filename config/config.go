@@ -225,6 +225,8 @@ type Config struct {
 	// load for a server in the cluster. Keep it small.
 	LoadFactor float64
 
+	EnableClusterEventsChannel bool
+
 	// Default hasher is github.com/cespare/xxhash/v2
 	Hasher hasher.Hasher
 
@@ -370,6 +372,8 @@ func (c *Config) Sanitize() error {
 
 	if c.Logger == nil {
 		c.Logger = log.New(c.LogOutput, "", log.LstdFlags)
+	} else {
+		c.Logger.SetOutput(c.LogOutput)
 	}
 
 	if c.Hasher == nil {
@@ -443,8 +447,10 @@ func (c *Config) Sanitize() error {
 	return nil
 }
 
-// New returns a Config with sane defaults.
-// It takes an env parameter used by memberlist: local, lan and wan.
+// New returns a Config with sane defaults. If you change a configuration parameter,
+// please run Sanitize and Validate functions respectively.
+//
+// New takes an env parameter used by memberlist: local, lan and wan.
 //
 // local:
 //

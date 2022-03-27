@@ -111,6 +111,7 @@ func TestServer_Client_Close(t *testing.T) {
 	require.NoError(t, cs.Close(addr))
 	rc2 := cs.Get(addr)
 	require.NotEqual(t, rc1, rc2)
+	require.Len(t, cs.clients, 1)
 	require.Equal(t, 1, cs.roundRobin.Length())
 }
 

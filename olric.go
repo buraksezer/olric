@@ -378,8 +378,18 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
-	// TODO: It's a good idea to add graceful period here
-	db.wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		defer func() {
+			close(done)
+		}()
+		db.wg.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-done:
+	}
 
 	// db.name will be shown as empty string, if the program is killed before
 	// bootstrapping.

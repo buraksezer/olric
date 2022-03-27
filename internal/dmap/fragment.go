@@ -17,14 +17,15 @@ package dmap
 import (
 	"context"
 	"errors"
-	"strings"
-	"sync"
-
+	"github.com/buraksezer/olric/events"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack/v5"
+	"strings"
+	"sync"
+	"time"
 )
 
 type fragment struct {
@@ -100,6 +101,22 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 	}
 
 	for _, owner := range owners {
+		if f.service.config.EnableClusterEventsChannel {
+			e := &events.FragmentMigrationEvent{
+				Kind:          events.KindFragmentMigrationEvent,
+				Source:        f.service.rt.This().String(),
+				Target:        owner.String(),
+				DataStructure: "dmap",
+				PartitionID:   part.ID(),
+				Identifier:    fp.Name,
+				Length:        len(value),
+				IsBackup:      part.Kind() == partitions.BACKUP,
+				Timestamp:     time.Now().UnixNano(),
+			}
+			f.service.wg.Add(1)
+			go f.service.publishEvent(e)
+		}
+
 		cmd := protocol.NewMoveFragment(value).Command(f.service.ctx)
 		rc := f.service.client.Get(owner.String())
 		err = rc.Process(f.service.ctx, cmd)

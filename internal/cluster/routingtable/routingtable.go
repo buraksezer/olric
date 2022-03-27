@@ -267,6 +267,11 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 		r.Members().Add(member)
 		r.consistent.Add(member)
 		r.log.V(2).Printf("[INFO] Node joined: %s", member)
+
+		if r.config.EnableClusterEventsChannel {
+			r.wg.Add(1)
+			go r.publishNodeJoinEvent(&member)
+		}
 	case memberlist.NodeLeave:
 		if _, err := r.Members().Get(member.ID); err != nil {
 			r.log.V(2).Printf("[ERROR] Unknown node left: %s: %d", event.NodeName, member.ID)
@@ -278,6 +283,11 @@ func (r *RoutingTable) processClusterEvent(event *discovery.ClusterEvent) {
 		r.log.V(2).Printf("[INFO] Node left: %s", event.NodeName)
 		if err := r.client.Close(event.NodeName); err != nil {
 			r.log.V(2).Printf("[ERROR] Failed to remove the node from pool %s: %v", event.NodeName, err)
+		}
+
+		if r.config.EnableClusterEventsChannel {
+			r.wg.Add(1)
+			go r.publishNodeLeftEvent(&member)
 		}
 	case memberlist.NodeUpdate:
 		// Node's birthdate may be changed. Close the pool and re-add to the hash ring.

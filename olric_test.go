@@ -107,6 +107,7 @@ func (cl *testOlricCluster) addMemberWithConfig(t *testing.T, c *config.Config) 
 
 	db := newTestOlricWithConfig(t, c)
 	cl.members[db.rt.This().String()] = db
+	t.Logf("A new cluster member has been created: %s", db.rt.This())
 	return db
 }
 

@@ -17,13 +17,14 @@ package dmap
 import (
 	"errors"
 	"fmt"
-
+	"github.com/buraksezer/olric/events"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/neterrors"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 	"github.com/vmihailenco/msgpack/v5"
+	"time"
 )
 
 type fragmentPack struct {
@@ -137,6 +138,21 @@ func (s *Service) moveFragmentCommandHandler(conn redcon.Conn, cmd redcon.Comman
 			fp.Kind, fp.Name, fp.PartID, err)
 		protocol.WriteError(conn, err)
 		return
+	}
+
+	if s.config.EnableClusterEventsChannel {
+		e := &events.FragmentReceivedEvent{
+			Kind:          events.KindFragmentReceivedEvent,
+			Source:        s.rt.This().String(),
+			DataStructure: "dmap",
+			PartitionID:   part.ID(),
+			Identifier:    fp.Name,
+			Length:        len(moveFragmentCmd.Payload),
+			IsBackup:      part.Kind() == partitions.BACKUP,
+			Timestamp:     time.Now().UnixNano(),
+		}
+		s.wg.Add(1)
+		go s.publishEvent(e)
 	}
 
 	conn.WriteString(protocol.StatusOK)

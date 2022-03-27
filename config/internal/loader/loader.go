@@ -17,23 +17,24 @@ package loader
 import "gopkg.in/yaml.v2"
 
 type olricd struct {
-	Name                     string  `yaml:"name"`
-	BindAddr                 string  `yaml:"bindAddr"`
-	BindPort                 int     `yaml:"bindPort"`
-	Interface                string  `yaml:"interface"`
-	ReplicationMode          int     `yaml:"replicationMode"`
-	PartitionCount           uint64  `yaml:"partitionCount"`
-	LoadFactor               float64 `yaml:"loadFactor"`
-	KeepAlivePeriod          string  `yaml:"keepAlivePeriod"`
-	BootstrapTimeout         string  `yaml:"bootstrapTimeout"`
-	ReplicaCount             int     `yaml:"replicaCount"`
-	WriteQuorum              int     `yaml:"writeQuorum"`
-	ReadQuorum               int     `yaml:"readQuorum"`
-	ReadRepair               bool    `yaml:"readRepair"`
-	MemberCountQuorum        int32   `yaml:"memberCountQuorum"`
-	RoutingTablePushInterval string  `yaml:"routingTablePushInterval"`
-	TriggerBalancerInterval  string  `yaml:"triggerBalancerInterval"`
-	LeaveTimeout             string  `yaml:"leaveTimeout"`
+	Name                       string  `yaml:"name"`
+	BindAddr                   string  `yaml:"bindAddr"`
+	BindPort                   int     `yaml:"bindPort"`
+	Interface                  string  `yaml:"interface"`
+	ReplicationMode            int     `yaml:"replicationMode"`
+	PartitionCount             uint64  `yaml:"partitionCount"`
+	LoadFactor                 float64 `yaml:"loadFactor"`
+	KeepAlivePeriod            string  `yaml:"keepAlivePeriod"`
+	BootstrapTimeout           string  `yaml:"bootstrapTimeout"`
+	ReplicaCount               int     `yaml:"replicaCount"`
+	WriteQuorum                int     `yaml:"writeQuorum"`
+	ReadQuorum                 int     `yaml:"readQuorum"`
+	ReadRepair                 bool    `yaml:"readRepair"`
+	MemberCountQuorum          int32   `yaml:"memberCountQuorum"`
+	RoutingTablePushInterval   string  `yaml:"routingTablePushInterval"`
+	TriggerBalancerInterval    string  `yaml:"triggerBalancerInterval"`
+	LeaveTimeout               string  `yaml:"leaveTimeout"`
+	EnableClusterEventsChannel bool    `yaml:"enableClusterEventsChannel"`
 }
 
 type client struct {
