@@ -193,6 +193,7 @@ func TestConfig(t *testing.T) {
 	c.DMaps.LRUSamples = 20
 	c.DMaps.EvictionPolicy = LRUEviction
 	c.DMaps.Engine.Name = DefaultStorageEngine
+	c.DMaps.Engine.Config = map[string]interface{}{"tableSize": 202134}
 
 	c.DMaps.Custom = map[string]DMap{"foobar": {
 		MaxIdleDuration: 30 * time.Second,
@@ -223,4 +224,10 @@ func TestConfig(t *testing.T) {
 	lc.Client.Dialer = nil
 
 	require.Equal(t, c, lc)
+}
+
+func TestConfig_Initialize(t *testing.T) {
+	c := &Config{}
+	require.NoError(t, c.Sanitize())
+	require.NoError(t, c.Validate())
 }

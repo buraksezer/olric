@@ -297,7 +297,13 @@ func (d *Discovery) Shutdown() error {
 	}
 
 	if d.serviceDiscovery != nil {
-		defer d.serviceDiscovery.Close()
+		defer func(serviceDiscovery service_discovery.ServiceDiscovery) {
+			err := serviceDiscovery.Close()
+			if err != nil {
+				d.log.V(3).Printf("[ERROR] ServiceDiscovery.Close returned an error: %v", err)
+			}
+		}(d.serviceDiscovery)
+
 		if err := d.serviceDiscovery.Deregister(); err != nil {
 			d.log.V(3).Printf("[ERROR] ServiceDiscovery.Deregister returned an error: %v", err)
 		}

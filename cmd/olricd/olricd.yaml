@@ -40,14 +40,22 @@ olricd:
 
   # Minimum number of members to form a cluster and run any query on the cluster.
   memberCountQuorum: 1
+
+  # Coordinator member pushes the routing table to cluster members in the case of
+  # node join or left events. It also pushes the table periodically. routingTablePushInterval
+  # is the interval between subsequent calls. Default is 1 minute.
   routingTablePushInterval: 1m
 
+  # Olric can send push cluster events to cluster.events channel. Available cluster events:
+  #
+  # * node-join-event
+  # * node-left-event
+  # * fragment-migration-event
+  # * fragment-received-event
+  #
+  # If you want to receive these events, set true to EnableClusterEventsChannel and subscribe to
+  # cluster.events channel. Default is false.
   enableClusterEventsChannel: true
-
-storageEngines:
-  config:
-    kvstore:
-      tableSize: 4096
 
 client:
   # Timeout for TCP dial.
@@ -188,7 +196,7 @@ dmaps:
   engine:
     name: kvstore
     config:
-      tableSize: 1048576
+      tableSize: 524288 # bytes
 #  checkEmptyFragmentsInterval: 1m
 #  triggerCompactionInterval: 10m
 #  numEvictionWorkers: 1

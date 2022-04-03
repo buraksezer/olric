@@ -216,7 +216,7 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 		// We need ownedPartitionCount property because every partition
 		// manages itself independently. So if you set MaxKeys=70 and
 		// your partition count is 7, every partition 10 keys at maximum.
-		if st.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
+		if st.Length > 0 && st.Length >= dm.config.maxKeys/int(ownedPartitionCount) {
 			err := dm.evictKeyWithLRU(e)
 			if err != nil {
 				return err
@@ -230,7 +230,7 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 		// manages itself independently. So if you set MaxInuse=70M(in bytes) and
 		// your partition count is 7, every partition consumes 10M in-use space at maximum.
 		// WARNING: Actual allocated memory can be different.
-		if st.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
+		if st.Inuse > 0 && st.Inuse >= dm.config.maxInuse/int(ownedPartitionCount) {
 			err := dm.evictKeyWithLRU(e)
 			if err != nil {
 				return err

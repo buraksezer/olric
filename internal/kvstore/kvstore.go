@@ -18,7 +18,9 @@ package kvstore
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -97,17 +99,52 @@ func (k *KVStore) Start() error {
 	return nil
 }
 
+func prepareTableSize(raw interface{}) (size uint64, err error) {
+	switch raw.(type) {
+	case uint:
+		size = uint64(raw.(uint))
+	case uint8:
+		size = uint64(raw.(uint8))
+	case uint16:
+		size = uint64(raw.(uint16))
+	case uint32:
+		size = uint64(raw.(uint32))
+	case uint64:
+		size = raw.(uint64)
+	case int:
+		size = uint64(raw.(int))
+	case int8:
+		size = uint64(raw.(int8))
+	case int16:
+		size = uint64(raw.(int16))
+	case int32:
+		size = uint64(raw.(int32))
+	case int64:
+		size = uint64(raw.(int64))
+	default:
+		err = fmt.Errorf("invalid type for tableSize: %s", reflect.TypeOf(raw))
+		return
+	}
+	return
+}
+
 // Fork creates a new KVStore instance.
 func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	if c == nil {
 		c = k.config.Copy()
 	}
-	size, err := c.Get("tableSize")
+	tmpSize, err := c.Get("tableSize")
 	if err != nil {
 		return nil, err
 	}
+
+	size, err := prepareTableSize(tmpSize)
+	if err != nil {
+		return nil, err
+	}
+
 	child := New(c)
-	t := table.New(size.(uint64))
+	t := table.New(size)
 	child.tables = append(child.tables, t)
 	child.tablesByCoefficient[k.coefficient] = t
 	child.coefficient++

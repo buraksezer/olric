@@ -149,6 +149,10 @@ const (
 
 	// DefaultLeaveTimeout is the default value of maximum amount of time before
 	DefaultLeaveTimeout = 5 * time.Second
+
+	DefaultReadQuorum        = 1
+	DefaultWriteQuorum       = 1
+	DefaultMemberCountQuorum = 1
 )
 
 // Config is the configuration to create a Olric instance.
@@ -190,7 +194,9 @@ type Config struct {
 	// bootstrapping status without blocking indefinitely.
 	BootstrapTimeout time.Duration
 
-	// RoutingTablePushInterval is interval between routing table push events.
+	// Coordinator member pushes the routing table to cluster members in the case of
+	// node join or left events. It also pushes the table periodically. RoutingTablePushInterval
+	// is the interval between subsequent calls. Default is 1 minute.
 	RoutingTablePushInterval time.Duration
 
 	// TriggerBalancerInterval is interval between two sequential call of balancer worker.
@@ -225,6 +231,15 @@ type Config struct {
 	// load for a server in the cluster. Keep it small.
 	LoadFactor float64
 
+	// Olric can send push cluster events to cluster.events channel. Available cluster events:
+	//
+	// * node-join-event
+	// * node-left-event
+	// * fragment-migration-event
+	// * fragment-received-event
+	//
+	// If you want to receive these events, set true to EnableClusterEventsChannel and subscribe to
+	// cluster.events channel. Default is false.
 	EnableClusterEventsChannel bool
 
 	// Default hasher is github.com/cespare/xxhash/v2
@@ -402,6 +417,18 @@ func (c *Config) Sanitize() error {
 	if c.ReplicaCount == 0 {
 		c.ReplicaCount = MinimumReplicaCount
 	}
+
+	if c.ReadQuorum == 0 {
+		c.ReadQuorum = DefaultReadQuorum
+	}
+	if c.WriteQuorum == 0 {
+		c.WriteQuorum = DefaultWriteQuorum
+	}
+
+	if c.MemberCountQuorum == 0 {
+		c.MemberCountQuorum = DefaultMemberCountQuorum
+	}
+
 	if c.MemberlistConfig == nil {
 		m := memberlist.DefaultLocalConfig()
 		// hostname is assigned to memberlist.BindAddr
@@ -434,6 +461,10 @@ func (c *Config) Sanitize() error {
 
 	if c.Client == nil {
 		c.Client = NewClient()
+	}
+
+	if c.DMaps == nil {
+		c.DMaps = &DMaps{}
 	}
 
 	if err := c.Client.Sanitize(); err != nil {

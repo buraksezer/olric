@@ -16,10 +16,10 @@ package discovery
 
 import (
 	"encoding/binary"
-	"github.com/cespare/xxhash/v2"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/cespare/xxhash/v2"
 	"github.com/vmihailenco/msgpack/v5"
 )
 

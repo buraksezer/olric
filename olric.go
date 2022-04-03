@@ -29,6 +29,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,7 +55,7 @@ import (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.5.0-alpha.2"
+const ReleaseVersion string = "0.5.0-alpha.4"
 
 var (
 	// ErrOperationTimeout is returned when an operation times out.
@@ -280,6 +281,8 @@ func (db *Olric) isOperable() error {
 // Start starts background servers and joins the cluster. You still need to call
 // Shutdown method if Start function returns an early error.
 func (db *Olric) Start() error {
+	db.log.V(1).Printf("[INFO] Olric %s on %s/%s %s", ReleaseVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
+
 	errGr, ctx := errgroup.WithContext(context.Background())
 
 	errGr.Go(func() error {
