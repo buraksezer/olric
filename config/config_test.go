@@ -29,6 +29,7 @@ var testConfig = `olricd:
   bindPort: 3320
   serializer: "msgpack"
   keepAlivePeriod: "300s"
+  idleClose: 300s
   bootstrapTimeout: "5s"
   partitionCount:  271
   replicaCount: 2
@@ -37,6 +38,7 @@ var testConfig = `olricd:
   readRepair: false
   replicationMode: 0 # sync mode. for async, set 1
   memberCountQuorum: 1
+  enableClusterEventsChannel: true
 
 client:
   dialTimeout: 8s
@@ -140,6 +142,7 @@ func TestConfig(t *testing.T) {
 	c.BindAddr = "0.0.0.0"
 	c.BindPort = 3320
 	c.KeepAlivePeriod = 300 * time.Second
+	c.IdleClose = 300 * time.Second
 	c.BootstrapTimeout = 5 * time.Second
 	c.PartitionCount = 271
 	c.ReplicaCount = 2
@@ -148,6 +151,7 @@ func TestConfig(t *testing.T) {
 	c.ReadRepair = false
 	c.ReplicationMode = SyncReplicationMode
 	c.MemberCountQuorum = 1
+	c.EnableClusterEventsChannel = true
 
 	c.DMaps.Engine = NewEngine()
 

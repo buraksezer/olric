@@ -153,6 +153,14 @@ const (
 	DefaultReadQuorum        = 1
 	DefaultWriteQuorum       = 1
 	DefaultMemberCountQuorum = 1
+
+	// DefaultKeepAlivePeriod is the default value of TCP keepalive. It's 300 seconds.
+	// This option is useful in order to detect dead peers (clients that cannot
+	// be reached even if they look connected). Moreover, if there is network
+	// equipment between clients and servers that need to see some traffic in
+	// order to take the connection open, the option will prevent unexpected
+	// connection closed events.
+	DefaultKeepAlivePeriod = 300 * time.Second
 )
 
 // Config is the configuration to create a Olric instance.
@@ -184,6 +192,10 @@ type Config struct {
 	// KeepAlivePeriod denotes whether the operating system should send
 	// keep-alive messages on the connection.
 	KeepAlivePeriod time.Duration
+
+	// IdleClose will automatically close idle connections after the specified duration.
+	// Use zero to disable this feature.
+	IdleClose time.Duration
 
 	// Timeout for bootstrap control
 	//
@@ -438,10 +450,10 @@ func (c *Config) Sanitize() error {
 		c.MemberlistConfig = m
 	}
 
-	if c.BootstrapTimeout == 0*time.Second {
+	if c.BootstrapTimeout == 0 {
 		c.BootstrapTimeout = DefaultBootstrapTimeout
 	}
-	if c.JoinRetryInterval == 0*time.Second {
+	if c.JoinRetryInterval == 0 {
 		c.JoinRetryInterval = DefaultJoinRetryInterval
 	}
 	if c.MaxJoinAttempts == 0 {
@@ -451,12 +463,16 @@ func (c *Config) Sanitize() error {
 		c.LeaveTimeout = DefaultLeaveTimeout
 	}
 
-	if c.RoutingTablePushInterval.Microseconds() == 0 {
+	if c.RoutingTablePushInterval == 0 {
 		c.RoutingTablePushInterval = DefaultRoutingTablePushInterval
 	}
 
-	if c.TriggerBalancerInterval.Microseconds() == 0 {
+	if c.TriggerBalancerInterval == 0 {
 		c.TriggerBalancerInterval = DefaultTriggerBalancerInterval
+	}
+
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = DefaultKeepAlivePeriod
 	}
 
 	if c.Client == nil {

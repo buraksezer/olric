@@ -11,6 +11,10 @@ olricd:
   # keep-alive messages on the connection.
   keepAlivePeriod: 300s
 
+  # IdleClose will automatically close idle connections after the specified duration.
+  # Use zero to disable this feature.
+  # idleClose: 300s
+
   # Timeout for bootstrap control
   #
   # An Olric node checks operation status before taking any action for the

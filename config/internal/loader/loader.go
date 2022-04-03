@@ -25,6 +25,7 @@ type olricd struct {
 	PartitionCount             uint64  `yaml:"partitionCount"`
 	LoadFactor                 float64 `yaml:"loadFactor"`
 	KeepAlivePeriod            string  `yaml:"keepAlivePeriod"`
+	IdleClose                  string  `yaml:"idleClose"`
 	BootstrapTimeout           string  `yaml:"bootstrapTimeout"`
 	ReplicaCount               int     `yaml:"replicaCount"`
 	WriteQuorum                int     `yaml:"writeQuorum"`

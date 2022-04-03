@@ -300,6 +300,7 @@ func Load(filename string) (*Config, error) {
 	var (
 		joinRetryInterval,
 		keepAlivePeriod,
+		idleClose,
 		bootstrapTimeout,
 		triggerBalancerInterval,
 		leaveTimeout,
@@ -313,6 +314,15 @@ func Load(filename string) (*Config, error) {
 				fmt.Sprintf("failed to parse olricd.keepAlivePeriod: '%s'", c.Olricd.KeepAlivePeriod))
 		}
 	}
+
+	if c.Olricd.IdleClose != "" {
+		idleClose, err = time.ParseDuration(c.Olricd.IdleClose)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.idleClose: '%s'", c.Olricd.IdleClose))
+		}
+	}
+
 	if c.Olricd.BootstrapTimeout != "" {
 		bootstrapTimeout, err = time.ParseDuration(c.Olricd.BootstrapTimeout)
 		if err != nil {
@@ -391,6 +401,7 @@ func Load(filename string) (*Config, error) {
 		LogVerbosity:               c.Logging.Verbosity,
 		Hasher:                     hasher.NewDefaultHasher(),
 		KeepAlivePeriod:            keepAlivePeriod,
+		IdleClose:                  idleClose,
 		BootstrapTimeout:           bootstrapTimeout,
 		LeaveTimeout:               leaveTimeout,
 		DMaps:                      dmapConfig,

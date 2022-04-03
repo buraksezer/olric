@@ -197,8 +197,9 @@ func New(c *config.Config) (*Olric, error) {
 
 	// Create a Redcon server instance
 	rc := &server.Config{
-		BindAddr: c.BindAddr,
-		BindPort: c.BindPort,
+		BindAddr:        c.BindAddr,
+		BindPort:        c.BindPort,
+		KeepAlivePeriod: c.KeepAlivePeriod,
 	}
 	srv := server.New(rc, flogger)
 	srv.SetPreConditionFunc(db.preconditionFunc)

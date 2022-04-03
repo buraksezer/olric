@@ -49,6 +49,7 @@ type Config struct {
 	BindAddr        string
 	BindPort        int
 	KeepAlivePeriod time.Duration
+	IdleClose       time.Duration
 }
 
 type ConnWrapper struct {
@@ -77,12 +78,23 @@ func (cw *ConnWrapper) Read(b []byte) (n int, err error) {
 
 type ListenerWrapper struct {
 	net.Listener
+	keepAlivePeriod time.Duration
 }
 
 func (lw *ListenerWrapper) Accept() (net.Conn, error) {
 	conn, err := lw.Listener.Accept()
 	if err != nil {
 		return nil, err
+	}
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		if lw.keepAlivePeriod != 0 {
+			if keepAliveErr := tcpConn.SetKeepAlive(true); keepAliveErr != nil {
+				return nil, keepAliveErr
+			}
+			if keepAliveErr := tcpConn.SetKeepAlivePeriod(lw.keepAlivePeriod); keepAliveErr != nil {
+				return nil, keepAliveErr
+			}
+		}
 	}
 	return &ConnWrapper{conn}, nil
 }
@@ -141,12 +153,15 @@ func (s *Server) ServeMux() *ServeMuxWrapper {
 // ListenAndServe listens on the TCP network address addr.
 func (s *Server) ListenAndServe() error {
 	addr := net.JoinHostPort(s.config.BindAddr, strconv.Itoa(s.config.BindPort))
-	l, err := net.Listen("tcp", addr)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 
-	lw := &ListenerWrapper{l}
+	lw := &ListenerWrapper{
+		Listener:        listener,
+		keepAlivePeriod: s.config.KeepAlivePeriod,
+	}
 
 	defer close(s.stopped)
 	s.listener = lw
@@ -162,7 +177,12 @@ func (s *Server) ListenAndServe() error {
 			CurrentConnections.Increase(-1)
 		},
 	)
+
+	if s.config.IdleClose != 0 {
+		srv.SetIdleClose(s.config.IdleClose)
+	}
 	s.server = srv
+
 	// The TCP server has been started
 	s.started()
 	checkpoint.Pass()
