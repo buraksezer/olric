@@ -299,7 +299,7 @@ func TestEmbeddedClient_DMap_Destroy(t *testing.T) {
 	// Destroy is an async command. Wait for some time to see its effect.
 	<-time.After(100 * time.Millisecond)
 
-	stats, err := e.Stats(ctx)
+	stats, err := e.Stats(ctx, e.db.rt.This().String())
 	require.NoError(t, err)
 	var total int
 	for _, part := range stats.Partitions {
@@ -540,4 +540,27 @@ func TestEmbeddedClient_Member(t *testing.T) {
 			require.False(t, member.Coordinator)
 		}
 	}
+}
+
+func TestEmbeddedClient_Ping(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	ctx := context.Background()
+	response, err := e.Ping(ctx, db.rt.This().String(), "")
+	require.NoError(t, err)
+	require.Equal(t, DefaultPingResponse, response)
+}
+
+func TestEmbeddedClient_Ping_WithMessage(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	ctx := context.Background()
+	message := "Olric is the best"
+	response, err := e.Ping(ctx, db.rt.This().String(), message)
+	require.NoError(t, err)
+	require.Equal(t, message, response)
 }

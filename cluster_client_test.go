@@ -39,11 +39,12 @@ func TestClusterClient_Ping(t *testing.T) {
 		require.NoError(t, c.Close(ctx))
 	}()
 
-	err = c.Ping(ctx, db.rt.This().String())
+	response, err := c.Ping(ctx, db.rt.This().String(), "")
 	require.NoError(t, err)
+	require.Equal(t, DefaultPingResponse, response)
 }
 
-func TestClusterClient_PingWithMessage(t *testing.T) {
+func TestClusterClient_Ping_WithMessage(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	cluster.addMember(t)
 	db := cluster.addMember(t)
@@ -56,7 +57,7 @@ func TestClusterClient_PingWithMessage(t *testing.T) {
 	}()
 
 	message := "Olric is the best!"
-	result, err := c.PingWithMessage(ctx, db.rt.This().String(), message)
+	result, err := c.Ping(ctx, db.rt.This().String(), message)
 	require.NoError(t, err)
 	require.Equal(t, message, result)
 }
@@ -593,10 +594,32 @@ func TestClusterClient_Stats(t *testing.T) {
 	}()
 
 	var empty stats.Stats
-	s, err := c.Stats(ctx)
+	s, err := c.Stats(ctx, db.rt.This().String())
 	require.NoError(t, err)
 	require.Nil(t, s.Runtime)
 	require.NotEqual(t, empty, s)
+}
+
+func TestClusterClient_Stats_Cluster(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+	db2 := cluster.addMember(t)
+
+	<-time.After(250 * time.Millisecond)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	var empty stats.Stats
+	s, err := c.Stats(ctx, db2.rt.This().String())
+	require.NoError(t, err)
+	require.Nil(t, s.Runtime)
+	require.NotEqual(t, empty, s)
+	require.Equal(t, db2.rt.This().String(), s.Member.String())
 }
 
 func TestClusterClient_Stats_CollectRuntime(t *testing.T) {
@@ -611,7 +634,7 @@ func TestClusterClient_Stats_CollectRuntime(t *testing.T) {
 	}()
 
 	var empty stats.Stats
-	s, err := c.Stats(ctx, CollectRuntime())
+	s, err := c.Stats(ctx, db.rt.This().String(), CollectRuntime())
 	require.NoError(t, err)
 	require.NotNil(t, s.Runtime)
 	require.NotEqual(t, empty, s)

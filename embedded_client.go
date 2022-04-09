@@ -16,6 +16,9 @@ package olric
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/util"
 	"time"
 
 	"github.com/buraksezer/olric/internal/discovery"
@@ -192,14 +195,8 @@ func (e *EmbeddedClient) NewDMap(name string, options ...DMapOption) (DMap, erro
 	}, nil
 }
 
-func CollectRuntime() StatsOption {
-	return func(cfg *statsConfig) {
-		cfg.CollectRuntime = true
-	}
-}
-
 // Stats exposes some useful metrics to monitor an Olric node.
-func (e *EmbeddedClient) Stats(_ context.Context, options ...StatsOption) (stats.Stats, error) {
+func (e *EmbeddedClient) Stats(ctx context.Context, address string, options ...StatsOption) (stats.Stats, error) {
 	if err := e.db.isOperable(); err != nil {
 		// this node is not bootstrapped yet.
 		return stats.Stats{}, err
@@ -208,7 +205,35 @@ func (e *EmbeddedClient) Stats(_ context.Context, options ...StatsOption) (stats
 	for _, opt := range options {
 		opt(&cfg)
 	}
-	return e.db.stats(cfg), nil
+
+	if address == e.db.rt.This().String() {
+		return e.db.stats(cfg), nil
+	}
+
+	statsCmd := protocol.NewStats()
+	if cfg.CollectRuntime {
+		statsCmd.SetCollectRuntime()
+	}
+	cmd := statsCmd.Command(ctx)
+	rc := e.db.client.Get(address)
+	err := rc.Process(ctx, cmd)
+	if err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+
+	if err = cmd.Err(); err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+	data, err := cmd.Bytes()
+	if err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+	var s stats.Stats
+	err = json.Unmarshal(data, &s)
+	if err != nil {
+		return stats.Stats{}, processProtocolError(err)
+	}
+	return s, nil
 }
 
 func (e *EmbeddedClient) Close(_ context.Context) error {
@@ -217,19 +242,12 @@ func (e *EmbeddedClient) Close(_ context.Context) error {
 
 // Ping sends a dummy protocol message to the given host. This is useful to
 // measure RTT between hosts. It also can be used as aliveness check.
-func (e *EmbeddedClient) Ping(ctx context.Context, addr string) error {
-	_, err := e.db.ping(ctx, addr, "")
-	return err
-}
-
-// PingWithMessage sends a dummy protocol message to the given host. This is useful to
-// measure RTT between hosts. It also can be used as aliveness check.
-func (e *EmbeddedClient) PingWithMessage(ctx context.Context, addr, message string) (string, error) {
+func (e *EmbeddedClient) Ping(ctx context.Context, addr, message string) (string, error) {
 	response, err := e.db.ping(ctx, addr, message)
 	if err != nil {
 		return "", err
 	}
-	return string(response), nil
+	return util.BytesToString(response), nil
 }
 
 func (e *EmbeddedClient) RoutingTable(ctx context.Context) (RoutingTable, error) {

@@ -55,7 +55,7 @@ import (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.5.0-alpha.4"
+const ReleaseVersion string = "0.5.0-beta.1"
 
 var (
 	// ErrOperationTimeout is returned when an operation times out.
@@ -63,6 +63,31 @@ var (
 
 	// ErrServerGone means that a cluster member is closed unexpectedly.
 	ErrServerGone = errors.New("server is gone")
+
+	// ErrKeyNotFound means that returned when a key could not be found.
+	ErrKeyNotFound = errors.New("key not found")
+
+	// ErrKeyFound means that the requested key found in the cluster.
+	ErrKeyFound = errors.New("key found")
+
+	// ErrWriteQuorum means that write quorum cannot be reached to operate.
+	ErrWriteQuorum = errors.New("write quorum cannot be reached")
+
+	// ErrReadQuorum means that read quorum cannot be reached to operate.
+	ErrReadQuorum = errors.New("read quorum cannot be reached")
+
+	// ErrLockNotAcquired is returned when the requested lock could not be acquired
+	ErrLockNotAcquired = errors.New("lock not acquired")
+
+	// ErrNoSuchLock is returned when the requested lock does not exist
+	ErrNoSuchLock = errors.New("no such lock")
+
+	// ErrClusterQuorum means that the cluster could not reach a healthy numbers of members to operate.
+	ErrClusterQuorum = errors.New("cannot be reached cluster quorum to operate")
+
+	// ErrKeyTooLarge means that the given key is too large to process.
+	// Maximum length of a key is 256 bytes.
+	ErrKeyTooLarge = errors.New("key too large")
 )
 
 // Olric implements a distributed cache and in-memory key/value data store.
@@ -399,4 +424,29 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 	// bootstrapping.
 	db.log.V(2).Printf("[INFO] %s is gone", db.name)
 	return latestError
+}
+
+func convertDMapError(err error) error {
+	switch {
+	case errors.Is(err, dmap.ErrKeyFound):
+		return ErrKeyFound
+	case errors.Is(err, dmap.ErrKeyNotFound):
+		return ErrKeyNotFound
+	case errors.Is(err, dmap.ErrDMapNotFound):
+		return ErrKeyNotFound
+	case errors.Is(err, dmap.ErrLockNotAcquired):
+		return ErrLockNotAcquired
+	case errors.Is(err, dmap.ErrNoSuchLock):
+		return ErrNoSuchLock
+	case errors.Is(err, dmap.ErrReadQuorum):
+		return ErrReadQuorum
+	case errors.Is(err, dmap.ErrWriteQuorum):
+		return ErrWriteQuorum
+	case errors.Is(err, dmap.ErrServerGone):
+		return ErrServerGone
+	case errors.Is(err, dmap.ErrKeyTooLarge):
+		return ErrKeyTooLarge
+	default:
+		return convertClusterError(err)
+	}
 }

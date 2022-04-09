@@ -18,13 +18,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/buraksezer/olric/internal/discovery"
 	"log"
 	"os"
 	"time"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -376,34 +376,24 @@ type ClusterClient struct {
 	logger *log.Logger
 }
 
-func (cl *ClusterClient) Ping(ctx context.Context, addr string) error {
-	cmd := protocol.NewPing().Command(ctx)
-	rc := cl.client.Get(addr)
-	err := rc.Process(ctx, cmd)
-	if err != nil {
-		return processProtocolError(err)
+func (cl *ClusterClient) Ping(ctx context.Context, addr, message string) (string, error) {
+	pingCmd := protocol.NewPing()
+	if message != "" {
+		pingCmd.SetMessage(message)
 	}
-	return processProtocolError(cmd.Err())
+	cmd := pingCmd.Command(ctx)
 
-}
-
-func (cl *ClusterClient) PingWithMessage(ctx context.Context, addr, message string) (string, error) {
-	cmd := protocol.NewPing().SetMessage(message).Command(ctx)
 	rc := cl.client.Get(addr)
 	err := rc.Process(ctx, cmd)
 	if err != nil {
 		return "", processProtocolError(err)
-
 	}
-	if err = cmd.Err(); err != nil {
-		return "", processProtocolError(err)
-
-	}
-	res, err := cmd.Bytes()
+	err = processProtocolError(cmd.Err())
 	if err != nil {
-		return "", processProtocolError(err)
+		return "", nil
 	}
-	return string(res), nil
+
+	return cmd.Result()
 }
 
 func (cl *ClusterClient) RoutingTable(ctx context.Context) (RoutingTable, error) {
@@ -430,7 +420,7 @@ func (cl *ClusterClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 	return mapToRoutingTable(result)
 }
 
-func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (stats.Stats, error) {
+func (cl *ClusterClient) Stats(ctx context.Context, address string, options ...StatsOption) (stats.Stats, error) {
 	var cfg statsConfig
 	for _, opt := range options {
 		opt(&cfg)
@@ -442,12 +432,9 @@ func (cl *ClusterClient) Stats(ctx context.Context, options ...StatsOption) (sta
 	}
 
 	cmd := statsCmd.Command(ctx)
-	rc, err := cl.client.Pick()
-	if err != nil {
-		return stats.Stats{}, err
-	}
+	rc := cl.client.Get(address)
 
-	err = rc.Process(ctx, cmd)
+	err := rc.Process(ctx, cmd)
 	if err != nil {
 		return stats.Stats{}, processProtocolError(err)
 	}

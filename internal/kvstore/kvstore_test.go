@@ -363,43 +363,6 @@ func TestKVStore_GetLastAccess(t *testing.T) {
 	require.NotEqual(t, 0, lastAccess)
 }
 
-func TestStorage_MatchOnKey(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
-
-	hkeys := make(map[uint64]struct{})
-	var key string
-	for i := 0; i < 100; i++ {
-		if i%2 == 0 {
-			key = "even:" + strconv.Itoa(i)
-		} else {
-			key = "odd:" + strconv.Itoa(i)
-		}
-
-		e := entry.New()
-		e.SetKey(key)
-		e.SetTTL(int64(i))
-		e.SetValue(bval(i))
-		e.SetTimestamp(time.Now().UnixNano())
-		hkey := xxhash.Sum64([]byte(e.Key()))
-		err := s.Put(hkey, e)
-		require.NoError(t, err)
-
-		hkeys[hkey] = struct{}{}
-	}
-
-	var count int
-	err = s.RegexMatchOnKeys("even:", func(hkey uint64, entry storage.Entry) bool {
-		count++
-		return true
-	})
-	require.NoError(t, err)
-
-	if count != 50 {
-		t.Fatalf("Expected count is 50. Got: %d", count)
-	}
-}
-
 func TestKVStore_Fork(t *testing.T) {
 	s, err := testKVStore(nil)
 	require.NoError(t, err)

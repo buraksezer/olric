@@ -45,7 +45,7 @@ func TestOlric_Stats(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	s, err := c.Stats(ctx)
+	s, err := c.Stats(ctx, db.rt.This().String())
 	require.NoError(t, err)
 
 	if s.ClusterCoordinator.ID != db.rt.This().ID {
@@ -87,12 +87,24 @@ func TestOlric_Stats_CollectRuntime(t *testing.T) {
 	db := cluster.addMember(t)
 
 	e := db.NewEmbeddedClient()
-	s, err := e.Stats(context.Background(), CollectRuntime())
+	s, err := e.Stats(context.Background(), db.rt.This().String(), CollectRuntime())
 	require.NoError(t, err)
 
 	if s.Runtime == nil {
 		t.Fatal("Runtime stats must be collected by default:", s.Runtime)
 	}
+}
+
+func TestOlric_Stats_Cluster(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+	db2 := cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	s, err := e.Stats(context.Background(), db2.rt.This().String())
+	require.NoError(t, err)
+	require.Nil(t, s.Runtime)
+	require.Equal(t, s.Member.String(), db2.rt.This().String())
 }
 
 func TestStats_PubSub(t *testing.T) {

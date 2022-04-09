@@ -27,7 +27,7 @@ func TestOlric_Ping(t *testing.T) {
 
 	result, err := db.ping(context.Background(), db.rt.This().String(), "")
 	require.NoError(t, err)
-	require.Equal(t, []byte(PingResponse), result)
+	require.Equal(t, []byte(DefaultPingResponse), result)
 }
 
 func TestOlric_PingWithMessage(t *testing.T) {
