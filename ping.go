@@ -22,7 +22,7 @@ import (
 	"github.com/tidwall/redcon"
 )
 
-const PingResponse = "PONG"
+const DefaultPingResponse = "PONG"
 
 func (db *Olric) ping(ctx context.Context, addr, message string) ([]byte, error) {
 	message = strings.TrimSpace(message)
@@ -52,5 +52,5 @@ func (db *Olric) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		conn.WriteString(pingCmd.Message)
 		return
 	}
-	conn.WriteString(PingResponse)
+	conn.WriteString(DefaultPingResponse)
 }

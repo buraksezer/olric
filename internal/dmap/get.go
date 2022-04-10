@@ -46,6 +46,7 @@ var (
 	EvictedTotal = stats.NewInt64Counter()
 )
 
+// ErrReadQuorum means that read quorum cannot be reached to operate.
 var ErrReadQuorum = errors.New("read quorum cannot be reached")
 
 type version struct {
@@ -56,9 +57,6 @@ type version struct {
 func (dm *DMap) getOnFragment(e *env) (storage.Entry, error) {
 	part := dm.getPartitionByHKey(e.hkey, e.kind)
 	f, err := dm.loadFragment(part)
-	if err == errFragmentNotFound {
-		err = ErrKeyNotFound
-	}
 	if err != nil {
 		return nil, err
 	}

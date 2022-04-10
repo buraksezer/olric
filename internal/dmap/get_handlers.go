@@ -69,6 +69,9 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.kind = kind
 	nt, err := dm.getOnFragment(e)
 	// TODO: errFragmentNotFound??
+	if err == errFragmentNotFound {
+		err = ErrKeyNotFound
+	}
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

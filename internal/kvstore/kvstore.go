@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"regexp"
 	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
@@ -428,35 +427,6 @@ func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
 			return f(hkey)
 		})
 	}
-}
-
-// RegexMatchOnKeys calls a regular expression on keys and provides an iterator.
-func (k *KVStore) RegexMatchOnKeys(expr string, f func(hkey uint64, e storage.Entry) bool) error {
-	// TODO: Delete this function
-	if len(k.tables) == 0 {
-		// There is nothing to do
-		return nil
-	}
-
-	r, err := regexp.Compile(expr)
-	if err != nil {
-		return err
-	}
-
-	// Scan available tables by starting the last added table.
-	for i := len(k.tables) - 1; i >= 0; i-- {
-		t := k.tables[i]
-		t.Range(func(hkey uint64, e storage.Entry) bool {
-			key, _ := t.GetRawKey(hkey)
-			if !r.Match(key) {
-				return true
-			}
-			data, _ := t.Get(hkey)
-			return f(hkey, data)
-		})
-	}
-
-	return nil
 }
 
 func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {

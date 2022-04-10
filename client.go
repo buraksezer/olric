@@ -184,6 +184,12 @@ type statsConfig struct {
 
 type StatsOption func(*statsConfig)
 
+func CollectRuntime() StatsOption {
+	return func(cfg *statsConfig) {
+		cfg.CollectRuntime = true
+	}
+}
+
 type pubsubConfig struct {
 	Address string
 }
@@ -196,13 +202,25 @@ func ToAddress(addr string) PubSubOption {
 
 type PubSubOption func(option *pubsubConfig)
 
+// Client is an interface that denotes an Olric client.
 type Client interface {
+	// NewDMap returns a new DMap client with the given options.
 	NewDMap(name string, options ...DMapOption) (DMap, error)
+
+	// NewPubSub returns a new PubSub client with the given options.
 	NewPubSub(options ...PubSubOption) (*PubSub, error)
-	Stats(ctx context.Context, options ...StatsOption) (stats.Stats, error)
-	Ping(ctx context.Context, addr string) error
-	PingWithMessage(ctx context.Context, addr, message string) (string, error)
+
+	// Stats returns stats.Stats with the given options.
+	Stats(ctx context.Context, address string, options ...StatsOption) (stats.Stats, error)
+
+	Ping(ctx context.Context, address, message string) (string, error)
+
+	// RoutingTable returns the latest version of the routing table.
 	RoutingTable(ctx context.Context) (RoutingTable, error)
+
+	// Members returns a list of cluster members.
 	Members(ctx context.Context) ([]Member, error)
+
+	// Close stops background routines and frees allocated resources.
 	Close(ctx context.Context) error
 }

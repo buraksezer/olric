@@ -19,7 +19,7 @@ import (
 	"log"
 )
 
-// ErrKeyTooLarge is an error that indicates the given key is large than the determined key size.
+// ErrKeyTooLarge is an error that indicates the given key is larger than the determined key size.
 // The current maximum key length is 256.
 var ErrKeyTooLarge = errors.New("key too large")
 
@@ -30,11 +30,17 @@ var ErrKeyNotFound = errors.New("key not found")
 // the functionality required to fulfill the request.
 var ErrNotImplemented = errors.New("not implemented yet")
 
+// TransferIterator is an interface to implement iterators to encode and transfer
+// the underlying tables to another Olric member.
 type TransferIterator interface {
+	// Next returns true if there are more tables to Export in the storage instance.
+	// Otherwise, it returns false.
 	Next() bool
 
+	// Export encodes a table and returns result. This encoded table can be moved to another Olric node.
 	Export() ([]byte, error)
 
+	// Pop pops the recently encoded table from the storage engine instance and frees allocated resources.
 	Pop() error
 }
 
@@ -89,9 +95,12 @@ type Engine interface {
 	// if the key doesn't exist.
 	UpdateTTL(uint64, Entry) error
 
+	// TransferIterator returns a new TransferIterator instance to the caller.
 	TransferIterator() TransferIterator
 
-	Import([]byte, func(uint64, Entry) error) error
+	// Import imports an encoded table of the storage engine implementation and
+	// calls f for every Entry item in that table.
+	Import(data []byte, f func(uint64, Entry) error) error
 
 	// Stats returns metrics for an online storage engine.
 	Stats() Stats
@@ -105,12 +114,13 @@ type Engine interface {
 	// RangeHKey implements a loop for hashed keys(HKeys).
 	RangeHKey(func(uint64) bool)
 
-	// RegexMatchOnKeys runs a regular expression over keys and loops over the result.
-	RegexMatchOnKeys(string, func(uint64, Entry) bool) error
+	// Scan implements an iterator. The caller starts iterating from the cursor. "count" is the number of entries
+	// that will be returned during the iteration. Scan calls the function "f" on Entry items for every iteration.
+	//It returns the next cursor if everything is okay. Otherwise, it returns an error.
+	Scan(cursor uint64, count int, f func(Entry) bool) (uint64, error)
 
-	Scan(uint64, int, func(Entry) bool) (uint64, error)
-
-	ScanRegexMatch(uint64, string, int, func(Entry) bool) (uint64, error)
+	// ScanRegexMatch is the same with the Scan method, but it supports regular expressions on keys.
+	ScanRegexMatch(cursor uint64, match string, count int, f func(Entry) bool) (uint64, error)
 
 	// Compaction reorganizes storage tables and reclaims wasted resources.
 	Compaction() (bool, error)

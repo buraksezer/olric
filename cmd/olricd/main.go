@@ -38,7 +38,7 @@ Distributed cache and in-memory data structure server.
 Options:
   -h, --help    Print this message and exit.
   -v, --version Print the version number and exit.
-  -c, --config  Sets configuration file path. Default is olricd.yaml in the
+  -c, --config  Sets configuration file path. Default is olricd-local.yaml in the
                 current folder. Set OLRICD_CONFIG to overwrite it.
 
 The Go runtime version %s
@@ -58,7 +58,7 @@ type arguments struct {
 
 const (
 	// DefaultConfigFile is the default configuration file path on a Unix-based operating system.
-	DefaultConfigFile = "olricd.yaml"
+	DefaultConfigFile = "olricd-local.yaml"
 
 	// EnvConfigFile is the name of environment variable which can be used to override default configuration file path.
 	EnvConfigFile = "OLRICD_CONFIG"

@@ -17,6 +17,8 @@ package dmap
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/buraksezer/olric/events"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
@@ -24,7 +26,6 @@ import (
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
 	"github.com/vmihailenco/msgpack/v5"
-	"time"
 )
 
 type fragmentPack struct {
