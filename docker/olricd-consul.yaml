@@ -1,44 +1,222 @@
 olricd:
+  # BindAddr denotes the address that Olric will bind to for communication
+  # with other Olric nodes.
   bindAddr: 0.0.0.0
+
+  # BindPort denotes the address that Olric will bind to for communication
+  # with other Olric nodes.
   bindPort: 3320
-  serializer: msgpack
+
+  # KeepAlivePeriod denotes whether the operating system should send
+  # keep-alive messages on the connection.
   keepAlivePeriod: 300s
+
+  # IdleClose will automatically close idle connections after the specified duration.
+  # Use zero to disable this feature.
+  # idleClose: 300s
+
+  # Timeout for bootstrap control
+  #
+  # An Olric node checks operation status before taking any action for the
+  # cluster events, responding incoming requests and running API functions.
+  # Bootstrapping status is one of the most important checkpoints for an
+  # "operable" Olric node. BootstrapTimeout sets a deadline to check
+  # bootstrapping status without blocking indefinitely.
   bootstrapTimeout: 5s
-  partitionCount:  13
+
+  # PartitionCount is 271, by default.
+  partitionCount: 271
+
+  # ReplicaCount is 1, by default.
   replicaCount: 1
+
+  # Minimum number of successful writes to return a response for a write request.
   writeQuorum: 1
+
+  # Minimum number of successful reads to return a response for a read request.
   readQuorum: 1
+
+  # Switch to control read-repair algorithm which helps to reduce entropy.
   readRepair: false
+
+  # Default value is SyncReplicationMode.
   replicationMode: 0 # sync mode. for async, set 1
+
+  # Minimum number of members to form a cluster and run any query on the cluster.
   memberCountQuorum: 1
+
+  # Coordinator member pushes the routing table to cluster members in the case of
+  # node join or left events. It also pushes the table periodically. routingTablePushInterval
+  # is the interval between subsequent calls. Default is 1 minute.
   routingTablePushInterval: 1m
 
-storageEngines:
-  config:
-    kvstore:
-      tableSize: 1048576
+  # Olric can send push cluster events to cluster.events channel. Available cluster events:
+  #
+  # * node-join-event
+  # * node-left-event
+  # * fragment-migration-event
+  # * fragment-received-event
+  #
+  # If you want to receive these events, set true to EnableClusterEventsChannel and subscribe to
+  # cluster.events channel. Default is false.
+  enableClusterEventsChannel: true
 
 client:
-  dialTimeout: -1s
+  # Timeout for TCP dial.
+  #
+  # The timeout includes name resolution, if required. When using TCP, and the host in the address parameter
+  # resolves to multiple IP addresses, the timeout is spread over each consecutive dial, such that each is
+  # given an appropriate fraction of the time to connect.
+  dialTimeout: 5s
+
+  # Timeout for socket reads. If reached, commands will fail
+  # with a timeout instead of blocking. Use value -1 for no timeout and 0 for default.
+  # Default is DefaultReadTimeout
   readTimeout: 3s
+
+  # Timeout for socket writes. If reached, commands will fail
+  # with a timeout instead of blocking.
+  # Default is DefaultWriteTimeout
   writeTimeout: 3s
-  keepAlive: 15s
-  minConn: 1
-  maxConn: 100
-  poolTimeout: 3s
+
+  # Maximum number of retries before giving up.
+  # Default is 3 retries; -1 (not 0) disables retries.
+  #maxRetries: 3
+
+  # Minimum backoff between each retry.
+  # Default is 8 milliseconds; -1 disables backoff.
+  #minRetryBackoff: 8ms
+
+  # Maximum backoff between each retry.
+  # Default is 512 milliseconds; -1 disables backoff.
+  #maxRetryBackoff: 512ms
+
+  # Type of connection pool.
+  # true for FIFO pool, false for LIFO pool.
+  # Note that fifo has higher overhead compared to lifo.
+  #poolFIFO: false
+
+  # Maximum number of socket connections.
+  # Default is 10 connections per every available CPU as reported by runtime.GOMAXPROCS.
+  #poolSize: 0
+
+  # Minimum number of idle connections which is useful when establishing
+  # new connection is slow.
+  #minIdleConns:
+
+  # Connection age at which client retires (closes) the connection.
+  # Default is to not close aged connections.
+  #maxConnAge:
+
+  # Amount of time client waits for connection if all connections are busy before
+  # returning an error. Default is ReadTimeout + 1 second.
+  #poolTimeout: 3s
+
+  # Amount of time after which client closes idle connections.
+  # Should be less than server's timeout.
+  # Default is 5 minutes. -1 disables idle timeout check.
+  idleTimeout: 5m
+
+  # Frequency of idle checks made by idle connections reaper.
+  # Default is 1 minute. -1 disables idle connections reaper,
+  # but idle connections are still discarded by the client
+  # if IdleTimeout is set.
+  idleCheckFrequency: 1m
+
 
 logging:
+  # DefaultLogVerbosity denotes default log verbosity level.
+  #
+  # * 1 - Generally useful for this to ALWAYS be visible to an operator
+  #   * Programmer errors
+  #   * Logging extra info about a panic
+  #   * CLI argument handling
+  # * 2 - A reasonable default log level if you don't want verbosity.
+  #   * Information about config (listening on X, watching Y)
+  #   * Errors that repeat frequently that relate to conditions that can be
+  #     corrected
+  # * 3 - Useful steady state information about the service and
+  #     important log messages that may correlate to
+  #   significant changes in the system.  This is the recommended default log
+  #     level for most systems.
+  #   * Logging HTTP requests and their exit code
+  #   * System state changing
+  #   * Controller state change events
+  #   * Scheduler log messages
+  # * 4 - Extended information about changes
+  #   * More info about system state changes
+  # * 5 - Debug level verbosity
+  #   * Logging in particularly thorny parts of code where you may want to come
+  #     back later and check it
+  # * 6 - Trace level verbosity
+  #   * Context to understand the steps leading up to neterrors and warnings
+  #   * More information for troubleshooting reported issues
   verbosity: 6
+
+  # Default LogLevel is DEBUG. Available levels: "DEBUG", "WARN", "ERROR", "INFO"
   level: DEBUG
   output: stderr
 
 memberlist:
-  environment: local
+  environment: lan
+
+  # Configuration related to what address to bind to and ports to
+  # listen on. The port is used for both UDP and TCP gossip. It is
+  # assumed other nodes are running on this port, but they do not need
+  # to.
   bindAddr: 0.0.0.0
   bindPort: 3322
+
+  # EnableCompression is used to control message compression. This can
+  # be used to reduce bandwidth usage at the cost of slightly more CPU
+  # utilization. This is only available starting at protocol version 1.
   enableCompression: false
+
+  # JoinRetryInterval is the time gap between attempts to join an existing
+  # cluster.
   joinRetryInterval: 1ms
+
+  # MaxJoinAttempts denotes the maximum number of attemps to join an existing
+  # cluster before forming a new one.
   maxJoinAttempts: 1
+
+  # See service discovery plugins
+  #peers:
+  #  - "localhost:3325"
+
+  #advertiseAddr: ""
+  #advertisePort: 3322
+  #suspicionMaxTimeoutMult: 6
+  #disableTCPPings: false
+  #awarenessMaxMultiplier: 8
+  #gossipNodes: 3
+  #gossipVerifyIncoming: true
+  #gossipVerifyOutgoing: true
+  #dnsConfigPath: "/etc/resolv.conf"
+  #handoffQueueDepth: 1024
+  #udpBufferSize: 1400
+
+dmaps:
+  engine:
+    name: kvstore
+    config:
+      tableSize: 524288 # bytes
+#  checkEmptyFragmentsInterval: 1m
+#  triggerCompactionInterval: 10m
+#  numEvictionWorkers: 1
+#  maxIdleDuration: ""
+#  ttlDuration: "100s"
+#  maxKeys: 100000
+#  maxInuse: 1000000
+#  lRUSamples: 10
+#  evictionPolicy: "LRU"
+#  custom:
+#   foobar:
+#      maxIdleDuration: "60s"
+#      ttlDuration: "300s"
+#      maxKeys: 500000
+#      lRUSamples: 20
+#      evictionPolicy: "NONE"
 
 serviceDiscovery:
   # path is a required property and used by Olric. It has to be a full path.

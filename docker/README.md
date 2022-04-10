@@ -14,7 +14,7 @@ docker-compose up olric
 To create a multi-node cluster:
 
 ```
-docker-compose up olric --scale olric=3
+docker-compose up --scale olric=10 olric
 ```
 
 Sample output:
