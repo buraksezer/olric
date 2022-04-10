@@ -17,12 +17,12 @@ package olric
 import (
 	"context"
 	"encoding/json"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/buraksezer/olric/internal/util"
 	"time"
 
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
+	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/buraksezer/olric/stats"
 )
 
@@ -69,7 +69,7 @@ func (dm *EmbeddedDMap) Scan(ctx context.Context, options ...ScanOption) (Iterat
 	if sc.Count == 0 {
 		sc.Count = DefaultScanCount
 	}
-	ictx, cancel := context.WithCancel(ctx)
+	iteratorCtx, cancel := context.WithCancel(ctx)
 	return &EmbeddedIterator{
 		client:   dm.client,
 		dm:       dm.dm,
@@ -77,7 +77,7 @@ func (dm *EmbeddedDMap) Scan(ctx context.Context, options ...ScanOption) (Iterat
 		allKeys:  make(map[string]struct{}),
 		finished: make(map[uint64]struct{}),
 		cursors:  make(map[uint64]uint64),
-		ctx:      ictx,
+		ctx:      iteratorCtx,
 		cancel:   cancel,
 	}, nil
 }
