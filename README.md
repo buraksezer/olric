@@ -10,7 +10,7 @@ See [Docker](#docker) and [Sample Code](#sample-code) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.3.12](https://github.com/buraksezer/olric/tree/v0.3.12)
+The current production version is [v0.4.3](https://github.com/buraksezer/olric/tree/v0.4.0#olric-)
 
 ## At a glance
 
