@@ -10,14 +10,14 @@ See [Docker](#docker) to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.4.3](https://github.com/buraksezer/olric/tree/v0.4.0)
+The current production version is [v0.4.3](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
 
 ### About versions
 
 Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis protocol](#https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
 Olric v0.4.x tree is going to receive bug fixes and security updates forever, but I would recommend considering an upgrade to the new version.
 
-This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/v0.4.0#olric-).
+This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-).
 
 **Important note**: Documenting `v0.5` is an ongoing effort. So some parts of this document may be wrong or inaccurate.
 
