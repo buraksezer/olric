@@ -6,37 +6,45 @@ Distributed cache and in-memory key/value data store. It can be used both as an 
 
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers. 
 
-See [Docker](#docker) and [Sample Code](#sample-code) sections to get started! 
+See [Docker](#docker) to get started! 
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
 The current production version is [v0.4.3](https://github.com/buraksezer/olric/tree/v0.4.0)
 
+### About versions
+
+Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis protocol](#https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
+Olric v0.4.x tree is going to receive bug fixes and security updates forever, but I would recommend considering an upgrade to the new version.
+
+This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/v0.4.0#olric-).
+
+**Important note**: Documenting `v0.5` is an ongoing effort. So some parts of this document may be wrong or inaccurate.
+
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
+* Has a Redis compatible API and uses Redis protocol,
+* Provides a drop-in replacement for Redis Publish/Subscribe messaging system.
 * Embeddable but can be used as a language-independent service with *olricd*,
-* Supports different eviction algorithms,
-* Supports Redis protocol,
+* Supports different eviction algorithms (including LRU and TTL),
 * Highly available and horizontally scalable,
 * Provides best-effort consistency guarantees without being a complete CP (indeed PA/EC) solution,
 * Supports replication by default (with sync and async options),
 * Quorum-based voting for replica control (Read/Write quorums),
 * Supports atomic operations,
-* Supports [distributed queries](#query) on keys,
+* Implements an iterator on distributed maps,
 * Provides a plugin interface for service discovery daemons,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode),
-* Supports [distributed topic](#distributed-topic) data structure,
 
 ## Possible Use Cases
 
-With this feature set, Olric is suitable to use as a distributed cache. But it also provides distributed topics, data replication, 
+With this feature set, Olric is good for distributed caching. But it also provides Publish-Subscribe, data replication, 
 failure detection and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
 
 ## Table of Contents
 
 * [Features](#features)
-* [Planned Features](#planned-features)
 * [Support](#support)
 * [Installing](#installing)
   * [Docker](#docker)
@@ -114,7 +122,7 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Accepts arbitrary types as value,
 * Only in-memory,
-* Implements a fast and simple binary protocol,
+* Has a Redis compatible API and uses Redis protocol,
 * Embeddable but can be used as a language-independent service with olricd,
 * GC-friendly storage engine,
 * O(1) running time for lookups,
@@ -137,15 +145,6 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
 
 See [Architecture](#architecture) section to see details.
 
-## Planned Features
-
-* Distributed queries over keys and values,
-* Persistence with AOF (Append Only File),
-* Anti-entropy system to repair inconsistencies in DMaps,
-* Eviction listeners by using Publish/Subscribe,
-* Memcached interface,
-* Client implementations for different languages: Java, Python and JavaScript.
-
 ## Support
 
 You feel free to ask any questions about Olric and possible integration problems.
@@ -161,116 +160,38 @@ You also feel free to open an issue on GitHub to report bugs and share feature r
 With a correctly configured Golang environment:
 
 ```
-go get -u github.com/buraksezer/olric
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-beta.1
 ```
 
-Then, install olricd and its siblings:
+Now you can start using Olric:
 
 ```
-go install -v ./cmd/*
-```
-
-Now you should access **olricd**, **olric-stats**, **olric-cli** and **olric-benchmark** on your path. You can just run olricd
-to start experimenting: 
-
-```
-olricd -c cmd/olricd/olricd.yaml
+olricd -c cmd/olricd/olricd-local.yaml
 ```
 
 See [Configuration](#configuration) section to create your cluster properly.
 
 ### Docker
 
-You can launch olricd Docker container by running the following command. 
+You can launch `olricd` Docker container by running the following command. 
 
 ```bash
-docker run -p 3320:3320 olricio/olricd:latest
+docker run -p 3320:3320 olricio/olricd:v0.5.0-beta.1
 ``` 
 
 This command will pull olricd Docker image and run a new Olric Instance. You should know that the container exposes 
 `3320` and `3322` ports. 
 
-Now, you can access the instance by using `olric-cli`. You can build `olric-cli` by using the following command:
+Now, you can access a running Olric instance by using `redis-cli`.
 
 ```bash
-go get -u github.com/buraksezer/olric/cmd/olric-cli
+redis-cli -p 3320
+127.0.0.1:3320> DM.PUT my-dmap my-key "Olric Rocks!"
+OK
+127.0.0.1:3320> DM.GET my-dmap my-key
+"Olric Rocks!"
+127.0.0.1:3320>
 ```
-
-Now you are able to connect the olricd server:
-
-```bash
-olric-cli
-[127.0.0.1:3320] »
-```
-
-Give `help` command to see available commands. Olric has a dedicated repository for Docker-related resources. Please take a look at
-[buraksezer/olric-docker](https://github.com/buraksezer/olric-docker) for more information.
-
-### Kubernetes
-
-Olric is able to discover peers automatically on Kubernetes platform via [olric-cloud-plugin](https://github.com/buraksezer/olric-cloud-plugin). We have a very simple 
-Kubernetes setup right now. In the near future, this will be a major development/improvement area for Olric. 
-
-If you have a running Kubernetes cluster, you can use the following command to deploy a new Olric cluster with 3 nodes:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/buraksezer/olric-kubernetes/master/olricd.yaml
-``` 
-
-If everything goes well, you should see something like that:
-
-```bash
-kubectl get pods
-NAME                      READY   STATUS    RESTARTS   AGE
-dnsutils                  1/1     Running   0          20d
-olricd-6c7f54d445-ndm8v   1/1     Running   0          34s
-olricd-6c7f54d445-s6g6r   1/1     Running   0          34s
-olricd-6c7f54d445-vjkhf   1/1     Running   0          34s
-```
-
-Now we have an Olric cluster on Kubernetes with 3 nodes. One of them is the cluster coordinator and manages the routing table for rest of the cluster. 
-
-Deploy `olric-debug` to reach the cluster:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/buraksezer/olric-kubernetes/master/olric-debug.yaml
-```
-
-Verify whether `olric-debug` pod works or not:
-
-```bash
-kubectl get pods
-NAME                      READY   STATUS    RESTARTS   AGE
-...
-olric-debug               1/1     Running   0          54s
-...
-```
-
-Get a shell to the running container:
-
-```bash
-kubectl exec -it olric-debug -- /bin/sh
-```
-
-Now you have a running Alpine Linux setup on Kubernetes. It includes `olric-cli`, `olric-benchmark` and `olric-stats` commands. 
-
-```bash
-/go/src/github.com/buraksezer/olric # olric-cli -a olricd.default.svc.cluster.local:3320
-[olricd.default.svc.cluster.local:3320] » use users
-use users
-[olricd.default.svc.cluster.local:3320] » put buraksezer {"_id": "06054057", "name": "Burak", "surname": "Sezer", "job": "Engineer"}
-[olricd.default.svc.cluster.local:3320] » get buraksezer
-{"_id": "06054057", "name": "Burak", "surname": "Sezer", "profession": "Engineer"}
-[olricd.default.svc.cluster.local:3320] »
-```
-
-Congrats! 
-
-Bringing Olric into Kubernetes will be a major development area in the next releases.
-
-### Working with Docker Compose
-
-We provide a multi-container environment to test, develop and deploy Olric clusters. [Here is the documentation.](docker/README.md)
 
 ## Operation Modes
 
@@ -295,10 +216,6 @@ See [olricd](#olricd) section to get started.
 
 Currently, we only have the official Golang client. A possible Python implementation is on the way. After stabilizing the
 Olric Binary Protocol, the others may appear quickly.
-
-## Tooling
-
-Olric comes with some useful tools to interact with the cluster. 
 
 ### olricd
 
@@ -328,116 +245,6 @@ for service discovery. Please take a look at [Service Discovery](#service-discov
 You can find a sample configuration file under `cmd/olricd/olricd.yaml`. 
 
 See [Client-Server](#client-server) section to get more information about this deployment scenario.
-
-### olric-cli
-
-olric-cli is the Olric command line interface, a simple program that allows to send commands to Olric, and read the replies 
-sent by the server, directly from the terminal.
-
-In order to install `olric-cli`:
-
-```bash
-go get -u github.com/buraksezer/olric/cmd/olric-cli
-```
-
-olric-cli has an interactive (REPL) mode just like `redis-cli`:
-
-```
-olric-cli
-[127.0.0.1:3320] >> use mydmap
-use mydmap
-[127.0.0.1:3320] >> get mykey
-myvalue
-[127.0.0.1:3320] >>
-```
-
-The interactive mode also keeps command history.  It's possible to send protocol commands as command line arguments:
-
-```
-olric-cli -d mydmap -c "put mykey myvalue"
-```
-
-Then, retrieve the key:
-
-```
-olric-cli -d mydmap -c "get mykey"
-```
-
-It'll print `myvalue`.
-
-In order to get more details about the options, call `olric-cli -h` in your shell.
-
-### olric-stats 
-
-olric-stats calls `Stats` command on a given cluster member and prints the result. 
-The results from the member also includes the Go runtime metrics and statistics from 
-hosted primary and backup partitions. 
-
-You should know that all the statistics are belonged to the current member. 
-
-In order to install `olric-stats`:
-
-```bash
-go get -u github.com/buraksezer/olric/cmd/olric-stats
-```
-
-Statistics about a partition:
-
-```
-olric-stats --partitions --id 69
-PartID: 69
-  Owner: olric.node:3320
-  Previous Owners: not found
-  Backups: not found
-  DMap count: 1
-  DMaps:
-    Name: olric-benchmark-test
-    Length: 1374
-    Allocated: 1048576
-    Inuse: 47946
-    Garbage: 0
-```
-
-In order to get detailed statistics about the Go runtime, you should call `olric-stats -a <ADDRESS> -r`. 
-In order to get more details about the command, call `olric-stats -h`.
-
-See [stats/stats.go](stats/stats.go) file to get detailed information about the statistics.
-
-### olric-benchmark
-
-olric-benchmark simulates running commands done by N clients at the same time sending M total queries. It measures response time.
-
-In order to install `olric-benchmark`:
-
-```bash
-go get -u github.com/buraksezer/olric/cmd/olric-benchmark
-```
-
-The following command calls `Put` command for 1M keys on `127.0.0.1:3320` (it's default) and uses `msgpack` for serialization.
-
-```
-olric-benchmark -a 192.168.1.3:3320 -s msgpack -r 1000000 -T put
-### STATS FOR COMMAND: PUT ###
-Serializer is msgpack
-1000000 requests completed in 6.943316278s
-50 parallel clients
-
-98.36% <= 0 milliseconds
-99.50% <= 1 milliseconds
-99.79% <= 2 milliseconds
-99.91% <= 3 milliseconds
-99.95% <= 4 milliseconds
-99.96% <= 5 milliseconds
-99.96% <= 6 milliseconds
-99.97% <= 7 milliseconds
-99.98% <= 10 milliseconds
-99.99% <= 15 milliseconds
-100.00% <= 96 milliseconds
-
-144023.397460 requests per second
-```
-
-In order to get more details about the command, call `olric-benchmark -h`.
 
 ## Usage
 
@@ -798,49 +605,6 @@ value, err := dm.GetPut("atomic-key", someType{})
 
 The returned value is an arbitrary type.
 
-## Pipelining
-
-Olric Binary Protocol(OBP) supports pipelining. All protocol commands can be pushed to a remote Olric server through a pipeline in a single write call. 
-A sample use looks like the following:
-
-```go
-// Create an ordinary Olric client, not Olric node!
-// ...
-// Create a new pipe and call on it whatever you want.
-pipe := client.NewPipeline()
-for i := 0; i < 10; i++ {
-    key := "key-" + strconv.Itoa(i)
-    err := pipe.Put("mydmap", key, i)
-    if err != nil {
-        fmt.Println("returned an error: ", err)
-    }
-}
-
-for i := 0; i < 10; i++ {
-    key := "key-" + strconv.Itoa(i)
-    err := pipe.Get("mydmap", key)
-    if err != nil {
-        fmt.Println("returned an error: ", err)
-    }
-}
-
-// Flush messages to the server.
-responses, err := pipe.Flush()
-if err != nil {
-    fmt.Println("returned an error: ", err)
-}
-
-// Read responses from the pipeline.
-for _, resp := range responses {
-    if resp.Operation() == "Get" {
-        val, err := resp.Get()
-        if err != nil {
-            fmt.Println("returned an error: ", err)
-        }
-        fmt.Println("Get response: ", val)
-    }
-}
-```
 
 There is no hard-limit on message count in a pipeline. You should set a convenient `KeepAlive` for large pipelines. Otherwise, you can get a timeout error.
 
