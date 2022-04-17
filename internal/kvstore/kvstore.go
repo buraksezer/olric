@@ -77,12 +77,17 @@ func (k *KVStore) makeTable() error {
 		}
 	}
 
-	size, err := k.config.Get("tableSize")
+	tmpSize, err := k.config.Get("tableSize")
 	if err != nil {
 		return err
 	}
 
-	current := table.New(size.(uint64))
+	size, err := prepareTableSize(tmpSize)
+	if err != nil {
+		return err
+	}
+
+	current := table.New(size)
 	k.tables = append(k.tables, current)
 	k.tablesByCoefficient[k.coefficient] = current
 	k.coefficient++
