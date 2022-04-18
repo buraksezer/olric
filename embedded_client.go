@@ -276,15 +276,6 @@ func (e *EmbeddedClient) NewPubSub(options ...PubSubOption) (*PubSub, error) {
 	return newPubSub(e.db.client, options...)
 }
 
-func (e *EmbeddedClient) NewPubSubWithAddr(addr string) (*PubSub, error) {
-	// TODO: Add an error type to Get
-	rc := e.db.client.Get(addr)
-	return &PubSub{
-		rc:     rc,
-		client: e.db.client,
-	}, nil
-}
-
 func (db *Olric) NewEmbeddedClient() *EmbeddedClient {
 	return &EmbeddedClient{db: db}
 }

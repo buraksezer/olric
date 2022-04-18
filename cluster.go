@@ -17,9 +17,9 @@ package olric
 import (
 	"context"
 	"fmt"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
+	"strconv"
 )
 
 type Route struct {
@@ -34,8 +34,17 @@ func mapToRoutingTable(slice []interface{}) (RoutingTable, error) {
 	for _, raw := range slice {
 		item := raw.([]interface{})
 		rawPartID, rawPrimaryOwners, rawReplicaOwners := item[0], item[1], item[2]
-		partID, ok := rawPartID.(int64)
-		if !ok {
+		var partID uint64
+		switch rawPartID.(type) {
+		case int64:
+			partID = uint64(rawPartID.(int64))
+		case string:
+			raw, err := strconv.ParseUint(rawPartID.(string), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid partition id: %v: %w", rawPartID, err)
+			}
+			partID = raw
+		default:
 			return nil, fmt.Errorf("invalid partition id: %v", rawPartID)
 		}
 
@@ -63,7 +72,7 @@ func mapToRoutingTable(slice []interface{}) (RoutingTable, error) {
 			}
 			r.ReplicaOwners = append(r.ReplicaOwners, owner)
 		}
-		rt[uint64(partID)] = r
+		rt[partID] = r
 	}
 	return rt, nil
 }

@@ -65,6 +65,35 @@ func TestDMap_Get_GetResponse(t *testing.T) {
 		require.Equal(t, value, scannedValue)
 	})
 
+	t.Run("TTL", func(t *testing.T) {
+		var value = []byte("olric")
+		err = dm.Put(ctx, "mykey-byte", value, &dmap.PutConfig{
+			HasEX: true,
+			EX:    time.Second,
+		})
+		require.NoError(t, err)
+
+		e, err := dm.Get(ctx, "mykey-byte")
+		require.NoError(t, err)
+
+		gr := &GetResponse{entry: e}
+		ttl := gr.TTL()
+		require.Greater(t, ttl, int64(0))
+	})
+
+	t.Run("Timestamp", func(t *testing.T) {
+		var value = []byte("olric")
+		err = dm.Put(ctx, "mykey-byte", value, nil)
+		require.NoError(t, err)
+
+		e, err := dm.Get(ctx, "mykey-byte")
+		require.NoError(t, err)
+
+		gr := &GetResponse{entry: e}
+		timestamp := gr.Timestamp()
+		require.Greater(t, timestamp, int64(0))
+	})
+
 	t.Run("Int", func(t *testing.T) {
 		var value = 100
 		err = dm.Put(ctx, "mykey-Int", value, nil)

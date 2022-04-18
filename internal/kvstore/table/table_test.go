@@ -192,6 +192,8 @@ func TestTable_UpdateTTL_Update_LastAccess(t *testing.T) {
 	lastAccessOne, err := tb.GetLastAccess(hkey)
 	require.NoError(t, err)
 
+	<-time.After(time.Millisecond)
+
 	ttl := time.Now().UnixNano() + 1000
 	e.SetTTL(ttl)
 

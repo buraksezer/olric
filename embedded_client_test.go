@@ -486,7 +486,7 @@ func TestEmbeddedClient_DMap_LockWithTimeout_Then_Lease(t *testing.T) {
 	require.ErrorIs(t, err, ErrLockNotAcquired)
 }
 
-func TestEmbeddedClient_RoutingTable(t *testing.T) {
+func TestEmbeddedClient_RoutingTable_Standalone(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
@@ -503,14 +503,17 @@ func TestEmbeddedClient_RoutingTable(t *testing.T) {
 
 func TestEmbeddedClient_RoutingTable_Cluster(t *testing.T) {
 	cluster := newTestOlricCluster(t)
-	db := cluster.addMember(t)
-	cluster.addMember(t)
-	cluster.addMember(t)
 
-	e := db.NewEmbeddedClient()
+	cluster.addMember(t) // Cluster coordinator
+	<-time.After(250 * time.Millisecond)
+
+	cluster.addMember(t)
+	db2 := cluster.addMember(t)
+
+	e := db2.NewEmbeddedClient()
 	rt, err := e.RoutingTable(context.Background())
 	require.NoError(t, err)
-	require.Len(t, rt, int(db.config.PartitionCount))
+	require.Len(t, rt, int(db2.config.PartitionCount))
 	owners := make(map[string]struct{})
 	for _, route := range rt {
 		for _, owner := range route.PrimaryOwners {

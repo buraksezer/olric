@@ -29,6 +29,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func resetPubSubStats() {
+	pubsub.SubscribersTotal.Reset()
+	pubsub.CurrentPSubscribers.Reset()
+	pubsub.CurrentSubscribers.Reset()
+	pubsub.PSubscribersTotal.Reset()
+	pubsub.PublishedTotal.Reset()
+}
+
 func TestOlric_Stats(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
@@ -108,6 +116,8 @@ func TestOlric_Stats_Cluster(t *testing.T) {
 }
 
 func TestStats_PubSub(t *testing.T) {
+	resetPubSubStats()
+
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)
 
@@ -116,11 +126,7 @@ func TestStats_PubSub(t *testing.T) {
 
 	t.Run("Subscribe", func(t *testing.T) {
 		defer func() {
-			pubsub.SubscribersTotal.Reset()
-			pubsub.CurrentPSubscribers.Reset()
-			pubsub.CurrentSubscribers.Reset()
-			pubsub.PSubscribersTotal.Reset()
-			pubsub.PublishedTotal.Reset()
+			resetPubSubStats()
 		}()
 
 		var subscribers []*redis.PubSub
@@ -159,11 +165,7 @@ func TestStats_PubSub(t *testing.T) {
 
 	t.Run("PSubscribe", func(t *testing.T) {
 		defer func() {
-			pubsub.SubscribersTotal.Reset()
-			pubsub.CurrentPSubscribers.Reset()
-			pubsub.CurrentSubscribers.Reset()
-			pubsub.PSubscribersTotal.Reset()
-			pubsub.PublishedTotal.Reset()
+			resetPubSubStats()
 		}()
 
 		ps := rc.PSubscribe(ctx, "h?llo")

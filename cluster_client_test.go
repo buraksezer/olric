@@ -79,6 +79,26 @@ func TestClusterClient_RoutingTable(t *testing.T) {
 	require.Len(t, rt, int(db.config.PartitionCount))
 }
 
+func TestClusterClient_RoutingTable_Cluster(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	cluster.addMember(t) // Cluster coordinator
+	<-time.After(250 * time.Millisecond)
+
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	rt, err := c.RoutingTable(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, rt, int(db.config.PartitionCount))
+}
+
 func TestClusterClient_Put(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)

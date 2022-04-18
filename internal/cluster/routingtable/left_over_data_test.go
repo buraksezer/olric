@@ -21,6 +21,7 @@ import (
 
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/internal/testutil/mockfragment"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRoutingTable_LeftOverData(t *testing.T) {
@@ -29,9 +30,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 
 	c1 := testutil.NewConfig()
 	rt1, err := cluster.addNode(c1)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	if !rt1.IsBootstrapped() {
 		t.Fatalf("The coordinator node cannot be bootstrapped")
@@ -46,9 +45,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 
 	c2 := testutil.NewConfig()
 	rt2, err := cluster.addNode(c2)
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
 		if !rt2.IsBootstrapped() {
@@ -56,9 +53,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("Expected nil. Got: %v", err)
-	}
+	require.NoError(t, err)
 
 	for partID := uint64(0); partID < c2.PartitionCount; partID++ {
 		part := rt2.primary.PartitionByID(partID)
@@ -72,7 +67,7 @@ func TestRoutingTable_LeftOverData(t *testing.T) {
 	for partID := uint64(0); partID < c1.PartitionCount; partID++ {
 		part := rt1.primary.PartitionByID(partID)
 		if len(part.Owners()) != 2 {
-			t.Fatalf("Expected partition owners count: 2. Got: %d", part.OwnerCount())
+			t.Fatalf("Expected partition owners count: 2. Got: %d, PartID: %d", part.OwnerCount(), partID)
 		}
 	}
 

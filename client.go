@@ -172,7 +172,7 @@ type DMap interface {
 
 	Scan(ctx context.Context, options ...ScanOption) (Iterator, error)
 
-	// Destroy flushes the given dmap on the cluster. You should know that there
+	// Destroy flushes the given DMap on the cluster. You should know that there
 	// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
 	// concurrently on the cluster, Put call may set new values to the dmap.
 	Destroy(ctx context.Context) error
