@@ -4,7 +4,7 @@ COPY . /src/
 RUN go mod download
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /usr/bin/olricd /src/cmd/olricd
 
-FROM gcr.io/distroless/base-debian10
+FROM gcr.io/distroless/base-debian11
 COPY --from=build /usr/bin/olricd /usr/bin/olricd
 COPY --from=build /src/olricd-docker.yaml /etc/olricd.yaml
 
