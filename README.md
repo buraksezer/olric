@@ -1064,7 +1064,7 @@ import (
 
 func main() {
   // Sample for Olric v0.5.x
-	
+
   // Deployment scenario: embedded-member
   // This creates a single-node Olric cluster. It's good enough for experimenting.
 
@@ -1238,66 +1238,66 @@ func main() {
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"time"
+  "context"
+  "fmt"
+  "log"
+  "time"
 
-	"github.com/buraksezer/olric"
+  "github.com/buraksezer/olric"
 )
 
 func main() {
-	// Sample for Olric v0.5.x
-	
-	// Deployment scenario: client-server
+  // Sample for Olric v0.5.x
 
-	// NewClusterClient takes a list of the nodes. This list may only contain a
-	// load balancer address. Please note that Olric nodes will calculate the partition owner
-	// and proxy the incoming requests.
-	c, err := olric.NewClusterClient([]string{"localhost:3320"})
-	if err != nil {
-		log.Fatalf("olric.NewClusterClient returned an error: %v", err)
-	}
+  // Deployment scenario: client-server
 
-	// In client-server scenario, you can use the ClusterClient. It implements
-	// the Client interface.
-	dm, err := c.NewDMap("bucket-of-arbitrary-items")
-	if err != nil {
-		log.Fatalf("olric.NewDMap returned an error: %v", err)
-	}
+  // NewClusterClient takes a list of the nodes. This list may only contain a
+  // load balancer address. Please note that Olric nodes will calculate the partition owner
+  // and proxy the incoming requests.
+  c, err := olric.NewClusterClient([]string{"localhost:3320"})
+  if err != nil {
+    log.Fatalf("olric.NewClusterClient returned an error: %v", err)
+  }
 
-	ctx, cancel := context.WithCancel(context.Background())
+  // In client-server scenario, you can use the ClusterClient. It implements
+  // the Client interface.
+  dm, err := c.NewDMap("bucket-of-arbitrary-items")
+  if err != nil {
+    log.Fatalf("olric.NewDMap returned an error: %v", err)
+  }
 
-	// Magic starts here!
-	fmt.Println("##")
-	fmt.Println("Simple Put/Get on a DMap instance:")
-	err = dm.Put(ctx, "my-key", "Olric Rocks!")
-	if err != nil {
-		log.Fatalf("Failed to call Put: %v", err)
-	}
+  ctx, cancel := context.WithCancel(context.Background())
 
-	gr, err := dm.Get(ctx, "my-key")
-	if err != nil {
-		log.Fatalf("Failed to call Get: %v", err)
-	}
+  // Magic starts here!
+  fmt.Println("##")
+  fmt.Println("Simple Put/Get on a DMap instance:")
+  err = dm.Put(ctx, "my-key", "Olric Rocks!")
+  if err != nil {
+    log.Fatalf("Failed to call Put: %v", err)
+  }
 
-	// Olric uses the Redis serialization format.
-	value, err := gr.String()
-	if err != nil {
-		log.Fatalf("Failed to read Get response: %v", err)
-	}
+  gr, err := dm.Get(ctx, "my-key")
+  if err != nil {
+    log.Fatalf("Failed to call Get: %v", err)
+  }
 
-	fmt.Println("Response for my-key:", value)
-	fmt.Println("##")
+  // Olric uses the Redis serialization format.
+  value, err := gr.String()
+  if err != nil {
+    log.Fatalf("Failed to read Get response: %v", err)
+  }
 
-	// Don't forget the call Shutdown when you want to leave the cluster.
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+  fmt.Println("Response for my-key:", value)
+  fmt.Println("##")
 
-	err = c.Close(ctx)
-	if err != nil {
-		log.Printf("Failed to close ClusterClient: %v", err)
-	}
+  // Don't forget the call Shutdown when you want to leave the cluster.
+  ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+  defer cancel()
+
+  err = c.Close(ctx)
+  if err != nil {
+    log.Printf("Failed to close ClusterClient: %v", err)
+  }
 }
 ```
 
