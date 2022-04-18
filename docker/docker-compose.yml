@@ -22,7 +22,8 @@ services:
       - '8600:8600/udp'
 
   olric:
-    image: docker.io/olricio/olric-consul-plugin:v0.5.0-beta.1
+    image: docker.io/olricio/olric-consul-plugin:v0.5.0-beta.2
+    restart: on-failure
     volumes:
       - ${PWD}/olricd-consul.yaml:/etc/olricd.yaml:ro
     depends_on:
