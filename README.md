@@ -26,7 +26,7 @@ The current production version is [v0.4.4](https://github.com/buraksezer/olric/t
 
 ### About versions
 
-Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis protocol](#https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
+Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis protocol](https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
 Olric v0.4.x tree is going to receive bug fixes and security updates forever, but I would recommend considering an upgrade to the new version.
 
 This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-).
@@ -66,6 +66,11 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
   * [Operation Modes](#operation-modes)
     * [Embedded Member](#embedded-member)
     * [Client-Server](#client-server)
+* [Commands](#commands)
+  * [Distributed Map](#distributed-map)
+    * [DM.PUT](#dmput)
+    * [DM.GET](#dmget)
+    * [DM.DEL](#dmdel)
 * [Usage](#usage)
   * [Distributed Map](#distributed-map)
     * [Put](#put)
@@ -260,6 +265,83 @@ and scaled. Your clients communicate with these members to reach to Olric data a
 Client-Server deployment has advantages including more predictable and reliable performance, easier identification
 of problem causes and, most importantly, better scalability. When you need to scale in this deployment type, just add more
 Olric server members. You can address client and server scalability concerns separately.
+
+## Commands
+
+Olric uses Redis protocol and supports Redis-style commands to query the database. You can use any Redis client, including
+`redis-cli`. The official Go client is a thin layer around [go-redis/redis](https://github.com/go-redis/redis) package.
+
+### Distributed Map
+
+#### DM.PUT 
+
+DM.PUT sets the value for the given key. It overwrites any previous value for that key.
+
+```
+DM.PUT dmap key value [ EX seconds | PX milliseconds | EXAT unix-time-seconds | PXAT unix-time-milliseconds ] [ NX | XX]
+```
+
+**Example:**
+```
+127.0.0.1:3320> DM.PUT my-dmap my-key value
+OK
+```
+
+**Options:**
+
+The DM.PUT command supports a set of options that modify its behavior:
+
+* **EX** *seconds* -- Set the specified expire time, in seconds.
+* **PX** *milliseconds* -- Set the specified expire time, in milliseconds.
+* **EXAT** *timestamp-seconds* -- Set the specified Unix time at which the key will expire, in seconds.
+* **PXAT** *timestamp-milliseconds* -- Set the specified Unix time at which the key will expire, in milliseconds.
+* **NX** -- Only set the key if it does not already exist.
+* **XX** -- Only set the key if it already exist.
+
+**Return:**
+
+* **Simple string reply:** OK if DM.PUT was executed correctly.
+* **KEYFOUND:** (error) if the DM.PUT operation was not performed because the user specified the NX option but the condition was not met.
+* **KEYNOTFOUND:** (error) if the DM.PUT operation was not performed because the user specified the XX option but the condition was not met.
+
+#### DM.GET
+
+DM.GET gets the value for the given key. It returns (error)`KEYNOTFOUND` if the key doesn't exist. 
+
+```
+DM.PUT dmap key
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.GET dmap key
+"value"
+```
+
+**Return:**
+
+**Bulk string reply**: the value of key, or (error)`KEYNOTFOUND` when key does not exist.
+
+#### DM.DEL
+
+DM.DEL deletes the value for the given key. It doesn't return error if the key does not exist.
+
+```
+DM.DEL dmap key
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.DEL dmap key
+(integer) 1
+```
+
+**Return:**
+
+* **Integer reply**: The number of keys that were removed.
+
 
 ## Usage
 
