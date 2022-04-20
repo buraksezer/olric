@@ -71,6 +71,14 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
     * [DM.PUT](#dmput)
     * [DM.GET](#dmget)
     * [DM.DEL](#dmdel)
+    * [DM.EXPIRE](#dmexpire)
+    * [DM.PEXPIRE](#dmpexpire)
+    * [DM.DESTROY](#dmdestroy)
+    * [Atomic Operations](#atomic-operations)
+      * [DM.INCR](#dmincr)
+      * [DM.DECR](#dmdecr)
+      * [DM.GETPUT](#dmgetput)
+    * [DM.LOCK](#dmlock)
 * [Usage](#usage)
   * [Distributed Map](#distributed-map)
     * [Put](#put)
@@ -342,6 +350,187 @@ DM.DEL dmap key
 
 * **Integer reply**: The number of keys that were removed.
 
+#### DM.EXPIRE
+
+DM.EXPIRE updates or sets the timeout for the given key. It returns `KEYNOTFOUND` if the key doesn't exist. After the timeout has expired, 
+the key will automatically be deleted. 
+
+The timeout will only be cleared by commands that delete or overwrite the contents of the key, including DM.DEL, DM.PUT, DM.GETPUT.
+
+```
+DM.EXPIRE dmap key seconds
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.EXPIRE dmap key 1
+OK
+```
+
+**Return:**
+
+* **Simple string reply:** OK if DM.EXPIRE was executed correctly.
+* **KEYNOTFOUND:** (error) when key does not exist.
+
+#### DM.PEXPIRE
+
+DM.PEXPIRE updates or sets the timeout for the given key. It returns `KEYNOTFOUND` if the key doesn't exist. After the timeout has expired,
+the key will automatically be deleted.
+
+The timeout will only be cleared by commands that delete or overwrite the contents of the key, including DM.DEL, DM.PUT, DM.GETPUT.
+
+```
+DM.PEXPIRE dmap key milliseconds
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.PEXPIRE dmap key 1000
+OK
+```
+
+**Return:**
+
+* **Simple string reply:** OK if DM.EXPIRE was executed correctly.
+* **KEYNOTFOUND:** (error) when key does not exist.
+
+#### DM.DESTROY
+
+DM.DESTROY flushes the given DMap on the cluster. You should know that there is no global lock on DMaps. DM.PUT and DM.DESTROY commands
+may run concurrently on the same DMap. 
+
+```
+DM.DESTROY dmap
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.DESTROY dmap
+OK
+```
+
+**Return:**
+
+* **Simple string reply:** OK, if DM.DESTROY was executed correctly.
+
+### Atomic Operations
+
+Operations on key/value pairs are performed by the partition owner. In addition, atomic operations are guarded by a lock implementation which can be found under `internal/locker`. It means that
+Olric guaranties consistency of atomic operations, if there is no network partition. Basic flow for `DM.INCR`:
+
+* Acquire the lock for the given key,
+* Call `DM.GET` to retrieve the current value,
+* Calculate the new value,
+* Call `DM.PUT` to set the new value,
+* Release the lock.
+
+It's important to know that if you call `DM.PUT` and `DM.GETPUT` concurrently on the same key, this will break the atomicity.
+
+`internal/locker` package is provided by [Docker](https://github.com/moby/moby).
+
+**Important note about consistency:**
+
+You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value
+pairs are performed by a single cluster member. It means that you can be sure about the consistency when the cluster is stable. It's important to know that computer networks fail
+occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning,
+you need to use a different tool for atomic operations.
+
+See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) and [Jepsen Analysis on Hazelcast 3.8.3](https://hazelcast.com/blog/jepsen-analysis-hazelcast-3-8-3/) for more insight on this topic.
+
+
+#### DM.INCR
+
+DM.INCR atomically increments the number stored at key by delta. The return value is the new value after being incremented or an error.
+
+```
+DM.INCR dmap key delta
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.INCR dmap key 10
+(integer) 10
+```
+
+**Return:**
+
+* **Integer reply:** the value of key after the increment.
+
+#### DM.DECR
+
+DM.DECR atomically decrements the number stored at key by delta. The return value is the new value after being incremented or an error.
+
+```
+DM.DECR dmap key delta
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.DECR dmap key 10
+(integer) 0
+```
+
+**Return:**
+
+* **Integer reply:** the value of key after the increment.
+
+#### DM.GETPUT
+
+DM.GETPUT atomically sets key to value and returns the old value stored at the key.
+
+```
+DM.GETPUT dmap key value
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.GETPUT dmap key value-1
+(nil)
+127.0.0.1:3320> DM.GETPUT dmap key value-2
+"value-1"
+```
+
+**Return:**
+
+* **Bulk string reply**: the old value stored at the key.
+
+#### DM.LOCK
+
+DM.LOCK sets a lock for the given key. The acquired lock is only valid for the key in this DMap.
+It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline.
+
+DM.LOCK returns a token. You must keep that token to unlock the key. Using prefixed keys is highly recommended.
+If the key does already exist in the DMap, DM.LOCK will wait until the deadline is exceeded.
+
+**You should know that the locks are approximate, and only to be used for non-critical purposes.**
+
+```
+DM.LOCK dmap key seconds [ EX seconds | PX milliseconds ]
+```
+
+**Options:**
+
+* **EX** *seconds* -- Set the specified expire time, in seconds.
+* **PX** *milliseconds* -- Set the specified expire time, in milliseconds.
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.LOCK dmap lock.key 10
+2363ec600be286cb10fbb35181efb029
+```
+
+**Return:**
+
+* **Simple string reply:** a token to unlock or lease the lock.
+* **NOSUCHLOCK**: (error) returned when the requested lock does not exist.
+* **LOCKNOTACQUIRED**: (error) returned when the requested lock could not be acquired.
 
 ## Usage
 
