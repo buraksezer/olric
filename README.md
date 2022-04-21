@@ -78,7 +78,12 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
       * [DM.INCR](#dmincr)
       * [DM.DECR](#dmdecr)
       * [DM.GETPUT](#dmgetput)
-    * [DM.LOCK](#dmlock)
+    * [Locking](#locking)
+      * [DM.LOCK](#dmlock)
+      * [DM.UNLOCK](#dmunlock)
+      * [DM.LOCKLEASE](#dmlocklease)
+      * [DM.PLOCKLEASE](#dmplocklease)
+    * [DM.SCAN](#dmscan)
 * [Usage](#usage)
   * [Distributed Map](#distributed-map)
     * [Put](#put)
@@ -500,6 +505,41 @@ DM.GETPUT dmap key value
 
 * **Bulk string reply**: the old value stored at the key.
 
+### Locking
+
+**Important:** The lock provided by DMap implementation is approximate and only to be used for non-critical purposes.
+
+The DMap implementation is already thread-safe to meet your thread safety requirements. When you want to have more control on the
+concurrency, you can use **DM.LOCK** command. Olric borrows the locking algorithm from Redis. Redis authors propose
+the following algorithm:
+
+> The command <SET resource-name anystring NX EX max-lock-time> is a simple way to implement a locking system with Redis.
+>
+> A client can acquire the lock if the above command returns OK (or retry after some time if the command returns Nil), and remove the lock just using DEL.
+>
+> The lock will be auto-released after the expire time is reached.
+>
+> It is possible to make this system more robust modifying the unlock schema as follows:
+>
+> Instead of setting a fixed string, set a non-guessable large random string, called token.
+> Instead of releasing the lock with DEL, send a script that only removes the key if the value matches.
+> This avoids that a client will try to release the lock after the expire time deleting the key created by another client that acquired the lock later.
+
+Equivalent of `SETNX` command in Olric is `DM.PUT dmap key value NX`. DM.LOCK command are properly implements
+the algorithm which is proposed above.
+
+You should know that this implementation is subject to the clustering algorithm. So there is no guarantee about reliability in the case of network partitioning. I recommend the lock implementation to be used for
+efficiency purposes in general, instead of correctness.
+
+**Important note about consistency:**
+
+You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value
+pairs are performed by a single cluster member. It means that you can be sure about the consistency when the cluster is stable. It's important to know that computer networks fail
+occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning,
+you need to use a different tool for locking.
+
+See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) and [Jepsen Analysis on Hazelcast 3.8.3](https://hazelcast.com/blog/jepsen-analysis-hazelcast-3-8-3/) for more insight on this topic.
+
 #### DM.LOCK
 
 DM.LOCK sets a lock for the given key. The acquired lock is only valid for the key in this DMap.
@@ -507,8 +547,6 @@ It returns immediately if it acquires the lock for the given key. Otherwise, it 
 
 DM.LOCK returns a token. You must keep that token to unlock the key. Using prefixed keys is highly recommended.
 If the key does already exist in the DMap, DM.LOCK will wait until the deadline is exceeded.
-
-**You should know that the locks are approximate, and only to be used for non-critical purposes.**
 
 ```
 DM.LOCK dmap key seconds [ EX seconds | PX milliseconds ]
@@ -531,6 +569,111 @@ DM.LOCK dmap key seconds [ EX seconds | PX milliseconds ]
 * **Simple string reply:** a token to unlock or lease the lock.
 * **NOSUCHLOCK**: (error) returned when the requested lock does not exist.
 * **LOCKNOTACQUIRED**: (error) returned when the requested lock could not be acquired.
+
+#### DM.UNLOCK
+
+DM.UNLOCK releases an acquired lock for the given key. It returns `NOSUCHLOCK` if there is no lock for the given key.
+
+```
+DM.UNLOCK dmap key token
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.UNLOCK dmap key 2363ec600be286cb10fbb35181efb029
+OK
+```
+
+**Return:**
+
+* **Simple string reply:** OK if DM.UNLOCK was executed correctly.
+* **NOSUCHLOCK**: (error) returned when the lock does not exist.
+
+#### DM.LOCKLEASE
+
+DM.LOCKLEASE sets or updates the timeout of the acquired lock for the given key. It returns `NOSUCHLOCK` if there is no lock for the given key.
+
+DM.LOCKLEASE accepts seconds as timeout.
+```
+DM.LOCKLEASE dmap key token seconds
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.LOCKLEASE dmap key 2363ec600be286cb10fbb35181efb029 100
+OK
+```
+
+**Return:**
+
+* **Simple string reply:** OK if DM.UNLOCK was executed correctly.
+* **NOSUCHLOCK**: (error) returned when the lock does not exist.
+
+#### DM.PLOCKLEASE
+
+DM.PLOCKLEASE sets or updates the timeout of the acquired lock for the given key. It returns `NOSUCHLOCK` if there is no lock for the given key.
+
+DM.PLOCKLEASE accepts milliseconds as timeout.
+
+```
+DM.LOCKLEASE dmap key token milliseconds
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.PLOCKLEASE dmap key 2363ec600be286cb10fbb35181efb029 1000
+OK
+```
+
+**Return:**
+
+* **Simple string reply:** OK if DM.PLOCKLEASE was executed correctly.
+* **NOSUCHLOCK**: (error) returned when the lock does not exist.
+
+#### DM.SCAN
+
+DM.SCAN is a cursor based iterator. This means that at every call of the command, the server returns an updated cursor 
+that the user needs to use as the cursor argument in the next call.
+
+An iteration starts when the cursor is set to 0, and terminates when the cursor returned by the server is 0. The iterator runs
+locally on every partition. So you need to know the partition count. If the returned cursor is 0 for a particular partition,
+you have to start scanning the next partition. 
+
+```
+DM.SCAN partID dmap cursor [ MATCH pattern | COUNT count ]
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.SCAN 3 bench 0
+1) "96990"
+2)  1) "memtier-2794837"
+    2) "memtier-8630933"
+    3) "memtier-6415429"
+    4) "memtier-7808686"
+    5) "memtier-3347072"
+    6) "memtier-4247791"
+    7) "memtier-3931982"
+    8) "memtier-7164719"
+    9) "memtier-4710441"
+   10) "memtier-8892916"
+127.0.0.1:3320> DM.SCAN 3 bench 96990
+1) "193499"
+2)  1) "memtier-429905"
+    2) "memtier-1271812"
+    3) "memtier-7835776"
+    4) "memtier-2717575"
+    5) "memtier-95312"
+    6) "memtier-2155214"
+    7) "memtier-123931"
+    8) "memtier-2902510"
+    9) "memtier-2632291"
+   10) "memtier-1938450"
+```
 
 ## Usage
 

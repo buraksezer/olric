@@ -464,11 +464,14 @@ func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (
 }
 
 func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
-	tmp, err := k.config.Get("tableSize")
+	raw, err := k.config.Get("tableSize")
 	if err != nil {
 		return 0, err
 	}
-	size := tmp.(uint64)
+	size, err := prepareTableSize(raw)
+	if err != nil {
+		return 0, err
+	}
 
 	cf := cursor / size
 	t := k.tablesByCoefficient[cf]
