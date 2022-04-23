@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -70,7 +71,13 @@ func (s *Service) doCompaction(partID uint64) {
 func (s *Service) triggerCompaction() {
 	var wg sync.WaitGroup
 
-	sem := semaphore.NewWeighted(10)
+	// NumCPU returns the number of logical CPUs usable by the current process.
+	//
+	// The set of available CPUs is checked by querying the operating system
+	// at process startup. Changes to operating system CPU allocation after
+	// process startup are not reflected.
+	numWorkers := runtime.NumCPU()
+	sem := semaphore.NewWeighted(int64(numWorkers))
 	for partID := uint64(0); partID < s.config.PartitionCount; partID++ {
 		select {
 		case <-s.ctx.Done():
@@ -79,7 +86,7 @@ func (s *Service) triggerCompaction() {
 		}
 
 		if err := sem.Acquire(s.ctx, 1); err != nil {
-			s.log.V(3).Printf("[ERROR] Failed to acquire semaphore: %v", err)
+			s.log.V(3).Printf("[ERROR] Failed to acquire semaphore for DMap compaction: %v", err)
 			continue
 		}
 
