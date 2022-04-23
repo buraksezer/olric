@@ -304,44 +304,55 @@ func (db *Olric) isOperable() error {
 	return db.rt.CheckBootstrap()
 }
 
-// Start starts background servers and joins the cluster. You still need to call
-// Shutdown method if Start function returns an early error.
+// Start starts background servers and joins the cluster. You still must call Shutdown
+// method if Start function returns an early error.
 func (db *Olric) Start() error {
 	db.log.V(1).Printf("[INFO] Olric %s on %s/%s %s", ReleaseVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
 
+	// This error group is responsible to run the TCP server at background and report errors.
 	errGr, ctx := errgroup.WithContext(context.Background())
-
 	errGr.Go(func() error {
 		return db.server.ListenAndServe()
 	})
 
 	select {
 	case <-db.server.StartedCtx.Done():
-		// The TCP server has been started
+		// TCP server has been started
 	case <-ctx.Done():
-		if err := db.Shutdown(context.Background()); err != nil {
-			db.log.V(2).Printf("[ERROR] Failed to Shutdown: %v", err)
-		}
+		// TCP server could not be started due to an error. There is no need to run
+		// Olric.Shutdown here because we could not start anything.
 		return errGr.Wait()
 	}
 
 	// Balancer works periodically to balance partition data across the cluster.
 	if err := db.balancer.Start(); err != nil {
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to run the balancer subsystem: %v", err)
+		}
 		return err
 	}
 
 	// Start routing table service and member discovery subsystem.
 	if err := db.rt.Start(); err != nil {
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to run the routing table subsystem: %v", err)
+		}
 		return err
 	}
 
 	// Start publish-subscribe service
 	if err := db.pubsub.Start(); err != nil {
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to run the Publish-Subscribe service: %v", err)
+		}
 		return err
 	}
 
 	// Start distributed map service
 	if err := db.dmap.Start(); err != nil {
+		if err != nil {
+			db.log.V(2).Printf("[ERROR] Failed to run the Distributed Map service: %v", err)
+		}
 		return err
 	}
 
@@ -366,6 +377,8 @@ func (db *Olric) Start() error {
 	db.log.V(2).Printf("[INFO] Olric bindAddr: %s, bindPort: %d",
 		db.config.BindAddr, db.config.BindPort)
 	db.log.V(2).Printf("[INFO] Replication count is %d", db.config.ReplicaCount)
+
+	// Wait for the TCP server.
 	return errGr.Wait()
 }
 
@@ -373,6 +386,7 @@ func (db *Olric) Start() error {
 func (db *Olric) Shutdown(ctx context.Context) error {
 	select {
 	case <-db.ctx.Done():
+		// Shutdown only once.
 		return nil
 	default:
 	}

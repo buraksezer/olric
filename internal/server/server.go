@@ -205,6 +205,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	s.cancel()
 
+	if s.server == nil {
+		// There is nothing to close.
+		return nil
+	}
+
 	var latestError error
 	err := s.server.Close()
 	if err != nil {

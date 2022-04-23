@@ -17,10 +17,10 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"runtime"
 
@@ -66,8 +66,6 @@ const (
 
 func main() {
 	args := &arguments{}
-	// No need for timestamp and etc in this function. Just log it.
-	log.SetFlags(0)
 
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
@@ -82,11 +80,11 @@ func main() {
 	f.StringVar(&args.config, "c", DefaultConfigFile, "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
-		log.Fatalf("Failed to parse flags: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, fmt.Sprintf("Failed to parse flags: %v", err))
 	}
 
 	if args.version {
-		log.Printf("olricd version %s %s %s/%s\n",
+		_, _ = fmt.Fprintf(os.Stderr, "olricd version %s %s %s/%s\n",
 			olric.ReleaseVersion,
 			runtime.Version(),
 			runtime.GOOS,
@@ -111,17 +109,24 @@ func main() {
 
 	c, err := config.Load(args.config)
 	if err != nil {
-		log.Fatalf("olricd: %v", err)
+		c.Logger.Fatalf("[ERROR] Failed to load the configuration: %v", err)
 	}
 
 	s, err := server.New(c)
 	if err != nil {
-		log.Fatalf("olricd: %v", err)
+		c.Logger.Fatalf("[ERROR] Failed to create a new Olric instance: %v", err)
 	}
 
 	if err = s.Start(); err != nil {
-		log.Fatalf("olricd: %v", err)
+		c.Logger.Printf("[ERROR] Failed to start Olric: %v", err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := s.Shutdown(ctx); err != nil {
+			c.Logger.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+		c.Logger.Fatal("[ERROR] Quit unexpectedly!")
 	}
 
-	log.Print("Quit!")
+	c.Logger.Print("[INFO] Quit!")
 }

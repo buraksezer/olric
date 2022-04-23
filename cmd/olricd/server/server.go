@@ -47,7 +47,7 @@ func (s *Olricd) waitForInterrupt() {
 	shutDownChan := make(chan os.Signal, 1)
 	signal.Notify(shutDownChan, syscall.SIGTERM, syscall.SIGINT)
 	ch := <-shutDownChan
-	s.log.Printf("[olricd] Signal catched: %s", ch.String())
+	s.log.Printf("[INFO] Signal catched: %s", ch.String())
 
 	// Awaits for shutdown
 	s.errGr.Go(func() error {
@@ -55,7 +55,7 @@ func (s *Olricd) waitForInterrupt() {
 		defer cancel()
 
 		if err := s.db.Shutdown(ctx); err != nil {
-			s.log.Printf("[olricd] Failed to shutdown Olric: %v", err)
+			s.log.Printf("[ERROR] Failed to shutdown Olric: %v", err)
 			return err
 		}
 
@@ -64,22 +64,22 @@ func (s *Olricd) waitForInterrupt() {
 
 	// This is not a goroutine leak. The process will quit.
 	go func() {
-		s.log.Printf("[olricd] Awaiting for background tasks")
-		s.log.Printf("[olricd] Press CTRL+C or send SIGTERM/SIGINT to quit immediately")
+		s.log.Printf("[INFO] Awaiting for background tasks")
+		s.log.Printf("[INFO] Press CTRL+C or send SIGTERM/SIGINT to quit immediately")
 
 		forceQuitCh := make(chan os.Signal, 1)
 		signal.Notify(forceQuitCh, syscall.SIGTERM, syscall.SIGINT)
 		ch := <-forceQuitCh
 
-		s.log.Printf("[olricd] Signal caught: %s", ch.String())
-		s.log.Printf("[olricd] Quits with exit code 1")
+		s.log.Printf("[INFO] Signal caught: %s", ch.String())
+		s.log.Printf("[INFO] Quits with exit code 1")
 		os.Exit(1)
 	}()
 }
 
 // Start starts a new olricd server instance and blocks until the server is closed.
 func (s *Olricd) Start() error {
-	s.log.Printf("[olricd] pid: %d has been started", os.Getpid())
+	s.log.Printf("[INFO] pid: %d has been started", os.Getpid())
 	// Wait for SIGTERM or SIGINT
 	go s.waitForInterrupt()
 
@@ -90,12 +90,13 @@ func (s *Olricd) Start() error {
 	s.db = db
 
 	s.errGr.Go(func() error {
-		if err = s.db.Start(); err != nil {
-			s.log.Printf("[olricd] Failed to run Olric: %v", err)
-			return err
-		}
-		return nil
+		return s.db.Start()
 	})
 
 	return s.errGr.Wait()
+}
+
+// Shutdown stops background servers and leaves the cluster.
+func (s *Olricd) Shutdown(ctx context.Context) error {
+	return s.db.Shutdown(ctx)
 }
