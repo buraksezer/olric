@@ -322,7 +322,7 @@ The DM.PUT command supports a set of options that modify its behavior:
 DM.GET gets the value for the given key. It returns (error)`KEYNOTFOUND` if the key doesn't exist. 
 
 ```
-DM.PUT dmap key
+DM.GET dmap key
 ```
 
 **Example:**
