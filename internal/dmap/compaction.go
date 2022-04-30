@@ -15,6 +15,7 @@
 package dmap
 
 import (
+	"context"
 	"runtime"
 	"strings"
 	"sync"
@@ -86,7 +87,9 @@ func (s *Service) triggerCompaction() {
 		}
 
 		if err := sem.Acquire(s.ctx, 1); err != nil {
-			s.log.V(3).Printf("[ERROR] Failed to acquire semaphore for DMap compaction: %v", err)
+			if err != context.Canceled {
+				s.log.V(3).Printf("[ERROR] Failed to acquire semaphore for DMap compaction: %v", err)
+			}
 			continue
 		}
 

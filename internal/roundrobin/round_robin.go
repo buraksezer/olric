@@ -17,12 +17,18 @@ package roundrobin
 import (
 	"errors"
 	"fmt"
+	"sync"
 )
 
+// ErrEmptyInstance denotes that there is nothing in the round-robin instance to schedule.
 var ErrEmptyInstance = errors.New("empty round-robin instance")
 
 // RoundRobin implements quite simple round-robin scheduling algorithm to distribute load fairly between servers.
 type RoundRobin struct {
+	// Mutual exclusion lock is required here because the Get method
+	// is called concurrently by the client component, and it modifies the state
+	// in every call.
+	mtx     sync.RWMutex
 	current int
 	items   []string
 }
@@ -37,6 +43,10 @@ func New(items []string) *RoundRobin {
 
 // Get returns an item.
 func (r *RoundRobin) Get() (string, error) {
+	// Acquire the lock here. This function modifies the internal state.
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	if r.current >= len(r.items) {
 		r.current %= len(r.items)
 	}
@@ -56,11 +66,17 @@ func (r *RoundRobin) Get() (string, error) {
 
 // Add adds a new item to the Round-Robin scheduler.
 func (r *RoundRobin) Add(item string) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	r.items = append(r.items, item)
 }
 
 // Delete deletes an item from the Round-Robin scheduler.
 func (r *RoundRobin) Delete(i string) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	for idx, item := range r.items {
 		if item == i {
 			r.items = append(r.items[:idx], r.items[idx+1:]...)
@@ -70,5 +86,8 @@ func (r *RoundRobin) Delete(i string) {
 
 // Length returns the count of items
 func (r *RoundRobin) Length() int {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
 	return len(r.items)
 }
