@@ -56,6 +56,8 @@ func (c *Client) Get(addr string) *redis.Client {
 	}
 	c.mu.RUnlock()
 
+	// Need the lock for writing, we modify c.clients map and the round-robin
+	// implementation updates its internal state.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
