@@ -1,0 +1,4 @@
+olric-control-server:
+  bindAddr: localhost
+  bindPort: 3320
+  dataDir: "/var/db/olric-controller-server"
