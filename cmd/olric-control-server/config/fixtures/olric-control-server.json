@@ -1,0 +1,5 @@
+{
+  "olric-control-server": {
+    "dataDir": "/var/db/olric-controller-server"
+  }
+}

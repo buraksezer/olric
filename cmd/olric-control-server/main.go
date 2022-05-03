@@ -15,26 +15,30 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"runtime"
 
 	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/cmd/olric-control-server/config"
+	"github.com/buraksezer/olric/cmd/olric-control-server/server"
 	"github.com/sean-/seed"
 )
 
 func usage() {
-	var msg = `Usage: olric-controller [options] ...
+	var msg = `Usage: olric-config-server [options] ...
 
-Control plane for Olric
+Control plane for your Olric Cluster
 
 Options:
   -h, --help    Print this message and exit.
   -v, --version Print the version number and exit.
-  -c, --config  Sets configuration file path. Default is olric-controller-local.yaml in the
-                current folder. Set OLRIC_CONTROLLER_CONFIG to overwrite it.
+  -c, --config  Sets configuration file path. Default is olric-config-server-local.yaml in the
+                current folder. Set OLRIC_CONTROL_SERVER_CONFIG to overwrite it.
 
 The Go runtime version %s
 Report bugs to https://github.com/buraksezer/olric/issues
@@ -53,10 +57,10 @@ type arguments struct {
 
 const (
 	// DefaultConfigFile is the default configuration file path on a Unix-based operating system.
-	DefaultConfigFile = "olric-controller-local.yaml"
+	DefaultConfigFile = "olric-config-server-local.yaml"
 
 	// EnvConfigFile is the name of environment variable which can be used to override default configuration file path.
-	EnvConfigFile = "OLRIC_CONTROLLER_CONFIG"
+	EnvConfigFile = "OLRIC_CONTROL_SERVER_CONFIG"
 )
 
 func main() {
@@ -75,11 +79,13 @@ func main() {
 	f.StringVar(&args.config, "c", DefaultConfigFile, "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, fmt.Sprintf("Failed to parse flags: %v", err))
+		_, _ = fmt.Fprintf(os.Stderr, fmt.Sprintf("Failed to parse flags: %v\n", err))
+		usage()
+		os.Exit(1)
 	}
 
 	if args.version {
-		_, _ = fmt.Fprintf(os.Stderr, "olric-controller version %s %s %s/%s\n",
+		_, _ = fmt.Fprintf(os.Stderr, "olric-config-server version %s %s %s/%s\n",
 			olric.ReleaseVersion,
 			runtime.Version(),
 			runtime.GOOS,
@@ -96,4 +102,29 @@ func main() {
 	// `/dev/urandom` failed.  MustInit() will upgrade the seed if for some reason a
 	// call to Init() failed in the past.
 	seed.MustInit()
+
+	c, err := config.New(args.config)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "[ERROR] Failed to load the configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	lg := log.New(os.Stderr, "", log.LstdFlags)
+	s, err := server.New(c, lg)
+	if err != nil {
+		lg.Fatalf("[ERROR] Failed to create a new Olric instance: %v", err)
+	}
+
+	if err = s.Start(); err != nil {
+		lg.Printf("[ERROR] Failed to start Olric: %v", err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := s.Shutdown(ctx); err != nil {
+			lg.Printf("[ERROR] Failed to shutdown Olric: %v", err)
+		}
+		lg.Fatal("[ERROR] Quit unexpectedly!")
+	}
+
+	lg.Printf("[INFO] Quit!")
 }
