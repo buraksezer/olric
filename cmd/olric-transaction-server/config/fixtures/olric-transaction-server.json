@@ -1,0 +1,13 @@
+{
+  "olric-transaction-server": {
+    "bindAddr": "localhost",
+    "bindPort": 3320,
+    "keepAlivePeriod": "5m",
+    "dataDir": "/Users/buraksezer/data/olric-controller-data"
+  },
+  "logging": {
+    "verbosity": 6,
+    "level": "DEBUG",
+    "output": "stderr"
+  }
+}
