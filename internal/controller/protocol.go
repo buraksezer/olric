@@ -3,9 +3,10 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/tidwall/redcon"
-	"strings"
 )
 
 // TODO: Merge with internal/protocol/cluster.go
