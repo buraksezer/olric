@@ -62,7 +62,6 @@ func (i *EmbeddedIterator) scanOnOwners(owners []discovery.Member) error {
 		if owner.CompareByID(i.client.db.rt.This()) {
 			keys, cursor, err := i.dm.Scan(i.partID, i.cursors[owner.ID], i.config)
 			if err != nil {
-
 				return err
 			}
 			i.updateIterator(keys, cursor, owner.ID)

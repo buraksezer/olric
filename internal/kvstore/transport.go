@@ -57,12 +57,12 @@ func (k *KVStore) Import(data []byte, f func(uint64, storage.Entry) error) error
 		return err
 	}
 
-	if k.Stats().Length == 0 {
+	/*if k.Stats().Lengt	h == 0 {
 		// DMap has no keys. Set the imported storage instance.
 		// The old one will be garbage collected.
 		k.AppendTable(tb)
 		return nil
-	}
+	}*/
 
 	tb.Range(func(hkey uint64, e storage.Entry) bool {
 		return f(hkey, e) == nil

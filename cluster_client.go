@@ -334,15 +334,15 @@ func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterato
 
 	ictx, cancel := context.WithCancel(ctx)
 	i := &ClusterIterator{
-		dm:            dm,
-		clusterClient: dm.clusterClient,
-		config:        &sc,
-		logger:        dm.clusterClient.logger,
-		allKeys:       make(map[string]struct{}),
-		finished:      make(map[string]struct{}),
-		cursors:       make(map[string]uint64),
-		ctx:           ictx,
-		cancel:        cancel,
+		dm:             dm,
+		clusterClient:  dm.clusterClient,
+		config:         &sc,
+		logger:         dm.clusterClient.logger,
+		allKeys:        make(map[string]struct{}),
+		cursors:        make(map[string]uint64),
+		replicaCursors: make(map[string]uint64),
+		ctx:            ictx,
+		cancel:         cancel,
 	}
 
 	if err := i.fetchRoutingTable(); err != nil {

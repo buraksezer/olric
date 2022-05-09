@@ -36,8 +36,8 @@ type ClusterIterator struct {
 	pos            int
 	page           []string
 	allKeys        map[string]struct{}
-	finished       map[string]struct{}
 	cursors        map[string]uint64 // member id => cursor
+	replicaCursors map[string]uint64 // member id => cursor
 	partID         uint64            // current partition id
 	routingTable   RoutingTable
 	partitionCount uint64
@@ -48,10 +48,11 @@ type ClusterIterator struct {
 }
 
 func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner string) {
-	if cursor == 0 {
-		i.finished[owner] = struct{}{}
+	if i.config.Replica {
+		i.replicaCursors[owner] = cursor
+	} else {
+		i.cursors[owner] = cursor
 	}
-	i.cursors[owner] = cursor
 	for _, key := range keys {
 		if _, ok := i.allKeys[key]; !ok {
 			i.page = append(i.page, key)
@@ -62,20 +63,23 @@ func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner str
 
 func (i *ClusterIterator) scanOnOwners(owners []string) error {
 	for _, owner := range owners {
-		if _, ok := i.finished[owner]; ok {
-			continue
+		var cursor uint64 = i.cursors[owner]
+		if i.config.Replica {
+			cursor = i.replicaCursors[owner]
 		}
-
-		s := protocol.NewScan(i.partID, i.dm.Name(), i.cursors[owner])
+		s := protocol.NewScan(i.partID, i.dm.Name(), cursor)
 		if i.config.HasCount {
 			s.SetCount(i.config.Count)
 		}
 		if i.config.HasMatch {
 			s.SetMatch(i.config.Match)
 		}
+		if i.config.Replica {
+			s.SetReplica()
+		}
 
 		scanCmd := s.Command(i.ctx)
-		// Fetch a redis rc for the given owner.
+		// Fetch a Redis client for the given owner.
 		rc := i.clusterClient.client.Get(owner)
 		err := rc.Process(i.ctx, scanCmd)
 		if err != nil {
@@ -103,7 +107,7 @@ func (i *ClusterIterator) reset() {
 	// Reset
 	for memberID := range i.cursors {
 		delete(i.cursors, memberID)
-		delete(i.finished, memberID)
+		delete(i.replicaCursors, memberID)
 	}
 	i.resetPage()
 }
@@ -147,7 +151,7 @@ func (i *ClusterIterator) next() bool {
 
 	if len(i.page) == 0 {
 		i.partID++
-		if i.partitionCount <= i.partID {
+		if i.partID >= i.partitionCount {
 			return false
 		}
 		i.reset()
