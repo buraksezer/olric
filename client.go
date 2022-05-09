@@ -25,26 +25,50 @@ import (
 
 const DefaultScanCount = 10
 
+// Member denotes a member of the Olric cluster.
 type Member struct {
-	Name        string
-	ID          uint64
-	Birthdate   int64
+	// Member name in the cluster
+	Name string
+
+	// ID of the Member in the cluster. Hash of Name and Birthdate of the member
+	ID uint64
+
+	// Birthdate of the member in nanoseconds.
+	Birthdate int64
+
+	// Role of the member in the cluster. There is only one coordinator member
+	// in a healthy cluster.
 	Coordinator bool
 }
 
+// Iterator defines an interface to implement iterators on the distributed maps.
 type Iterator interface {
+	// Next returns true if there is more key in the iterator implementation.
+	// Otherwise, it returns false
 	Next() bool
+
+	// Key returns a key name from the distributed map.
 	Key() string
+
+	// Close stops the iteration and releases allocated resources.
 	Close()
 }
 
+// LockContext interface defines methods to manage locks on distributed maps.
 type LockContext interface {
+	// Unlock releases an acquired lock for the given key. It returns ErrNoSuchLock
+	// if there is no lock for the given key.
 	Unlock(ctx context.Context) error
+
+	// Lease sets or updates the timeout of the acquired lock for the given key.
+	// It returns ErrNoSuchLock if there is no lock for the given key.
 	Lease(ctx context.Context, duration time.Duration) error
 }
 
+// PutOption is a function for define options to control behavior of the Put command.
 type PutOption func(*dmap.PutConfig)
 
+// EX sets the specified expire time, in seconds.
 func EX(ex time.Duration) PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasEX = true
@@ -52,6 +76,7 @@ func EX(ex time.Duration) PutOption {
 	}
 }
 
+// PX sets the specified expire time, in milliseconds.
 func PX(px time.Duration) PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasPX = true
@@ -59,6 +84,7 @@ func PX(px time.Duration) PutOption {
 	}
 }
 
+// EXAT sets the specified Unix time at which the key will expire, in seconds.
 func EXAT(exat time.Duration) PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasEXAT = true
@@ -66,6 +92,7 @@ func EXAT(exat time.Duration) PutOption {
 	}
 }
 
+// PXAT sets the specified Unix time at which the key will expire, in milliseconds.
 func PXAT(pxat time.Duration) PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasPXAT = true
@@ -73,12 +100,14 @@ func PXAT(pxat time.Duration) PutOption {
 	}
 }
 
+// NX only sets the key if it does not already exist.
 func NX() PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasNX = true
 	}
 }
 
+// XX only sets the key if it already exist.
 func XX() PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasXX = true
@@ -89,16 +118,22 @@ type dmapConfig struct {
 	storageEntryImplementation func() storage.Entry
 }
 
+// DMapOption is a function for defining options to control behavior of distributed map instances.
 type DMapOption func(*dmapConfig)
 
+// StorageEntryImplementation sets and encoder/decoder implementation for your choice of storage engine.
 func StorageEntryImplementation(e func() storage.Entry) DMapOption {
 	return func(cfg *dmapConfig) {
 		cfg.storageEntryImplementation = e
 	}
 }
 
+// ScanOption is a function for defining options to control behavior of the SCAN command.
 type ScanOption func(*dmap.ScanConfig)
 
+// Count is the user specified the amount of work that should be done at every call in order to retrieve elements from the distributed map.
+// This is just a hint for the implementation, however generally speaking this is what you could expect most of the times from the implementation.
+// The default value is 10.
 func Count(c int) ScanOption {
 	return func(cfg *dmap.ScanConfig) {
 		cfg.HasCount = true
@@ -106,6 +141,7 @@ func Count(c int) ScanOption {
 	}
 }
 
+// Match is used for using regular expressions on keys. See https://pkg.go.dev/regexp
 func Match(s string) ScanOption {
 	return func(cfg *dmap.ScanConfig) {
 		cfg.HasMatch = true
@@ -113,13 +149,13 @@ func Match(s string) ScanOption {
 	}
 }
 
-// DMap describes a distributed map rc.
+// DMap defines methods to access and manipulate distributed maps.
 type DMap interface {
 	// Name exposes name of the DMap.
 	Name() string
 
 	// Put sets the value for the given key. It overwrites any previous value for
-	// that key, and it's thread-safe. The key has to be string. value type is arbitrary.
+	// that key, and it's thread-safe. The key has to be a string. value type is arbitrary.
 	// It is safe to modify the contents of the arguments after Put returns but not before.
 	Put(ctx context.Context, key string, value interface{}, options ...PutOption) error
 
@@ -182,8 +218,10 @@ type statsConfig struct {
 	CollectRuntime bool
 }
 
+// StatsOption is a function for defining options to control behavior of the STATS command.
 type StatsOption func(*statsConfig)
 
+// CollectRuntime is a StatsOption for collecting Go runtime statistics from a cluster member.
 func CollectRuntime() StatsOption {
 	return func(cfg *statsConfig) {
 		cfg.CollectRuntime = true
@@ -194,12 +232,14 @@ type pubsubConfig struct {
 	Address string
 }
 
+// ToAddress is a PubSubOption for using a specific cluster member to publish messages to a channel.
 func ToAddress(addr string) PubSubOption {
 	return func(cfg *pubsubConfig) {
 		cfg.Address = addr
 	}
 }
 
+// PubSubOption is a function for defining options to control behavior of the Publish-Subscribe service.
 type PubSubOption func(option *pubsubConfig)
 
 // Client is an interface that denotes an Olric client.
