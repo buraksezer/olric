@@ -32,7 +32,7 @@ type mockProcess struct {
 }
 
 func (m *mockProcess) Name() string {
-	return "mock-process"
+	return "mock-service"
 }
 
 func (m *mockProcess) Logger() *flog.Logger {
@@ -50,7 +50,7 @@ func (m *mockProcess) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-var _ IProcess = (*mockProcess)(nil)
+var _ Service = (*mockProcess)(nil)
 
 func TestProcess_Start_Shutdown(t *testing.T) {
 	l := log.New(os.Stderr, "", 0)

@@ -1,0 +1,13 @@
+{
+  "olric-resolver": {
+    "bindAddr": "localhost",
+    "bindPort": 3320,
+    "keepAlivePeriod": "5m",
+    "dataDir": "/var/db/olric-resolver"
+  },
+  "logging": {
+    "verbosity": 6,
+    "level": "DEBUG",
+    "output": "stderr"
+  }
+}
