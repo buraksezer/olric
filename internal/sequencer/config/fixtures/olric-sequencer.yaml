@@ -1,0 +1,10 @@
+olric-sequencer:
+  bindAddr: localhost
+  bindPort: 3320
+  dataDir: "/var/db/olric-sequencer"
+  keepAlivePeriod: 5m
+
+logging:
+  verbosity: 6
+  level: DEBUG
+  output: stderr

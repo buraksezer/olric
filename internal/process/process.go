@@ -24,24 +24,24 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type IProcess interface {
+type Service interface {
 	Name() string
 	Logger() *flog.Logger
 	Start() error
 	Shutdown(ctx context.Context) error
 }
 
-// Process represents a new olric-sequence-server instance.
+// Process represents a new olric-sequencer instance.
 type Process struct {
 	log     *flog.Logger
-	process IProcess
+	service Service
 	errGr   errgroup.Group
 }
 
-func New(p IProcess) (*Process, error) {
+func New(s Service) (*Process, error) {
 	return &Process{
-		process: p,
-		log:     p.Logger(),
+		service: s,
+		log:     s.Logger(),
 	}, nil
 }
 
@@ -56,8 +56,8 @@ func (p *Process) waitForInterrupt() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		if err := p.process.Shutdown(ctx); err != nil {
-			p.log.V(1).Printf("[ERROR] Failed to Shutdown %s: %v", p.process.Name(), err)
+		if err := p.service.Shutdown(ctx); err != nil {
+			p.log.V(1).Printf("[ERROR] Failed to Shutdown %s: %v", p.service.Name(), err)
 			return err
 		}
 
@@ -79,7 +79,7 @@ func (p *Process) waitForInterrupt() {
 	}()
 }
 
-// Start starts a new olric-sequence-server instance and blocks until the server is closed.
+// Start starts a new olric-sequencer instance and blocks until the server is closed.
 func (p *Process) Start() error {
 	p.log.V(1).Printf("[INFO] pid: %d has been started", os.Getpid())
 
@@ -87,7 +87,7 @@ func (p *Process) Start() error {
 	go p.waitForInterrupt()
 
 	p.errGr.Go(func() error {
-		return p.process.Start()
+		return p.service.Start()
 	})
 
 	return p.errGr.Wait()
@@ -95,5 +95,5 @@ func (p *Process) Start() error {
 
 // Shutdown stops background servers and leaves the cluster.
 func (p *Process) Shutdown(ctx context.Context) error {
-	return p.process.Shutdown(ctx)
+	return p.service.Shutdown(ctx)
 }

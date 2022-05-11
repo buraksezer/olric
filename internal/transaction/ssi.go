@@ -54,7 +54,7 @@ func (s *SSI) Commit(readVersion, commitVersion uint32, commands []Command) erro
 			if ltx.isExpired(now) {
 				continue
 			}
-			if ltx.committedVersion > commitVersion {
+			if ltx.committedVersion > readVersion {
 				return ErrTransactionAbort
 			}
 		}
