@@ -144,7 +144,7 @@ func (s *Sequencer) Start() error {
 			s.config.OlricSequencer.BindAddr, s.config.OlricSequencer.BindPort)
 	case <-ctx.Done():
 		// TCP server could not be started due to an error. There is no need to run
-		// Olric.Shutdown here because we could not start anything.
+		// Olric.Stop here because we could not start anything.
 		return errGr.Wait()
 	}
 
@@ -155,7 +155,7 @@ func (s *Sequencer) Start() error {
 func (s *Sequencer) Shutdown(ctx context.Context) error {
 	select {
 	case <-s.ctx.Done():
-		// Shutdown only once.
+		// Stop only once.
 		return nil
 	default:
 	}
@@ -163,7 +163,7 @@ func (s *Sequencer) Shutdown(ctx context.Context) error {
 	s.cancel()
 
 	var latestErr error
-	// Shutdown Redcon server
+	// Stop Redcon server
 	if err := s.server.Shutdown(ctx); err != nil {
 		s.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestErr = err

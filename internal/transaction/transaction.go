@@ -102,7 +102,7 @@ func (tr *Transaction) Start() error {
 			tr.config.OlricTransactionServer.BindAddr, tr.config.OlricTransactionServer.BindPort)
 	case <-ctx.Done():
 		// TCP server could not be started due to an error. There is no need to run
-		// Olric.Shutdown here because we could not start anything.
+		// Olric.Stop here because we could not start anything.
 		return errGr.Wait()
 	}
 
@@ -113,7 +113,7 @@ func (tr *Transaction) Start() error {
 func (tr *Transaction) Shutdown(ctx context.Context) error {
 	select {
 	case <-tr.ctx.Done():
-		// Shutdown only once.
+		// Stop only once.
 		return nil
 	default:
 	}
@@ -121,7 +121,7 @@ func (tr *Transaction) Shutdown(ctx context.Context) error {
 	tr.cancel()
 
 	var latestErr error
-	// Shutdown RESP server
+	// Stop RESP server
 	if err := tr.server.Shutdown(ctx); err != nil {
 		tr.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestErr = err

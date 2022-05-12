@@ -35,6 +35,7 @@ type Resolver struct {
 	config *config.Config
 	log    *flog.Logger
 	server *server.Server
+	ssi    *SSI
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -59,10 +60,14 @@ func New(c *config.Config, lg *log.Logger) (*Resolver, error) {
 		return nil, fmt.Errorf("invalid KeepAlivePeriod: %v", err)
 	}
 
+	s := NewSSI(5*time.Second, 15*time.Second)
+	s.Start()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &Resolver{
 		config: c,
 		log:    fl,
+		ssi:    s,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -105,7 +110,7 @@ func (r *Resolver) Start() error {
 			r.config.OlricResolver.BindAddr, r.config.OlricResolver.BindPort)
 	case <-ctx.Done():
 		// TCP server could not be started due to an error. There is no need to run
-		// Olric.Shutdown here because we could not start anything.
+		// Olric.Stop here because we could not start anything.
 		return errGr.Wait()
 	}
 
@@ -116,15 +121,17 @@ func (r *Resolver) Start() error {
 func (r *Resolver) Shutdown(ctx context.Context) error {
 	select {
 	case <-r.ctx.Done():
-		// Shutdown only once.
+		// Stop only once.
 		return nil
 	default:
 	}
 
 	r.cancel()
 
+	r.ssi.Stop()
+
 	var latestErr error
-	// Shutdown Redcon server
+	// Stop Redcon server
 	if err := r.server.Shutdown(ctx); err != nil {
 		r.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestErr = err

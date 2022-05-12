@@ -15,10 +15,24 @@
 package resolver
 
 import (
+	"github.com/buraksezer/olric/internal/util"
+	"github.com/vmihailenco/msgpack/v5"
+
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
+
+type WrappedKey struct {
+	Key  string `msgpack:"k"`
+	Kind int    `msgpack:"kd"`
+}
+
+type CommitMessage struct {
+	ReadVersion   uint32       `msgpack:"rv"`
+	CommitVersion uint32       `msgpack:"cv"`
+	Keys          []WrappedKey `msgpack:"ks"`
+}
 
 func (r *Resolver) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	pingCmd, err := protocol.ParsePingCommand(cmd)
@@ -32,4 +46,29 @@ func (r *Resolver) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 	conn.WriteString(olric.DefaultPingResponse)
+}
+
+func (r *Resolver) commitCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	commitCmd, err := protocol.ParseResolverCommit(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	batch := CommitMessage{}
+	err = msgpack.Unmarshal(util.StringToBytes(commitCmd.Body), batch)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	var keys []*Key
+	for _, key := range batch.Keys {
+		keys = append(keys, NewKey(key.Key, Kind(key.Kind)))
+	}
+	err = r.ssi.Commit(batch.ReadVersion, batch.CommitVersion, keys)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+	conn.WriteString(protocol.StatusOK)
 }
