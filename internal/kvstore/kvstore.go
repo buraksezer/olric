@@ -169,7 +169,6 @@ func (kv *KVStore) Put(hkey uint64, value storage.Entry) error {
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
 			ntSize := kv.calculateTableSize(len(value.Value()))
-			fmt.Println(ntSize, len(value.Value()))
 			nt := newTable(ntSize)
 			kv.tables = append(kv.tables, nt)
 			res = storage.ErrFragmented
