@@ -320,7 +320,7 @@ func (db *Olric) Start() error {
 		// TCP server has been started
 	case <-ctx.Done():
 		// TCP server could not be started due to an error. There is no need to run
-		// Olric.Shutdown here because we could not start anything.
+		// Olric.Stop here because we could not start anything.
 		return errGr.Wait()
 	}
 
@@ -386,7 +386,7 @@ func (db *Olric) Start() error {
 func (db *Olric) Shutdown(ctx context.Context) error {
 	select {
 	case <-db.ctx.Done():
-		// Shutdown only once.
+		// Stop only once.
 		return nil
 	default:
 	}
@@ -415,7 +415,7 @@ func (db *Olric) Shutdown(ctx context.Context) error {
 		latestError = err
 	}
 
-	// Shutdown Redcon server
+	// Stop Redcon server
 	if err := db.server.Shutdown(ctx); err != nil {
 		db.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestError = err

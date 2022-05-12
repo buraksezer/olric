@@ -133,7 +133,7 @@ func (c *Controller) Start() error {
 			c.config.OlricControlServer.BindAddr, c.config.OlricControlServer.BindPort)
 	case <-ctx.Done():
 		// TCP server could not be started due to an error. There is no need to run
-		// Olric.Shutdown here because we could not start anything.
+		// Olric.Stop here because we could not start anything.
 		return errGr.Wait()
 	}
 
@@ -144,7 +144,7 @@ func (c *Controller) Start() error {
 func (c *Controller) Shutdown(ctx context.Context) error {
 	select {
 	case <-c.ctx.Done():
-		// Shutdown only once.
+		// Stop only once.
 		return nil
 	default:
 	}
@@ -152,7 +152,7 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 	c.cancel()
 
 	var latestErr error
-	// Shutdown Redcon server
+	// Stop Redcon server
 	if err := c.server.Shutdown(ctx); err != nil {
 		c.log.V(2).Printf("[ERROR] Failed to shutdown RESP server: %v", err)
 		latestErr = err
