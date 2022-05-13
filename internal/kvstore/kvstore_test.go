@@ -742,9 +742,10 @@ func Test_ExpandTable(t *testing.T) {
 	}
 
 	st := kv.Stats()
-	tableSize := kv.calculateTableSize(0)
-	if tableSize != st.Inuse*2 {
-		t.Fatalf("Calculated tableSize(%d) has to be equal to Inuse*2(%d)", tableSize, st.Inuse*2)
+	minimumRequiredSize := 1000
+	tableSize := kv.calculateTableSize(minimumRequiredSize)
+	if tableSize != (st.Inuse+minimumRequiredSize)*2 {
+		t.Fatalf("Calculated tableSize(%d) has to be equal to (Inuse+minimumRequiredSize)*2(%d)", tableSize, st.Inuse*2)
 	}
 }
 
@@ -768,9 +769,9 @@ func Test_ExpandTable_With_Big_Value(t *testing.T) {
 	}
 
 	st := kv.Stats()
-	bigValueSize := 1 << 21
-	tableSize := kv.calculateTableSize(bigValueSize)
-	calculatedTableSize := (st.Inuse + bigValueSize) * 2
+	bigEntrySize := 1 << 21 // including metadata
+	tableSize := kv.calculateTableSize(bigEntrySize)
+	calculatedTableSize := (st.Inuse + bigEntrySize) * 2
 	if tableSize != calculatedTableSize {
 		t.Fatalf("Calculated tableSize(%d) has to be equal to Inuse*2 + valueSize(%d)", tableSize, calculatedTableSize)
 	}

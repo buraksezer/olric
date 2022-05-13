@@ -87,7 +87,7 @@ func (kv *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 		config:           c,
 		minimumTableSize: size.(int),
 	}
-	t := newTable(child.calculateTableSize(0))
+	t := newTable(child.minimumTableSize)
 	child.tables = append(child.tables, t)
 	return child, nil
 }
@@ -113,7 +113,7 @@ func (kv *KVStore) PutRaw(hkey uint64, value []byte) error {
 		err := t.putRaw(hkey, value)
 		if err == errNotEnoughSpace {
 			// Create a new table and put the new k/v pair in it.
-			// The value includes the metadata, so there is no need to use requiredSpaceForAnEntry.
+			// The value includes its metadata, so there is no need to use requiredSpaceForAnEntry.
 			ntSize := kv.calculateTableSize(len(value))
 			nt := newTable(ntSize)
 			kv.tables = append(kv.tables, nt)
@@ -293,7 +293,7 @@ func (kv *KVStore) Delete(hkey uint64) error {
 	t := kv.tables[0]
 	if float64(t.allocated)*maxGarbageRatio <= float64(t.garbage) {
 		// Create a new table here.
-		nt := newTable(kv.calculateTableSize(0))
+		nt := newTable(kv.minimumTableSize)
 		kv.tables = append(kv.tables, nt)
 		return storage.ErrFragmented
 	}
