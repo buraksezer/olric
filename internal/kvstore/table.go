@@ -21,7 +21,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-const maxKeyLen = 256
+const (
+	maxKeyLen   = 256
+	metadataLen = 21 // KEY-LENGTH(uint8) + TTL(uint64) + Timestamp(uint64) + VALUE-LENGTH(uint32)
+)
 
 var (
 	errNotEnoughSpace = errors.New("not enough space")
@@ -77,7 +80,7 @@ func (t *table) put(hkey uint64, value storage.Entry) error {
 	}
 
 	// Check empty space on allocated memory area.
-	inuse := len(value.Key()) + len(value.Value()) + 21 // TTL + Timestamp + value-Length + key-Length
+	inuse := len(value.Key()) + len(value.Value()) + metadataLen // TTL + Timestamp + value-Length + key-Length
 	if inuse+t.offset >= t.allocated {
 		return errNotEnoughSpace
 	}

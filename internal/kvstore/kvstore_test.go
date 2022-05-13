@@ -770,8 +770,48 @@ func Test_ExpandTable_With_Big_Value(t *testing.T) {
 	st := kv.Stats()
 	bigValueSize := 1 << 21
 	tableSize := kv.calculateTableSize(bigValueSize)
-	calculatedTableSize := (st.Inuse * 2) + bigValueSize
+	calculatedTableSize := (st.Inuse + bigValueSize) * 2
 	if tableSize != calculatedTableSize {
 		t.Fatalf("Calculated tableSize(%d) has to be equal to Inuse*2 + valueSize(%d)", tableSize, calculatedTableSize)
+	}
+}
+
+func Test_ExpandTable_Issue_137(t *testing.T) {
+	// See: https://github.com/buraksezer/olric/issues/137#issuecomment-1125432560
+	s, err := testKVStore()
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	firstEntry := NewEntry()
+	firstEntry.SetKey("foobar")
+	firstEntry.SetValue([]byte{})
+	firstEntry.SetTTL(int64(1))
+	firstEntry.SetTimestamp(time.Now().UnixNano())
+	hkey := xxhash.Sum64([]byte(firstEntry.Key()))
+	err = s.Put(hkey, firstEntry)
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+
+	const BadValueSize = 1 << 20
+	value := make([]byte, BadValueSize)
+
+	secondEntry := NewEntry()
+	secondEntry.SetKey("foobar")
+	secondEntry.SetValue(value)
+	secondEntry.SetTTL(int64(1))
+	secondEntry.SetTimestamp(time.Now().UnixNano())
+	hkey = xxhash.Sum64([]byte(secondEntry.Key()))
+	err = s.Put(hkey, secondEntry)
+	if err != storage.ErrFragmented {
+		t.Fatalf("Expected storage.ErrFragmented. Got %v", err)
+	}
+
+	e, err := s.Get(hkey)
+	if err != nil {
+		t.Fatalf("Expected nil. Got %v", err)
+	}
+	if len(e.Value()) != BadValueSize {
+		t.Fatalf("Expected value size: %d, Got: %d", BadValueSize, len(e.Value()))
 	}
 }
