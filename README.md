@@ -22,7 +22,7 @@ See [Docker](#docker) and [Samples](#samples) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.4.4](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
+The current production version is [v0.4.5](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
 
 ### About versions
 
@@ -51,8 +51,10 @@ This document only covers `v0.5`. See v0.4.x documents [here](https://github.com
 
 ## Possible Use Cases
 
-With this feature set, Olric is good for distributed caching. But it also provides Publish-Subscribe, data replication, 
-failure detection and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
+Olric is an eventually consistent, unordered key/value data store. It supports various eviction mechanisms for distributed caching implementations. Olric 
+also provides Publish-Subscribe, data replication, failure detection and simple anti-entropy services. 
+
+It's good at distributed caching and publish/subscribe messaging.
 
 ## Table of Contents
 
@@ -84,6 +86,16 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
       * [DM.LOCKLEASE](#dmlocklease)
       * [DM.PLOCKLEASE](#dmplocklease)
     * [DM.SCAN](#dmscan)
+  * [Publish-Subscribe](#publish-subscribe)
+    * [SUBSCRIBE](#subscribe)
+    * [PSUBSCRIBE](#psubscribe)
+    * [UNSUBSCRIBE](#unsubscribe)
+    * [PUNSUBSCRIBE](#punsubscribe)
+    * [PUBSUB CHANNELS](#pubsub-channels)
+    * [PUBSUB NUMPAT](#pubsub-numpat)
+    * [PUBSUB NUMSUB](#pubsub-numsub)
+    * [QUIT](#quit)
+    * [PING](#ping)
 * [Usage](#usage)
   * [Distributed Map](#distributed-map)
     * [Put](#put)
@@ -595,6 +607,7 @@ OK
 DM.LOCKLEASE sets or updates the timeout of the acquired lock for the given key. It returns `NOSUCHLOCK` if there is no lock for the given key.
 
 DM.LOCKLEASE accepts seconds as timeout.
+
 ```
 DM.LOCKLEASE dmap key token seconds
 ```
@@ -673,6 +686,123 @@ DM.SCAN partID dmap cursor [ MATCH pattern | COUNT count ]
     8) "memtier-2902510"
     9) "memtier-2632291"
    10) "memtier-1938450"
+```
+### Publish-Subscribe
+
+**SUBSCRIBE**, **UNSUBSCRIBE** and **PUBLISH** implement the Publish/Subscribe messaging paradigm where 
+senders are not programmed to send their messages to specific receivers. Rather, published messages are characterized 
+into channels, without knowledge of what (if any) subscribers there may be. Subscribers express interest in one or more 
+channels, and only receive messages that are of interest, without knowledge of what (if any) publishers there are. 
+This decoupling of publishers and subscribers can allow for greater scalability and a more dynamic network topology.
+
+**Important note:** In an Olric cluster, clients can subscribe to every node, and can also publish to every other node. The cluster
+will make sure that published messages are forwarded as needed.
+
+*Source of this section: [https://redis.io/commands/?group=pubsub](https://redis.io/commands/?group=pubsub)*
+
+#### SUBSCRIBE
+
+Subscribes the client to the specified channels.
+
+```
+SUBSCRIBE channel [channel...]
+```
+
+Once the client enters the subscribed state it is not supposed to issue any other commands, except for additional **SUBSCRIBE**, 
+**PSUBSCRIBE**, **UNSUBSCRIBE**, **PUNSUBSCRIBE**, **PING**, and **QUIT** commands.
+
+#### PSUBSCRIBE
+
+Subscribes the client to the given patterns.
+
+```
+PSUBSCRIBE pattern [ pattern ...]
+```
+
+Supported glob-style patterns:
+
+* `h?llo` subscribes to hello, hallo and hxllo
+* `h*llo` subscribes to hllo and heeeello
+* `h[ae]llo` subscribes to hello and hallo, but not hillo
+* Use **\\** to escape special characters if you want to match them verbatim.
+
+#### UNSUBSCRIBE
+
+Unsubscribes the client from the given channels, or from all of them if none is given.
+
+```
+UNSUBSCRIBE [channel [channel ...]]
+```
+
+When no channels are specified, the client is unsubscribed from all the previously subscribed channels. In this case, 
+a message for every unsubscribed channel will be sent to the client.
+
+#### PUNSUBSCRIBE
+
+Unsubscribes the client from the given patterns, or from all of them if none is given.
+
+```
+PUNSUBSCRIBE [pattern [pattern ...]]
+```
+
+When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns. In this case, 
+a message for every unsubscribed pattern will be sent to the client.
+
+#### PUBSUB CHANNELS
+
+Lists the currently active channels.
+
+```
+PUBSUB CHANNELS [pattern]
+```
+
+An active channel is a Pub/Sub channel with one or more subscribers (excluding clients subscribed to patterns).
+
+If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the 
+specified glob-style pattern are listed.
+
+#### PUBSUB NUMPAT
+
+Returns the number of unique patterns that are subscribed to by clients (that are performed using the PSUBSCRIBE command).
+
+```
+PUBSUB NUMPAT
+```
+
+Note that this isn't the count of clients subscribed to patterns, but the total number of unique patterns all the clients are subscribed to.
+
+**Important note**: In an Olric cluster, clients can subscribe to every node, and can also publish to every other node. The cluster 
+will make sure that published messages are forwarded as needed. That said, PUBSUB's replies in a cluster only report information 
+from the node's Pub/Sub context, rather than the entire cluster.
+
+#### PUBSUB NUMSUB
+
+Returns the number of subscribers (exclusive of clients subscribed to patterns) for the specified channels.
+
+```
+PUBSUB NUMSUB [channel [channel ...]]
+```
+Note that it is valid to call this command without channels. In this case it will just return an empty list.
+
+**Important note**: In an Olric cluster, clients can subscribe to every node, and can also publish to every other node. The cluster 
+will make sure that published messages are forwarded as needed. That said, PUBSUB's replies in a cluster only report information 
+from the node's Pub/Sub context, rather than the entire cluster.
+
+#### QUIT
+
+Ask the server to close the connection. The connection is closed as soon as all pending replies have been written to the client.
+
+```
+QUIT
+```
+
+#### PING
+
+Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk. This command is often used to 
+test if a connection is still alive, or to measure latency.
+
+```
+PING
 ```
 
 ## Usage
