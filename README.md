@@ -96,6 +96,12 @@ It's good at distributed caching and publish/subscribe messaging.
     * [PUBSUB NUMSUB](#pubsub-numsub)
     * [QUIT](#quit)
     * [PING](#ping)
+  * [Cluster](#cluster)
+    * [CLUSTER.ROUTINGTABLE](#clusterroutingtable)
+    * [CLUSTER.MEMBERS](#clustermembers)
+  * [Others](#others)
+    * [PING](#ping)
+    * [STATS](#stats)
 * [Usage](#usage)
   * [Distributed Map](#distributed-map)
     * [Put](#put)
@@ -795,15 +801,82 @@ Ask the server to close the connection. The connection is closed as soon as all 
 ```
 QUIT
 ```
+### Cluster
+
+#### CLUSTER.ROUTINGTABLE
+
+CLUSTER.ROUTINGTABLE returns the latest view of the routing table. Simply, it's a data structure that maps
+partitions to members.
+
+```
+CLUSTER.ROUTINGTABLE
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> CLUSTER.ROUTINGTABLE
+ 1) 1) (integer) 0
+     2) 1) "127.0.0.1:3320"
+     3) (empty array)
+  2) 1) (integer) 1
+     2) 1) "127.0.0.1:3320"
+     3) (empty array)
+  3) 1) (integer) 2
+     2) 1) "127.0.0.1:3320"
+     3) (empty array)
+```
+
+It returns an array of arrays. 
+
+**Fields:**
+
+```
+1) (integer) 0 <- Partition ID
+  2) 1) "127.0.0.1:3320" <- Array of the current and previous primary owners
+  3) (empty array) <- Array of backup owners. 
+```
+
+#### CLUSTER.MEMBERS
+
+CLUSTER.MEMBERS returns an array of known members by the server.
+
+```
+CLUSTER.MEMBERS
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> CLUSTER.MEMBERS
+1) 1) "127.0.0.1:3320"
+   2) (integer) 1652619388427137000
+   3) "true"
+```
+
+**Fields:**
+
+```
+1) 1) "127.0.0.1:3320" <- Member's name in the cluster
+   2) (integer) 1652619388427137000 <-Member's birthedate
+   3) "true" <- Is cluster coordinator (the oldest node)
+```
+
+
+### Others
 
 #### PING
 
-Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk. This command is often used to 
+Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk. This command is often used to
 test if a connection is still alive, or to measure latency.
 
 ```
 PING
 ```
+
+#### STATS
+
+The STATS command returns information and statistics about the server in JSON format. See `stats/stats.go` file.
 
 ## Usage
 
