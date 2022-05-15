@@ -102,6 +102,7 @@ It's good at distributed caching and publish/subscribe messaging.
   * [Others](#others)
     * [PING](#ping)
     * [STATS](#stats)
+* [Golang client](#golang-client)
 * [Configuration](#configuration)
     * [Embedded Member Mode](#embedded-member-mode)
       * [Manage the configuration in YAML format](#manage-the-configuration-in-yaml-format)
@@ -246,6 +247,11 @@ memberlist:
 Thanks to [hashicorp/memberlist](https://github.com/hashicorp/memberlist), Olric nodes can share the full list of members 
 with each other. So an Olric node can discover the whole cluster by using a single member address.
 
+#### Embedding into your Go application.
+
+Olric was originally designed as an embeddable, distributed version of Golang's built-in map. Building distributed systems
+based on Olric is an easy task. See [Samples](#samples) section to learn how to embed Olric into your existing Golang application.
+
 ### Operation Modes
 
 Olric has two different operation modes.
@@ -268,7 +274,8 @@ Olric server members. You can address client and server scalability concerns sep
 ## Commands
 
 Olric uses Redis protocol and supports Redis-style commands to query the database. You can use any Redis client, including
-`redis-cli`. The official Go client is a thin layer around [go-redis/redis](https://github.com/go-redis/redis) package.
+`redis-cli`. The official Go client is a thin layer around [go-redis/redis](https://github.com/go-redis/redis) package. 
+See [Golang Client](#golang-client) section for the documentation.
 
 ### Distributed Map
 
@@ -845,6 +852,15 @@ PING
 #### STATS
 
 The STATS command returns information and statistics about the server in JSON format. See `stats/stats.go` file.
+
+## Golang Client
+
+The official Golang client is defined by the `Client` interface. There are two different implementations of it in this repository. 
+`EmbeddedClient` provides a client implementation for [embedded-member](#embedded-member) scenario, `ClusterClient` provides an implementation of the same interface
+for [client-server](#client-server) deployment scenario. Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient`
+provides a better performance due to localization of the queries.
+
+See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-beta.3)
 
 ## Configuration
 
