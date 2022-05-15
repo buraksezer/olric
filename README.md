@@ -68,6 +68,7 @@ It's good at distributed caching and publish/subscribe messaging.
   * [Operation Modes](#operation-modes)
     * [Embedded Member](#embedded-member)
     * [Client-Server](#client-server)
+* [Golang client](#golang-client)
 * [Commands](#commands)
   * [Distributed Map](#distributed-map)
     * [DM.PUT](#dmput)
@@ -102,7 +103,6 @@ It's good at distributed caching and publish/subscribe messaging.
   * [Others](#others)
     * [PING](#ping)
     * [STATS](#stats)
-* [Golang client](#golang-client)
 * [Configuration](#configuration)
     * [Embedded Member Mode](#embedded-member-mode)
       * [Manage the configuration in YAML format](#manage-the-configuration-in-yaml-format)
@@ -270,6 +270,15 @@ and scaled. Your clients communicate with these members to reach to Olric data a
 Client-Server deployment has advantages including more predictable and reliable performance, easier identification
 of problem causes and, most importantly, better scalability. When you need to scale in this deployment type, just add more
 Olric server members. You can address client and server scalability concerns separately.
+
+## Golang Client
+
+The official Golang client is defined by the `Client` interface. There are two different implementations of it in this repository.
+`EmbeddedClient` provides a client implementation for [embedded-member](#embedded-member) scenario, `ClusterClient` provides an implementation of the same interface
+for [client-server](#client-server) deployment scenario. Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient`
+provides a better performance due to localization of the queries.
+
+See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-beta.3)
 
 ## Commands
 
@@ -852,15 +861,6 @@ PING
 #### STATS
 
 The STATS command returns information and statistics about the server in JSON format. See `stats/stats.go` file.
-
-## Golang Client
-
-The official Golang client is defined by the `Client` interface. There are two different implementations of it in this repository. 
-`EmbeddedClient` provides a client implementation for [embedded-member](#embedded-member) scenario, `ClusterClient` provides an implementation of the same interface
-for [client-server](#client-server) deployment scenario. Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient`
-provides a better performance due to localization of the queries.
-
-See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-beta.3)
 
 ## Configuration
 
