@@ -23,6 +23,9 @@ import (
 // The current maximum key length is 256.
 var ErrKeyTooLarge = errors.New("key too large")
 
+// ErrEntryTooLarge returned if required space for an entry is bigger than table size.
+var ErrEntryTooLarge = errors.New("entry too large for the configured table size")
+
 // ErrKeyNotFound is an error that indicates that the requested key could not be found in the DB.
 var ErrKeyNotFound = errors.New("key not found")
 

@@ -65,6 +65,7 @@ func registerErrors() {
 	protocol.SetError("WRITEQUORUM", ErrWriteQuorum)
 	protocol.SetError("DMAPNOTFOUND", ErrDMapNotFound)
 	protocol.SetError("KEYTOOLARGE", ErrKeyTooLarge)
+	protocol.SetError("ENTRYTOOLARGE", ErrEntryTooLarge)
 	protocol.SetError("KEYNOTFOUND", ErrKeyNotFound)
 	protocol.SetError("KEYFOUND", ErrKeyFound)
 }

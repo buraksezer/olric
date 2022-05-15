@@ -38,9 +38,10 @@ var pool = bufpool.New()
 var EntriesTotal = stats.NewInt64Counter()
 
 var (
-	ErrKeyFound    = errors.New("key found")
-	ErrWriteQuorum = errors.New("write quorum cannot be reached")
-	ErrKeyTooLarge = errors.New("key too large")
+	ErrKeyFound      = errors.New("key found")
+	ErrWriteQuorum   = errors.New("write quorum cannot be reached")
+	ErrKeyTooLarge   = errors.New("key too large")
+	ErrEntryTooLarge = errors.New("entry too large for the configured table size")
 )
 
 func prepareTTL(e *env) int64 {
@@ -79,6 +80,9 @@ func (dm *DMap) putEntryOnFragment(e *env, nt storage.Entry) error {
 	if errors.Is(err, storage.ErrKeyTooLarge) {
 		err = ErrKeyTooLarge
 	}
+	if errors.Is(err, storage.ErrEntryTooLarge) {
+		err = ErrEntryTooLarge
+	}
 	if err != nil {
 		return err
 	}
@@ -112,6 +116,9 @@ func (dm *DMap) putOnReplicaFragment(e *env) error {
 	err = f.storage.PutRaw(e.hkey, e.value)
 	if errors.Is(err, storage.ErrKeyTooLarge) {
 		err = ErrKeyTooLarge
+	}
+	if errors.Is(err, storage.ErrEntryTooLarge) {
+		err = ErrEntryTooLarge
 	}
 	if err != nil {
 		return err

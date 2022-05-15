@@ -26,7 +26,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-const maxKeyLen = 256
+const (
+	MaxKeyLength   = 256
+	MetadataLength = 29
+)
 
 type State uint8
 
@@ -106,14 +109,14 @@ func (t *Table) PutRaw(hkey uint64, value []byte) error {
 //
 // KEY-LENGTH(uint8) | KEY(bytes) | TTL(uint64) | TIMESTAMP(uint64) | LASTACCESS(uint64) | VALUE-LENGTH(uint64) | VALUE(bytes)
 func (t *Table) Put(hkey uint64, value storage.Entry) error {
-	if len(value.Key()) >= maxKeyLen {
+	if len(value.Key()) >= MaxKeyLength {
 		return storage.ErrKeyTooLarge
 	}
 
 	// Check empty space on allocated memory area.
 
 	// TTL + Timestamp + LastAccess + + value-Length + key-Length
-	inuse := uint64(len(value.Key()) + len(value.Value()) + 29)
+	inuse := uint64(len(value.Key()) + len(value.Value()) + MetadataLength)
 	if inuse+t.offset >= t.allocated {
 		return ErrNotEnoughSpace
 	}

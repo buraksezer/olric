@@ -17,9 +17,10 @@ package olric
 import (
 	"context"
 	"fmt"
+	"strconv"
+
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
-	"strconv"
 )
 
 type Route struct {

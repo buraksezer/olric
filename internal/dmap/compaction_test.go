@@ -17,11 +17,12 @@ package dmap
 import (
 	"context"
 	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
+	"github.com/buraksezer/olric/pkg/storage"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
-	"github.com/buraksezer/olric/internal/kvstore"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
@@ -32,11 +33,15 @@ func TestDMap_Compaction(t *testing.T) {
 	c := testutil.NewConfig()
 	c.DMaps.TriggerCompactionInterval = time.Millisecond
 	c.DMaps.Engine.Name = config.DefaultStorageEngine
-	c.DMaps.Engine.Implementation = kvstore.New(nil)
+
 	c.DMaps.Engine.Config = map[string]interface{}{
 		"tableSize":           uint64(2048), // overwrite tableSize to trigger compaction.
 		"maxIdleTableTimeout": time.Millisecond,
 	}
+	kv, err := kvstore.New(storage.NewConfig(c.DMaps.Engine.Config))
+	require.NoError(t, err)
+	c.DMaps.Engine.Implementation = kv
+
 	e := testcluster.NewEnvironment(c)
 	s := cluster.AddMember(e).(*Service)
 	defer cluster.Shutdown()
