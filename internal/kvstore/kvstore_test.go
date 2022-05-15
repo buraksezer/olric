@@ -38,26 +38,21 @@ func bval(i int) []byte {
 	return []byte(fmt.Sprintf("%025d", i))
 }
 
-func testKVStore(c *storage.Config) (storage.Engine, error) {
-	if c == nil {
-		c = DefaultConfig()
-	}
-	kv := New(c)
+func testKVStore(t *testing.T, c *storage.Config) storage.Engine {
+	kv, err := New(c)
+	require.NoError(t, err)
+
 	child, err := kv.Fork(nil)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 
 	err = child.Start()
-	if err != nil {
-		return nil, err
-	}
-	return child, nil
+	require.NoError(t, err)
+
+	return child
 }
 
 func TestKVStore_Put(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 100; i++ {
 		e := entry.New()
@@ -72,8 +67,7 @@ func TestKVStore_Put(t *testing.T) {
 }
 
 func TestKVStore_Get(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	timestamp := time.Now().UnixNano()
 	for i := 0; i < 100; i++ {
@@ -100,8 +94,7 @@ func TestKVStore_Get(t *testing.T) {
 }
 
 func TestKVStore_Delete(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 100; i++ {
 		e := entry.New()
@@ -139,8 +132,7 @@ func TestKVStore_Delete(t *testing.T) {
 
 func TestKVStore_ExportImport(t *testing.T) {
 	timestamp := time.Now().UnixNano()
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 1000; i++ {
 		e := entry.New()
@@ -153,8 +145,7 @@ func TestKVStore_ExportImport(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	fresh, err := testKVStore(nil)
-	require.NoError(t, err)
+	fresh := testKVStore(t, nil)
 
 	ti := s.TransferIterator()
 	for ti.Next() {
@@ -170,7 +161,7 @@ func TestKVStore_ExportImport(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	_, err = ti.Export()
+	_, err := ti.Export()
 	require.ErrorIs(t, err, io.EOF)
 
 	for i := 0; i < 1000; i++ {
@@ -185,8 +176,7 @@ func TestKVStore_ExportImport(t *testing.T) {
 }
 
 func TestKVStore_Stats_Length(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 100; i++ {
 		e := entry.New()
@@ -202,8 +192,7 @@ func TestKVStore_Stats_Length(t *testing.T) {
 }
 
 func TestKVStore_Range(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
@@ -227,8 +216,7 @@ func TestKVStore_Range(t *testing.T) {
 }
 
 func TestKVStore_Check(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	hkeys := make(map[uint64]struct{})
 	for i := 0; i < 100; i++ {
@@ -250,8 +238,7 @@ func TestKVStore_Check(t *testing.T) {
 }
 
 func TestKVStore_UpdateTTL(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 100; i++ {
 		e := entry.New()
@@ -288,15 +275,14 @@ func TestKVStore_UpdateTTL(t *testing.T) {
 }
 
 func TestKVStore_GetKey(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	e := entry.New()
 	e.SetKey(bkey(1))
 	e.SetTTL(int64(1))
 	e.SetValue(bval(1))
 	hkey := xxhash.Sum64([]byte(e.Key()))
-	err = s.Put(hkey, e)
+	err := s.Put(hkey, e)
 	require.NoError(t, err)
 
 	key, err := s.GetKey(hkey)
@@ -308,12 +294,11 @@ func TestKVStore_GetKey(t *testing.T) {
 }
 
 func TestKVStore_PutRawGetRaw(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	value := []byte("value")
 	hkey := xxhash.Sum64([]byte("key"))
-	err = s.PutRaw(hkey, value)
+	err := s.PutRaw(hkey, value)
 	require.NoError(t, err)
 
 	rawval, err := s.GetRaw(hkey)
@@ -325,8 +310,7 @@ func TestKVStore_PutRawGetRaw(t *testing.T) {
 }
 
 func TestKVStore_GetTTL(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	e := entry.New()
 	e.SetKey(bkey(1))
@@ -334,7 +318,7 @@ func TestKVStore_GetTTL(t *testing.T) {
 	e.SetValue(bval(1))
 
 	hkey := xxhash.Sum64([]byte(e.Key()))
-	err = s.Put(hkey, e)
+	err := s.Put(hkey, e)
 	require.NoError(t, err)
 
 	ttl, err := s.GetTTL(hkey)
@@ -346,8 +330,7 @@ func TestKVStore_GetTTL(t *testing.T) {
 }
 
 func TestKVStore_GetLastAccess(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	e := entry.New()
 	e.SetKey(bkey(1))
@@ -355,7 +338,7 @@ func TestKVStore_GetLastAccess(t *testing.T) {
 	e.SetValue(bval(1))
 
 	hkey := xxhash.Sum64([]byte(e.Key()))
-	err = s.Put(hkey, e)
+	err := s.Put(hkey, e)
 	require.NoError(t, err)
 
 	lastAccess, err := s.GetLastAccess(hkey)
@@ -364,8 +347,7 @@ func TestKVStore_GetLastAccess(t *testing.T) {
 }
 
 func TestKVStore_Fork(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	timestamp := time.Now().UnixNano()
 	for i := 0; i < 10; i++ {
@@ -413,8 +395,7 @@ func TestKVStore_Fork(t *testing.T) {
 }
 
 func TestKVStore_StateChange(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	timestamp := time.Now().UnixNano()
 	// Current free space is 1 MB. Trigger a compaction operation.
@@ -439,29 +420,26 @@ func TestKVStore_StateChange(t *testing.T) {
 }
 
 func TestKVStore_NewEntry(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
+
 	i := s.NewEntry()
 	_, ok := i.(*entry.Entry)
 	require.True(t, ok)
 }
 
 func TestKVStore_Name(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 	require.Equal(t, "kvstore", s.Name())
 }
 
 func TestKVStore_CloseDestroy(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 	require.NoError(t, s.Close())
 	require.NoError(t, s.Destroy())
 }
 
 func TestStorage_Scan(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 1000000; i++ {
 		e := entry.New()
@@ -477,6 +455,7 @@ func TestStorage_Scan(t *testing.T) {
 	var (
 		count  int
 		cursor uint64
+		err    error
 	)
 	k := s.(*KVStore)
 	for {
@@ -494,8 +473,7 @@ func TestStorage_Scan(t *testing.T) {
 }
 
 func TestStorage_ScanRegexMatch(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	var key string
 	for i := 0; i < 1000000; i++ {
@@ -518,6 +496,7 @@ func TestStorage_ScanRegexMatch(t *testing.T) {
 	var (
 		count  int
 		cursor uint64
+		err    error
 	)
 	k := s.(*KVStore)
 	for {
@@ -535,8 +514,7 @@ func TestStorage_ScanRegexMatch(t *testing.T) {
 }
 
 func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
-	s, err := testKVStore(nil)
-	require.NoError(t, err)
+	s := testKVStore(t, nil)
 
 	for i := 0; i < 100; i++ {
 		e := entry.New()
@@ -555,7 +533,7 @@ func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
 	e.SetValue([]byte("my-value"))
 	e.SetTimestamp(time.Now().UnixNano())
 	hkey := xxhash.Sum64([]byte(e.Key()))
-	err = s.Put(hkey, e)
+	err := s.Put(hkey, e)
 	require.NoError(t, err)
 
 	var (
@@ -580,4 +558,20 @@ func TestStorage_ScanRegexMatch_OnlyOneEntry(t *testing.T) {
 
 	require.Equal(t, 1, num)
 	require.Equal(t, 1, count)
+}
+
+func TestKVStore_Put_ErrEntryTooLarge(t *testing.T) {
+	c := DefaultConfig()
+	c.Add("tableSize", 1024)
+	s := testKVStore(t, c)
+	value := make([]byte, 2048)
+	e := entry.New()
+	e.SetKey("key")
+	e.SetValue(value)
+	e.SetTTL(10)
+	e.SetTimestamp(time.Now().UnixNano())
+	hkey := xxhash.Sum64([]byte(e.Key()))
+
+	err := s.Put(hkey, e)
+	require.ErrorIs(t, err, storage.ErrEntryTooLarge)
 }

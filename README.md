@@ -22,7 +22,7 @@ See [Docker](#docker) and [Samples](#samples) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.4.4](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
+The current production version is [v0.4.5](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
 
 ### About versions
 
@@ -51,8 +51,10 @@ This document only covers `v0.5`. See v0.4.x documents [here](https://github.com
 
 ## Possible Use Cases
 
-With this feature set, Olric is good for distributed caching. But it also provides Publish-Subscribe, data replication, 
-failure detection and simple anti-entropy services. So it can be used as an ordinary key/value data store to scale your cloud application.
+Olric is an eventually consistent, unordered key/value data store. It supports various eviction mechanisms for distributed caching implementations. Olric 
+also provides Publish-Subscribe, data replication, failure detection and simple anti-entropy services. 
+
+It's good at distributed caching and publish/subscribe messaging.
 
 ## Table of Contents
 
@@ -66,6 +68,7 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
   * [Operation Modes](#operation-modes)
     * [Embedded Member](#embedded-member)
     * [Client-Server](#client-server)
+* [Golang client](#golang-client)
 * [Commands](#commands)
   * [Distributed Map](#distributed-map)
     * [DM.PUT](#dmput)
@@ -84,38 +87,22 @@ failure detection and simple anti-entropy services. So it can be used as an ordi
       * [DM.LOCKLEASE](#dmlocklease)
       * [DM.PLOCKLEASE](#dmplocklease)
     * [DM.SCAN](#dmscan)
-* [Usage](#usage)
-  * [Distributed Map](#distributed-map)
-    * [Put](#put)
-    * [PutIf](#putif)
-    * [PutEx](#putex)
-    * [PutIfEx](#putifex)
-    * [Get](#get)
-    * [GetEntry](#getentry)
-    * [Expire](#expire)
-    * [Delete](#delete)
-    * [LockWithTimeout](#lockwithtimeout)
-    * [Lock](#lock)
-    * [Unlock](#unlock)
-    * [Destroy](#destroy)
-    * [Stats](#stats)
-    * [Ping](#ping)
-    * [Query](#query)
-      * [Cursor](#cursor)
-        * [Range](#range)
-        * [Close](#close)
-    * [Atomic Operations](#atomic-operations)
-      * [Incr](#incr)
-      * [Decr](#decr)
-      * [GetPut](#getput)
-    * [Pipelining](#pipelining)
-  * [Distributed Topic](#distributed-topic)
-    * [Publish](#publish)
-    * [AddListener](#addlistener)
-    * [RemoveListener](#removelistener)
-    * [Destroy](#destroy)
-* [Serialization](#serialization)
-* [Golang Client](#golang-client)
+  * [Publish-Subscribe](#publish-subscribe)
+    * [SUBSCRIBE](#subscribe)
+    * [PSUBSCRIBE](#psubscribe)
+    * [UNSUBSCRIBE](#unsubscribe)
+    * [PUNSUBSCRIBE](#punsubscribe)
+    * [PUBSUB CHANNELS](#pubsub-channels)
+    * [PUBSUB NUMPAT](#pubsub-numpat)
+    * [PUBSUB NUMSUB](#pubsub-numsub)
+    * [QUIT](#quit)
+    * [PING](#ping)
+  * [Cluster](#cluster)
+    * [CLUSTER.ROUTINGTABLE](#clusterroutingtable)
+    * [CLUSTER.MEMBERS](#clustermembers)
+  * [Others](#others)
+    * [PING](#ping)
+    * [STATS](#stats)
 * [Configuration](#configuration)
     * [Embedded Member Mode](#embedded-member-mode)
       * [Manage the configuration in YAML format](#manage-the-configuration-in-yaml-format)
@@ -260,6 +247,11 @@ memberlist:
 Thanks to [hashicorp/memberlist](https://github.com/hashicorp/memberlist), Olric nodes can share the full list of members 
 with each other. So an Olric node can discover the whole cluster by using a single member address.
 
+#### Embedding into your Go application.
+
+Olric was originally designed as an embeddable, distributed version of Golang's built-in map. Building distributed systems
+based on Olric is an easy task. See [Samples](#samples) section to learn how to embed Olric into your existing Golang application.
+
 ### Operation Modes
 
 Olric has two different operation modes.
@@ -279,10 +271,20 @@ Client-Server deployment has advantages including more predictable and reliable 
 of problem causes and, most importantly, better scalability. When you need to scale in this deployment type, just add more
 Olric server members. You can address client and server scalability concerns separately.
 
+## Golang Client
+
+The official Golang client is defined by the `Client` interface. There are two different implementations of it in this repository.
+`EmbeddedClient` provides a client implementation for [embedded-member](#embedded-member) scenario, `ClusterClient` provides an implementation of the same interface
+for [client-server](#client-server) deployment scenario. Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient`
+provides a better performance due to localization of the queries.
+
+See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-beta.3)
+
 ## Commands
 
 Olric uses Redis protocol and supports Redis-style commands to query the database. You can use any Redis client, including
-`redis-cli`. The official Go client is a thin layer around [go-redis/redis](https://github.com/go-redis/redis) package.
+`redis-cli`. The official Go client is a thin layer around [go-redis/redis](https://github.com/go-redis/redis) package. 
+See [Golang Client](#golang-client) section for the documentation.
 
 ### Distributed Map
 
@@ -595,6 +597,7 @@ OK
 DM.LOCKLEASE sets or updates the timeout of the acquired lock for the given key. It returns `NOSUCHLOCK` if there is no lock for the given key.
 
 DM.LOCKLEASE accepts seconds as timeout.
+
 ```
 DM.LOCKLEASE dmap key token seconds
 ```
@@ -674,454 +677,190 @@ DM.SCAN partID dmap cursor [ MATCH pattern | COUNT count ]
     9) "memtier-2632291"
    10) "memtier-1938450"
 ```
+### Publish-Subscribe
 
-## Usage
+**SUBSCRIBE**, **UNSUBSCRIBE** and **PUBLISH** implement the Publish/Subscribe messaging paradigm where 
+senders are not programmed to send their messages to specific receivers. Rather, published messages are characterized 
+into channels, without knowledge of what (if any) subscribers there may be. Subscribers express interest in one or more 
+channels, and only receive messages that are of interest, without knowledge of what (if any) publishers there are. 
+This decoupling of publishers and subscribers can allow for greater scalability and a more dynamic network topology.
 
-Olric is designed to work efficiently with the minimum amount of configuration. So the default configuration should be enough for experimenting:
+**Important note:** In an Olric cluster, clients can subscribe to every node, and can also publish to every other node. The cluster
+will make sure that published messages are forwarded as needed.
 
-```go
-db, err := olric.New(config.New("local"))
+*Source of this section: [https://redis.io/commands/?group=pubsub](https://redis.io/commands/?group=pubsub)*
+
+#### SUBSCRIBE
+
+Subscribes the client to the specified channels.
+
+```
+SUBSCRIBE channel [channel...]
 ```
 
-This creates an Olric object without running any server at background. In order to run Olric, you need to call **Start** method.
+Once the client enters the subscribed state it is not supposed to issue any other commands, except for additional **SUBSCRIBE**, 
+**PSUBSCRIBE**, **UNSUBSCRIBE**, **PUNSUBSCRIBE**, **PING**, and **QUIT** commands.
 
-```go
-err := db.Start()
+#### PSUBSCRIBE
+
+Subscribes the client to the given patterns.
+
+```
+PSUBSCRIBE pattern [ pattern ...]
 ```
 
-When you call **Start** method, your process joins the cluster and will be responsible for some parts of the data. This call blocks
-indefinitely. So you may need to run it in a goroutine. Of course, this is just a single-node instance, because you didn't give any
-configuration.
+Supported glob-style patterns:
 
-When you want to leave the cluster, just need to call **Shutdown** method:
+* `h?llo` subscribes to hello, hallo and hxllo
+* `h*llo` subscribes to hllo and heeeello
+* `h[ae]llo` subscribes to hello and hallo, but not hillo
+* Use **\\** to escape special characters if you want to match them verbatim.
 
-```go
-err := db.Shutdown(context.Background())
+#### UNSUBSCRIBE
+
+Unsubscribes the client from the given channels, or from all of them if none is given.
+
+```
+UNSUBSCRIBE [channel [channel ...]]
 ```
 
-This will stop background tasks and servers. Finally purges in-memory data and quits.
+When no channels are specified, the client is unsubscribed from all the previously subscribed channels. In this case, 
+a message for every unsubscribed channel will be sent to the client.
 
-***Please note that this section aims to document DMap API in embedded member mode.*** If you prefer to use Olric in 
-Client-Server mode, please jump to [Golang Client](#golang-client) section. 
+#### PUNSUBSCRIBE
 
-### Distributed Map
+Unsubscribes the client from the given patterns, or from all of them if none is given.
 
-Create a **DMap** instance:
-
-```go
-dm, err := db.NewDMap("my-dmap")
 ```
- 
-### Put
-
-Put sets the value for the given key. It overwrites any previous value for that key, and it's thread-safe.
-
-```go
-err := dm.Put("my-key", "my-value")
+PUNSUBSCRIBE [pattern [pattern ...]]
 ```
 
-The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after
-Put returns but not before.
+When no patterns are specified, the client is unsubscribed from all the previously subscribed patterns. In this case, 
+a message for every unsubscribed pattern will be sent to the client.
 
-### PutIf
+#### PUBSUB CHANNELS
 
-PutIf sets the value for the given key. It overwrites any previous value for that key and it's thread-safe.
+Lists the currently active channels.
 
-```go
-err := dm.PutIf("my-key", "my-value", flags)
+```
+PUBSUB CHANNELS [pattern]
 ```
 
-The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after
-PutIf returns but not before.
+An active channel is a Pub/Sub channel with one or more subscribers (excluding clients subscribed to patterns).
 
-Flag argument currently has two different options:
+If no pattern is specified, all the channels are listed, otherwise if pattern is specified only channels matching the 
+specified glob-style pattern are listed.
 
-* **IfNotFound**: Only set the key if it does not already exist. It returns `ErrFound` if the key already exist.
+#### PUBSUB NUMPAT
 
-* **IfFound**: Only set the key if it already exist.It returns `ErrKeyNotFound` if the key does not exist.
+Returns the number of unique patterns that are subscribed to by clients (that are performed using the PSUBSCRIBE command).
 
-Sample use:
-
-```go
-err := dm.PutIf("my-key", "my-value", IfNotFound)
+```
+PUBSUB NUMPAT
 ```
 
-### PutEx
+Note that this isn't the count of clients subscribed to patterns, but the total number of unique patterns all the clients are subscribed to.
 
-PutEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
+**Important note**: In an Olric cluster, clients can subscribe to every node, and can also publish to every other node. The cluster 
+will make sure that published messages are forwarded as needed. That said, PUBSUB's replies in a cluster only report information 
+from the node's Pub/Sub context, rather than the entire cluster.
 
-```go
-err := dm.PutEx("my-key", "my-value", time.Second)
+#### PUBSUB NUMSUB
+
+Returns the number of subscribers (exclusive of clients subscribed to patterns) for the specified channels.
+
+```
+PUBSUB NUMSUB [channel [channel ...]]
+```
+Note that it is valid to call this command without channels. In this case it will just return an empty list.
+
+**Important note**: In an Olric cluster, clients can subscribe to every node, and can also publish to every other node. The cluster 
+will make sure that published messages are forwarded as needed. That said, PUBSUB's replies in a cluster only report information 
+from the node's Pub/Sub context, rather than the entire cluster.
+
+#### QUIT
+
+Ask the server to close the connection. The connection is closed as soon as all pending replies have been written to the client.
+
+```
+QUIT
+```
+### Cluster
+
+#### CLUSTER.ROUTINGTABLE
+
+CLUSTER.ROUTINGTABLE returns the latest view of the routing table. Simply, it's a data structure that maps
+partitions to members.
+
+```
+CLUSTER.ROUTINGTABLE
 ```
 
-The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutEx 
-returns but not before.
+**Example:**
 
-### PutIfEx
-
-PutIfEx sets the value for the given key with TTL. It overwrites any previous value for that key. It's thread-safe.
-
-```go
-err := dm.PutIfEx("my-key", "my-value", time.Second, flags)
+```
+127.0.0.1:3320> CLUSTER.ROUTINGTABLE
+ 1) 1) (integer) 0
+     2) 1) "127.0.0.1:3320"
+     3) (empty array)
+  2) 1) (integer) 1
+     2) 1) "127.0.0.1:3320"
+     3) (empty array)
+  3) 1) (integer) 2
+     2) 1) "127.0.0.1:3320"
+     3) (empty array)
 ```
 
-The key has to be `string`. Value type is arbitrary. It is safe to modify the contents of the arguments after PutIfEx 
-returns but not before.
+It returns an array of arrays. 
 
+**Fields:**
 
-Flag argument currently has two different options:
-
-* **IfNotFound**: Only set the key if it does not already exist. It returns `ErrFound` if the key already exist.
-
-* **IfFound**: Only set the key if it already exist.It returns `ErrKeyNotFound` if the key does not exist.
-
-Sample use:
-
-```go
-err := dm.PutIfEx("my-key", "my-value", time.Second, IfNotFound)
+```
+1) (integer) 0 <- Partition ID
+  2) 1) "127.0.0.1:3320" <- Array of the current and previous primary owners
+  3) (empty array) <- Array of backup owners. 
 ```
 
-### Get
+#### CLUSTER.MEMBERS
 
-Get gets the value for the given key. It returns `ErrKeyNotFound` if the DB does not contains the key. It's thread-safe.
+CLUSTER.MEMBERS returns an array of known members by the server.
 
-```go
-value, err := dm.Get("my-key")
+```
+CLUSTER.MEMBERS
 ```
 
-It is safe to modify the contents of the returned value.
+**Example:**
 
-### GetEntry
-
-Get gets the value for the given key with its metadata. It returns `ErrKeyNotFound` if the DB does not contains the key. It's thread-safe.
-
-```go
-entry, err := dm.GetEntry("my-key")
+```
+127.0.0.1:3320> CLUSTER.MEMBERS
+1) 1) "127.0.0.1:3320"
+   2) (integer) 1652619388427137000
+   3) "true"
 ```
 
-Definition of `Entry`:
+**Fields:**
 
-```go
-type Entry struct {
-	Key       string
-	Value     interface{}
-	TTL       int64
-	Timestamp int64
-}
+```
+1) 1) "127.0.0.1:3320" <- Member's name in the cluster
+   2) (integer) 1652619388427137000 <-Member's birthedate
+   3) "true" <- Is cluster coordinator (the oldest node)
 ```
 
-It is safe to modify the contents of the returned value. 
 
-### Expire
+### Others
 
-Expire updates the expiry for the given key. It returns `ErrKeyNotFound` if the DB does not contains the key. It's thread-safe.
+#### PING
 
-```go
-err := dm.Expire("my-key", time.Second)
+Returns PONG if no argument is provided, otherwise return a copy of the argument as a bulk. This command is often used to
+test if a connection is still alive, or to measure latency.
+
+```
+PING
 ```
 
-The key has to be `string`. The second parameter is `time.Duration`.
+#### STATS
 
-### Delete
-
-Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
-
-```go
-err := dm.Delete("my-key")
-```
-
-It is safe to modify the contents of the argument after Delete returns.
-
-### LockWithTimeout
-
-LockWithTimeout sets a lock for the given key. If the lock is still unreleased the end of given period of time, it automatically releases the
-lock. Acquired lock is only for the key in this DMap.
-
-```go
-ctx, err := dm.LockWithTimeout("lock.foo", time.Millisecond, time.Second)
-```
-
-It returns immediately if it acquires the lock for the given key. Otherwise, it waits until deadline. You should keep `LockContext` (as ctx) 
-value to call **Unlock** method to release the lock.
-
-Creating a seperated DMap to keep locks may be a good idea.
-
-**You should know that the locks are approximate, and only to be used for non-critical purposes.**
-
-Please take a look at [Lock Implementation](#lock-implementation) section for implementation details.
-
-### Lock
-Lock sets a lock for the given key. Acquired lock is only for the key in this DMap.
-
-```go
-ctx, err := dm.Lock("lock.foo", time.Second)
-```
-
-It returns immediately, if it acquires the lock for the given key. Otherwise, it waits until deadline. You should keep `LockContext` (as ctx) 
-value to call **Unlock** method to release the lock.
-
-**You should know that the locks are approximate, and only to be used for non-critical purposes.**
-
-### Unlock
-
-Unlock releases an acquired lock for the given key. It returns `ErrNoSuchLock` if there is no lock for the given key.
-
-```go
-err := ctx.Unlock()
-```
-
-### Destroy
-
-Destroy flushes the given DMap on the cluster. You should know that there is no global lock on DMaps. So if you call Put/PutEx and Destroy
-methods concurrently on the cluster, Put/PutEx calls may set new values to the DMap.
-
-```go
-err := dm.Destroy()
-```
-
-### Stats
-
-Stats exposes some useful metrics to monitor an Olric node. It includes memory allocation metrics from partitions and the Go runtime metrics.
-
-```go
-data, err := db.Stats()
-```
-
-See `stats/stats.go` for detailed info about the metrics.
-
-### Ping 
-
-Ping sends a dummy protocol message to the given host. This is useful to measure RTT between hosts. It also can be used as aliveness check.
-
-```go
-err := db.Ping()
-```
-### Query
-
-Query runs a distributed query on a DMap instance. Olric supports a very simple query DSL and now, it only scans keys. 
-The query DSL has very few keywords:
-
-* **$onKey**: Runs the given query on keys or manages options on keys for a given query.
-* **$onValue**: Runs the given query on values or manages options on values for a given query.
-* **$options**: Useful to modify data returned from a query
-
-Keywords for $options:
-
-* **$ignore**: Ignores a value.
-
-A distributed query looks like the following:
-
-```go
-  query.M{
-	  "$onKey": query.M{
-		  "$regexMatch": "^even:",
-		  "$options": query.M{
-			  "$onValue": query.M{
-				  "$ignore": true,
-			  },
-		  },
-	  },
-  }
-```
-
-This query finds the keys starts with *even:*, drops the values and returns only keys. If you also want to retrieve the values, 
-just remove the **$options** directive:
-
-```go
-  query.M{
-	  "$onKey": query.M{
-		  "$regexMatch": "^even:",
-	  },
-  }
-```
-
-In order to iterate over all the keys:
-
-```go
-  query.M{
-	  "$onKey": query.M{
-		  "$regexMatch": "",
-	  },
-  }
-```
-
-This is how you call a distributed query over the cluster:
-
-```go
-c, err := dm.Query(query.M{"$onKey": query.M{"$regexMatch": "",}})
-```
-
-Query function returns a cursor which has `Range` and `Close` methods. Please take look at the `Range` function for further info. 
-
-[Here is a working query example.](https://gist.github.com/buraksezer/045b7ec09463e38b383d0413ad9bcc57)
-
-### Cursor
-
-Cursor implements distributed queries in Olric. It has two methods: `Range` and `Close`
-
-#### Range
-
-Range calls `f` sequentially for each key and value yielded from the cursor. If f returns `false`, range stops the iteration.
-
-```go
-err := c.Range(func(key string, value interface{}) bool {
-		fmt.Printf("KEY: %s, VALUE: %v\n", key, value)
-		return true
-})
-```
-
-#### Close
-
-Close cancels the underlying context and background goroutines stops running. It's a good idea that defer `Close` after getting
-a `Cursor`. By this way, you can ensure that there is no dangling goroutine after your distributed query execution is stopped. 
-
-```go
-c.Close()
-```
-
-## Atomic Operations
-
-Operations on key/value pairs are performed by the partition owner. In addition, atomic operations are guarded by a lock implementation which can be found under `internal/locker`. It means that 
-Olric guaranties consistency of atomic operations, if there is no network partition. Basic flow for `Incr`:
-
-* Acquire the lock for the given key,
-* Call `Get` to retrieve the current value,
-* Calculate the new value,
-* Call `Put` to set the new value,
-* Release the lock.
-
-It's important to know that if you call `Put` and `GetPut` concurrently on the same key, this will break the atomicity.
-
-`internal/locker` package is provided by [Docker](https://github.com/moby/moby).
-
-**Important note about consistency:**
-
-You should know that Olric is a PA/EC (see [Consistency and Replication Model](#consistency-and-replication-model)) product. So if your network is stable, all the operations on key/value 
-pairs are performed by a single cluster member. It means that you can be sure about the consistency when the cluster is stable. It's important to know that computer networks fail 
-occasionally, processes crash and random GC pauses may happen. Many factors can lead a network partitioning. If you cannot tolerate losing strong consistency under network partitioning, 
-you need to use a different tool for atomic operations.
-
-See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2017/10/hazelcast-and-mythical-paec-system.html) and [Jepsen Analysis on Hazelcast 3.8.3](https://hazelcast.com/blog/jepsen-analysis-hazelcast-3-8-3/) for more insight on this topic.
-
-### Incr
-
-Incr atomically increments key by delta. The return value is the new value after being incremented or an error.
-
-```go
-nr, err := dm.Incr("atomic-key", 3)
-```
-
-The returned value is `int`.
-
-### Decr
-
-Decr atomically decrements key by delta. The return value is the new value after being decremented or an error.
-
-```go
-nr, err := dm.Decr("atomic-key", 1)
-```
-
-The returned value is `int`.
-
-
-### GetPut
-
-GetPut atomically sets key to value and returns the old value stored at key.
-
-```go
-value, err := dm.GetPut("atomic-key", someType{})
-```
-
-The returned value is an arbitrary type.
-
-
-There is no hard-limit on message count in a pipeline. You should set a convenient `KeepAlive` for large pipelines. Otherwise, you can get a timeout error.
-
-The `Flush` method returns errors along with success messages. Furthermore, you need to know the command order for matching responses with requests.
-
-### Distributed Topic
-
-Distributed topic is an asynchronous messaging service that decouples services that produce events from services that process events. It has two delivery modes:
-
-* **olric.UnorderedDelivery**: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
-* **olric.OrderedDelivery**: Messages are delivered in some order. Not implemented yet. 
-
-You should know that:
-
-* Communication between parties is one-to-many (fan-out). 
-* All data is in-memory, and the published messages are not stored in the cluster.
-* Fire&Forget: message delivery is not guaranteed.
-
-Create a **DTopic** instance:
-
-```go
-dt, err := db.NewDTopic("my-topic", 0, olric.UnorderedDelivery)
-```
-
-### Publish
-
-Publish sends a message to the given topic. It accepts any serializable type as message. 
-
-```go
-err := dt.Publish("my-message")
-```
-
-### AddListener
-
-AddListener adds a new listener for the topic. Returns a listener ID or a non-nil error. The callback functions for this DTopic are run by parallel.
-
-```go
-listenerID, err := dt.AddListener(func(msg DTopicMessage) {
-    fmt.Println("Message:", msg)
-})
-```
-
-You have to store `listenerID` to remove the listener.
-
-### RemoveListener
-
-RemoveListener removes a listener with the given listenerID.
-
-```go
-err := dt.RemoveListener(listenerID)
-```
-
-### Destroy
-
-Destroy a DTopic from the cluster. It stops background goroutines and releases underlying data structures.
-
-```go
-err := dt.Destroy()
-```
-
-## Golang Client
-
-This repo contains the official Golang client for Olric. It implements Olric Binary Protocol(OBP). With this client,
-you can access to Olric clusters in your Golang programs. In order to create a client instance:
-
-```go
-var clientConfig = &client.Config{
-    Addrs:       []string{"localhost:3320"},
-    DialTimeout: 10 * time.Second,
-    KeepAlive:   10 * time.Second,
-    MaxConn:     100,
-}
-
-client, err := client.New(clientConfig)
-if err != nil {
-    return err
-}
-
-dm := client.NewDMap("foobar")
-err := dm.Put("key", "value")
-// Handle this error
-```
-
-This implementation supports TCP connection pooling. So it recycles the opened TCP connections to avoid wasting resources. 
-The requests are distributed among available TCP connections using an algorithm called `round-robin`. In order to see detailed list of
-configuration parameters, see [Olric documentation on GoDoc.org](https://godoc.org/github.com/buraksezer/olric).
-
-The official Golang client has its dedicated documentation. Please take a look at [this](https://github.com/buraksezer/olric/tree/master/client#golang-client).
+The STATS command returns information and statistics about the server in JSON format. See `stats/stats.go` file.
 
 ## Configuration
 

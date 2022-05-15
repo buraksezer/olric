@@ -16,7 +16,9 @@ package dmap
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -326,4 +328,38 @@ func TestDMap_Put_PXAT(t *testing.T) {
 		_, err := dm2.Get(ctx, testutil.ToKey(i))
 		require.ErrorIs(t, err, ErrKeyNotFound)
 	}
+}
+
+func TestDMap_Put_ErrKeyTooLarge(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	data := make([]byte, 300)
+	_, err = rand.Read(data)
+	require.NoError(t, err)
+	key := hex.EncodeToString(data)
+	err = dm.Put(ctx, key, "value", nil)
+	require.ErrorIs(t, err, ErrKeyTooLarge)
+}
+
+func TestDMap_Put_ErrEntryTooLarge(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	dm, err := s.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	data := make([]byte, 1<<21)
+	_, err = rand.Read(data)
+	require.NoError(t, err)
+
+	err = dm.Put(ctx, "key", data, nil)
+	require.ErrorIs(t, err, ErrEntryTooLarge)
 }

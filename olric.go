@@ -88,6 +88,9 @@ var (
 	// ErrKeyTooLarge means that the given key is too large to process.
 	// Maximum length of a key is 256 bytes.
 	ErrKeyTooLarge = errors.New("key too large")
+
+	// ErrEntryTooLarge returned if required space for an entry is bigger than table size.
+	ErrEntryTooLarge = errors.New("entry too large for the configured table size")
 )
 
 // Olric implements a distributed cache and in-memory key/value data store.
@@ -460,6 +463,8 @@ func convertDMapError(err error) error {
 		return ErrServerGone
 	case errors.Is(err, dmap.ErrKeyTooLarge):
 		return ErrKeyTooLarge
+	case errors.Is(err, dmap.ErrEntryTooLarge):
+		return ErrEntryTooLarge
 	default:
 		return convertClusterError(err)
 	}
