@@ -26,10 +26,7 @@ import (
 )
 
 func TestKVStore_Compaction(t *testing.T) {
-	s, err := testKVStore(nil)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
+	s := testKVStore(t, nil)
 
 	timestamp := time.Now().UnixNano()
 	// Current free space is 1 MB. Trigger a compaction operation.
@@ -46,7 +43,7 @@ func TestKVStore_Compaction(t *testing.T) {
 
 	for i := 0; i < 750; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		err = s.Delete(hkey)
+		err := s.Delete(hkey)
 		require.NoError(t, err)
 	}
 
@@ -77,10 +74,7 @@ func TestKVStore_Compaction_MaxIdleTableDuration(t *testing.T) {
 	c := DefaultConfig()
 	c.Add("maxIdleTableTimeout", time.Millisecond)
 
-	s, err := testKVStore(c)
-	if err != nil {
-		t.Fatalf("Expected nil. Got %v", err)
-	}
+	s := testKVStore(t, c)
 
 	timestamp := time.Now().UnixNano()
 	// Current free space is 1 MB. Trigger a compaction operation.
@@ -99,7 +93,7 @@ func TestKVStore_Compaction_MaxIdleTableDuration(t *testing.T) {
 
 	for i := 0; i < 800; i++ {
 		hkey := xxhash.Sum64([]byte(bkey(i)))
-		err = s.Delete(hkey)
+		err := s.Delete(hkey)
 		require.NoError(t, err)
 	}
 

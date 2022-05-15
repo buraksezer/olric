@@ -60,7 +60,6 @@ func (s *Engine) Sanitize() error {
 	if s.Implementation == nil {
 		switch s.Name {
 		case DefaultStorageEngine:
-			s.Implementation = kvstore.New(nil)
 			cfg := kvstore.DefaultConfig().ToMap()
 			for key, value := range cfg {
 				_, ok := s.Config[key]
@@ -68,6 +67,11 @@ func (s *Engine) Sanitize() error {
 					s.Config[key] = value
 				}
 			}
+			kv, err := kvstore.New(storage.NewConfig(s.Config))
+			if err != nil {
+				return err
+			}
+			s.Implementation = kv
 		default:
 			return fmt.Errorf("unknown storage engine: %s", s.Name)
 		}

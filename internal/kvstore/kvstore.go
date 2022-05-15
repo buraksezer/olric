@@ -39,6 +39,7 @@ const (
 // KVStore implements an in-memory storage engine.
 type KVStore struct {
 	coefficient         uint64
+	tableSize           uint64
 	tablesByCoefficient map[uint64]*table.Table
 	tables              []*table.Table
 	config              *storage.Config
@@ -51,11 +52,26 @@ func DefaultConfig() *storage.Config {
 	return options
 }
 
-func New(c *storage.Config) *KVStore {
+func New(c *storage.Config) (*KVStore, error) {
+	if c == nil {
+		c = DefaultConfig()
+	}
+
+	raw, err := c.Get("tableSize")
+	if err != nil {
+		return nil, err
+	}
+
+	size, err := prepareTableSize(raw)
+	if err != nil {
+		return nil, err
+	}
+
 	return &KVStore{
+		tableSize:           size,
 		tablesByCoefficient: make(map[uint64]*table.Table),
 		config:              c,
-	}
+	}, nil
 }
 
 func (k *KVStore) SetConfig(c *storage.Config) {
@@ -77,17 +93,7 @@ func (k *KVStore) makeTable() error {
 		}
 	}
 
-	tmpSize, err := k.config.Get("tableSize")
-	if err != nil {
-		return err
-	}
-
-	size, err := prepareTableSize(tmpSize)
-	if err != nil {
-		return err
-	}
-
-	current := table.New(size)
+	current := table.New(k.tableSize)
 	k.tables = append(k.tables, current)
 	k.tablesByCoefficient[k.coefficient] = current
 	k.coefficient++
@@ -101,6 +107,10 @@ func (k *KVStore) Start() error {
 		return errors.New("config cannot be nil")
 	}
 	return nil
+}
+
+func requiredSizeForAnEntry(e storage.Entry) uint64 {
+	return uint64(len(e.Key()) + len(e.Value()) + table.MetadataLength)
 }
 
 func prepareTableSize(raw interface{}) (size uint64, err error) {
@@ -137,18 +147,12 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	if c == nil {
 		c = k.config.Copy()
 	}
-	tmpSize, err := c.Get("tableSize")
+
+	child, err := New(c)
 	if err != nil {
 		return nil, err
 	}
-
-	size, err := prepareTableSize(tmpSize)
-	if err != nil {
-		return nil, err
-	}
-
-	child := New(c)
-	t := table.New(size)
+	t := table.New(k.tableSize)
 	child.tables = append(child.tables, t)
 	child.tablesByCoefficient[k.coefficient] = t
 	child.coefficient++
@@ -171,6 +175,10 @@ func (k *KVStore) NewEntry() storage.Entry {
 
 // PutRaw sets the raw value for the given key.
 func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
+	if uint64(len(value)) > k.tableSize {
+		return storage.ErrEntryTooLarge
+	}
+
 	if len(k.tables) == 0 {
 		if err := k.makeTable(); err != nil {
 			return err
@@ -201,6 +209,10 @@ func (k *KVStore) PutRaw(hkey uint64, value []byte) error {
 
 // Put sets the value for the given key. It overwrites any previous value for that key
 func (k *KVStore) Put(hkey uint64, value storage.Entry) error {
+	if requiredSizeForAnEntry(value) > k.tableSize {
+		return storage.ErrEntryTooLarge
+	}
+
 	if len(k.tables) == 0 {
 		if err := k.makeTable(); err != nil {
 			return err
@@ -464,22 +476,13 @@ func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (
 }
 
 func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
-	raw, err := k.config.Get("tableSize")
-	if err != nil {
-		return 0, err
-	}
-	size, err := prepareTableSize(raw)
-	if err != nil {
-		return 0, err
-	}
-
-	cf := cursor / size
+	cf := cursor / k.tableSize
 	t := k.tablesByCoefficient[cf]
 	if cf > 0 {
-		cursor = cursor - (size * cf)
+		cursor = cursor - (k.tableSize * cf)
 	}
 
-	cursor, err = t.ScanRegexMatch(cursor, expr, count, f)
+	cursor, err := t.ScanRegexMatch(cursor, expr, count, f)
 	if err != nil {
 		return 0, err
 	}
@@ -489,10 +492,10 @@ func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e
 		if !ok {
 			return 0, nil
 		}
-		return size * (cf + 1), nil
+		return k.tableSize * (cf + 1), nil
 	}
 
-	return cursor + (size * cf), nil
+	return cursor + (k.tableSize * cf), nil
 
 }
 
