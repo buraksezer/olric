@@ -36,9 +36,9 @@ type ClusterIterator struct {
 	pos            int
 	page           []string
 	allKeys        map[string]struct{}
-	cursors        map[string]uint64 // member id => cursor
-	replicaCursors map[string]uint64 // member id => cursor
-	partID         uint64            // current partition id
+	cursors        map[uint64]map[string]uint64 // member id => cursor
+	replicaCursors map[uint64]map[string]uint64 // member id => cursor
+	partID         uint64                       // current partition id
 	routingTable   RoutingTable
 	partitionCount uint64
 	config         *dmap.ScanConfig
@@ -48,10 +48,17 @@ type ClusterIterator struct {
 }
 
 func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner string) {
+	if _, ok := i.cursors[i.partID]; !ok {
+		i.cursors[i.partID] = make(map[string]uint64)
+	}
+	if _, ok := i.replicaCursors[i.partID]; !ok {
+		i.replicaCursors[i.partID] = make(map[string]uint64)
+	}
+
 	if i.config.Replica {
-		i.replicaCursors[owner] = cursor
+		i.replicaCursors[i.partID][owner] = cursor
 	} else {
-		i.cursors[owner] = cursor
+		i.cursors[i.partID][owner] = cursor
 	}
 	for _, key := range keys {
 		if _, ok := i.allKeys[key]; !ok {
@@ -63,10 +70,11 @@ func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner str
 
 func (i *ClusterIterator) scanOnOwners(owners []string) error {
 	for _, owner := range owners {
-		var cursor uint64 = i.cursors[owner]
+		var cursor = i.cursors[i.partID][owner]
 		if i.config.Replica {
-			cursor = i.replicaCursors[owner]
+			cursor = i.replicaCursors[i.partID][owner]
 		}
+
 		s := protocol.NewScan(i.partID, i.dm.Name(), cursor)
 		if i.config.HasCount {
 			s.SetCount(i.config.Count)
@@ -86,11 +94,11 @@ func (i *ClusterIterator) scanOnOwners(owners []string) error {
 			return err
 		}
 
-		keys, cursor, err := scanCmd.Result()
+		keys, newCursor, err := scanCmd.Result()
 		if err != nil {
 			return err
 		}
-		i.updateIterator(keys, cursor, owner)
+		i.updateIterator(keys, newCursor, owner)
 	}
 
 	return nil
@@ -101,15 +109,6 @@ func (i *ClusterIterator) resetPage() {
 		i.page = []string{}
 	}
 	i.pos = 0
-}
-
-func (i *ClusterIterator) reset() {
-	// Reset
-	for memberID := range i.cursors {
-		delete(i.cursors, memberID)
-		delete(i.replicaCursors, memberID)
-	}
-	i.resetPage()
 }
 
 func (i *ClusterIterator) fetchData() error {
@@ -154,7 +153,7 @@ func (i *ClusterIterator) next() bool {
 		if i.partID >= i.partitionCount {
 			return false
 		}
-		i.reset()
+		i.resetPage()
 		return i.next()
 	}
 	i.pos = 1
