@@ -21,8 +21,10 @@ import (
 	"testing"
 
 	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func TestResolver_Ping(t *testing.T) {
@@ -56,6 +58,100 @@ func TestResolver_Ping(t *testing.T) {
 		require.Equal(t, "FOOBAR", res)
 		require.NoError(t, err)
 	})
+
+	require.NoError(t, sq.Shutdown(ctx))
+	require.NoError(t, <-errCh)
+}
+
+func commitMessageBuilder(readVersion, commitVersion uint32) *CommitMessage {
+	return &CommitMessage{
+		ReadVersion:   readVersion,
+		CommitVersion: commitVersion,
+		Keys: []WrappedKey{
+			{
+				Key:  "a",
+				Kind: ReadCommandKind,
+			},
+			{
+				Key:  "b",
+				Kind: ReadCommandKind,
+			},
+			{
+				Key:  "a",
+				Kind: MutateCommandKind,
+			},
+			{
+				Key:  "b",
+				Kind: MutateCommandKind,
+			},
+			{
+				Key:  "c",
+				Kind: MutateCommandKind,
+			},
+		},
+	}
+}
+
+func TestResolver_SSI_Commit_Single_Transaction(t *testing.T) {
+	c := makeResolverConfig(t)
+
+	lg := log.New(os.Stderr, "", 0)
+	sq, err := New(c, lg)
+	require.NoError(t, err)
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- sq.Start()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rc := newRedisClient(t, c)
+
+	data, err := msgpack.Marshal(commitMessageBuilder(12, 17))
+	require.NoError(t, err)
+
+	resolverCommitCmd := protocol.NewResolverCommit(string(data)).Command(ctx)
+	err = rc.Process(ctx, resolverCommitCmd)
+	require.NoError(t, err)
+	require.NoError(t, resolverCommitCmd.Err())
+
+	require.NoError(t, sq.Shutdown(ctx))
+	require.NoError(t, <-errCh)
+}
+
+func TestResolver_SSI_Concurrent_Tx(t *testing.T) {
+	c := makeResolverConfig(t)
+
+	lg := log.New(os.Stderr, "", 0)
+	sq, err := New(c, lg)
+	require.NoError(t, err)
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- sq.Start()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rc := newRedisClient(t, c)
+	data, err := msgpack.Marshal(commitMessageBuilder(12, 17))
+	require.NoError(t, err)
+
+	resolverCommitCmd := protocol.NewResolverCommit(string(data)).Command(ctx)
+	err = rc.Process(ctx, resolverCommitCmd)
+	require.NoError(t, err)
+	require.NoError(t, resolverCommitCmd.Err())
+
+	data, err = msgpack.Marshal(commitMessageBuilder(14, 20))
+	require.NoError(t, err)
+
+	resolverCommitCmd = protocol.NewResolverCommit(string(data)).Command(ctx)
+	err = rc.Process(ctx, resolverCommitCmd)
+	require.ErrorIs(t, protocol.ConvertError(err), ErrTransactionAbort)
+	require.ErrorIs(t, protocol.ConvertError(resolverCommitCmd.Err()), ErrTransactionAbort)
 
 	require.NoError(t, sq.Shutdown(ctx))
 	require.NoError(t, <-errCh)

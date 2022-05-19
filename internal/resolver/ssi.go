@@ -137,7 +137,7 @@ func (s *SSI) Stop() {
 	}
 
 	s.cancel()
-	s.wg.Done()
+	s.wg.Wait()
 }
 
 var _ Tx = (*SSI)(nil)

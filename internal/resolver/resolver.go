@@ -31,6 +31,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func registerErrors() {
+	protocol.SetError("TRANSACTIONABORT", ErrTransactionAbort)
+}
+
 type Resolver struct {
 	config *config.Config
 	log    *flog.Logger
@@ -81,6 +85,7 @@ func New(c *config.Config, lg *log.Logger) (*Resolver, error) {
 	srv.SetPreConditionFunc(r.preconditionFunc)
 	r.server = srv
 	r.registerHandlers()
+	registerErrors()
 
 	return r, nil
 }
@@ -92,6 +97,7 @@ func (r *Resolver) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
 
 func (r *Resolver) registerHandlers() {
 	r.server.ServeMux().HandleFunc(protocol.Generic.Ping, r.pingCommandHandler)
+	r.server.ServeMux().HandleFunc(protocol.Resolver.Commit, r.commitCommandHandler)
 }
 
 func (r *Resolver) Start() error {
