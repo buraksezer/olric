@@ -16,6 +16,7 @@ package sequencer
 
 import (
 	"encoding/binary"
+
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/cockroachdb/pebble"

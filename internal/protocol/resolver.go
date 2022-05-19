@@ -39,11 +39,11 @@ func NewResolverCommit(body string) *ResolverCommit {
 	}
 }
 
-func (c *ResolverCommit) Command(ctx context.Context) *redis.IntCmd {
+func (c *ResolverCommit) Command(ctx context.Context) *redis.StatusCmd {
 	var args []interface{}
 	args = append(args, Resolver.Commit)
 	args = append(args, c.Body)
-	return redis.NewIntCmd(ctx, args...)
+	return redis.NewStatusCmd(ctx, args...)
 }
 
 func ParseResolverCommit(cmd redcon.Command) (*ResolverCommit, error) {

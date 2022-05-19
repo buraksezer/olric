@@ -15,17 +15,16 @@
 package resolver
 
 import (
-	"github.com/buraksezer/olric/internal/util"
-	"github.com/vmihailenco/msgpack/v5"
-
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type WrappedKey struct {
 	Key  string `msgpack:"k"`
-	Kind int    `msgpack:"kd"`
+	Kind Kind   `msgpack:"kd"`
 }
 
 type CommitMessage struct {
@@ -56,14 +55,14 @@ func (r *Resolver) commitCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	batch := CommitMessage{}
-	err = msgpack.Unmarshal(util.StringToBytes(commitCmd.Body), batch)
+	err = msgpack.Unmarshal(util.StringToBytes(commitCmd.Body), &batch)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
 	}
 	var keys []*Key
 	for _, key := range batch.Keys {
-		keys = append(keys, NewKey(key.Key, Kind(key.Kind)))
+		keys = append(keys, NewKey(key.Key, key.Kind))
 	}
 	err = r.ssi.Commit(batch.ReadVersion, batch.CommitVersion, keys)
 	if err != nil {
