@@ -1,0 +1,10 @@
+olric-transaction-log:
+  bindAddr: localhost
+  bindPort: 3320
+  dataDir: "/var/db/olric-transaction-log"
+  keepAlivePeriod: 5m
+
+logging:
+  verbosity: 6
+  level: DEBUG
+  output: stderr
