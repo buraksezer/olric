@@ -27,24 +27,32 @@ import (
 type EmbeddedIterator struct {
 	mtx sync.Mutex
 
-	client   *EmbeddedClient
-	pos      int
-	page     []string
-	dm       *dmap.DMap
-	allKeys  map[string]struct{}
-	finished map[uint64]struct{}
-	cursors  map[uint64]uint64 // member id => cursor
-	partID   uint64            // current partition id
-	config   *dmap.ScanConfig
-	ctx      context.Context
-	cancel   context.CancelFunc
+	client         *EmbeddedClient
+	pos            int
+	page           []string
+	dm             *dmap.DMap
+	allKeys        map[string]struct{}
+	cursors        map[uint64]map[string]uint64 // member id => cursor
+	replicaCursors map[uint64]map[string]uint64 // member id => cursor
+	partID         uint64                       // current partition id
+	config         *dmap.ScanConfig
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
-func (i *EmbeddedIterator) updateIterator(keys []string, cursor, ownerID uint64) {
-	if cursor == 0 {
-		i.finished[ownerID] = struct{}{}
+func (i *EmbeddedIterator) updateIterator(keys []string, cursor uint64, owner string) {
+	if _, ok := i.cursors[i.partID]; !ok {
+		i.cursors[i.partID] = make(map[string]uint64)
 	}
-	i.cursors[ownerID] = cursor
+	if _, ok := i.replicaCursors[i.partID]; !ok {
+		i.replicaCursors[i.partID] = make(map[string]uint64)
+	}
+
+	if i.config.Replica {
+		i.replicaCursors[i.partID][owner] = cursor
+	} else {
+		i.cursors[i.partID][owner] = cursor
+	}
 	for _, key := range keys {
 		if _, ok := i.allKeys[key]; !ok {
 			i.page = append(i.page, key)
@@ -55,25 +63,29 @@ func (i *EmbeddedIterator) updateIterator(keys []string, cursor, ownerID uint64)
 
 func (i *EmbeddedIterator) scanOnOwners(owners []discovery.Member) error {
 	for _, owner := range owners {
-		if _, ok := i.finished[owner.ID]; ok {
-			continue
+		var cursor = i.cursors[i.partID][owner.String()]
+		if i.config.Replica {
+			cursor = i.replicaCursors[i.partID][owner.String()]
 		}
 
 		if owner.CompareByID(i.client.db.rt.This()) {
-			keys, cursor, err := i.dm.Scan(i.partID, i.cursors[owner.ID], i.config)
+			keys, cursor, err := i.dm.Scan(i.partID, cursor, i.config)
 			if err != nil {
 				return err
 			}
-			i.updateIterator(keys, cursor, owner.ID)
+			i.updateIterator(keys, cursor, owner.String())
 			continue
 		}
 
-		s := protocol.NewScan(i.partID, i.dm.Name(), i.cursors[owner.ID])
+		s := protocol.NewScan(i.partID, i.dm.Name(), cursor)
 		if i.config.HasCount {
 			s.SetCount(i.config.Count)
 		}
 		if i.config.HasMatch {
 			s.SetMatch(i.config.Match)
+		}
+		if i.config.Replica {
+			s.SetReplica()
 		}
 
 		scanCmd := s.Command(i.ctx)
@@ -84,11 +96,11 @@ func (i *EmbeddedIterator) scanOnOwners(owners []discovery.Member) error {
 			return err
 		}
 
-		keys, cursor, err := scanCmd.Result()
+		keys, newCursor, err := scanCmd.Result()
 		if err != nil {
 			return err
 		}
-		i.updateIterator(keys, cursor, owner.ID)
+		i.updateIterator(keys, newCursor, owner.String())
 	}
 
 	return nil
@@ -99,15 +111,6 @@ func (i *EmbeddedIterator) resetPage() {
 		i.page = []string{}
 	}
 	i.pos = 0
-}
-
-func (i *EmbeddedIterator) reset() {
-	// Reset
-	for memberID := range i.cursors {
-		delete(i.cursors, memberID)
-		delete(i.finished, memberID)
-	}
-	i.resetPage()
 }
 
 func (i *EmbeddedIterator) fetchData() error {
@@ -143,10 +146,10 @@ func (i *EmbeddedIterator) next() bool {
 
 	if len(i.page) == 0 {
 		i.partID++
-		if i.client.db.config.PartitionCount <= i.partID {
+		if i.partID >= i.client.db.config.PartitionCount {
 			return false
 		}
-		i.reset()
+		i.resetPage()
 		return i.next()
 	}
 	i.pos = 1
