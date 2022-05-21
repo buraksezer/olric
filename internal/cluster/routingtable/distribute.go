@@ -44,6 +44,7 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 			r.log.V(6).Printf("[DEBUG] Failed to find %s in the cluster: %v", owner, err)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
+			r.log.V(6).Printf("[INFO] Member: %s has been deleted from the primary owners list of PartID: %v", owner.String(), partID)
 			continue
 		}
 		if !owner.CompareByID(current) {
@@ -151,6 +152,7 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 			// Delete it.
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
+			r.log.V(6).Printf("[INFO] Member: %s has been deleted from the backup owners list of PartID: %v", backup.String(), partID)
 			continue
 		}
 		if !backup.CompareByID(cur) {
@@ -194,7 +196,7 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 			//   a new node joined. Then, we transfer the ownership safely.
 			// * During this incident, a node owns a primary and backup replicas at the same time.
 			if !isOwner(backup, newOwners) {
-				r.log.V(3).Printf("[WARN] %s still hosts backup replica "+
+				r.log.V(3).Printf("[WARN] %s hosts primary and replica copies "+
 					"for PartID: %d", backup, partID)
 			}
 			continue

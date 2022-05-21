@@ -17,15 +17,16 @@ package dmap
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/buraksezer/olric/events"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/vmihailenco/msgpack/v5"
-	"strings"
-	"sync"
-	"time"
 )
 
 type fragment struct {

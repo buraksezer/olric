@@ -36,6 +36,8 @@ func (t *transferIterator) Pop() error {
 	}
 
 	t.storage.tables = append(t.storage.tables[:0], t.storage.tables[1:]...)
+	delete(t.storage.tablesByCoefficient, 0)
+	t.storage.coefficient = t.storage.coefficient - 1
 
 	return nil
 }
@@ -55,13 +57,6 @@ func (k *KVStore) Import(data []byte, f func(uint64, storage.Entry) error) error
 	tb, err := table.Decode(data)
 	if err != nil {
 		return err
-	}
-
-	if k.Stats().Length == 0 {
-		// DMap has no keys. Set the imported storage instance.
-		// The old one will be garbage collected.
-		k.AppendTable(tb)
-		return nil
 	}
 
 	tb.Range(func(hkey uint64, e storage.Entry) bool {

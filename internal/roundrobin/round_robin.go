@@ -47,12 +47,12 @@ func (r *RoundRobin) Get() (string, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if r.current >= len(r.items) {
-		r.current %= len(r.items)
-	}
-
 	if len(r.items) == 0 {
 		return "", ErrEmptyInstance
+	}
+
+	if r.current >= len(r.items) {
+		r.current %= len(r.items)
 	}
 
 	if r.current >= len(r.items) {

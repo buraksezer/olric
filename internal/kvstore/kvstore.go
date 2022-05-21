@@ -154,7 +154,7 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	}
 	t := table.New(k.tableSize)
 	child.tables = append(child.tables, t)
-	child.tablesByCoefficient[k.coefficient] = t
+	child.tablesByCoefficient[child.coefficient] = t
 	child.coefficient++
 	return child, nil
 }
@@ -447,47 +447,56 @@ func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
 }
 
 func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
-	tmp, err := k.config.Get("tableSize")
-	if err != nil {
-		return 0, err
+	if len(k.tables) == 0 {
+		return 0, nil
 	}
-	size := tmp.(uint64)
 
-	cf := cursor / size
+	cf := cursor / k.tableSize
 	t := k.tablesByCoefficient[cf]
+
+	var err error
+	var tableCursor = cursor
 	if cf > 0 {
-		cursor = cursor - (size * cf)
+		tableCursor = cursor - (k.tableSize * cf)
 	}
 
-	cursor, err = t.Scan(cursor, count, f)
+	tableCursor, err = t.Scan(tableCursor, count, f)
 	if err != nil {
 		return 0, err
 	}
 
-	if cursor == 0 {
+	if tableCursor == 0 {
 		_, ok := k.tablesByCoefficient[cf+1]
 		if !ok {
 			return 0, nil
 		}
-		return size * (cf + 1), nil
+		// The next table
+		return k.tableSize * (cf + 1), nil
 	}
 
-	return cursor + (size * cf), nil
+	return tableCursor + (k.tableSize * cf), nil
 }
 
 func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
-	cf := cursor / k.tableSize
-	t := k.tablesByCoefficient[cf]
-	if cf > 0 {
-		cursor = cursor - (k.tableSize * cf)
+	if len(k.tables) == 0 {
+		return 0, nil
 	}
 
-	cursor, err := t.ScanRegexMatch(cursor, expr, count, f)
+	cf := cursor / k.tableSize
+	t := k.tablesByCoefficient[cf]
+
+	var err error
+	var tableCursor = cursor
+	if cf > 0 {
+		tableCursor = cursor - (k.tableSize * cf)
+	}
+
+	tableCursor, err = t.ScanRegexMatch(tableCursor, expr, count, f)
 	if err != nil {
 		return 0, err
 	}
 
-	if cursor == 0 {
+	if tableCursor == 0 {
 		_, ok := k.tablesByCoefficient[cf+1]
 		if !ok {
 			return 0, nil
@@ -495,7 +504,7 @@ func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e
 		return k.tableSize * (cf + 1), nil
 	}
 
-	return cursor + (k.tableSize * cf), nil
+	return tableCursor + (k.tableSize * cf), nil
 
 }
 

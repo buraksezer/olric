@@ -71,14 +71,14 @@ func (dm *EmbeddedDMap) Scan(ctx context.Context, options ...ScanOption) (Iterat
 	}
 	iteratorCtx, cancel := context.WithCancel(ctx)
 	return &EmbeddedIterator{
-		client:   dm.client,
-		dm:       dm.dm,
-		config:   &sc,
-		allKeys:  make(map[string]struct{}),
-		finished: make(map[uint64]struct{}),
-		cursors:  make(map[uint64]uint64),
-		ctx:      iteratorCtx,
-		cancel:   cancel,
+		client:         dm.client,
+		dm:             dm.dm,
+		config:         &sc,
+		allKeys:        make(map[string]struct{}),
+		cursors:        make(map[uint64]map[string]uint64),
+		replicaCursors: make(map[uint64]map[string]uint64),
+		ctx:            iteratorCtx,
+		cancel:         cancel,
 	}, nil
 }
 
@@ -254,7 +254,7 @@ func (e *EmbeddedClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 	return e.db.routingTable(ctx)
 }
 
-func (e *EmbeddedClient) Members(ctx context.Context) ([]Member, error) {
+func (e *EmbeddedClient) Members(_ context.Context) ([]Member, error) {
 	members := e.db.rt.Discovery().GetMembers()
 	coordinator := e.db.rt.Discovery().GetCoordinator()
 	var result []Member

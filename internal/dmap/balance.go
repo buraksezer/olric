@@ -51,7 +51,7 @@ func (dm *DMap) fragmentMergeFunction(f *fragment, hkey uint64, entry storage.En
 		// No need to insert the winner
 		return nil
 	}
-	return f.storage.Put(hkey, versions[0].entry)
+	return f.storage.Put(hkey, winner)
 }
 
 func (dm *DMap) mergeFragments(part *partitions.Partition, fp *fragmentPack) error {

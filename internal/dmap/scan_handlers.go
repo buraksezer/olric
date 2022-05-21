@@ -29,6 +29,7 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *ScanConfig) ([]st
 
 	var items []string
 	var err error
+
 	if sc.HasMatch {
 		cursor, err = f.storage.ScanRegexMatch(cursor, sc.Match, sc.Count, func(e storage.Entry) bool {
 			items = append(items, e.Key())
@@ -37,16 +38,16 @@ func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *ScanConfig) ([]st
 		if err != nil {
 			return nil, 0, err
 		}
-	} else {
-		cursor, err = f.storage.Scan(cursor, sc.Count, func(e storage.Entry) bool {
-			items = append(items, e.Key())
-			return true
-		})
-		if err != nil {
-			return nil, 0, err
-		}
+		return items, cursor, nil
 	}
 
+	cursor, err = f.storage.Scan(cursor, sc.Count, func(e storage.Entry) bool {
+		items = append(items, e.Key())
+		return true
+	})
+	if err != nil {
+		return nil, 0, err
+	}
 	return items, cursor, nil
 }
 
@@ -107,7 +108,11 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	var sc ScanConfig
 	var options []ScanOption
 	options = append(options, Count(scanCmd.Count))
-	options = append(options, Match(scanCmd.Match))
+
+	if scanCmd.Match != "" {
+		options = append(options, Match(scanCmd.Match))
+	}
+
 	for _, opt := range options {
 		opt(&sc)
 	}
