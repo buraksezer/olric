@@ -27,6 +27,7 @@ import (
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/transactionlog/config"
 	"github.com/buraksezer/olric/pkg/flog"
+	"github.com/cockroachdb/pebble"
 	"github.com/tidwall/redcon"
 	"golang.org/x/sync/errgroup"
 )
@@ -37,6 +38,7 @@ func registerErrors() {
 type TransactionLog struct {
 	config *config.Config
 	log    *flog.Logger
+	wal    *pebble.DB
 	server *server.Server
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -62,9 +64,15 @@ func New(c *config.Config, lg *log.Logger) (*TransactionLog, error) {
 		return nil, fmt.Errorf("invalid KeepAlivePeriod: %v", err)
 	}
 
+	wal, err := pebble.Open(c.OlricTransactionLog.DataDir, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	tl := &TransactionLog{
 		config: c,
+		wal:    wal,
 		log:    fl,
 		ctx:    ctx,
 		cancel: cancel,
@@ -91,7 +99,8 @@ func (t *TransactionLog) preconditionFunc(conn redcon.Conn, _ redcon.Command) bo
 
 func (t *TransactionLog) registerHandlers() {
 	t.server.ServeMux().HandleFunc(protocol.Generic.Ping, t.pingCommandHandler)
-	//t.server.ServeMux().HandleFunc(protocol.Resolver.Commit, t.commitCommandHandler)
+	t.server.ServeMux().HandleFunc(protocol.TransactionLog.Add, t.transactionLogAddHandler)
+	t.server.ServeMux().HandleFunc(protocol.TransactionLog.Get, t.transactionLogGetHandler)
 }
 
 func (t *TransactionLog) Start() error {

@@ -20,8 +20,6 @@ import (
 	"github.com/tidwall/redcon"
 )
 
-// TODO: Merge with internal/protocol/cluster.go
-
 type SequencerCommands struct {
 	CommitVersion string
 	ReadVersion   string
