@@ -16,6 +16,7 @@ package transactionlog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"runtime"
@@ -32,7 +33,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var ErrTransactionNotFound = errors.New("transaction not found")
+
 func registerErrors() {
+	protocol.SetError("TRANSACTIONNOTFOUND", ErrTransactionNotFound)
 }
 
 type TransactionLog struct {

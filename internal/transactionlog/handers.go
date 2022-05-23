@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"github.com/buraksezer/olric"
 	"github.com/buraksezer/olric/internal/protocol"
+	"github.com/cockroachdb/pebble"
 	"github.com/tidwall/redcon"
 )
 
@@ -63,6 +64,9 @@ func (t *TransactionLog) transactionLogGetHandler(conn redcon.Conn, cmd redcon.C
 	key := make([]byte, 4)
 	binary.BigEndian.PutUint32(key, tsGetCmd.ReadVersion)
 	data, closer, err := t.wal.Get(key)
+	if err == pebble.ErrNotFound {
+		err = ErrTransactionNotFound
+	}
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return

@@ -16,12 +16,12 @@ package transactionlog
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/protocol"
 	"log"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
 )
@@ -53,6 +53,53 @@ func TestTransactionLog_Add(t *testing.T) {
 	err = rc.Process(ctx, tsAddCmd)
 	require.NoError(t, err)
 	require.NoError(t, tsAddCmd.Err())
+
+	require.NoError(t, ts.Shutdown(ctx))
+	require.NoError(t, <-errCh)
+}
+
+func TestTransactionLog_Get(t *testing.T) {
+	c := makeResolverConfig(t)
+
+	lg := log.New(os.Stderr, "", 0)
+	ts, err := New(c, lg)
+	require.NoError(t, err)
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- ts.Start()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rc := newRedisClient(t, c)
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		cmd := rc.Ping(ctx)
+		return cmd.Err()
+	})
+	require.NoError(t, err)
+
+	t.Run("ErrTransactionNotFound", func(t *testing.T) {
+		tsGetCmd := protocol.NewTransactionLogGet(10).Command(ctx)
+		err = rc.Process(ctx, tsGetCmd)
+		require.Error(t, err, ErrTransactionNotFound)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		data := []byte("Hello, World!")
+		tsAddCmd := protocol.NewTransactionLogAdd(11, data).Command(ctx)
+		err = rc.Process(ctx, tsAddCmd)
+		require.NoError(t, err)
+		require.NoError(t, tsAddCmd.Err())
+
+		tsGetCmd := protocol.NewTransactionLogGet(11).Command(ctx)
+		err = rc.Process(ctx, tsGetCmd)
+		require.NoError(t, err)
+		result, err := tsGetCmd.Bytes()
+		require.NoError(t, err)
+		require.Equal(t, data, result)
+	})
 
 	require.NoError(t, ts.Shutdown(ctx))
 	require.NoError(t, <-errCh)
