@@ -22,14 +22,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// logging contains configuration variables of logging section of config file.
-type logging struct {
+// Logging contains configuration variables of logging section of config file.
+type Logging struct {
 	Verbosity int32  `json:"verbosity" yaml:"verbosity"`
 	Level     string `json:"level" yaml:"level"`
 	Output    string `json:"output" yaml:"output"`
 }
 
-type olricResolver struct {
+type OlricResolver struct {
 	BindAddr        string `json:"bindAddr" yaml:"bindAddr"`
 	BindPort        int    `json:"bindPort" yaml:"bindPort"`
 	KeepAlivePeriod string `json:"keepAlivePeriod" yaml:"keepAlivePeriod"`
@@ -37,8 +37,8 @@ type olricResolver struct {
 }
 
 type Config struct {
-	OlricResolver olricResolver `json:"olric-resolver" yaml:"olric-resolver"`
-	Logging       logging       `json:"logging" yaml:"logging"`
+	OlricResolver OlricResolver `json:"olric-resolver" yaml:"olric-resolver"`
+	Logging       Logging       `json:"logging" yaml:"logging"`
 }
 
 func New(filename string) (*Config, error) {

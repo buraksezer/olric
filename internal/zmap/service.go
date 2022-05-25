@@ -19,6 +19,8 @@ import (
 	"sync"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
+	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/environment"
 	"github.com/buraksezer/olric/internal/server"
 	"github.com/buraksezer/olric/internal/service"
@@ -26,26 +28,33 @@ import (
 )
 
 type Service struct {
-	log    *flog.Logger
-	config *config.Config
-	client *server.Client
-	server *server.Server
-	zmaps  map[string]*ZMap
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cancel context.CancelFunc
+	log     *flog.Logger
+	config  *config.Config
+	client  *server.Client
+	server  *server.Server
+	rt      *routingtable.RoutingTable
+	primary *partitions.Partitions
+	backup  *partitions.Partitions
+	zmaps   map[string]*ZMap
+	mtx     sync.RWMutex
+	wg      sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 func NewService(e *environment.Environment) (service.Service, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
-		config: e.Get("config").(*config.Config),
-		client: e.Get("client").(*server.Client),
-		server: e.Get("server").(*server.Server),
-		log:    e.Get("logger").(*flog.Logger),
-		zmaps:  make(map[string]*ZMap),
-		ctx:    ctx,
-		cancel: cancel,
+		config:  e.Get("config").(*config.Config),
+		client:  e.Get("client").(*server.Client),
+		server:  e.Get("server").(*server.Server),
+		log:     e.Get("logger").(*flog.Logger),
+		rt:      e.Get("routingtable").(*routingtable.RoutingTable),
+		primary: e.Get("primary").(*partitions.Partitions),
+		backup:  e.Get("backup").(*partitions.Partitions),
+		zmaps:   make(map[string]*ZMap),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 	s.RegisterHandlers()
 	return s, nil

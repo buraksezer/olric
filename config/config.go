@@ -319,6 +319,8 @@ type Config struct {
 	// You have to use NewMemberlistConfig to create a new one.
 	// Then, you may need to modify it to tune for your environment.
 	MemberlistConfig *memberlist.Config
+
+	Cluster *Cluster
 }
 
 // Validate finds errors in the current configuration.
@@ -491,6 +493,11 @@ func (c *Config) Sanitize() error {
 		return fmt.Errorf("failed to sanitize DMap configuration: %w", err)
 	}
 
+	if c.Cluster == nil {
+		c.Cluster = &Cluster{
+			Sequencer: &Sequencer{},
+		}
+	}
 	return nil
 }
 

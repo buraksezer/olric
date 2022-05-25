@@ -12,21 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zmap
+package config
 
-import (
-	"github.com/buraksezer/olric/internal/testcluster"
-	"github.com/stretchr/testify/require"
-	"testing"
-)
+type Sequencer struct {
+	Addr string
+}
 
-func TestZMap_Put(t *testing.T) {
-	cluster := testcluster.New(NewService)
-	s := cluster.AddMember(nil).(*Service)
-	defer cluster.Shutdown()
-
-	zm, err := s.NewZMap("myzmap")
-	require.NoError(t, err)
-
-	zm.Tx().Put(nil, nil)
+type Cluster struct {
+	Sequencer *Sequencer
 }

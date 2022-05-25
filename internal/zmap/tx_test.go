@@ -15,48 +15,36 @@
 package zmap
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testzmap"
-	"github.com/buraksezer/olric/internal/zmap/config"
 	"github.com/stretchr/testify/require"
 )
 
-func testZMapConfig(t *testing.T) *config.Config {
-	tmpdir, err := ioutil.TempDir("", "olric-zmap")
-	require.NoError(t, err)
-	c := config.DefaultConfig()
-	c.DataDir = tmpdir
-
-	t.Cleanup(func() {
-		require.NoError(t, os.RemoveAll(tmpdir))
-	})
-	return c
-}
-
-func TestZMap_Name(t *testing.T) {
+func TestZMap_TX(t *testing.T) {
 	tz := testzmap.New(t, NewService)
 	s := tz.AddStorageNode(nil).(*Service)
 
-	zm, err := s.NewZMap("myzmap", nil)
+	zc := testZMapConfig(t)
+	zm, err := s.NewZMap("myzmap", zc)
 	require.NoError(t, err)
-	require.Equal(t, "myzmap", zm.Name())
+
+	_, err = zm.Tx()
+	require.NoError(t, err)
 }
 
-func TestZMap_NewZMap(t *testing.T) {
+func TestZMap_getReadVersion(t *testing.T) {
 	tz := testzmap.New(t, NewService)
 	s := tz.AddStorageNode(nil).(*Service)
 
-	c := testZMapConfig(t)
+	readVersion, err := s.getReadVersion()
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), readVersion)
 
-	zm1, err := s.NewZMap("myzmap", c)
+	zc := testZMapConfig(t)
+	zm, err := s.NewZMap("myzmap", zc)
 	require.NoError(t, err)
 
-	zm2, err := s.NewZMap("myzmap", c)
+	_, err = zm.Tx()
 	require.NoError(t, err)
-
-	require.Equal(t, zm1, zm2)
-	require.Len(t, s.zmaps, 1)
 }

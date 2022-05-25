@@ -12,16 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zmap
+package config
 
-// 1- Get read version from sequencer
-// 2- Receive commands: Put, Get, etc...
-// 3- Commit
-// 4- Get commit version from sequencer
-// 5- Send all these things to the resolver
-// 6- Send mutations to the transaction-log server
-// 7- Pull changes from the transaction log server
+type Sequencer struct {
+	Addr string
+}
 
-func (t *Tx) Put(key, value []byte) error {
-	return nil
+type Config struct {
+	DataDir   string
+	Sequencer Sequencer
+}
+
+// FIXME: This will be removed after merging into master
+func DefaultConfig() *Config {
+	return &Config{
+		DataDir: "/Users/buraksezer/data/olric-zmap",
+		Sequencer: Sequencer{
+			Addr: "localhost:4545",
+		},
+	}
 }

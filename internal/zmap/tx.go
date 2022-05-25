@@ -14,16 +14,37 @@
 
 package zmap
 
-import "sync"
+import (
+	"context"
+	"sync"
+
+	"github.com/buraksezer/olric/internal/protocol"
+)
 
 type Tx struct {
 	readVersion   uint32
 	commitVersion uint32
 	zm            *ZMap
 	mtx           sync.Mutex
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
-func (z *ZMap) Tx() *Tx {
+func (s *Service) getReadVersion() (uint32, error) {
+	rc := s.client.Get(s.config.Cluster.Sequencer.Addr)
+	grvCmd := protocol.NewSequencerReadVersion().Command(s.ctx)
+	err := rc.Process(s.ctx, grvCmd)
+	if err != nil {
+		return 0, err
+	}
+	raw, err := grvCmd.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return uint32(raw), nil
+}
+
+func (z *ZMap) Tx() (*Tx, error) {
 	// 1- Get read version from sequencer
 	// 2- Receive commands: Put, Get, etc...
 	// 3- Commit
@@ -31,9 +52,15 @@ func (z *ZMap) Tx() *Tx {
 	// 5- Send all these things to the resolver
 	// 6- Send mutations to the transaction-log server
 	// 7- Pull changes from the transaction log server
-	return &Tx{
-		zm: z,
+
+	readVersion, err := z.service.getReadVersion()
+	if err != nil {
+		return nil, err
 	}
+	return &Tx{
+		readVersion: readVersion,
+		zm:          z,
+	}, nil
 }
 
 func (t *Tx) Commit() error {
