@@ -119,9 +119,9 @@ func (tx *Transaction) Commit() error {
 	rc := tx.zm.service.client.Get(tx.zm.service.config.Cluster.Resolver.Addr)
 	err = rc.Process(tx.ctx, resolverCommitCmd)
 	if err != nil {
-		return err
+		return protocol.ConvertError(err)
 	}
 
-	// TODO: Convert this error
-	return resolverCommitCmd.Err()
+	err = resolverCommitCmd.Err()
+	return protocol.ConvertError(err)
 }

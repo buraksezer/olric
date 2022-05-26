@@ -16,6 +16,7 @@ package zmap
 
 import (
 	"context"
+	"github.com/buraksezer/olric/internal/resolver"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testzmap"
@@ -37,4 +38,26 @@ func TestZMap_Transaction_Put(t *testing.T) {
 
 	err = tx.Commit()
 	require.NoError(t, err)
+}
+
+func TestZMap_Transaction_Put_Abort(t *testing.T) {
+	tz := testzmap.New(t, NewService)
+	s := tz.AddStorageNode(nil).(*Service)
+
+	zc := testZMapConfig(t)
+	zm, err := s.NewZMap("myzmap", zc)
+	require.NoError(t, err)
+
+	tx1, err := zm.Transaction(context.Background())
+	require.NoError(t, err)
+	tx1.Put([]byte("key-1"), []byte("value-1"))
+
+	tx2, err := zm.Transaction(context.Background())
+	require.NoError(t, err)
+	tx2.Put([]byte("key-1"), []byte("value-1"))
+	err = tx2.Commit()
+	require.NoError(t, err)
+
+	err = tx1.Commit()
+	require.ErrorIs(t, err, resolver.ErrTransactionAbort)
 }
