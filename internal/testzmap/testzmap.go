@@ -35,19 +35,49 @@ import (
 	"github.com/buraksezer/olric/internal/service"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
+	"github.com/buraksezer/olric/internal/transactionlog"
+	transactionlogConfig "github.com/buraksezer/olric/internal/transactionlog/config"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 )
 
 type TestZMap struct {
-	storageCluster  *testcluster.TestCluster
-	sequencer       *sequencer.Sequencer
-	sequencerConfig *sequencerConfig.Config
-	resolver        *resolver.Resolver
-	resolverConfig  *resolverConfig.Config
-	wg              sync.WaitGroup
-	ctx             context.Context
-	cancel          context.CancelFunc
+	storageCluster       *testcluster.TestCluster
+	sequencer            *sequencer.Sequencer
+	sequencerConfig      *sequencerConfig.Config
+	resolver             *resolver.Resolver
+	resolverConfig       *resolverConfig.Config
+	transactionlog       *transactionlog.TransactionLog
+	transactionlogConfig *transactionlogConfig.Config
+	wg                   sync.WaitGroup
+	ctx                  context.Context
+	cancel               context.CancelFunc
+}
+
+func makeTransactionLogConfig() (*transactionlogConfig.Config, error) {
+	port, err := testutil.GetFreePort()
+	if err != nil {
+		return nil, err
+	}
+
+	tmpdir, err := ioutil.TempDir("", "olric-zmap-transaction-log")
+	if err != nil {
+		return nil, err
+	}
+
+	return &transactionlogConfig.Config{
+		OlricTransactionLog: transactionlogConfig.OlricTransactionLog{
+			BindAddr:        "localhost",
+			BindPort:        port,
+			KeepAlivePeriod: "300s",
+			DataDir:         tmpdir,
+		},
+		Logging: transactionlogConfig.Logging{
+			Verbosity: 6,
+			Level:     "DEBUG",
+			Output:    "stderr",
+		},
+	}, nil
 }
 
 func makeSequencerConfig() (*sequencerConfig.Config, error) {
@@ -115,17 +145,23 @@ func New(t *testing.T, constructor func(e *environment.Environment) (service.Ser
 	require.NoError(t, err)
 	rs, err := resolver.New(rsc, lg)
 
+	tlc, err := makeTransactionLogConfig()
+	require.NoError(t, err)
+	tl, err := transactionlog.New(tlc, lg)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	storageCluster := testcluster.New(constructor)
 
 	tz := &TestZMap{
-		storageCluster:  storageCluster,
-		sequencer:       sq,
-		sequencerConfig: sc,
-		resolver:        rs,
-		resolverConfig:  rsc,
-		ctx:             ctx,
-		cancel:          cancel,
+		storageCluster:       storageCluster,
+		sequencer:            sq,
+		sequencerConfig:      sc,
+		resolver:             rs,
+		resolverConfig:       rsc,
+		transactionlog:       tl,
+		transactionlogConfig: tlc,
+		ctx:                  ctx,
+		cancel:               cancel,
 	}
 
 	go func() {
@@ -160,11 +196,34 @@ func New(t *testing.T, constructor func(e *environment.Environment) (service.Ser
 	})
 	require.NoError(t, err)
 
+	go func() {
+		if err = tz.transactionlog.Start(); err != nil {
+			panic(fmt.Sprintf("failed to run transaction-log: %s", err))
+		}
+	}()
+
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		rc := redis.NewClient(&redis.Options{Addr: tz.TransactionLogAddr()})
+		defer func() {
+			require.NoError(t, rc.Close())
+		}()
+		cmd := rc.Ping(ctx)
+		return cmd.Err()
+	})
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		tz.shutdown()
 	})
 
 	return tz
+}
+
+func (tz *TestZMap) TransactionLogAddr() string {
+	return net.JoinHostPort(
+		tz.transactionlogConfig.OlricTransactionLog.BindAddr,
+		strconv.Itoa(tz.transactionlogConfig.OlricTransactionLog.BindPort),
+	)
 }
 
 func (tz *TestZMap) SequencerAddr() string {
@@ -186,11 +245,13 @@ func (tz *TestZMap) AddStorageNode(e *environment.Environment) service.Service {
 		c := testutil.NewConfig()
 		c.Cluster.Sequencer.Addr = tz.SequencerAddr()
 		c.Cluster.Resolver.Addr = tz.ResolverAddr()
+		c.Cluster.TransactionLog.Addr = tz.TransactionLogAddr()
 		e = testcluster.NewEnvironment(c)
 	} else {
 		olricConfig := e.Get("config").(*config.Config)
 		olricConfig.Cluster.Sequencer.Addr = tz.SequencerAddr()
 		olricConfig.Cluster.Resolver.Addr = tz.ResolverAddr()
+		olricConfig.Cluster.TransactionLog.Addr = tz.TransactionLogAddr()
 		e.Set("config", olricConfig)
 	}
 
@@ -210,9 +271,15 @@ func (tz *TestZMap) shutdown() {
 		panic(fmt.Sprintf("failed to shutdown resolver: %v", err))
 	}
 
+	err = tz.transactionlog.Shutdown(context.Background())
+	if err != nil {
+		panic(fmt.Sprintf("failed to transaction-log resolver: %v", err))
+	}
+
 	dirs := []string{
 		tz.sequencerConfig.OlricSequencer.DataDir,
 		tz.resolverConfig.OlricResolver.DataDir,
+		tz.transactionlogConfig.OlricTransactionLog.DataDir,
 	}
 	for _, dir := range dirs {
 		err = os.RemoveAll(dir)

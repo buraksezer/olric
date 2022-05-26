@@ -14,6 +14,10 @@
 
 package config
 
+type TransactionLog struct {
+	Addr string
+}
+
 type Sequencer struct {
 	Addr string
 }
@@ -23,6 +27,7 @@ type Resolver struct {
 }
 
 type Cluster struct {
-	Sequencer *Sequencer
-	Resolver  *Resolver
+	Sequencer      *Sequencer
+	Resolver       *Resolver
+	TransactionLog *TransactionLog
 }

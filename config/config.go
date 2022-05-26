@@ -495,8 +495,9 @@ func (c *Config) Sanitize() error {
 
 	if c.Cluster == nil {
 		c.Cluster = &Cluster{
-			Sequencer: &Sequencer{},
-			Resolver:  &Resolver{},
+			Sequencer:      &Sequencer{},
+			Resolver:       &Resolver{},
+			TransactionLog: &TransactionLog{},
 		}
 	}
 	return nil
