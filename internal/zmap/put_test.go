@@ -12,17 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package zmap
 
-type Sequencer struct {
-	Addr string
-}
+import (
+	"context"
+	"testing"
 
-type Resolver struct {
-	Addr string
-}
+	"github.com/buraksezer/olric/internal/testzmap"
+	"github.com/stretchr/testify/require"
+)
 
-type Cluster struct {
-	Sequencer *Sequencer
-	Resolver  *Resolver
+func TestZMap_Transaction_Put(t *testing.T) {
+	tz := testzmap.New(t, NewService)
+	s := tz.AddStorageNode(nil).(*Service)
+
+	zc := testZMapConfig(t)
+	zm, err := s.NewZMap("myzmap", zc)
+	require.NoError(t, err)
+
+	tx, err := zm.Transaction(context.Background())
+	require.NoError(t, err)
+
+	tx.Put([]byte("key-1"), []byte("value-1"))
+
+	err = tx.Commit()
+	require.NoError(t, err)
 }

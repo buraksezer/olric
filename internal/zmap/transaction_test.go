@@ -15,6 +15,7 @@
 package zmap
 
 import (
+	"context"
 	"testing"
 
 	"github.com/buraksezer/olric/internal/testzmap"
@@ -29,7 +30,7 @@ func TestZMap_TX(t *testing.T) {
 	zm, err := s.NewZMap("myzmap", zc)
 	require.NoError(t, err)
 
-	_, err = zm.Tx()
+	_, err = zm.Transaction(context.Background())
 	require.NoError(t, err)
 }
 
@@ -40,11 +41,15 @@ func TestZMap_getReadVersion(t *testing.T) {
 	readVersion, err := s.getReadVersion()
 	require.NoError(t, err)
 	require.Equal(t, uint32(0), readVersion)
+}
 
-	zc := testZMapConfig(t)
-	zm, err := s.NewZMap("myzmap", zc)
-	require.NoError(t, err)
+func TestZMap_getCommitVersion(t *testing.T) {
+	tz := testzmap.New(t, NewService)
+	s := tz.AddStorageNode(nil).(*Service)
 
-	_, err = zm.Tx()
-	require.NoError(t, err)
+	for i := 1; i <= 10; i++ {
+		commitVersion, err := s.getCommitVersion()
+		require.NoError(t, err)
+		require.Equal(t, uint32(i), commitVersion)
+	}
 }

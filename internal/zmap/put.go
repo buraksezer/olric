@@ -14,6 +14,8 @@
 
 package zmap
 
+import "github.com/buraksezer/olric/internal/resolver"
+
 // 1- Get read version from sequencer
 // 2- Receive commands: Put, Get, etc...
 // 3- Commit
@@ -22,6 +24,14 @@ package zmap
 // 6- Send mutations to the transaction-log server
 // 7- Pull changes from the transaction log server
 
-func (t *Tx) Put(key, value []byte) error {
-	return nil
+func (tx *Transaction) Put(key, value []byte) {
+	tx.mtx.Lock()
+	defer tx.mtx.Unlock()
+
+	c := &command{
+		kind:  resolver.MutateCommandKind,
+		key:   key,
+		value: value,
+	}
+	tx.commands = append(tx.commands, c)
 }

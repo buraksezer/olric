@@ -185,10 +185,12 @@ func (tz *TestZMap) AddStorageNode(e *environment.Environment) service.Service {
 	if e == nil {
 		c := testutil.NewConfig()
 		c.Cluster.Sequencer.Addr = tz.SequencerAddr()
+		c.Cluster.Resolver.Addr = tz.ResolverAddr()
 		e = testcluster.NewEnvironment(c)
 	} else {
 		olricConfig := e.Get("config").(*config.Config)
 		olricConfig.Cluster.Sequencer.Addr = tz.SequencerAddr()
+		olricConfig.Cluster.Resolver.Addr = tz.ResolverAddr()
 		e.Set("config", olricConfig)
 	}
 
