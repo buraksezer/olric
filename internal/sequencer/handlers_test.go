@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSequencer_ReadVersion_CommitVersion(t *testing.T) {
+func TestSequencer_Versioning(t *testing.T) {
 	c := makeSequencerConfig(t)
 
 	lg := log.New(os.Stderr, "", 0)
@@ -49,50 +49,161 @@ func TestSequencer_ReadVersion_CommitVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("Call SEQUENCER.READVERSION", func(t *testing.T) {
-		cmd := protocol.NewSequencerReadVersion().Command(ctx)
+	t.Run("Call SEQUENCER.GETREADVERSION", func(t *testing.T) {
+		cmd := protocol.NewSequencerGetReadVersion().Command(ctx)
 		require.NoError(t, rc.Process(ctx, cmd))
 		readVersion, err := cmd.Result()
 		require.NoError(t, err)
 		require.Equal(t, int64(0), readVersion)
 	})
 
-	t.Run("Call SEQUENCER.COMMITVERSION", func(t *testing.T) {
-		cmd := protocol.NewSequencerCommitVersion().Command(ctx)
+	t.Run("Call SEQUENCER.GETCOMMITVERSION", func(t *testing.T) {
+		cmd := protocol.NewSequencerGetCommitVersion().Command(ctx)
 		require.NoError(t, rc.Process(ctx, cmd))
 		commitVersion, err := cmd.Result()
 		require.NoError(t, err)
-		require.Equal(t, int64(1), commitVersion)
+
+		require.Greater(t, commitVersion, int64(0))
 	})
 
-	t.Run("Call SEQUENCER.COMMITVERSION concurrently", func(t *testing.T) {
-		cmd := protocol.NewSequencerReadVersion().Command(ctx)
-		require.NoError(t, rc.Process(ctx, cmd))
-		readVersion, err := cmd.Result()
-		require.NoError(t, err)
+	t.Run("Call SEQUENCER.GETCOMMITVERSION concurrently", func(t *testing.T) {
 
 		var wg sync.WaitGroup
+		var mtx sync.RWMutex
 
+		keys := make(map[int64]struct{})
 		for i := 0; i < 100; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				cmd := protocol.NewSequencerCommitVersion().Command(ctx)
+				cmd := protocol.NewSequencerGetCommitVersion().Command(ctx)
 				require.NoError(t, rc.Process(ctx, cmd))
-				_, err := cmd.Result()
+				commitVersion, err := cmd.Result()
 				require.NoError(t, err)
+
+				mtx.Lock()
+				keys[commitVersion] = struct{}{}
+				mtx.Unlock()
 			}()
 		}
 		wg.Wait()
 
-		cmd = protocol.NewSequencerReadVersion().Command(ctx)
-		require.NoError(t, rc.Process(ctx, cmd))
-		res, err := cmd.Result()
-		require.NoError(t, err)
-		require.Equal(t, readVersion+100, res)
+		mtx.Lock()
+		require.Len(t, keys, 100)
+		mtx.Unlock()
+	})
 
+	t.Run("Call SEQUENCER.UPDATEREADVERSION", func(t *testing.T) {
+		commitCmd := protocol.NewSequencerGetCommitVersion().Command(ctx)
+		require.NoError(t, rc.Process(ctx, commitCmd))
+		commitVersion, err := commitCmd.Result()
+		require.NoError(t, err)
+
+		require.Greater(t, commitVersion, int64(0))
+
+		updateCmd := protocol.NewSequencerUpdateReadVersion(commitVersion).Command(ctx)
+		require.NoError(t, rc.Process(ctx, updateCmd))
+		_, err = updateCmd.Result()
+		require.NoError(t, err)
+
+		readCmd := protocol.NewSequencerGetReadVersion().Command(ctx)
+		require.NoError(t, rc.Process(ctx, readCmd))
+		readVersion, err := readCmd.Result()
+		require.NoError(t, err)
+		require.Equal(t, commitVersion, readVersion)
+	})
+
+	t.Run("Call SEQUENCER.UPDATEREADVERSION - Only Increase", func(t *testing.T) {
+		commitCmd := protocol.NewSequencerGetCommitVersion().Command(ctx)
+		require.NoError(t, rc.Process(ctx, commitCmd))
+		commitVersion, err := commitCmd.Result()
+		require.NoError(t, err)
+
+		require.Greater(t, commitVersion, int64(0))
+
+		updateCmd := protocol.NewSequencerUpdateReadVersion(commitVersion).Command(ctx)
+		require.NoError(t, rc.Process(ctx, updateCmd))
+		_, err = updateCmd.Result()
+		require.NoError(t, err)
+
+		for i := int64(0); i < 10; i++ {
+			newCommitVersion := commitVersion - i
+			updateCmd = protocol.NewSequencerUpdateReadVersion(newCommitVersion).Command(ctx)
+			require.NoError(t, rc.Process(ctx, updateCmd))
+			_, err = updateCmd.Result()
+			require.NoError(t, err)
+
+			readCmd := protocol.NewSequencerGetReadVersion().Command(ctx)
+			require.NoError(t, rc.Process(ctx, readCmd))
+			readVersion, err := readCmd.Result()
+			require.NoError(t, err)
+			require.Equal(t, commitVersion, readVersion)
+		}
 	})
 
 	require.NoError(t, sq.Shutdown(ctx))
 	require.NoError(t, <-errCh)
+}
+
+func TestSequencer_Restart(t *testing.T) {
+	c := makeSequencerConfig(t)
+
+	// Start a sequencer instance
+	lg := log.New(os.Stderr, "", 0)
+	sq, err := New(c, lg)
+	require.NoError(t, err)
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- sq.Start()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rc := newRedisClient(t, c)
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		cmd := rc.Ping(ctx)
+		return cmd.Err()
+	})
+	require.NoError(t, err)
+
+	// Get a commit version
+	cmd := protocol.NewSequencerGetCommitVersion().Command(ctx)
+	require.NoError(t, rc.Process(ctx, cmd))
+	commitVersion, err := cmd.Result()
+	require.NoError(t, err)
+
+	require.Greater(t, commitVersion, int64(0))
+
+	// Update the read version
+	updateCmd := protocol.NewSequencerUpdateReadVersion(commitVersion).Command(ctx)
+	require.NoError(t, rc.Process(ctx, updateCmd))
+	_, err = updateCmd.Result()
+	require.NoError(t, err)
+
+	// Shutdown the sequencer instance
+	require.NoError(t, sq.Shutdown(ctx))
+
+	// Start a new sequencer instance
+	sq, err = New(c, lg)
+	require.NoError(t, err)
+	errCh = make(chan error)
+	go func() {
+		errCh <- sq.Start()
+	}()
+
+	rc2 := newRedisClient(t, c)
+	err = testutil.TryWithInterval(10, 100*time.Millisecond, func() error {
+		cmd := rc2.Ping(ctx)
+		return cmd.Err()
+	})
+	require.NoError(t, err)
+
+	// Get a read version.
+	readVersionCmd := protocol.NewSequencerGetReadVersion().Command(ctx)
+	require.NoError(t, rc2.Process(ctx, readVersionCmd))
+	readVersion, err := readVersionCmd.Result()
+	require.NoError(t, err)
+	require.Equal(t, commitVersion, readVersion)
 }

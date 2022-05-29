@@ -20,30 +20,45 @@ import (
 	"testing"
 )
 
-func TestProtocol_SequencerCommitVersion(t *testing.T) {
-	sqCmd := NewSequencerCommitVersion()
+func TestProtocol_SequencerGetCommitVersion(t *testing.T) {
+	sqCmd := NewSequencerGetCommitVersion()
 
 	cmd := stringToCommand(sqCmd.Command(context.Background()).String())
-	_, err := ParseSequencerCommitVersion(cmd)
+	_, err := ParseSequencerGetCommitVersion(cmd)
 	require.NoError(t, err)
 
-	t.Run("SEQUENCER.COMMITVERSION invalid command", func(t *testing.T) {
-		cmd := stringToCommand("sequencer.commitversion foo bar")
-		_, err = ParseSequencerCommitVersion(cmd)
+	t.Run("SEQUENCER.GETCOMMITVERSION invalid command", func(t *testing.T) {
+		cmd := stringToCommand("sequencer.getcommitversion foo bar")
+		_, err = ParseSequencerGetCommitVersion(cmd)
 		require.Error(t, err)
 	})
 }
 
-func TestProtocol_SequencerReadVersion(t *testing.T) {
-	sqCmd := NewSequencerReadVersion()
+func TestProtocol_SequencerGetReadVersion(t *testing.T) {
+	sqCmd := NewSequencerGetReadVersion()
 
 	cmd := stringToCommand(sqCmd.Command(context.Background()).String())
-	_, err := ParseSequencerReadVersion(cmd)
+	_, err := ParseSequencerGetReadVersion(cmd)
 	require.NoError(t, err)
 
-	t.Run("SEQUENCER.READVERSION invalid command", func(t *testing.T) {
-		cmd := stringToCommand("sequencer.readversion foo bar")
-		_, err = ParseSequencerReadVersion(cmd)
+	t.Run("SEQUENCER.GETREADVERSION invalid command", func(t *testing.T) {
+		cmd := stringToCommand("sequencer.getreadversion foo bar")
+		_, err = ParseSequencerGetReadVersion(cmd)
+		require.Error(t, err)
+	})
+}
+
+func TestProtocol_SequencerUpdateReadVersion(t *testing.T) {
+	sqCmd := NewSequencerUpdateReadVersion(1231)
+
+	cmd := stringToCommand(sqCmd.Command(context.Background()).String())
+	res, err := ParseSequencerUpdateReadVersion(cmd)
+	require.NoError(t, err)
+	require.Equal(t, int64(1231), res.CommitVersion)
+
+	t.Run("SEQUENCER.UPDATEREADVERSION invalid command", func(t *testing.T) {
+		cmd := stringToCommand("sequencer.updatereadversion foo bar")
+		_, err = ParseSequencerUpdateReadVersion(cmd)
 		require.Error(t, err)
 	})
 }

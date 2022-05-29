@@ -16,58 +16,90 @@ package protocol
 
 import (
 	"context"
+	"github.com/buraksezer/olric/internal/util"
 	"github.com/go-redis/redis/v8"
 	"github.com/tidwall/redcon"
+	"strconv"
 )
 
 type SequencerCommands struct {
-	CommitVersion string
-	ReadVersion   string
+	GetCommitVersion  string
+	UpdateReadVersion string
+	GetReadVersion    string
 }
 
 var Sequencer = &SequencerCommands{
-	CommitVersion: "sequencer.commitversion",
-	ReadVersion:   "sequencer.readversion",
+	GetCommitVersion:  "sequencer.getcommitversion",
+	UpdateReadVersion: "sequencer.updatereadversion",
+	GetReadVersion:    "sequencer.getreadversion",
 }
 
-type SequencerCommitVersion struct{}
+type SequencerGetCommitVersion struct{}
 
-func NewSequencerCommitVersion() *SequencerCommitVersion {
-	return &SequencerCommitVersion{}
+func NewSequencerGetCommitVersion() *SequencerGetCommitVersion {
+	return &SequencerGetCommitVersion{}
 }
 
-func (c *SequencerCommitVersion) Command(ctx context.Context) *redis.IntCmd {
+func (c *SequencerGetCommitVersion) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, Sequencer.CommitVersion)
+	args = append(args, Sequencer.GetCommitVersion)
 	return redis.NewIntCmd(ctx, args...)
 }
 
-func ParseSequencerCommitVersion(cmd redcon.Command) (*SequencerCommitVersion, error) {
+func ParseSequencerGetCommitVersion(cmd redcon.Command) (*SequencerGetCommitVersion, error) {
 	if len(cmd.Args) > 1 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	c := NewSequencerCommitVersion()
+	c := NewSequencerGetCommitVersion()
 	return c, nil
 }
 
-type SequencerReadVersion struct{}
+type SequencerGetReadVersion struct{}
 
-func NewSequencerReadVersion() *SequencerReadVersion {
-	return &SequencerReadVersion{}
+func NewSequencerGetReadVersion() *SequencerGetReadVersion {
+	return &SequencerGetReadVersion{}
 }
 
-func (c *SequencerReadVersion) Command(ctx context.Context) *redis.IntCmd {
+func (c *SequencerGetReadVersion) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
-	args = append(args, Sequencer.ReadVersion)
+	args = append(args, Sequencer.GetReadVersion)
 	return redis.NewIntCmd(ctx, args...)
 }
 
-func ParseSequencerReadVersion(cmd redcon.Command) (*SequencerReadVersion, error) {
+func ParseSequencerGetReadVersion(cmd redcon.Command) (*SequencerGetReadVersion, error) {
 	if len(cmd.Args) > 1 {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	c := NewSequencerReadVersion()
+	c := NewSequencerGetReadVersion()
+	return c, nil
+}
+
+type SequencerUpdateReadVersion struct {
+	CommitVersion int64
+}
+
+func NewSequencerUpdateReadVersion(commitVersion int64) *SequencerUpdateReadVersion {
+	return &SequencerUpdateReadVersion{CommitVersion: commitVersion}
+}
+
+func (c *SequencerUpdateReadVersion) Command(ctx context.Context) *redis.StatusCmd {
+	var args []interface{}
+	args = append(args, Sequencer.UpdateReadVersion)
+	args = append(args, c.CommitVersion)
+	return redis.NewStatusCmd(ctx, args...)
+}
+
+func ParseSequencerUpdateReadVersion(cmd redcon.Command) (*SequencerUpdateReadVersion, error) {
+	if len(cmd.Args) > 2 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	commitVersion, err := strconv.ParseInt(util.BytesToString(cmd.Args[1]), 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	c := NewSequencerUpdateReadVersion(commitVersion)
 	return c, nil
 }

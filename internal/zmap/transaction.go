@@ -46,7 +46,7 @@ type Transaction struct {
 
 func (s *Service) getReadVersion() (uint32, error) {
 	rc := s.client.Get(s.config.Cluster.Sequencer.Addr)
-	grvCmd := protocol.NewSequencerReadVersion().Command(s.ctx)
+	grvCmd := protocol.NewSequencerGetReadVersion().Command(s.ctx)
 	err := rc.Process(s.ctx, grvCmd)
 	if err != nil {
 		return 0, err
@@ -60,7 +60,7 @@ func (s *Service) getReadVersion() (uint32, error) {
 
 func (s *Service) getCommitVersion() (uint32, error) {
 	rc := s.client.Get(s.config.Cluster.Sequencer.Addr)
-	gcvCmd := protocol.NewSequencerCommitVersion().Command(s.ctx)
+	gcvCmd := protocol.NewSequencerGetCommitVersion().Command(s.ctx)
 	err := rc.Process(s.ctx, gcvCmd)
 	if err != nil {
 		return 0, err

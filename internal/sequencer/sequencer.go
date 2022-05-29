@@ -34,18 +34,19 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var LatestVersionKey = []byte("LatestVersion")
+var ReadVersionKey = []byte("ReadVersion")
 
 type Sequencer struct {
-	mtx            sync.RWMutex
-	currentVersion uint32
-	config         *config.Config
-	log            *flog.Logger
-	server         *server.Server
-	pebble         *pebble.DB
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
+	mtx           sync.RWMutex
+	readVersion   int64
+	commitVersion int64
+	config        *config.Config
+	log           *flog.Logger
+	server        *server.Server
+	pebble        *pebble.DB
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
 }
 
 func New(c *config.Config, lg *log.Logger) (*Sequencer, error) {
@@ -74,11 +75,6 @@ func New(c *config.Config, lg *log.Logger) (*Sequencer, error) {
 	}
 	ctr.pebble = pb
 
-	err = ctr.loadCurrentVersionFromPebble()
-	if err != nil {
-		return nil, err
-	}
-
 	rc := &server.Config{
 		BindAddr:        c.OlricSequencer.BindAddr,
 		BindPort:        c.OlricSequencer.BindPort,
@@ -100,20 +96,43 @@ func (s *Sequencer) Logger() *flog.Logger {
 	return s.log
 }
 
-func (s *Sequencer) loadCurrentVersionFromPebble() error {
-	value, closer, err := s.pebble.Get(LatestVersionKey)
+func (s *Sequencer) advanceCommitVersion() {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.commitVersion = time.Now().Unix() * 1000000
+}
+
+func (s *Sequencer) advanceCommitVersionAtBackground() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	s.advanceCommitVersion()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.advanceCommitVersion()
+		}
+	}
+}
+
+func (s *Sequencer) loadReadVersionFromPebble() error {
+	value, closer, err := s.pebble.Get(ReadVersionKey)
 	if err == pebble.ErrNotFound {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("unable to load %s from Pebble database: %v", string(LatestVersionKey), err)
+		return fmt.Errorf("unable to load %s from Pebble database: %v", string(ReadVersionKey), err)
 	}
 	defer func() {
 		if err = closer.Close(); err != nil {
-			s.log.V(2).Printf("[ERROR] Failed to call close on %s on Pebble: %v", string(LatestVersionKey), err)
+			s.log.V(2).Printf("[ERROR] Failed to call close on %s on Pebble: %v", string(ReadVersionKey), err)
 		}
 	}()
-	s.currentVersion = binary.BigEndian.Uint32(value)
+	s.readVersion = int64(binary.BigEndian.Uint64(value))
 	return nil
 }
 
@@ -123,12 +142,18 @@ func (s *Sequencer) preconditionFunc(conn redcon.Conn, _ redcon.Command) bool {
 }
 
 func (s *Sequencer) registerHandlers() {
-	s.server.ServeMux().HandleFunc(protocol.Sequencer.CommitVersion, s.commitVersionHandler)
-	s.server.ServeMux().HandleFunc(protocol.Sequencer.ReadVersion, s.readVersionHandler)
+	s.server.ServeMux().HandleFunc(protocol.Sequencer.GetCommitVersion, s.getCommitVersionHandler)
+	s.server.ServeMux().HandleFunc(protocol.Sequencer.GetReadVersion, s.getReadVersionHandler)
+	s.server.ServeMux().HandleFunc(protocol.Sequencer.UpdateReadVersion, s.updateReadVersionHandler)
 	s.server.ServeMux().HandleFunc(protocol.Generic.Ping, s.pingCommandHandler)
 }
 
 func (s *Sequencer) Start() error {
+	err := s.loadReadVersionFromPebble()
+	if err != nil {
+		return err
+	}
+
 	s.log.V(1).Printf("[INFO] olric-sequencer %s on %s/%s %s", olric.ReleaseVersion, runtime.GOOS, runtime.GOARCH, runtime.Version())
 
 	// This error group is responsible to run the TCP server at background and report errors.
@@ -148,6 +173,9 @@ func (s *Sequencer) Start() error {
 		return errGr.Wait()
 	}
 
+	s.wg.Add(1)
+	go s.advanceCommitVersionAtBackground()
+
 	// Wait for the TCP server.
 	return errGr.Wait()
 }
@@ -161,6 +189,7 @@ func (s *Sequencer) Shutdown(ctx context.Context) error {
 	}
 
 	s.cancel()
+	s.wg.Wait()
 
 	var latestErr error
 	// Stop Redcon server

@@ -23,44 +23,65 @@ import (
 	"github.com/tidwall/redcon"
 )
 
-func (s *Sequencer) commitVersionHandler(conn redcon.Conn, cmd redcon.Command) {
-	_, err := protocol.ParseSequencerCommitVersion(cmd)
+func (s *Sequencer) getCommitVersionHandler(conn redcon.Conn, cmd redcon.Command) {
+	_, err := protocol.ParseSequencerGetCommitVersion(cmd)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
 	}
 
-	var currentVersion uint32
 	s.mtx.Lock()
-	data := make([]byte, 4)
-	binary.BigEndian.PutUint32(data, s.currentVersion+1)
-	err = s.pebble.Set(LatestVersionKey, data, &pebble.WriteOptions{
+	s.commitVersion++
+	commitVersion := s.commitVersion
+	s.mtx.Unlock()
+
+	conn.WriteInt64(commitVersion)
+}
+
+func (s *Sequencer) getReadVersionHandler(conn redcon.Conn, cmd redcon.Command) {
+	_, err := protocol.ParseSequencerGetReadVersion(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	s.mtx.Lock()
+	readVersion := s.readVersion
+	s.mtx.Unlock()
+
+	conn.WriteInt64(readVersion)
+}
+
+func (s *Sequencer) updateReadVersionHandler(conn redcon.Conn, cmd redcon.Command) {
+	updateReadVersionCmd, err := protocol.ParseSequencerUpdateReadVersion(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	s.mtx.Lock()
+
+	if s.readVersion >= updateReadVersionCmd.CommitVersion {
+		s.mtx.Unlock()
+		conn.WriteString(protocol.StatusOK)
+		return
+	}
+
+	data := make([]byte, 8)
+	binary.BigEndian.PutUint64(data, uint64(updateReadVersionCmd.CommitVersion))
+	err = s.pebble.Set(ReadVersionKey, data, &pebble.WriteOptions{
 		Sync: true,
 	})
 	if err != nil {
+		s.mtx.Unlock()
 		protocol.WriteError(conn, err)
 		return
 	}
-
-	s.currentVersion++
-	currentVersion = s.currentVersion
+	// Latest known commit version
+	s.readVersion = updateReadVersionCmd.CommitVersion
 	s.mtx.Unlock()
 
-	conn.WriteInt64(int64(currentVersion))
-}
-
-func (s *Sequencer) readVersionHandler(conn redcon.Conn, cmd redcon.Command) {
-	_, err := protocol.ParseSequencerReadVersion(cmd)
-	if err != nil {
-		protocol.WriteError(conn, err)
-		return
-	}
-
-	s.mtx.Lock()
-	currentVersion := s.currentVersion
-	s.mtx.Unlock()
-
-	conn.WriteInt64(int64(currentVersion))
+	conn.WriteString(protocol.StatusOK)
 }
 
 func (s *Sequencer) pingCommandHandler(conn redcon.Conn, cmd redcon.Command) {
