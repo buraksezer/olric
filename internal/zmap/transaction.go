@@ -24,6 +24,11 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+type mutation struct {
+	Key   []byte `msgpack:"key"`
+	Value []byte `msgpack:"value"`
+}
+
 type command struct {
 	kind  resolver.Kind
 	key   []byte
@@ -87,6 +92,36 @@ func (z *ZMap) Transaction(ctx context.Context) (*Transaction, error) {
 	}, nil
 }
 
+func (tx *Transaction) prepareTransactionLog() ([]byte, error) {
+	var mutations []*mutation
+	for _, cmd := range tx.commands {
+		if cmd.kind == resolver.MutateCommandKind {
+			mutations = append(mutations, &mutation{
+				Key:   cmd.key,
+				Value: cmd.value,
+			})
+		}
+	}
+
+	return msgpack.Marshal(&mutations)
+}
+
+func (tx *Transaction) pushTransactionLog() error {
+	data, err := tx.prepareTransactionLog()
+	if err != nil {
+		return err
+	}
+
+	txAddCmd := protocol.NewTransactionLogAdd(tx.commitVersion, data).Command(tx.ctx)
+	addr := tx.zm.service.config.Cluster.TransactionLog.Addr
+	rc := tx.zm.service.client.Get(addr)
+	err = rc.Process(tx.ctx, txAddCmd)
+	if err != nil {
+		return err
+	}
+	return protocol.ConvertError(txAddCmd.Err())
+}
+
 func (tx *Transaction) Commit() error {
 	tx.mtx.Lock()
 	defer tx.mtx.Unlock()
@@ -123,5 +158,9 @@ func (tx *Transaction) Commit() error {
 	}
 
 	err = resolverCommitCmd.Err()
-	return protocol.ConvertError(err)
+	if err != nil {
+		return protocol.ConvertError(err)
+	}
+
+	return tx.pushTransactionLog()
 }

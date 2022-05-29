@@ -45,7 +45,7 @@ func (t *TransactionLog) transactionLogAddHandler(conn redcon.Conn, cmd redcon.C
 
 	key := make([]byte, 4)
 	binary.BigEndian.PutUint32(key, tsAddCmd.CommitVersion)
-	err = t.wal.Set(key, tsAddCmd.Data, nil)
+	err = t.wal.Set(key, tsAddCmd.Data, &pebble.WriteOptions{Sync: true})
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
