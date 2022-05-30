@@ -26,7 +26,7 @@ const (
 type Tx interface {
 	Start()
 	Stop()
-	Commit(readVersion, commitVersion uint32, commands []*Key) error
+	Commit(readVersion, commitVersion int64, commands []*Key) error
 }
 
 type Key struct {

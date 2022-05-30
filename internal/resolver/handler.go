@@ -28,8 +28,8 @@ type WrappedKey struct {
 }
 
 type CommitMessage struct {
-	ReadVersion   uint32       `msgpack:"rv"`
-	CommitVersion uint32       `msgpack:"cv"`
+	ReadVersion   int64        `msgpack:"rv"`
+	CommitVersion int64        `msgpack:"cv"`
 	Keys          []WrappedKey `msgpack:"ks"`
 }
 

@@ -24,7 +24,7 @@ import (
 var ErrTransactionAbort = errors.New("transaction abort")
 
 type latestTx struct {
-	commitVersion uint32
+	commitVersion int64
 	timestamp     int64
 }
 
@@ -98,7 +98,7 @@ func (s *SSI) cleanOldTransactionsPeriodically() {
 	}
 }
 
-func (s *SSI) Commit(readVersion, commitVersion uint32, keys []*Key) error {
+func (s *SSI) Commit(readVersion, commitVersion int64, keys []*Key) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 

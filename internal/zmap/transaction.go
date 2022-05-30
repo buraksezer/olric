@@ -36,40 +36,32 @@ type command struct {
 }
 
 type Transaction struct {
-	readVersion   uint32
-	commitVersion uint32
+	readVersion   int64
+	commitVersion int64
 	commands      []*command
 	zm            *ZMap
 	mtx           sync.Mutex
 	ctx           context.Context
 }
 
-func (s *Service) getReadVersion() (uint32, error) {
+func (s *Service) getReadVersion() (int64, error) {
 	rc := s.client.Get(s.config.Cluster.Sequencer.Addr)
 	grvCmd := protocol.NewSequencerGetReadVersion().Command(s.ctx)
 	err := rc.Process(s.ctx, grvCmd)
 	if err != nil {
 		return 0, err
 	}
-	raw, err := grvCmd.Uint64()
-	if err != nil {
-		return 0, err
-	}
-	return uint32(raw), nil
+	return grvCmd.Result()
 }
 
-func (s *Service) getCommitVersion() (uint32, error) {
+func (s *Service) getCommitVersion() (int64, error) {
 	rc := s.client.Get(s.config.Cluster.Sequencer.Addr)
 	gcvCmd := protocol.NewSequencerGetCommitVersion().Command(s.ctx)
 	err := rc.Process(s.ctx, gcvCmd)
 	if err != nil {
 		return 0, err
 	}
-	raw, err := gcvCmd.Uint64()
-	if err != nil {
-		return 0, err
-	}
-	return uint32(raw), nil
+	return gcvCmd.Result()
 }
 
 func (z *ZMap) Transaction(ctx context.Context) (*Transaction, error) {
@@ -112,14 +104,40 @@ func (tx *Transaction) pushTransactionLog() error {
 		return err
 	}
 
-	txAddCmd := protocol.NewTransactionLogAdd(tx.commitVersion, data).Command(tx.ctx)
+	cmd := protocol.NewTransactionLogAdd(tx.commitVersion, data).Command(tx.ctx)
 	addr := tx.zm.service.config.Cluster.TransactionLog.Addr
 	rc := tx.zm.service.client.Get(addr)
-	err = rc.Process(tx.ctx, txAddCmd)
+	err = rc.Process(tx.ctx, cmd)
 	if err != nil {
 		return err
 	}
-	return protocol.ConvertError(txAddCmd.Err())
+	return protocol.ConvertError(cmd.Err())
+}
+
+func (tx *Transaction) updateLatestCommitVersion() error {
+	cmd := protocol.NewSequencerUpdateReadVersion(tx.commitVersion).Command(tx.ctx)
+	rc := tx.zm.service.client.Get(tx.zm.service.config.Cluster.Sequencer.Addr)
+	err := rc.Process(tx.ctx, cmd)
+	if err != nil {
+		return protocol.ConvertError(err)
+	}
+	return protocol.ConvertError(cmd.Err())
+}
+func (tx *Transaction) checkTransactionConflicts(cm *resolver.CommitMessage) error {
+	data, err := msgpack.Marshal(cm)
+	if err != nil {
+		return err
+	}
+
+	resolverCommitCmd := protocol.NewResolverCommit(util.BytesToString(data)).Command(tx.ctx)
+	rc := tx.zm.service.client.Get(tx.zm.service.config.Cluster.Resolver.Addr)
+	err = rc.Process(tx.ctx, resolverCommitCmd)
+	if err != nil {
+		return protocol.ConvertError(err)
+	}
+
+	err = resolverCommitCmd.Err()
+	return protocol.ConvertError(err)
 }
 
 func (tx *Transaction) Commit() error {
@@ -145,22 +163,15 @@ func (tx *Transaction) Commit() error {
 		cm.Keys = append(cm.Keys, wk)
 	}
 
-	data, err := msgpack.Marshal(cm)
+	err = tx.checkTransactionConflicts(cm)
 	if err != nil {
 		return err
 	}
 
-	resolverCommitCmd := protocol.NewResolverCommit(util.BytesToString(data)).Command(tx.ctx)
-	rc := tx.zm.service.client.Get(tx.zm.service.config.Cluster.Resolver.Addr)
-	err = rc.Process(tx.ctx, resolverCommitCmd)
+	err = tx.pushTransactionLog()
 	if err != nil {
-		return protocol.ConvertError(err)
+		return err
 	}
 
-	err = resolverCommitCmd.Err()
-	if err != nil {
-		return protocol.ConvertError(err)
-	}
-
-	return tx.pushTransactionLog()
+	return tx.updateLatestCommitVersion()
 }

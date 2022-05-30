@@ -43,8 +43,8 @@ func (t *TransactionLog) transactionLogAddHandler(conn redcon.Conn, cmd redcon.C
 		return
 	}
 
-	key := make([]byte, 4)
-	binary.BigEndian.PutUint32(key, tsAddCmd.CommitVersion)
+	key := make([]byte, 8)
+	binary.BigEndian.PutUint64(key, uint64(tsAddCmd.CommitVersion))
 	err = t.wal.Set(key, tsAddCmd.Data, &pebble.WriteOptions{Sync: true})
 	if err != nil {
 		protocol.WriteError(conn, err)
@@ -61,8 +61,8 @@ func (t *TransactionLog) transactionLogGetHandler(conn redcon.Conn, cmd redcon.C
 		return
 	}
 
-	key := make([]byte, 4)
-	binary.BigEndian.PutUint32(key, tsGetCmd.ReadVersion)
+	key := make([]byte, 8)
+	binary.BigEndian.PutUint64(key, uint64(tsGetCmd.ReadVersion))
 	data, closer, err := t.wal.Get(key)
 	if err == pebble.ErrNotFound {
 		err = ErrTransactionNotFound

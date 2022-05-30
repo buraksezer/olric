@@ -16,13 +16,13 @@ package zmap
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/vmihailenco/msgpack/v5"
 	"testing"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/resolver"
 	"github.com/buraksezer/olric/internal/testzmap"
 	"github.com/stretchr/testify/require"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 var (
@@ -45,6 +45,35 @@ func TestZMap_Transaction_Put(t *testing.T) {
 
 	err = tx.Commit()
 	require.NoError(t, err)
+
+	t.Run("TransactionLogGet", func(t *testing.T) {
+		tlogGetCmd := protocol.NewTransactionLogGet(tx.commitVersion).Command(zm.service.ctx)
+		rc := zm.service.client.Get(zm.service.config.Cluster.TransactionLog.Addr)
+		err = rc.Process(zm.service.ctx, tlogGetCmd)
+		require.NoError(t, err)
+
+		data, err := tlogGetCmd.Bytes()
+		require.NoError(t, err)
+
+		var mutations []*mutation
+		err = msgpack.Unmarshal(data, &mutations)
+		require.NoError(t, err)
+
+		require.Len(t, mutations, 1)
+		require.Equal(t, testKey, mutations[0].Key)
+		require.Equal(t, testValue, mutations[0].Value)
+	})
+
+	t.Run("SequencerGetReadVersion", func(t *testing.T) {
+		cmd := protocol.NewSequencerGetReadVersion().Command(zm.service.ctx)
+		rc := zm.service.client.Get(zm.service.config.Cluster.Sequencer.Addr)
+		err = rc.Process(zm.service.ctx, cmd)
+		require.NoError(t, err)
+
+		readVersion, err := cmd.Result()
+		require.NoError(t, err)
+		require.Equal(t, tx.commitVersion, readVersion)
+	})
 }
 
 func TestZMap_Transaction_Put_Abort(t *testing.T) {
@@ -67,37 +96,4 @@ func TestZMap_Transaction_Put_Abort(t *testing.T) {
 
 	err = tx1.Commit()
 	require.ErrorIs(t, err, resolver.ErrTransactionAbort)
-}
-
-func TestZMap_TransactionLog_Get(t *testing.T) {
-	tz := testzmap.New(t, NewService)
-	s := tz.AddStorageNode(nil).(*Service)
-
-	zc := testZMapConfig(t)
-	zm, err := s.NewZMap("myzmap", zc)
-	require.NoError(t, err)
-
-	tx, err := zm.Transaction(context.Background())
-	require.NoError(t, err)
-
-	tx.Put(testKey, testValue)
-
-	err = tx.Commit()
-	require.NoError(t, err)
-
-	tlogGetCmd := protocol.NewTransactionLogGet(tx.commitVersion).Command(zm.service.ctx)
-	rc := zm.service.client.Get(zm.service.config.Cluster.TransactionLog.Addr)
-	err = rc.Process(zm.service.ctx, tlogGetCmd)
-	require.NoError(t, err)
-
-	data, err := tlogGetCmd.Bytes()
-	require.NoError(t, err)
-
-	var mutations []*mutation
-	err = msgpack.Unmarshal(data, &mutations)
-	require.NoError(t, err)
-
-	require.Len(t, mutations, 1)
-	require.Equal(t, testKey, mutations[0].Key)
-	require.Equal(t, testValue, mutations[0].Value)
 }

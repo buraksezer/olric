@@ -34,11 +34,11 @@ var TransactionLog = &TransactionLogCommands{
 }
 
 type TransactionLogAdd struct {
-	CommitVersion uint32
+	CommitVersion int64
 	Data          []byte
 }
 
-func NewTransactionLogAdd(commitVersion uint32, data []byte) *TransactionLogAdd {
+func NewTransactionLogAdd(commitVersion int64, data []byte) *TransactionLogAdd {
 	return &TransactionLogAdd{
 		CommitVersion: commitVersion,
 		Data:          data,
@@ -58,19 +58,19 @@ func ParseTransactionLogAdd(cmd redcon.Command) (*TransactionLogAdd, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	commitVersion, err := strconv.ParseUint(util.BytesToString(cmd.Args[1]), 10, 64)
+	commitVersion, err := strconv.ParseInt(util.BytesToString(cmd.Args[1]), 10, 64)
 	if err != nil {
 		return nil, err
 	}
-	ts := NewTransactionLogAdd(uint32(commitVersion), cmd.Args[2])
+	ts := NewTransactionLogAdd(commitVersion, cmd.Args[2])
 	return ts, nil
 }
 
 type TransactionLogGet struct {
-	ReadVersion uint32
+	ReadVersion int64
 }
 
-func NewTransactionLogGet(readVersion uint32) *TransactionLogGet {
+func NewTransactionLogGet(readVersion int64) *TransactionLogGet {
 	return &TransactionLogGet{ReadVersion: readVersion}
 }
 
@@ -86,10 +86,10 @@ func ParseTransactionLogGet(cmd redcon.Command) (*TransactionLogGet, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	readVersion, err := strconv.ParseUint(util.BytesToString(cmd.Args[1]), 10, 64)
+	readVersion, err := strconv.ParseInt(util.BytesToString(cmd.Args[1]), 10, 64)
 	if err != nil {
 		return nil, err
 	}
-	ts := NewTransactionLogGet(uint32(readVersion))
+	ts := NewTransactionLogGet(readVersion)
 	return ts, nil
 }
