@@ -142,13 +142,13 @@ func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error
 	}, nil
 }
 
-func (dm *ClusterDMap) Delete(ctx context.Context, key string) error {
+func (dm *ClusterDMap) Delete(ctx context.Context, keys ...string) error {
 	rc, err := dm.client.Pick()
 	if err != nil {
 		return err
 	}
 
-	cmd := protocol.NewDel(dm.name, key).Command(ctx)
+	cmd := protocol.NewDel(dm.name, keys...).Command(ctx)
 	err = rc.Process(ctx, cmd)
 	if err != nil {
 		return processProtocolError(err)

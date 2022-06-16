@@ -340,17 +340,17 @@ DM.GET dmap key
 
 #### DM.DEL
 
-DM.DEL deletes the value for the given key. It doesn't return error if the key does not exist.
+DM.DEL deletes values for the given keys. It doesn't return any error if the key does not exist.
 
 ```
-DM.DEL dmap key
+DM.DEL dmap key [key...]
 ```
 
 **Example:**
 
 ```
-127.0.0.1:3320> DM.DEL dmap key
-(integer) 1
+127.0.0.1:3320> DM.DEL dmap key1 key2
+(integer) 2
 ```
 
 **Return:**

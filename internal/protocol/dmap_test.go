@@ -282,14 +282,14 @@ func TestProtocol_GetEntry_RC(t *testing.T) {
 }
 
 func TestProtocol_Del(t *testing.T) {
-	delCmd := NewDel("my-dmap", "my-key")
+	delCmd := NewDel("my-dmap", "key1", "key2")
 
 	cmd := stringToCommand(delCmd.Command(context.Background()).String())
 	parsed, err := ParseDelCommand(cmd)
 	require.NoError(t, err)
 
 	require.Equal(t, "my-dmap", parsed.DMap)
-	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, []string{"key1", "key2"}, parsed.Keys)
 }
 
 func TestProtocol_DelEntry(t *testing.T) {
@@ -300,7 +300,7 @@ func TestProtocol_DelEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "my-dmap", parsed.Del.DMap)
-	require.Equal(t, "my-key", parsed.Del.Key)
+	require.Equal(t, []string{"my-key"}, parsed.Del.Keys)
 	require.False(t, parsed.Replica)
 }
 
@@ -313,7 +313,7 @@ func TestProtocol_DelEntry_RC(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "my-dmap", parsed.Del.DMap)
-	require.Equal(t, "my-key", parsed.Del.Key)
+	require.Equal(t, []string{"my-key"}, parsed.Del.Keys)
 	require.True(t, parsed.Replica)
 }
 

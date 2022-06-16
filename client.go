@@ -164,10 +164,10 @@ type DMap interface {
 	// of the returned value.
 	Get(ctx context.Context, key string) (*GetResponse, error)
 
-	// Delete deletes the value for the given key. Delete will not return error
+	// Delete deletes values for the given keys. Delete will not return error
 	// if key doesn't exist. It's thread-safe. It is safe to modify the contents
 	// of the argument after Delete returns.
-	Delete(ctx context.Context, key string) error
+	Delete(ctx context.Context, keys ...string) error
 
 	// Incr atomically increments key by delta. The return value is the new value
 	// after being incremented or an error.
