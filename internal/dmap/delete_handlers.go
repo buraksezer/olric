@@ -32,13 +32,13 @@ func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	err = dm.deleteKey(s.ctx, delCmd.Key)
+	err = dm.deleteKeys(s.ctx, delCmd.Keys...)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
 	}
-	// TODO: Write zero?
-	conn.WriteInt(1)
+
+	conn.WriteInt(len(delCmd.Keys))
 }
 
 func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
@@ -57,12 +57,13 @@ func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	if delCmd.Replica {
 		kind = partitions.BACKUP
 	}
-	err = dm.deleteFromFragment(delCmd.Del.Key, kind)
-	if err != nil {
-		protocol.WriteError(conn, err)
-		return
+	for _, key := range delCmd.Del.Keys {
+		err = dm.deleteFromFragment(key, kind)
+		if err != nil {
+			protocol.WriteError(conn, err)
+			return
+		}
 	}
 
-	// TODO: Write zero?
-	conn.WriteInt(1)
+	conn.WriteInt(len(delCmd.Del.Keys))
 }

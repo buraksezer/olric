@@ -156,8 +156,8 @@ func (dm *DMap) lookupOnOwners(hkey uint64, key string) []*version {
 		owner := owners[i]
 		v, err := dm.lookupOnPreviousOwner(&owner, key)
 		if err != nil {
-			if dm.s.log.V(3).Ok() {
-				dm.s.log.V(3).Printf("[ERROR] Failed to call get on a previous "+
+			if dm.s.log.V(6).Ok() {
+				dm.s.log.V(6).Printf("[ERROR] Failed to call get on a previous "+
 					"primary owner: %s: %v", owner, err)
 			}
 			continue

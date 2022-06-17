@@ -316,13 +316,13 @@ func ParseGetEntryCommand(cmd redcon.Command) (*GetEntry, error) {
 
 type Del struct {
 	DMap string
-	Key  string
+	Keys []string
 }
 
-func NewDel(dmap, key string) *Del {
+func NewDel(dmap string, keys ...string) *Del {
 	return &Del{
 		DMap: dmap,
-		Key:  key,
+		Keys: keys,
 	}
 }
 
@@ -330,7 +330,9 @@ func (d *Del) Command(ctx context.Context) *redis.IntCmd {
 	var args []interface{}
 	args = append(args, DMap.Del)
 	args = append(args, d.DMap)
-	args = append(args, d.Key)
+	for _, key := range d.Keys {
+		args = append(args, key)
+	}
 	return redis.NewIntCmd(ctx, args...)
 }
 
@@ -339,10 +341,13 @@ func ParseDelCommand(cmd redcon.Command) (*Del, error) {
 		return nil, errWrongNumber(cmd.Args)
 	}
 
-	return NewDel(
+	d := NewDel(
 		util.BytesToString(cmd.Args[1]),
-		util.BytesToString(cmd.Args[2]),
-	), nil
+	)
+	for _, key := range cmd.Args[2:] {
+		d.Keys = append(d.Keys, util.BytesToString(key))
+	}
+	return d, nil
 }
 
 type DelEntry struct {

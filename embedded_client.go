@@ -148,8 +148,8 @@ func (dm *EmbeddedDMap) Incr(ctx context.Context, key string, delta int) (int, e
 	return dm.dm.Incr(ctx, key, delta)
 }
 
-func (dm *EmbeddedDMap) Delete(ctx context.Context, key string) error {
-	return dm.dm.Delete(ctx, key)
+func (dm *EmbeddedDMap) Delete(ctx context.Context, keys ...string) error {
+	return dm.dm.Delete(ctx, keys...)
 }
 
 func (dm *EmbeddedDMap) Get(ctx context.Context, key string) (*GetResponse, error) {

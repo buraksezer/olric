@@ -26,10 +26,10 @@ import (
 )
 
 var (
-	// DeleteHits is the number of deletion reqs resulting in an item being removed.
+	// DeleteHits is the number of deletion requests resulting in an item being removed.
 	DeleteHits = stats.NewInt64Counter()
 
-	// DeleteMisses is the number of deletions reqs for missing keys
+	// DeleteMisses is the number of deletion requests for missing keys.
 	DeleteMisses = stats.NewInt64Counter()
 )
 
@@ -119,40 +119,59 @@ func (dm *DMap) deleteOnCluster(hkey uint64, key string, f *fragment) error {
 	return nil
 }
 
-func (dm *DMap) deleteKey(ctx context.Context, key string) error {
+func (dm *DMap) deleteKey(key string) error {
 	hkey := partitions.HKey(dm.name, key)
-	member := dm.s.primary.PartitionByHKey(hkey).Owner()
-	if member.CompareByName(dm.s.rt.This()) {
-		part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
-		f, err := dm.loadOrCreateFragment(part)
-		if err != nil {
-			return err
-		}
-
-		f.Lock()
-		defer f.Unlock()
-
-		// Check the HKey before trying to delete it.
-		if !f.storage.Check(hkey) {
-			// DeleteMisses is the number of deletions reqs for missing keys
-			DeleteMisses.Increase(1)
-			return nil
-		}
-
-		return dm.deleteOnCluster(hkey, key, f)
-	}
-
-	cmd := protocol.NewDel(dm.name, key).Command(dm.s.ctx)
-	rc := dm.s.client.Get(member.String())
-	err := rc.Process(ctx, cmd)
+	part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
+	f, err := dm.loadOrCreateFragment(part)
 	if err != nil {
-		return protocol.ConvertError(err)
+		return err
 	}
-	return protocol.ConvertError(cmd.Err())
+
+	f.Lock()
+	defer f.Unlock()
+
+	// Check the HKey before trying to delete it.
+	if !f.storage.Check(hkey) {
+		// DeleteMisses is the number of deletions reqs for missing keys
+		DeleteMisses.Increase(1)
+		return nil
+	}
+
+	return dm.deleteOnCluster(hkey, key, f)
+}
+
+func (dm *DMap) deleteKeys(ctx context.Context, keys ...string) error {
+	members := make(map[discovery.Member][]string)
+	for _, key := range keys {
+		hkey := partitions.HKey(dm.name, key)
+		member := dm.s.primary.PartitionByHKey(hkey).Owner()
+		members[member] = append(members[member], key)
+	}
+
+	for member, distributedKeys := range members {
+		if member.CompareByName(dm.s.rt.This()) {
+			for _, key := range distributedKeys {
+				if err := dm.deleteKey(key); err != nil {
+					return err
+				}
+			}
+		} else {
+			cmd := protocol.NewDel(dm.name, distributedKeys...).Command(dm.s.ctx)
+			rc := dm.s.client.Get(member.String())
+			err := rc.Process(ctx, cmd)
+			if err != nil {
+				return protocol.ConvertError(err)
+			}
+
+			return protocol.ConvertError(cmd.Err())
+		}
+	}
+
+	return nil
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
-func (dm *DMap) Delete(ctx context.Context, key string) error {
-	return dm.deleteKey(ctx, key)
+func (dm *DMap) Delete(ctx context.Context, keys ...string) error {
+	return dm.deleteKeys(ctx, keys...)
 }
