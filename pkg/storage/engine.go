@@ -41,10 +41,10 @@ type TransferIterator interface {
 	Next() bool
 
 	// Export encodes a table and returns result. This encoded table can be moved to another Olric node.
-	Export() ([]byte, error)
+	Export() ([]byte, int, error)
 
-	// Pop pops the recently encoded table from the storage engine instance and frees allocated resources.
-	Pop() error
+	// Drop drops a table with its index from the storage engine instance and frees allocated resources.
+	Drop(int) error
 }
 
 // Engine defines methods for a storage engine implementation.

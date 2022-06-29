@@ -16,7 +16,6 @@ package olric
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -35,6 +34,7 @@ type ClusterIterator struct {
 	clusterClient  *ClusterClient
 	pos            int
 	page           []string
+	route          *Route
 	allKeys        map[string]struct{}
 	cursors        map[uint64]map[string]uint64 // member id => cursor
 	replicaCursors map[uint64]map[string]uint64 // member id => cursor
@@ -68,7 +68,8 @@ func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner str
 	}
 }
 
-func (i *ClusterIterator) scanOnOwners(owners []string) error {
+func (i *ClusterIterator) scanOnOwners(owners []string) ([]string, error) {
+	data := make(map[string]bool)
 	for _, owner := range owners {
 		var cursor = i.cursors[i.partID][owner]
 		if i.config.Replica {
@@ -91,17 +92,27 @@ func (i *ClusterIterator) scanOnOwners(owners []string) error {
 		rc := i.clusterClient.client.Get(owner)
 		err := rc.Process(i.ctx, scanCmd)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		keys, newCursor, err := scanCmd.Result()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		i.updateIterator(keys, newCursor, owner)
+		if newCursor == 0 {
+			data[owner] = true
+		}
 	}
 
-	return nil
+	var newowners []string
+	for _, owner := range owners {
+		if !data[owner] {
+			newowners = append(newowners, owner)
+		}
+	}
+
+	return newowners, nil
 }
 
 func (i *ClusterIterator) resetPage() {
@@ -112,21 +123,16 @@ func (i *ClusterIterator) resetPage() {
 }
 
 func (i *ClusterIterator) fetchData() error {
-	i.rtMtx.Lock()
-	defer i.rtMtx.Unlock()
-
-	route, ok := i.routingTable[i.partID]
-	if !ok {
-		return fmt.Errorf("partID: %d could not be found in the routing table", i.partID)
-	}
-
+	var err error
 	i.config.Replica = false
-	if err := i.scanOnOwners(route.PrimaryOwners); err != nil {
+	i.route.PrimaryOwners, err = i.scanOnOwners(i.route.PrimaryOwners)
+	if err != nil {
 		return err
 	}
 
 	i.config.Replica = true
-	if err := i.scanOnOwners(route.ReplicaOwners); err != nil {
+	i.route.ReplicaOwners, err = i.scanOnOwners(i.route.ReplicaOwners)
+	if err != nil {
 		return err
 	}
 
@@ -143,17 +149,34 @@ func (i *ClusterIterator) next() bool {
 
 	i.resetPage()
 
-	if err := i.fetchData(); err != nil {
-		i.logger.Printf("[ERROR] Failed to fetch data: %s", err)
-		return false
+	for {
+		if err := i.fetchData(); err != nil {
+			i.logger.Printf("[ERROR] Failed to fetch data: %s", err)
+			return false
+		}
+		if len(i.page) != 0 {
+			break
+		}
+		if len(i.route.PrimaryOwners) == 0 && len(i.route.ReplicaOwners) == 0 {
+			break
+		}
 	}
 
-	if len(i.page) == 0 {
+	if len(i.page) == 0 && len(i.route.PrimaryOwners) == 0 && len(i.route.ReplicaOwners) == 0 {
 		i.partID++
 		if i.partID >= i.partitionCount {
 			return false
 		}
 		i.resetPage()
+
+		i.rtMtx.Lock()
+		route, ok := i.routingTable[i.partID]
+		i.rtMtx.Unlock()
+		if !ok {
+			panic("partID: could not be found in the routing table")
+		}
+		i.route = &route
+
 		return i.next()
 	}
 	i.pos = 1
@@ -169,6 +192,16 @@ func (i *ClusterIterator) Next() bool {
 		return false
 	default:
 	}
+
+	i.rtMtx.Lock()
+	if i.route == nil {
+		route, ok := i.routingTable[i.partID]
+		if !ok {
+			panic("partID: could not be found in the routing table")
+		}
+		i.route = &route
+	}
+	i.rtMtx.Unlock()
 
 	return i.next()
 }
@@ -194,7 +227,6 @@ func (i *ClusterIterator) fetchRoutingTablePeriodically() {
 		case <-time.After(time.Second):
 			if err := i.fetchRoutingTable(); err != nil {
 				i.logger.Printf("[ERROR] Failed to fetch the latest routing table: %s", err)
-
 			}
 		}
 	}

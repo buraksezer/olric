@@ -86,7 +86,7 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 		return nil
 	}
 
-	payload, err := i.Export()
+	payload, index, err := i.Export()
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (f *fragment) Move(part *partitions.Partition, name string, owners []discov
 		}
 	}
 
-	return i.Pop()
+	return i.Drop(index)
 }
 
 func (dm *DMap) newFragment() (*fragment, error) {

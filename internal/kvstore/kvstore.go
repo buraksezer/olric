@@ -19,8 +19,10 @@ package kvstore
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"reflect"
+	"sort"
 	"time"
 
 	"github.com/buraksezer/olric/internal/kvstore/entry"
@@ -85,17 +87,24 @@ func (k *KVStore) makeTable() error {
 
 		for i, t := range k.tables {
 			if t.State() == table.RecycledState {
-				k.tables = append(k.tables, t)
+
 				k.tables = append(k.tables[:i], k.tables[i+1:]...)
+
+				k.tables = append(k.tables, t)
+				t.SetCoefficient(k.coefficient)
+				k.tablesByCoefficient[k.coefficient] = t
+				k.coefficient++
+
 				t.SetState(table.ReadWriteState)
 				return nil
 			}
 		}
 	}
 
-	current := table.New(k.tableSize)
-	k.tables = append(k.tables, current)
-	k.tablesByCoefficient[k.coefficient] = current
+	newTable := table.New(k.tableSize)
+	k.tables = append(k.tables, newTable)
+	newTable.SetCoefficient(k.coefficient)
+	k.tablesByCoefficient[k.coefficient] = newTable
 	k.coefficient++
 	return nil
 }
@@ -154,15 +163,10 @@ func (k *KVStore) Fork(c *storage.Config) (storage.Engine, error) {
 	}
 	t := table.New(k.tableSize)
 	child.tables = append(child.tables, t)
+	t.SetCoefficient(child.coefficient)
 	child.tablesByCoefficient[child.coefficient] = t
 	child.coefficient++
 	return child, nil
-}
-
-func (k *KVStore) AppendTable(t *table.Table) {
-	k.tables = append(k.tables, t)
-	k.tablesByCoefficient[k.coefficient] = t
-	k.coefficient++
 }
 
 func (k *KVStore) Name() string {
@@ -446,15 +450,38 @@ func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
 	}
 }
 
+func (k *KVStore) resetScanCursor(coefficient uint64) (uint64, error) {
+	var sortedCoefficients []uint64
+	for newCf, _ := range k.tablesByCoefficient {
+		sortedCoefficients = append(sortedCoefficients, newCf)
+	}
+	sort.Slice(sortedCoefficients, func(i, j int) bool { return sortedCoefficients[i] < sortedCoefficients[j] })
+	for _, cf := range sortedCoefficients {
+		if cf > coefficient {
+			return cf, nil
+		}
+	}
+	return 0, io.EOF
+}
+
 func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
 	if len(k.tables) == 0 {
 		return 0, nil
 	}
 
-	cf := cursor / k.tableSize
-	t := k.tablesByCoefficient[cf]
-
 	var err error
+	cf := cursor / k.tableSize
+	t, ok := k.tablesByCoefficient[cf]
+	if !ok {
+		cf, err = k.resetScanCursor(cf)
+		if err != nil {
+			// Invalid cursor
+			return 0, nil
+		}
+		t = k.tablesByCoefficient[cf]
+		cursor = cf * k.tableSize
+	}
+
 	var tableCursor = cursor
 	if cf > 0 {
 		tableCursor = cursor - (k.tableSize * cf)
@@ -482,10 +509,19 @@ func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e
 		return 0, nil
 	}
 
-	cf := cursor / k.tableSize
-	t := k.tablesByCoefficient[cf]
-
 	var err error
+	cf := cursor / k.tableSize
+	t, ok := k.tablesByCoefficient[cf]
+	if !ok {
+		cf, err = k.resetScanCursor(cf)
+		if err != nil {
+			// Invalid cursor
+			return 0, nil
+		}
+		t = k.tablesByCoefficient[cf]
+		cursor = cf * k.tableSize
+	}
+
 	var tableCursor = cursor
 	if cf > 0 {
 		tableCursor = cursor - (k.tableSize * cf)
