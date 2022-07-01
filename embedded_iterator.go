@@ -15,10 +15,8 @@
 package olric
 
 import (
-	"context"
 	"sync"
 
-	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/protocol"
 )
@@ -27,71 +25,45 @@ import (
 type EmbeddedIterator struct {
 	mtx sync.Mutex
 
-	client         *EmbeddedClient
-	pos            int
-	page           []string
-	dm             *dmap.DMap
-	allKeys        map[string]struct{}
-	cursors        map[uint64]map[string]uint64 // member id => cursor
-	replicaCursors map[uint64]map[string]uint64 // member id => cursor
-	partID         uint64                       // current partition id
-	config         *dmap.ScanConfig
-	ctx            context.Context
-	cancel         context.CancelFunc
+	client          *EmbeddedClient
+	dm              *dmap.DMap
+	clusterIterator *ClusterIterator
 }
 
-func (i *EmbeddedIterator) updateIterator(keys []string, cursor uint64, owner string) {
-	if _, ok := i.cursors[i.partID]; !ok {
-		i.cursors[i.partID] = make(map[string]uint64)
-	}
-	if _, ok := i.replicaCursors[i.partID]; !ok {
-		i.replicaCursors[i.partID] = make(map[string]uint64)
-	}
+func (e *EmbeddedIterator) scanOnOwners() error {
+	owners := e.clusterIterator.getOwners()
 
-	if i.config.Replica {
-		i.replicaCursors[i.partID][owner] = cursor
-	} else {
-		i.cursors[i.partID][owner] = cursor
-	}
-	for _, key := range keys {
-		if _, ok := i.allKeys[key]; !ok {
-			i.page = append(i.page, key)
-			i.allKeys[key] = struct{}{}
-		}
-	}
-}
+	for idx, owner := range owners {
+		cursor := e.clusterIterator.loadCursor(owner)
 
-func (i *EmbeddedIterator) scanOnOwners(owners []discovery.Member) error {
-	for _, owner := range owners {
-		var cursor = i.cursors[i.partID][owner.String()]
-		if i.config.Replica {
-			cursor = i.replicaCursors[i.partID][owner.String()]
-		}
-
-		if owner.CompareByID(i.client.db.rt.This()) {
-			keys, cursor, err := i.dm.Scan(i.partID, cursor, i.config)
+		if e.client.db.rt.This().String() == owner {
+			keys, newCursor, err := e.dm.Scan(e.clusterIterator.partID, cursor, e.clusterIterator.config)
 			if err != nil {
 				return err
 			}
-			i.updateIterator(keys, cursor, owner.String())
+			e.clusterIterator.updateIterator(keys, newCursor, owner)
+			if newCursor == 0 {
+				e.clusterIterator.removeScannedOwner(idx)
+			}
 			continue
 		}
 
-		s := protocol.NewScan(i.partID, i.dm.Name(), cursor)
-		if i.config.HasCount {
-			s.SetCount(i.config.Count)
+		// Build a scan command here
+		s := protocol.NewScan(e.clusterIterator.partID, e.clusterIterator.dm.Name(), cursor)
+		if e.clusterIterator.config.HasCount {
+			s.SetCount(e.clusterIterator.config.Count)
 		}
-		if i.config.HasMatch {
-			s.SetMatch(i.config.Match)
+		if e.clusterIterator.config.HasMatch {
+			s.SetMatch(e.clusterIterator.config.Match)
 		}
-		if i.config.Replica {
+		if e.clusterIterator.config.Replica {
 			s.SetReplica()
 		}
 
-		scanCmd := s.Command(i.ctx)
-		// Fetch a redis rc for the given owner.
-		rc := i.client.db.client.Get(owner.String())
-		err := rc.Process(i.ctx, scanCmd)
+		scanCmd := s.Command(e.clusterIterator.ctx)
+		// Fetch a Redis client for the given owner.
+		rc := e.clusterIterator.clusterClient.client.Get(owner)
+		err := rc.Process(e.clusterIterator.ctx, scanCmd)
 		if err != nil {
 			return err
 		}
@@ -100,91 +72,22 @@ func (i *EmbeddedIterator) scanOnOwners(owners []discovery.Member) error {
 		if err != nil {
 			return err
 		}
-		i.updateIterator(keys, newCursor, owner.String())
+		e.clusterIterator.updateIterator(keys, newCursor, owner)
+		if newCursor == 0 {
+			e.clusterIterator.removeScannedOwner(idx)
+		}
 	}
-
 	return nil
 }
 
-func (i *EmbeddedIterator) resetPage() {
-	if len(i.page) != 0 {
-		i.page = []string{}
-	}
-	i.pos = 0
+func (e *EmbeddedIterator) Next() bool {
+	return e.clusterIterator.Next()
 }
 
-func (i *EmbeddedIterator) fetchData() error {
-	primaryOwners := i.client.db.primary.PartitionOwnersByID(i.partID)
-	i.config.Replica = false
-	if err := i.scanOnOwners(primaryOwners); err != nil {
-		return err
-	}
-
-	replicaOwners := i.client.db.backup.PartitionOwnersByID(i.partID)
-	i.config.Replica = true
-	if err := i.scanOnOwners(replicaOwners); err != nil {
-		return err
-	}
-
-	return nil
+func (e *EmbeddedIterator) Key() string {
+	return e.clusterIterator.Key()
 }
 
-func (i *EmbeddedIterator) next() bool {
-	if len(i.page) != 0 {
-		i.pos++
-		if i.pos <= len(i.page) {
-			return true
-		}
-	}
-
-	i.resetPage()
-
-	if err := i.fetchData(); err != nil {
-		// TODO: log these errors!
-		return false
-	}
-
-	if len(i.page) == 0 {
-		i.partID++
-		if i.partID >= i.client.db.config.PartitionCount {
-			return false
-		}
-		i.resetPage()
-		return i.next()
-	}
-	i.pos = 1
-	return true
-}
-
-func (i *EmbeddedIterator) Next() bool {
-	i.mtx.Lock()
-	defer i.mtx.Unlock()
-
-	select {
-	case <-i.ctx.Done():
-		return false
-	default:
-	}
-
-	return i.next()
-}
-
-func (i *EmbeddedIterator) Key() string {
-	i.mtx.Lock()
-	defer i.mtx.Unlock()
-
-	var key string
-	if i.pos > 0 && i.pos <= len(i.page) {
-		key = i.page[i.pos-1]
-	}
-	return key
-}
-
-func (i *EmbeddedIterator) Close() {
-	select {
-	case <-i.ctx.Done():
-		return
-	default:
-	}
-	i.cancel()
+func (e *EmbeddedIterator) Close() {
+	e.clusterIterator.Close()
 }

@@ -450,7 +450,7 @@ func (k *KVStore) RangeHKey(f func(hkey uint64) bool) {
 	}
 }
 
-func (k *KVStore) resetScanCursor(coefficient uint64) (uint64, error) {
+func (k *KVStore) findCoefficient(coefficient uint64) (uint64, error) {
 	var sortedCoefficients []uint64
 	for newCf, _ := range k.tablesByCoefficient {
 		sortedCoefficients = append(sortedCoefficients, newCf)
@@ -464,7 +464,7 @@ func (k *KVStore) resetScanCursor(coefficient uint64) (uint64, error) {
 	return 0, io.EOF
 }
 
-func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
+func (k *KVStore) scanCommon(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
 	if len(k.tables) == 0 {
 		return 0, nil
 	}
@@ -473,7 +473,7 @@ func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (
 	cf := cursor / k.tableSize
 	t, ok := k.tablesByCoefficient[cf]
 	if !ok {
-		cf, err = k.resetScanCursor(cf)
+		cf, err = k.findCoefficient(cf)
 		if err != nil {
 			// Invalid cursor
 			return 0, nil
@@ -487,7 +487,11 @@ func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (
 		tableCursor = cursor - (k.tableSize * cf)
 	}
 
-	tableCursor, err = t.Scan(tableCursor, count, f)
+	if expr == "" {
+		tableCursor, err = t.Scan(tableCursor, count, f)
+	} else {
+		tableCursor, err = t.ScanRegexMatch(tableCursor, expr, count, f)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -495,7 +499,11 @@ func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (
 	if tableCursor == 0 {
 		_, ok := k.tablesByCoefficient[cf+1]
 		if !ok {
-			return 0, nil
+			cf, err = k.findCoefficient(cf)
+			if err != nil {
+				// Invalid cursor
+				return 0, nil
+			}
 		}
 		// The next table
 		return k.tableSize * (cf + 1), nil
@@ -504,44 +512,12 @@ func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (
 	return tableCursor + (k.tableSize * cf), nil
 }
 
+func (k *KVStore) Scan(cursor uint64, count int, f func(e storage.Entry) bool) (uint64, error) {
+	return k.scanCommon(cursor, "", count, f)
+}
+
 func (k *KVStore) ScanRegexMatch(cursor uint64, expr string, count int, f func(e storage.Entry) bool) (uint64, error) {
-	if len(k.tables) == 0 {
-		return 0, nil
-	}
-
-	var err error
-	cf := cursor / k.tableSize
-	t, ok := k.tablesByCoefficient[cf]
-	if !ok {
-		cf, err = k.resetScanCursor(cf)
-		if err != nil {
-			// Invalid cursor
-			return 0, nil
-		}
-		t = k.tablesByCoefficient[cf]
-		cursor = cf * k.tableSize
-	}
-
-	var tableCursor = cursor
-	if cf > 0 {
-		tableCursor = cursor - (k.tableSize * cf)
-	}
-
-	tableCursor, err = t.ScanRegexMatch(tableCursor, expr, count, f)
-	if err != nil {
-		return 0, err
-	}
-
-	if tableCursor == 0 {
-		_, ok := k.tablesByCoefficient[cf+1]
-		if !ok {
-			return 0, nil
-		}
-		return k.tableSize * (cf + 1), nil
-	}
-
-	return tableCursor + (k.tableSize * cf), nil
-
+	return k.scanCommon(cursor, expr, count, f)
 }
 
 func (k *KVStore) Close() error {

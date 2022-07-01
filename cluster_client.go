@@ -334,20 +334,24 @@ func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterato
 
 	ictx, cancel := context.WithCancel(ctx)
 	i := &ClusterIterator{
-		dm:             dm,
-		clusterClient:  dm.clusterClient,
-		config:         &sc,
-		logger:         dm.clusterClient.logger,
-		allKeys:        make(map[string]struct{}),
-		cursors:        make(map[uint64]map[string]uint64),
-		replicaCursors: make(map[uint64]map[string]uint64),
-		ctx:            ictx,
-		cancel:         cancel,
+		dm:            dm,
+		clusterClient: dm.clusterClient,
+		config:        &sc,
+		logger:        dm.clusterClient.logger,
+		partitionKeys: make(map[string]struct{}),
+		cursors:       make(map[uint64]map[string]*currentCursor),
+		ctx:           ictx,
+		cancel:        cancel,
 	}
+
+	// Embedded iterator uses a slightly different scan function.
+	i.scanner = i.scanOnOwners
 
 	if err := i.fetchRoutingTable(); err != nil {
 		return nil, err
 	}
+	// Load the route for the first partition (0) to scan.
+	i.loadRoute()
 
 	i.wg.Add(1)
 	go i.fetchRoutingTablePeriodically()

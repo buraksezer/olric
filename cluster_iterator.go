@@ -24,10 +24,15 @@ import (
 	"github.com/buraksezer/olric/internal/protocol"
 )
 
+type currentCursor struct {
+	primary uint64
+	replica uint64
+}
+
 // ClusterIterator implements distributed query on DMaps.
 type ClusterIterator struct {
-	mtx   sync.Mutex // protects pos and page
-	rtMtx sync.Mutex // protects routingTable and partitionCount
+	mtx             sync.Mutex // protects pos and page
+	routingTableMtx sync.Mutex // protects routingTable and partitionCount
 
 	logger         *log.Logger
 	dm             *ClusterDMap
@@ -35,47 +40,111 @@ type ClusterIterator struct {
 	pos            int
 	page           []string
 	route          *Route
-	allKeys        map[string]struct{}
-	cursors        map[uint64]map[string]uint64 // member id => cursor
-	replicaCursors map[uint64]map[string]uint64 // member id => cursor
-	partID         uint64                       // current partition id
+	partitionKeys  map[string]struct{}
+	cursors        map[uint64]map[string]*currentCursor
+	partID         uint64 // current partition id
 	routingTable   RoutingTable
 	partitionCount uint64
 	config         *dmap.ScanConfig
+	scanner        func() error
 	wg             sync.WaitGroup
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
-func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner string) {
-	if _, ok := i.cursors[i.partID]; !ok {
-		i.cursors[i.partID] = make(map[string]uint64)
+func (i *ClusterIterator) loadRoute() {
+	i.routingTableMtx.Lock()
+	defer i.routingTableMtx.Unlock()
+
+	route, ok := i.routingTable[i.partID]
+	if !ok {
+		panic("partID: could not be found in the routing table")
 	}
-	if _, ok := i.replicaCursors[i.partID]; !ok {
-		i.replicaCursors[i.partID] = make(map[string]uint64)
+	i.route = &route
+}
+
+func (i *ClusterIterator) updateCursor(owner string, cursor uint64) {
+	if _, ok := i.cursors[i.partID]; !ok {
+		i.cursors[i.partID] = make(map[string]*currentCursor)
+	}
+	cc, ok := i.cursors[i.partID][owner]
+	if !ok {
+		cc = &currentCursor{}
+		if i.config.Replica {
+			cc.replica = cursor
+		} else {
+			cc.primary = cursor
+		}
+		i.cursors[i.partID][owner] = cc
+		return
 	}
 
 	if i.config.Replica {
-		i.replicaCursors[i.partID][owner] = cursor
+		cc.replica = cursor
 	} else {
-		i.cursors[i.partID][owner] = cursor
+		cc.primary = cursor
 	}
+	i.cursors[i.partID][owner] = cc
+}
+
+func (i *ClusterIterator) loadCursor(owner string) uint64 {
+	if _, ok := i.cursors[i.partID]; !ok {
+		return 0
+	}
+	cc, ok := i.cursors[i.partID][owner]
+	if !ok {
+		return 0
+	}
+	if i.config.Replica {
+		return cc.replica
+	}
+	return cc.primary
+}
+
+func (i *ClusterIterator) updateIterator(keys []string, cursor uint64, owner string) {
 	for _, key := range keys {
-		if _, ok := i.allKeys[key]; !ok {
+		if _, ok := i.partitionKeys[key]; !ok {
 			i.page = append(i.page, key)
-			i.allKeys[key] = struct{}{}
+			i.partitionKeys[key] = struct{}{}
+		}
+	}
+	i.updateCursor(owner, cursor)
+}
+
+func (i *ClusterIterator) getOwners() []string {
+	var raw []string
+	if i.config.Replica {
+		raw = i.routingTable[i.partID].ReplicaOwners
+	} else {
+		raw = i.routingTable[i.partID].PrimaryOwners
+	}
+	var owners []string
+	// Make a safe copy of the raw.
+	for _, owner := range raw {
+		owners = append(owners, owner)
+	}
+	return owners
+}
+
+func (i *ClusterIterator) removeScannedOwner(idx int) {
+	if i.config.Replica {
+		if len(i.route.ReplicaOwners) > 0 && len(i.route.ReplicaOwners) > idx {
+			i.route.ReplicaOwners = append(i.route.ReplicaOwners[:idx], i.route.ReplicaOwners[idx+1:]...)
+		}
+	} else {
+		if len(i.route.PrimaryOwners) > 0 && len(i.route.PrimaryOwners) > idx {
+			i.route.PrimaryOwners = append(i.route.PrimaryOwners[:idx], i.route.PrimaryOwners[idx+1:]...)
 		}
 	}
 }
 
-func (i *ClusterIterator) scanOnOwners(owners []string) ([]string, error) {
-	data := make(map[string]bool)
-	for _, owner := range owners {
-		var cursor = i.cursors[i.partID][owner]
-		if i.config.Replica {
-			cursor = i.replicaCursors[i.partID][owner]
-		}
+func (i *ClusterIterator) scanOnOwners() error {
+	owners := i.getOwners()
 
+	for idx, owner := range owners {
+		cursor := i.loadCursor(owner)
+
+		// Build a scan command here
 		s := protocol.NewScan(i.partID, i.dm.Name(), cursor)
 		if i.config.HasCount {
 			s.SetCount(i.config.Count)
@@ -92,27 +161,19 @@ func (i *ClusterIterator) scanOnOwners(owners []string) ([]string, error) {
 		rc := i.clusterClient.client.Get(owner)
 		err := rc.Process(i.ctx, scanCmd)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		keys, newCursor, err := scanCmd.Result()
 		if err != nil {
-			return nil, err
+			return err
 		}
 		i.updateIterator(keys, newCursor, owner)
 		if newCursor == 0 {
-			data[owner] = true
+			i.removeScannedOwner(idx)
 		}
 	}
-
-	var newowners []string
-	for _, owner := range owners {
-		if !data[owner] {
-			newowners = append(newowners, owner)
-		}
-	}
-
-	return newowners, nil
+	return nil
 }
 
 func (i *ClusterIterator) resetPage() {
@@ -123,20 +184,19 @@ func (i *ClusterIterator) resetPage() {
 }
 
 func (i *ClusterIterator) fetchData() error {
-	var err error
 	i.config.Replica = false
-	i.route.PrimaryOwners, err = i.scanOnOwners(i.route.PrimaryOwners)
-	if err != nil {
+	if err := i.scanner(); err != nil {
 		return err
 	}
 
 	i.config.Replica = true
-	i.route.ReplicaOwners, err = i.scanOnOwners(i.route.ReplicaOwners)
-	if err != nil {
-		return err
-	}
+	return i.scanner()
+}
 
-	return nil
+func (i *ClusterIterator) reset() {
+	i.partitionKeys = make(map[string]struct{})
+	i.resetPage()
+	i.loadRoute()
 }
 
 func (i *ClusterIterator) next() bool {
@@ -155,9 +215,12 @@ func (i *ClusterIterator) next() bool {
 			return false
 		}
 		if len(i.page) != 0 {
+			// We have data on the page to read. Stop the iteration.
 			break
 		}
+
 		if len(i.route.PrimaryOwners) == 0 && len(i.route.ReplicaOwners) == 0 {
+			// We completed scanning all the owners. Stop the iteration.
 			break
 		}
 	}
@@ -167,16 +230,7 @@ func (i *ClusterIterator) next() bool {
 		if i.partID >= i.partitionCount {
 			return false
 		}
-		i.resetPage()
-
-		i.rtMtx.Lock()
-		route, ok := i.routingTable[i.partID]
-		i.rtMtx.Unlock()
-		if !ok {
-			panic("partID: could not be found in the routing table")
-		}
-		i.route = &route
-
+		i.reset()
 		return i.next()
 	}
 	i.pos = 1
@@ -192,16 +246,6 @@ func (i *ClusterIterator) Next() bool {
 		return false
 	default:
 	}
-
-	i.rtMtx.Lock()
-	if i.route == nil {
-		route, ok := i.routingTable[i.partID]
-		if !ok {
-			panic("partID: could not be found in the routing table")
-		}
-		i.route = &route
-	}
-	i.rtMtx.Unlock()
 
 	return i.next()
 }
@@ -233,17 +277,17 @@ func (i *ClusterIterator) fetchRoutingTablePeriodically() {
 }
 
 func (i *ClusterIterator) fetchRoutingTable() error {
-	rt, err := i.clusterClient.RoutingTable(i.ctx)
+	routingTable, err := i.clusterClient.RoutingTable(i.ctx)
 	if err != nil {
 		return err
 	}
 
-	i.rtMtx.Lock()
-	defer i.rtMtx.Unlock()
+	i.routingTableMtx.Lock()
+	defer i.routingTableMtx.Unlock()
 
 	// Partition count is a constant, actually. It has to be greater than zero.
-	i.partitionCount = uint64(len(rt))
-	i.routingTable = rt
+	i.partitionCount = uint64(len(routingTable))
+	i.routingTable = routingTable
 	return nil
 }
 
