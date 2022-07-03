@@ -111,7 +111,8 @@ func main() {
 
 	c, err := config.Load(args.config)
 	if err != nil {
-		c.Logger.Fatalf("[ERROR] Failed to load the configuration: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "failed to load the configuration file: %s: %v\n", args.config, err)
+		os.Exit(1)
 	}
 
 	s, err := server.New(c)

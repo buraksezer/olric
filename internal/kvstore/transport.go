@@ -30,27 +30,31 @@ func (t *transferIterator) Next() bool {
 	return len(t.storage.tables) != 0
 }
 
-func (t *transferIterator) Pop() error {
+func (t *transferIterator) Drop(index int) error {
 	if len(t.storage.tables) == 0 {
-		return fmt.Errorf("there is no table to pop")
+		return fmt.Errorf("there is no table to drop")
 	}
 
-	t.storage.tables = append(t.storage.tables[:0], t.storage.tables[1:]...)
-	delete(t.storage.tablesByCoefficient, 0)
-	t.storage.coefficient = t.storage.coefficient - 1
+	tb := t.storage.tables[index]
+	t.storage.tables = append(t.storage.tables[:index], t.storage.tables[index+1:]...)
+	delete(t.storage.tablesByCoefficient, tb.Coefficient())
 
 	return nil
 }
 
-func (t *transferIterator) Export() ([]byte, error) {
-	for _, t := range t.storage.tables {
+func (t *transferIterator) Export() ([]byte, int, error) {
+	for index, t := range t.storage.tables {
 		if t.State() == table.RecycledState {
 			continue
 		}
 
-		return table.Encode(t)
+		data, err := table.Encode(t)
+		if err != nil {
+			return nil, 0, err
+		}
+		return data, index, nil
 	}
-	return nil, io.EOF
+	return nil, 0, io.EOF
 }
 
 func (k *KVStore) Import(data []byte, f func(uint64, storage.Entry) error) error {

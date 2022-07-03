@@ -149,7 +149,7 @@ func TestKVStore_ExportImport(t *testing.T) {
 
 	ti := s.TransferIterator()
 	for ti.Next() {
-		data, err := ti.Export()
+		data, index, err := ti.Export()
 		require.NoError(t, err)
 
 		err = fresh.Import(data, func(u uint64, e storage.Entry) error {
@@ -157,11 +157,11 @@ func TestKVStore_ExportImport(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		err = ti.Pop()
+		err = ti.Drop(index)
 		require.NoError(t, err)
 	}
 
-	_, err := ti.Export()
+	_, _, err := ti.Export()
 	require.ErrorIs(t, err, io.EOF)
 
 	for i := 0; i < 1000; i++ {

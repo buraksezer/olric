@@ -395,7 +395,6 @@ func TestIntegration_Kill_Nodes_During_Operation(t *testing.T) {
 	for i := 0; i < 100000; i++ {
 		_, err = dm.Get(ctx, fmt.Sprintf("mykey-%d", i))
 		if err == ErrKeyNotFound {
-			fmt.Println(i)
 			err = nil
 		}
 		require.NoError(t, err)
@@ -486,7 +485,7 @@ func scanIntegrationTestCommon(t *testing.T, embedded bool, keyFunc func(i int) 
 	db3 := cluster.addMemberWithConfig(t, newConfig())
 	t.Logf("Add a new member: %s", db3.rt.This())
 
-	<-time.After(1 * time.Second)
+	<-time.After(time.Second)
 
 	t.Log("Second pass")
 	s, err = dm.Scan(context.Background(), options...)

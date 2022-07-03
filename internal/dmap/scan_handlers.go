@@ -15,12 +15,11 @@
 package dmap
 
 import (
-	"strconv"
-
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/pkg/storage"
 	"github.com/tidwall/redcon"
+	"strconv"
 )
 
 func (dm *DMap) scanOnFragment(f *fragment, cursor uint64, sc *ScanConfig) ([]string, uint64, error) {
@@ -125,7 +124,6 @@ func (s *Service) scanCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		protocol.WriteError(conn, err)
 		return
 	}
-
 	conn.WriteArray(2)
 	conn.WriteBulkString(strconv.FormatUint(cursor, 10))
 	conn.WriteArray(len(result))

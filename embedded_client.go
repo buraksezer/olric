@@ -62,24 +62,28 @@ type EmbeddedDMap struct {
 }
 
 func (dm *EmbeddedDMap) Scan(ctx context.Context, options ...ScanOption) (Iterator, error) {
-	var sc dmap.ScanConfig
-	for _, opt := range options {
-		opt(&sc)
+	cc, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
+	if err != nil {
+		return nil, err
 	}
-	if sc.Count == 0 {
-		sc.Count = DefaultScanCount
+	cdm, err := cc.NewDMap(dm.name)
+	if err != nil {
+		return nil, err
 	}
-	iteratorCtx, cancel := context.WithCancel(ctx)
-	return &EmbeddedIterator{
-		client:         dm.client,
-		dm:             dm.dm,
-		config:         &sc,
-		allKeys:        make(map[string]struct{}),
-		cursors:        make(map[uint64]map[string]uint64),
-		replicaCursors: make(map[uint64]map[string]uint64),
-		ctx:            iteratorCtx,
-		cancel:         cancel,
-	}, nil
+	i, err := cdm.Scan(ctx, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	e := &EmbeddedIterator{
+		client: dm.client,
+		dm:     dm.dm,
+	}
+
+	clusterIterator := i.(*ClusterIterator)
+	clusterIterator.scanner = e.scanOnOwners
+	e.clusterIterator = clusterIterator
+	return e, nil
 }
 
 // Lock sets a lock for the given key. Acquired lock is only for the key in this dmap.

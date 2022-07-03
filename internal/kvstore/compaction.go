@@ -59,6 +59,7 @@ func (k *KVStore) evictTable(t *table.Table) error {
 
 	stats := t.Stats()
 	if stats.Inuse == 0 {
+		delete(k.tablesByCoefficient, t.Coefficient())
 		t.Reset()
 	}
 
@@ -100,6 +101,7 @@ func (k *KVStore) Compaction() (bool, error) {
 				if len(k.tables) == 1 {
 					break
 				}
+				delete(k.tablesByCoefficient, t.Coefficient())
 				k.tables = append(k.tables[:i], k.tables[i+1:]...)
 				i--
 			}

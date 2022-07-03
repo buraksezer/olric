@@ -53,6 +53,7 @@ type Stats struct {
 }
 
 type Table struct {
+	coefficient uint64
 	offset      uint64
 	allocated   uint64
 	inuse       uint64
@@ -81,6 +82,14 @@ func New(size uint64) *Table {
 	//	backed by this underlying array.
 	t.memory = make([]byte, size)
 	return t
+}
+
+func (t *Table) SetCoefficient(cf uint64) {
+	t.coefficient = cf
+}
+
+func (t *Table) Coefficient() uint64 {
+	return t.coefficient
 }
 
 func (t *Table) SetState(s State) {
@@ -417,6 +426,7 @@ func (t *Table) Reset() {
 	t.inuse = 0
 	t.garbage = 0
 	t.offset = 0
+	t.coefficient = 0
 	t.recycledAt = time.Now().UnixNano()
 }
 

@@ -73,13 +73,14 @@ func (r *RoundRobin) Add(item string) {
 }
 
 // Delete deletes an item from the Round-Robin scheduler.
-func (r *RoundRobin) Delete(i string) {
+func (r *RoundRobin) Delete(item string) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	for idx, item := range r.items {
-		if item == i {
-			r.items = append(r.items[:idx], r.items[idx+1:]...)
+	for i := 0; i < len(r.items); i++ {
+		if r.items[i] == item {
+			r.items = append(r.items[:i], r.items[i+1:]...)
+			i--
 		}
 	}
 }
