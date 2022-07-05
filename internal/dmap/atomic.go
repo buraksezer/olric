@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/util"
@@ -160,4 +159,62 @@ func (dm *DMap) GetPut(ctx context.Context, key string, value interface{}) (stor
 		return nil, nil
 	}
 	return raw, nil
+}
+
+func (dm *DMap) atomicIncrByFloat(e *env, delta float64) (float64, error) {
+	atomicKey := e.dmap + e.key
+	dm.s.locker.Lock(atomicKey)
+	defer func() {
+		err := dm.s.locker.Unlock(atomicKey)
+		if err != nil {
+			dm.s.log.V(3).Printf("[ERROR] Failed to release the fine grained lock for key: %s on DMap: %s: %v", e.key, e.dmap, err)
+		}
+	}()
+
+	var current float64
+	entry, err := dm.Get(e.ctx, e.key)
+	if errors.Is(err, ErrKeyNotFound) {
+		err = nil
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	if entry != nil {
+		current, err = util.ParseFloat(entry.Value(), 64)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	latest := current + delta
+	if err != nil {
+		return 0, err
+	}
+
+	valueBuf := pool.Get()
+	enc := resp.New(valueBuf)
+	err = enc.Encode(latest)
+	if err != nil {
+		return 0, err
+	}
+	e.value = valueBuf.Bytes()
+	defer func() {
+		pool.Put(valueBuf)
+	}()
+
+	err = dm.put(e)
+	if err != nil {
+		return 0, err
+	}
+
+	return latest, nil
+}
+
+// IncrByFloat atomically increments key by delta. The return value is the new value after being incremented or an error.
+func (dm *DMap) IncrByFloat(ctx context.Context, key string, delta float64) (float64, error) {
+	e := newEnv(ctx)
+	e.dmap = dm.name
+	e.key = key
+	return dm.atomicIncrByFloat(e, delta)
 }

@@ -169,16 +169,20 @@ type DMap interface {
 	// of the argument after Delete returns.
 	Delete(ctx context.Context, keys ...string) error
 
-	// Incr atomically increments key by delta. The return value is the new value
+	// Incr atomically increments the key by delta. The return value is the new value
 	// after being incremented or an error.
 	Incr(ctx context.Context, key string, delta int) (int, error)
 
-	// Decr atomically decrements key by delta. The return value is the new value
+	// Decr atomically decrements the key by delta. The return value is the new value
 	// after being decremented or an error.
 	Decr(ctx context.Context, key string, delta int) (int, error)
 
-	// GetPut atomically sets key to value and returns the old value stored at key.
+	// GetPut atomically sets the key to value and returns the old value stored at key.
 	GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error)
+
+	// IncrByFloat atomically increments the key by delta. The return value is the new value
+	// after being incremented or an error.
+	IncrByFloat(ctx context.Context, key string, delta float64) (float64, error)
 
 	// Expire updates the expiry for the given key. It returns ErrKeyNotFound if
 	// the DB does not contain the key. It's thread-safe.

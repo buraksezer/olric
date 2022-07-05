@@ -15,6 +15,8 @@
 package dmap
 
 import (
+	"strconv"
+
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/tidwall/redcon"
 )
@@ -92,4 +94,29 @@ func (s *Service) getPutCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	}
 
 	conn.WriteBulk(old.Value())
+}
+
+func (s *Service) incrByFloatCommandHandler(conn redcon.Conn, cmd redcon.Command) {
+	incrCmd, err := protocol.ParseIncrByFloatCommand(cmd)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	dm, err := s.getOrCreateDMap(incrCmd.DMap)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	e := newEnv(s.ctx)
+	e.dmap = dm.name
+	e.key = incrCmd.Key
+	latest, err := dm.atomicIncrByFloat(e, incrCmd.Delta)
+	if err != nil {
+		protocol.WriteError(conn, err)
+		return
+	}
+
+	conn.WriteBulkString(strconv.FormatFloat(latest, 'f', -1, 64))
 }

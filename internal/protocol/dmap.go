@@ -759,6 +759,46 @@ func ParseGetPutCommand(cmd redcon.Command) (*GetPut, error) {
 	return g, nil
 }
 
+type IncrByFloat struct {
+	DMap  string
+	Key   string
+	Delta float64
+}
+
+func NewIncrByFloat(dmap, key string, delta float64) *IncrByFloat {
+	return &IncrByFloat{
+		DMap:  dmap,
+		Key:   key,
+		Delta: delta,
+	}
+}
+
+func (i *IncrByFloat) Command(ctx context.Context) *redis.FloatCmd {
+	var args []interface{}
+	args = append(args, DMap.IncrByFloat)
+	args = append(args, i.DMap)
+	args = append(args, i.Key)
+	args = append(args, i.Delta)
+	return redis.NewFloatCmd(ctx, args...)
+}
+
+func ParseIncrByFloatCommand(cmd redcon.Command) (*IncrByFloat, error) {
+	if len(cmd.Args) < 4 {
+		return nil, errWrongNumber(cmd.Args)
+	}
+
+	delta, err := strconv.ParseFloat(util.BytesToString(cmd.Args[3]), 10)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewIncrByFloat(
+		util.BytesToString(cmd.Args[1]),
+		util.BytesToString(cmd.Args[2]),
+		delta,
+	), nil
+}
+
 // TODO: Add PLock
 
 type Lock struct {

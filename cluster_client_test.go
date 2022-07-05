@@ -220,6 +220,35 @@ func TestClusterClient_Incr(t *testing.T) {
 	require.Equal(t, 11, result)
 }
 
+func TestClusterClient_IncrByFloat(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	var errGr errgroup.Group
+	for i := 0; i < 10; i++ {
+		errGr.Go(func() error {
+			_, err = dm.IncrByFloat(ctx, "mykey", 1.2)
+			return err
+		})
+	}
+
+	require.NoError(t, errGr.Wait())
+
+	result, err := dm.IncrByFloat(ctx, "mykey", 1.2)
+	require.NoError(t, err)
+	require.Equal(t, 13.199999999999998, result)
+}
+
 func TestClusterClient_Decr(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)

@@ -415,6 +415,18 @@ func TestProtocol_GetPut_RW(t *testing.T) {
 	require.True(t, parsed.Raw)
 }
 
+func TestProtocol_IncrByFloat(t *testing.T) {
+	incrByFloatCmd := NewIncrByFloat("my-dmap", "my-key", 3.14159265359)
+
+	cmd := stringToCommand(incrByFloatCmd.Command(context.Background()).String())
+	parsed, err := ParseIncrByFloatCommand(cmd)
+	require.NoError(t, err)
+
+	require.Equal(t, "my-dmap", parsed.DMap)
+	require.Equal(t, "my-key", parsed.Key)
+	require.Equal(t, 3.14159265359, parsed.Delta)
+}
+
 func TestProtocol_Lock(t *testing.T) {
 	lockCmd := NewLock("my-dmap", "my-key", 7)
 

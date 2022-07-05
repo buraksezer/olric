@@ -81,6 +81,7 @@ It's good at distributed caching and publish/subscribe messaging.
       * [DM.INCR](#dmincr)
       * [DM.DECR](#dmdecr)
       * [DM.GETPUT](#dmgetput)
+      * [DM.INCRBYFLOAT](#dmincrbyfloat)
     * [Locking](#locking)
       * [DM.LOCK](#dmlock)
       * [DM.UNLOCK](#dmunlock)
@@ -506,6 +507,32 @@ DM.GETPUT dmap key value
 **Return:**
 
 * **Bulk string reply**: the old value stored at the key.
+
+#### DM.INCRBYFLOAT
+
+DM.INCRBYFLOAT atomically increments the number stored at key by delta. The return value is the new value after being incremented or an error.
+
+```
+DM.INCRBYFLOAT dmap key delta
+```
+
+**Example:**
+
+```
+127.0.0.1:3320> DM.PUT dmap key 10.50
+OK
+127.0.0.1:3320> DM.INCRBYFLOAT dmap key 0.1
+"10.6"
+127.0.0.1:3320> DM.PUT dmap key 5.0e3
+OK
+127.0.0.1:3320> DM.INCRBYFLOAT dmap key 2.0e2
+"5200"
+```
+
+**Return:**
+
+* **Bulk string reply**: the value of key after the increment.
+
 
 ### Locking
 

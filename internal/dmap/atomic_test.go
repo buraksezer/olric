@@ -162,6 +162,47 @@ func TestDMap_Atomic_GetPut(t *testing.T) {
 	require.Equal(t, final, atomic.LoadInt64(&total))
 }
 
+func TestDMap_Atomic_IncrByFloat(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	var wg sync.WaitGroup
+	var start chan struct{}
+	key := "incrbyfloat"
+
+	ctx := context.Background()
+	incrByFloat := func(dm *DMap) {
+		<-start
+		defer wg.Done()
+
+		_, err := dm.IncrByFloat(ctx, key, 1.2)
+		if err != nil {
+			s.log.V(2).Printf("[ERROR] Failed to call IncrByFloat: %v", err)
+			return
+		}
+	}
+
+	dm, err := s.NewDMap("atomic_test")
+	require.NoError(t, err)
+
+	start = make(chan struct{})
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go incrByFloat(dm)
+	}
+	close(start)
+	wg.Wait()
+
+	gr, err := dm.Get(ctx, key)
+	require.NoError(t, err)
+
+	var res float64
+	err = resp.Scan(gr.Value(), &res)
+	require.NoError(t, err)
+	require.Equal(t, 120.0000000000002, res)
+}
+
 func TestDMap_incrCommandHandler(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
@@ -326,4 +367,37 @@ func TestDMap_exGetPutOperation(t *testing.T) {
 
 	atomic.AddInt64(&total, int64(last))
 	require.Equal(t, final, atomic.LoadInt64(&total))
+}
+
+func TestDMap_incrByFloatCommandHandler(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	var errGr errgroup.Group
+	for i := 0; i < 100; i++ {
+		errGr.Go(func() error {
+			cmd := protocol.NewIncrByFloat("mydmap", "mykey", 1.2).Command(context.Background())
+			rc := s.client.Get(s.rt.This().String())
+			err := rc.Process(context.Background(), cmd)
+			if err != nil {
+				return err
+			}
+			_, err = cmd.Result()
+			return err
+		})
+	}
+	require.NoError(t, errGr.Wait())
+
+	cmd := protocol.NewGet("mydmap", "mykey").Command(context.Background())
+	rc := s.client.Get(s.rt.This().String())
+	err := rc.Process(context.Background(), cmd)
+	require.NoError(t, err)
+
+	value, err := cmd.Bytes()
+	require.NoError(t, err)
+	v := new(float64)
+	err = resp.Scan(value, v)
+	require.NoError(t, err)
+	require.Equal(t, 120.0000000000002, *v)
 }

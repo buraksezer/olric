@@ -152,6 +152,11 @@ func (dm *EmbeddedDMap) Incr(ctx context.Context, key string, delta int) (int, e
 	return dm.dm.Incr(ctx, key, delta)
 }
 
+// IncrByFloat atomically increments the key by delta. The return value is the new value after being incremented or an error.
+func (dm *EmbeddedDMap) IncrByFloat(ctx context.Context, key string, delta float64) (float64, error) {
+	return dm.dm.IncrByFloat(ctx, key, delta)
+}
+
 func (dm *EmbeddedDMap) Delete(ctx context.Context, keys ...string) error {
 	return dm.dm.Delete(ctx, keys...)
 }

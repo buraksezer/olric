@@ -258,6 +258,30 @@ func TestEmbeddedClient_DMap_GetPut(t *testing.T) {
 	require.Equal(t, "myvalue", value)
 }
 
+func TestEmbeddedClient_DMap_Atomic_IncrByFloat(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	var errGr errgroup.Group
+	for i := 0; i < 100; i++ {
+		errGr.Go(func() error {
+			_, err = dm.IncrByFloat(ctx, "mykey", 1.2)
+			return err
+		})
+	}
+	require.NoError(t, errGr.Wait())
+
+	gr, err := dm.Get(context.Background(), "mykey")
+	res, err := gr.Float64()
+	require.NoError(t, err)
+	require.Equal(t, 120.0000000000002, res)
+}
+
 func TestEmbeddedClient_DMap_Expire(t *testing.T) {
 	cluster := newTestOlricCluster(t)
 	db := cluster.addMember(t)

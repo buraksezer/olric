@@ -233,6 +233,24 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 	}, nil
 }
 
+func (dm *ClusterDMap) IncrByFloat(ctx context.Context, key string, delta float64) (float64, error) {
+	rc, err := dm.client.Pick()
+	if err != nil {
+		return 0, err
+	}
+
+	cmd := protocol.NewIncrByFloat(dm.name, key, delta).Command(ctx)
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return 0, processProtocolError(err)
+	}
+	res, err := cmd.Result()
+	if err != nil {
+		return 0, processProtocolError(cmd.Err())
+	}
+	return res, nil
+}
+
 func (dm *ClusterDMap) Expire(ctx context.Context, key string, timeout time.Duration) error {
 	rc, err := dm.client.Pick()
 	if err != nil {
