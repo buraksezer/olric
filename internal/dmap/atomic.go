@@ -42,8 +42,9 @@ func (dm *DMap) loadCurrentAtomicInt(e *env) (int, int64, error) {
 		if err != nil {
 			return 0, 0, err
 		}
+		return current, entry.TTL(), nil
 	}
-	return current, entry.TTL(), nil
+	return current, 0, nil
 }
 
 func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
