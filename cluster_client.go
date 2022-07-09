@@ -153,19 +153,23 @@ func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error
 // Delete deletes values for the given keys. Delete will not return error
 // if key doesn't exist. It's thread-safe. It is safe to modify the contents
 // of the argument after Delete returns.
-func (dm *ClusterDMap) Delete(ctx context.Context, keys ...string) error {
+func (dm *ClusterDMap) Delete(ctx context.Context, keys ...string) (int, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	cmd := protocol.NewDel(dm.name, keys...).Command(ctx)
 	err = rc.Process(ctx, cmd)
 	if err != nil {
-		return processProtocolError(err)
+		return 0, processProtocolError(err)
 	}
 
-	return processProtocolError(cmd.Err())
+	res, err := cmd.Uint64()
+	if err != nil {
+		return 0, processProtocolError(cmd.Err())
+	}
+	return int(res), nil
 }
 
 // Incr atomically increments the key by delta. The return value is the new value

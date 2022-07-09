@@ -62,7 +62,7 @@ func (dm *DMap) unlockKey(ctx context.Context, key string, token []byte) error {
 	}
 
 	// release it.
-	err = dm.deleteKeys(ctx, key)
+	_, err = dm.deleteKeys(ctx, key)
 	if err != nil {
 		return fmt.Errorf("unlock failed because of delete: %w", err)
 	}

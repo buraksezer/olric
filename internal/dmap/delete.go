@@ -140,7 +140,7 @@ func (dm *DMap) deleteKey(key string) error {
 	return dm.deleteOnCluster(hkey, key, f)
 }
 
-func (dm *DMap) deleteKeys(ctx context.Context, keys ...string) error {
+func (dm *DMap) deleteKeys(ctx context.Context, keys ...string) (int, error) {
 	members := make(map[discovery.Member][]string)
 	for _, key := range keys {
 		hkey := partitions.HKey(dm.name, key)
@@ -152,7 +152,7 @@ func (dm *DMap) deleteKeys(ctx context.Context, keys ...string) error {
 		if member.CompareByName(dm.s.rt.This()) {
 			for _, key := range distributedKeys {
 				if err := dm.deleteKey(key); err != nil {
-					return err
+					return 0, err
 				}
 			}
 		} else {
@@ -160,18 +160,18 @@ func (dm *DMap) deleteKeys(ctx context.Context, keys ...string) error {
 			rc := dm.s.client.Get(member.String())
 			err := rc.Process(ctx, cmd)
 			if err != nil {
-				return protocol.ConvertError(err)
+				return 0, protocol.ConvertError(err)
 			}
 
-			return protocol.ConvertError(cmd.Err())
+			return 0, protocol.ConvertError(cmd.Err())
 		}
 	}
 
-	return nil
+	return len(keys), nil
 }
 
 // Delete deletes the value for the given key. Delete will not return error if key doesn't exist. It's thread-safe.
 // It is safe to modify the contents of the argument after Delete returns.
-func (dm *DMap) Delete(ctx context.Context, keys ...string) error {
+func (dm *DMap) Delete(ctx context.Context, keys ...string) (int, error) {
 	return dm.deleteKeys(ctx, keys...)
 }

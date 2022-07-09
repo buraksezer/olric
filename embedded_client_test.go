@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
@@ -178,11 +179,33 @@ func TestEmbeddedClient_DMap_Delete(t *testing.T) {
 	err = dm.Put(context.Background(), "mykey", "myvalue")
 	require.NoError(t, err)
 
-	err = dm.Delete(context.Background(), "mykey")
+	count, err := dm.Delete(context.Background(), "mykey")
 	require.NoError(t, err)
+	require.Equal(t, 1, count)
 
 	_, err = dm.Get(context.Background(), "mykey")
 	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestEmbeddedClient_DMap_Delete_Many_Keys(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	e := db.NewEmbeddedClient()
+	dm, err := e.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	var keys []string
+	for i := 0; i < 10; i++ {
+		key := testutil.ToKey(i)
+		err = dm.Put(context.Background(), key, "myvalue")
+		require.NoError(t, err)
+		keys = append(keys, key)
+	}
+
+	count, err := dm.Delete(context.Background(), keys...)
+	require.NoError(t, err)
+	require.Equal(t, 10, count)
 }
 
 func TestEmbeddedClient_DMap_Atomic_Incr(t *testing.T) {

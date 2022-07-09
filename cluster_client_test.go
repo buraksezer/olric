@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/internal/testutil"
 	"log"
 	"os"
 	"testing"
@@ -160,11 +161,39 @@ func TestClusterClient_Delete(t *testing.T) {
 	err = dm.Put(ctx, "mykey", "myvalue")
 	require.NoError(t, err)
 
-	err = dm.Delete(ctx, "mykey")
+	count, err := dm.Delete(ctx, "mykey")
 	require.NoError(t, err)
+	require.Equal(t, 1, count)
 
 	_, err = dm.Get(ctx, "mykey")
 	require.ErrorIs(t, err, ErrKeyNotFound)
+}
+
+func TestClusterClient_Delete_Many_Keys(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	var keys []string
+	for i := 0; i < 10; i++ {
+		key := testutil.ToKey(i)
+		err = dm.Put(context.Background(), key, "myvalue")
+		require.NoError(t, err)
+		keys = append(keys, key)
+	}
+
+	count, err := dm.Delete(context.Background(), keys...)
+	require.NoError(t, err)
+	require.Equal(t, 10, count)
 }
 
 func TestClusterClient_Destroy(t *testing.T) {

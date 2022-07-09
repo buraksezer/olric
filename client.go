@@ -168,7 +168,7 @@ type DMap interface {
 	// Delete deletes values for the given keys. Delete will not return error
 	// if key doesn't exist. It's thread-safe. It is safe to modify the contents
 	// of the argument after Delete returns.
-	Delete(ctx context.Context, keys ...string) error
+	Delete(ctx context.Context, keys ...string) (int, error)
 
 	// Incr atomically increments the key by delta. The return value is the new value
 	// after being incremented or an error.

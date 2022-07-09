@@ -183,7 +183,7 @@ func (dm *EmbeddedDMap) IncrByFloat(ctx context.Context, key string, delta float
 // Delete deletes values for the given keys. Delete will not return error
 // if key doesn't exist. It's thread-safe. It is safe to modify the contents
 // of the argument after Delete returns.
-func (dm *EmbeddedDMap) Delete(ctx context.Context, keys ...string) error {
+func (dm *EmbeddedDMap) Delete(ctx context.Context, keys ...string) (int, error) {
 	return dm.dm.Delete(ctx, keys...)
 }
 

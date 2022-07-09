@@ -32,13 +32,13 @@ func (s *Service) delCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	err = dm.deleteKeys(s.ctx, delCmd.Keys...)
+	count, err := dm.deleteKeys(s.ctx, delCmd.Keys...)
 	if err != nil {
 		protocol.WriteError(conn, err)
 		return
 	}
 
-	conn.WriteInt(len(delCmd.Keys))
+	conn.WriteInt(count)
 }
 
 func (s *Service) delEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
