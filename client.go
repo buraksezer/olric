@@ -44,7 +44,7 @@ type Member struct {
 // Iterator defines an interface to implement iterators on the distributed maps.
 type Iterator interface {
 	// Next returns true if there is more key in the iterator implementation.
-	// Otherwise, it returns false
+	// Otherwise, it returns false.
 	Next() bool
 
 	// Key returns a key name from the distributed map.
@@ -107,7 +107,7 @@ func NX() PutOption {
 	}
 }
 
-// XX only sets the key if it already exist.
+// XX only sets the key if it already exists.
 func XX() PutOption {
 	return func(cfg *dmap.PutConfig) {
 		cfg.HasXX = true
@@ -131,8 +131,9 @@ func StorageEntryImplementation(e func() storage.Entry) DMapOption {
 // ScanOption is a function for defining options to control behavior of the SCAN command.
 type ScanOption func(*dmap.ScanConfig)
 
-// Count is the user specified the amount of work that should be done at every call in order to retrieve elements from the distributed map.
-// This is just a hint for the implementation, however generally speaking this is what you could expect most of the times from the implementation.
+// Count is the user specified the amount of work that should be done at every call in order to
+// retrieve elements from the distributed map. This is just a hint for the implementation,
+// however generally speaking this is what you could expect most of the time from the implementation.
 // The default value is 10.
 func Count(c int) ScanOption {
 	return func(cfg *dmap.ScanConfig) {
@@ -161,7 +162,7 @@ type DMap interface {
 
 	// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
 	// does not contain the key. It's thread-safe. It is safe to modify the contents
-	// of the returned value.
+	// of the returned value. See GetResponse for the details.
 	Get(ctx context.Context, key string) (*GetResponse, error)
 
 	// Delete deletes values for the given keys. Delete will not return error
@@ -210,11 +211,17 @@ type DMap interface {
 	// non-critical purposes.
 	LockWithTimeout(ctx context.Context, key string, timeout, deadline time.Duration) (LockContext, error)
 
+	// Scan returns an iterator to loop over the keys.
+	//
+	// Available scan options:
+	//
+	// * Count
+	// * Match
 	Scan(ctx context.Context, options ...ScanOption) (Iterator, error)
 
 	// Destroy flushes the given DMap on the cluster. You should know that there
 	// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
-	// concurrently on the cluster, Put call may set new values to the dmap.
+	// concurrently on the cluster, Put call may set new values to the DMap.
 	Destroy(ctx context.Context) error
 }
 
@@ -257,12 +264,15 @@ type Client interface {
 	// Stats returns stats.Stats with the given options.
 	Stats(ctx context.Context, address string, options ...StatsOption) (stats.Stats, error)
 
+	// Ping sends a ping message to an Olric node. Returns PONG if message is empty,
+	// otherwise return a copy of the message as a bulk. This command is often used to test
+	// if a connection is still alive, or to measure latency.
 	Ping(ctx context.Context, address, message string) (string, error)
 
 	// RoutingTable returns the latest version of the routing table.
 	RoutingTable(ctx context.Context) (RoutingTable, error)
 
-	// Members returns a list of cluster members.
+	// Members returns a thread-safe list of cluster members.
 	Members(ctx context.Context) ([]Member, error)
 
 	// Close stops background routines and frees allocated resources.

@@ -43,6 +43,7 @@ type ClusterLockContext struct {
 	dm    *ClusterDMap
 }
 
+// ClusterDMap implements a client for DMaps.
 type ClusterDMap struct {
 	name          string
 	newEntry      func() storage.Entry
@@ -52,6 +53,7 @@ type ClusterDMap struct {
 	clusterClient *ClusterClient
 }
 
+// Name exposes name of the DMap.
 func (dm *ClusterDMap) Name() string {
 	return dm.name
 }
@@ -89,6 +91,9 @@ func (dm *ClusterDMap) writePutCommand(c *dmap.PutConfig, key string, value []by
 	return cmd
 }
 
+// Put sets the value for the given key. It overwrites any previous value for
+// that key, and it's thread-safe. The key has to be a string. value type is arbitrary.
+// It is safe to modify the contents of the arguments after Put returns but not before.
 func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, options ...PutOption) error {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -118,6 +123,9 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 	return processProtocolError(cmd.Err())
 }
 
+// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
+// does not contain the key. It's thread-safe. It is safe to modify the contents
+// of the returned value. See GetResponse for the details.
 func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -142,6 +150,9 @@ func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error
 	}, nil
 }
 
+// Delete deletes values for the given keys. Delete will not return error
+// if key doesn't exist. It's thread-safe. It is safe to modify the contents
+// of the argument after Delete returns.
 func (dm *ClusterDMap) Delete(ctx context.Context, keys ...string) error {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -157,6 +168,8 @@ func (dm *ClusterDMap) Delete(ctx context.Context, keys ...string) error {
 	return processProtocolError(cmd.Err())
 }
 
+// Incr atomically increments the key by delta. The return value is the new value
+// after being incremented or an error.
 func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -176,6 +189,8 @@ func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, er
 	return int(res), nil
 }
 
+// Decr atomically decrements the key by delta. The return value is the new value
+// after being decremented or an error.
 func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -195,6 +210,7 @@ func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, er
 	return int(res), nil
 }
 
+// GetPut atomically sets the key to value and returns the old value stored at key.
 func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -233,6 +249,8 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 	}, nil
 }
 
+// IncrByFloat atomically increments the key by delta. The return value is the new value
+// after being incremented or an error.
 func (dm *ClusterDMap) IncrByFloat(ctx context.Context, key string, delta float64) (float64, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -251,6 +269,8 @@ func (dm *ClusterDMap) IncrByFloat(ctx context.Context, key string, delta float6
 	return res, nil
 }
 
+// Expire updates the expiry for the given key. It returns ErrKeyNotFound if
+// the DB does not contain the key. It's thread-safe.
 func (dm *ClusterDMap) Expire(ctx context.Context, key string, timeout time.Duration) error {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -265,6 +285,14 @@ func (dm *ClusterDMap) Expire(ctx context.Context, key string, timeout time.Dura
 	return processProtocolError(cmd.Err())
 }
 
+// Lock sets a lock for the given key. Acquired lock is only for the key in
+// this dmap.
+//
+// It returns immediately if it acquires the lock for the given key. Otherwise,
+// it waits until deadline.
+//
+// You should know that the locks are approximate, and only to be used for
+// non-critical purposes.
 func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Duration) (LockContext, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -289,6 +317,16 @@ func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Durat
 	}, nil
 }
 
+// LockWithTimeout sets a lock for the given key. If the lock is still unreleased
+// the end of given period of time,
+// it automatically releases the lock. Acquired lock is only for the key in
+// this dmap.
+//
+// It returns immediately if it acquires the lock for the given key. Otherwise,
+// it waits until deadline.
+//
+// You should know that the locks are approximate, and only to be used for
+// non-critical purposes.
 func (dm *ClusterDMap) LockWithTimeout(ctx context.Context, key string, timeout, deadline time.Duration) (LockContext, error) {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -341,6 +379,12 @@ func (c *ClusterLockContext) Lease(ctx context.Context, duration time.Duration) 
 	return processProtocolError(cmd.Err())
 }
 
+// Scan returns an iterator to loop over the keys.
+//
+// Available scan options:
+//
+// * Count
+// * Match
 func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterator, error) {
 	var sc dmap.ScanConfig
 	for _, opt := range options {
@@ -377,6 +421,9 @@ func (dm *ClusterDMap) Scan(ctx context.Context, options ...ScanOption) (Iterato
 	return i, nil
 }
 
+// Destroy flushes the given DMap on the cluster. You should know that there
+// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
+// concurrently on the cluster, Put call may set new values to the DMap.
 func (dm *ClusterDMap) Destroy(ctx context.Context) error {
 	rc, err := dm.client.Pick()
 	if err != nil {
@@ -398,6 +445,9 @@ type ClusterClient struct {
 	logger *log.Logger
 }
 
+// Ping sends a ping message to an Olric node. Returns PONG if message is empty,
+// otherwise return a copy of the message as a bulk. This command is often used to test
+// if a connection is still alive, or to measure latency.
 func (cl *ClusterClient) Ping(ctx context.Context, addr, message string) (string, error) {
 	pingCmd := protocol.NewPing()
 	if message != "" {
@@ -418,6 +468,7 @@ func (cl *ClusterClient) Ping(ctx context.Context, addr, message string) (string
 	return cmd.Result()
 }
 
+// RoutingTable returns the latest version of the routing table.
 func (cl *ClusterClient) RoutingTable(ctx context.Context) (RoutingTable, error) {
 	cmd := protocol.NewClusterRoutingTable().Command(ctx)
 	rc, err := cl.client.Pick()
@@ -442,6 +493,7 @@ func (cl *ClusterClient) RoutingTable(ctx context.Context) (RoutingTable, error)
 	return mapToRoutingTable(result)
 }
 
+// Stats returns stats.Stats with the given options.
 func (cl *ClusterClient) Stats(ctx context.Context, address string, options ...StatsOption) (stats.Stats, error) {
 	var cfg statsConfig
 	for _, opt := range options {
@@ -476,6 +528,7 @@ func (cl *ClusterClient) Stats(ctx context.Context, address string, options ...S
 	return s, nil
 }
 
+// Members returns a thread-safe list of cluster members.
 func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 	rc, err := cl.client.Pick()
 	if err != nil {
@@ -515,14 +568,17 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 	return members, nil
 }
 
+// Close stops background routines and frees allocated resources.
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	return cl.client.Shutdown(ctx)
 }
 
+// NewPubSub returns a new PubSub client with the given options.
 func (cl *ClusterClient) NewPubSub(options ...PubSubOption) (*PubSub, error) {
 	return newPubSub(cl.client, options...)
 }
 
+// NewDMap returns a new DMap client with the given options.
 func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, error) {
 	var dc dmapConfig
 	for _, opt := range options {

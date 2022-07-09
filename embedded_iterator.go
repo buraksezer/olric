@@ -80,14 +80,18 @@ func (e *EmbeddedIterator) scanOnOwners() error {
 	return nil
 }
 
+// Next returns true if there is more key in the iterator implementation.
+// Otherwise, it returns false.
 func (e *EmbeddedIterator) Next() bool {
 	return e.clusterIterator.Next()
 }
 
+// Key returns a key name from the distributed map.
 func (e *EmbeddedIterator) Key() string {
 	return e.clusterIterator.Key()
 }
 
+// Close stops the iteration and releases allocated resources.
 func (e *EmbeddedIterator) Close() {
 	e.clusterIterator.Close()
 }

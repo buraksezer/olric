@@ -237,6 +237,8 @@ func (i *ClusterIterator) next() bool {
 	return true
 }
 
+// Next returns true if there is more key in the iterator implementation.
+// Otherwise, it returns false
 func (i *ClusterIterator) Next() bool {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
@@ -250,6 +252,7 @@ func (i *ClusterIterator) Next() bool {
 	return i.next()
 }
 
+// Key returns a key name from the distributed map.
 func (i *ClusterIterator) Key() string {
 	i.mtx.Lock()
 	defer i.mtx.Unlock()
@@ -291,6 +294,7 @@ func (i *ClusterIterator) fetchRoutingTable() error {
 	return nil
 }
 
+// Close stops the iteration and releases allocated resources.
 func (i *ClusterIterator) Close() {
 	select {
 	case <-i.ctx.Done():
