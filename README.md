@@ -1481,6 +1481,117 @@ func main() {
 }
 ```
 
+### SCAN on DMaps
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
+)
+
+func main() {
+	// Sample for Olric v0.5.x
+
+	// Deployment scenario: embedded-member
+	// This creates a single-node Olric cluster. It's good enough for experimenting.
+
+	// config.New returns a new config.Config with sane defaults. Available values for env:
+	// local, lan, wan
+	c := config.New("local")
+
+	// Callback function. It's called when this node is ready to accept connections.
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Started = func() {
+		defer cancel()
+		log.Println("[INFO] Olric is ready to accept connections")
+	}
+
+	// Create a new Olric instance.
+	db, err := olric.New(c)
+	if err != nil {
+		log.Fatalf("Failed to create Olric instance: %v", err)
+	}
+
+	// Start the instance. It will form a single-node cluster.
+	go func() {
+		// Call Start at background. It's a blocker call.
+		err = db.Start()
+		if err != nil {
+			log.Fatalf("olric.Start returned an error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+
+	// In embedded-member scenario, you can use the EmbeddedClient. It implements
+	// the Client interface.
+	e := db.NewEmbeddedClient()
+
+	dm, err := e.NewDMap("bucket-of-arbitrary-items")
+	if err != nil {
+		log.Fatalf("olric.NewDMap returned an error: %v", err)
+	}
+
+	ctx, cancel = context.WithCancel(context.Background())
+
+	// Magic starts here!
+	fmt.Println("##")
+	fmt.Println("Insert 10 keys")
+	var key string
+	for i := 0; i < 10; i++ {
+		if i%2 == 0 {
+			key = fmt.Sprintf("even:%d", i)
+		} else {
+			key = fmt.Sprintf("odd:%d", i)
+		}
+		err = dm.Put(ctx, key, nil)
+		if err != nil {
+			log.Fatalf("Failed to call Put: %v", err)
+		}
+	}
+
+	i, err := dm.Scan(ctx)
+	if err != nil {
+		log.Fatalf("Failed to call Scan: %v", err)
+	}
+
+	fmt.Println("Iterate over all the keys")
+	for i.Next() {
+		fmt.Println(">> Key", i.Key())
+	}
+
+	i.Close()
+
+	i, err = dm.Scan(ctx, olric.Match("^even:"))
+	if err != nil {
+		log.Fatalf("Failed to call Scan: %v", err)
+	}
+
+	fmt.Println("\n\nScan with regex: ^even:")
+	for i.Next() {
+		fmt.Println(">> Key", i.Key())
+	}
+
+	i.Close()
+
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = db.Shutdown(ctx)
+	if err != nil {
+		log.Printf("Failed to shutdown Olric: %v", err)
+	}
+}
+```
+
 #### Publish-Subscribe
 ```go
 package main
