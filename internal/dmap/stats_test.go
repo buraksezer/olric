@@ -49,7 +49,7 @@ func TestDMap_Stats(t *testing.T) {
 
 	// DeleteHits
 	for i := 0; i < 10; i++ {
-		err = dm.Delete(ctx, testutil.ToKey(i))
+		_, err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 
@@ -61,7 +61,7 @@ func TestDMap_Stats(t *testing.T) {
 
 	// DeleteMisses
 	for i := 0; i < 10; i++ {
-		err = dm.Delete(ctx, testutil.ToKey(i))
+		_, err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 

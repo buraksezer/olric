@@ -79,7 +79,7 @@ func TestDMap_Compaction(t *testing.T) {
 			continue
 		}
 
-		err = dm.Delete(ctx, testutil.ToKey(i))
+		_, err = dm.Delete(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 	}
 

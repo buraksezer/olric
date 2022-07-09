@@ -122,7 +122,7 @@ func TestDMap_Get_NilValue(t *testing.T) {
 	}
 	require.Equal(t, []byte{}, gr.Value())
 
-	err = dm.Delete(ctx, "foobar")
+	_, err = dm.Delete(ctx, "foobar")
 	if err != nil {
 		t.Fatalf("Expected nil. Got: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestDMap_Get_NilValue_Cluster(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, gr.Value())
 
-	err = dm2.Delete(ctx, "foobar")
+	_, err = dm2.Delete(ctx, "foobar")
 	require.NoError(t, err)
 
 	_, err = dm2.Get(ctx, "foobar")
