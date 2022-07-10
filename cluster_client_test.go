@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"github.com/buraksezer/olric/hasher"
 	"log"
 	"os"
 	"testing"
@@ -773,7 +774,10 @@ func TestClusterClient_smartPick(t *testing.T) {
 	db4 := cluster.addMember(t)
 
 	ctx := context.Background()
-	c, err := NewClusterClient([]string{db1.name, db2.name, db3.name, db4.name})
+	c, err := NewClusterClient(
+		[]string{db1.name, db2.name, db3.name, db4.name},
+		WithHasher(hasher.NewDefaultHasher()),
+	)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, c.Close(ctx))

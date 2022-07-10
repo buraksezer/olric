@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/buraksezer/olric/hasher"
 	"log"
 	"os"
 	"sync"
@@ -652,6 +653,13 @@ type ClusterClientOption func(c *clusterClientConfig)
 type clusterClientConfig struct {
 	logger *log.Logger
 	config *config.Client
+	hasher hasher.Hasher
+}
+
+func WithHasher(h hasher.Hasher) ClusterClientOption {
+	return func(cfg *clusterClientConfig) {
+		cfg.hasher = h
+	}
 }
 
 func WithLogger(l *log.Logger) ClusterClientOption {
@@ -713,6 +721,10 @@ func NewClusterClient(addresses []string, options ...ClusterClientOption) (*Clus
 		opt(&cc)
 	}
 
+	if cc.hasher == nil {
+		cc.hasher = hasher.NewDefaultHasher()
+	}
+
 	if cc.logger == nil {
 		cc.logger = log.New(os.Stderr, "logger: ", log.Lshortfile)
 	}
@@ -741,6 +753,8 @@ func NewClusterClient(addresses []string, options ...ClusterClientOption) (*Clus
 	for _, address := range addresses {
 		cl.client.Get(address)
 	}
+
+	partitions.SetHashFunc(cc.hasher)
 
 	// Initial fetch.
 	if err := cl.fetchRoutingTable(); err != nil {
