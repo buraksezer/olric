@@ -16,13 +16,13 @@ package olric
 
 import (
 	"context"
-	"github.com/buraksezer/olric/internal/testutil"
 	"log"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/stats"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -763,4 +763,27 @@ func TestClusterClient_Members(t *testing.T) {
 			require.False(t, member.Coordinator)
 		}
 	}
+}
+
+func TestClusterClient_smartPick(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db1 := cluster.addMember(t)
+	db2 := cluster.addMember(t)
+	db3 := cluster.addMember(t)
+	db4 := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db1.name, db2.name, db3.name, db4.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	clients := make(map[string]struct{})
+	for i := 0; i < 1000; i++ {
+		rc, err := c.smartPick("mydmap", testutil.ToKey(i))
+		require.NoError(t, err)
+		clients[rc.String()] = struct{}{}
+	}
+	require.Len(t, clients, 4)
 }

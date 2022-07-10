@@ -20,10 +20,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/bufpool"
+	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/kvstore/entry"
@@ -91,11 +94,34 @@ func (dm *ClusterDMap) writePutCommand(c *dmap.PutConfig, key string, value []by
 	return cmd
 }
 
+func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
+	hkey := partitions.HKey(dmap, key)
+	partID := hkey % cl.partitionCount
+
+	raw := cl.routingTable.Load()
+	if raw == nil {
+		return nil, fmt.Errorf("routing table is empty")
+	}
+
+	routingTable, ok := raw.(RoutingTable)
+	if !ok {
+		return nil, fmt.Errorf("routing table is corrupt")
+	}
+
+	route := routingTable[partID]
+	if len(route.PrimaryOwners) == 0 {
+		return nil, fmt.Errorf("primary owners list for %d is empty", partID)
+	}
+
+	primaryOwner := route.PrimaryOwners[0]
+	return cl.client.Get(primaryOwner), nil
+}
+
 // Put sets the value for the given key. It overwrites any previous value for
 // that key, and it's thread-safe. The key has to be a string. value type is arbitrary.
 // It is safe to modify the contents of the arguments after Put returns but not before.
 func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, options ...PutOption) error {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return err
 	}
@@ -127,7 +153,7 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 // does not contain the key. It's thread-safe. It is safe to modify the contents
 // of the returned value. See GetResponse for the details.
 func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +201,7 @@ func (dm *ClusterDMap) Delete(ctx context.Context, keys ...string) (int, error) 
 // Incr atomically increments the key by delta. The return value is the new value
 // after being incremented or an error.
 func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return 0, err
 	}
@@ -196,7 +222,7 @@ func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, er
 // Decr atomically decrements the key by delta. The return value is the new value
 // after being decremented or an error.
 func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return 0, err
 	}
@@ -216,7 +242,7 @@ func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, er
 
 // GetPut atomically sets the key to value and returns the old value stored at key.
 func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +282,7 @@ func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}
 // IncrByFloat atomically increments the key by delta. The return value is the new value
 // after being incremented or an error.
 func (dm *ClusterDMap) IncrByFloat(ctx context.Context, key string, delta float64) (float64, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return 0, err
 	}
@@ -276,7 +302,7 @@ func (dm *ClusterDMap) IncrByFloat(ctx context.Context, key string, delta float6
 // Expire updates the expiry for the given key. It returns ErrKeyNotFound if
 // the DB does not contain the key. It's thread-safe.
 func (dm *ClusterDMap) Expire(ctx context.Context, key string, timeout time.Duration) error {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return err
 	}
@@ -298,7 +324,7 @@ func (dm *ClusterDMap) Expire(ctx context.Context, key string, timeout time.Dura
 // You should know that the locks are approximate, and only to be used for
 // non-critical purposes.
 func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Duration) (LockContext, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +358,7 @@ func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Durat
 // You should know that the locks are approximate, and only to be used for
 // non-critical purposes.
 func (dm *ClusterDMap) LockWithTimeout(ctx context.Context, key string, timeout, deadline time.Duration) (LockContext, error) {
-	rc, err := dm.client.Pick()
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +383,7 @@ func (dm *ClusterDMap) LockWithTimeout(ctx context.Context, key string, timeout,
 }
 
 func (c *ClusterLockContext) Unlock(ctx context.Context) error {
-	rc, err := c.dm.client.Pick()
+	rc, err := c.dm.clusterClient.smartPick(c.dm.name, c.key)
 	if err != nil {
 		return err
 	}
@@ -370,7 +396,7 @@ func (c *ClusterLockContext) Unlock(ctx context.Context) error {
 }
 
 func (c *ClusterLockContext) Lease(ctx context.Context, duration time.Duration) error {
-	rc, err := c.dm.client.Pick()
+	rc, err := c.dm.clusterClient.smartPick(c.dm.name, c.key)
 	if err != nil {
 		return err
 	}
@@ -444,9 +470,14 @@ func (dm *ClusterDMap) Destroy(ctx context.Context) error {
 }
 
 type ClusterClient struct {
-	client *server.Client
-	config *clusterClientConfig
-	logger *log.Logger
+	client         *server.Client
+	config         *clusterClientConfig
+	logger         *log.Logger
+	routingTable   atomic.Value
+	partitionCount uint64
+	wg             sync.WaitGroup
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
 // Ping sends a ping message to an Olric node. Returns PONG if message is empty,
@@ -574,6 +605,19 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 
 // Close stops background routines and frees allocated resources.
 func (cl *ClusterClient) Close(ctx context.Context) error {
+	select {
+	case <-cl.ctx.Done():
+		return nil
+	default:
+	}
+
+	cl.cancel()
+
+	// Wait for the background workers:
+	// * fetchRoutingTablePeriodically
+	cl.wg.Wait()
+
+	// Close the underlying TCP sockets gracefully.
 	return cl.client.Shutdown(ctx)
 }
 
@@ -622,6 +666,43 @@ func WithConfig(c *config.Client) ClusterClientOption {
 	}
 }
 
+func (cl *ClusterClient) fetchRoutingTable() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	routingTable, err := cl.RoutingTable(ctx)
+	if err != nil {
+		return fmt.Errorf("error while loading the routing table: %w", err)
+	}
+
+	previous := cl.routingTable.Load()
+	if previous == nil {
+		// First run. Partition count is a constant, actually. It has to be greater than zero.
+		cl.partitionCount = uint64(len(routingTable))
+	}
+	cl.routingTable.Store(routingTable)
+	return nil
+}
+
+func (cl *ClusterClient) fetchRoutingTablePeriodically() {
+	defer cl.wg.Done()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-cl.ctx.Done():
+			return
+		case <-ticker.C:
+			err := cl.fetchRoutingTable()
+			if err != nil {
+				cl.logger.Printf("[ERROR] Failed to fetch the latest routing table: %s", err)
+			}
+		}
+	}
+}
+
 func NewClusterClient(addresses []string, options ...ClusterClientOption) (*ClusterClient, error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("addresses cannot be empty")
@@ -647,14 +728,28 @@ func NewClusterClient(addresses []string, options ...ClusterClientOption) (*Clus
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	cl := &ClusterClient{
 		client: server.NewClient(cc.config),
 		config: &cc,
 		logger: cc.logger,
+		ctx:    ctx,
+		cancel: cancel,
 	}
+
+	// Initialize clients for the given cluster members.
 	for _, address := range addresses {
 		cl.client.Get(address)
 	}
+
+	// Initial fetch.
+	if err := cl.fetchRoutingTable(); err != nil {
+		return nil, err
+	}
+
+	cl.wg.Add(1)
+	go cl.fetchRoutingTablePeriodically()
+
 	return cl, nil
 }
 
