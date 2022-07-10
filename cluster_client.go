@@ -113,7 +113,7 @@ func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
 		return nil, fmt.Errorf("primary owners list for %d is empty", partID)
 	}
 
-	primaryOwner := route.PrimaryOwners[0]
+	primaryOwner := route.PrimaryOwners[len(route.PrimaryOwners)-1]
 	return cl.client.Get(primaryOwner), nil
 }
 
