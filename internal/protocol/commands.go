@@ -111,3 +111,11 @@ var PubSub = &PubSubCommands{
 	PubSubNumpat:    "pubsub numpat",
 	PubSubNumsub:    "pubsub numsub",
 }
+
+type RedisStringCommands struct {
+	Set string
+}
+
+var RedisString = &RedisStringCommands{
+	Set: "set",
+}
