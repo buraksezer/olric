@@ -82,8 +82,8 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 	}()
 
 	if ttl != 0 {
-		e.putConfig.HasEX = true
-		e.putConfig.EX = time.Until(time.UnixMilli(ttl))
+		e.putConfig.HasPX = true
+		e.putConfig.PX = time.Until(time.UnixMilli(ttl))
 	}
 	err = dm.put(e)
 	if err != nil {
