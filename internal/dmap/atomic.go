@@ -32,8 +32,8 @@ func (dm *DMap) loadCurrentAtomicInt(e *env) (int, int64, error) {
 		return 0, 0, err
 	}
 
-	var current int
 	if entry != nil {
+		var current int
 		var value interface{}
 		if err := dm.s.serializer.Unmarshal(entry.Value(), &value); err != nil {
 			return 0, 0, err
@@ -44,7 +44,7 @@ func (dm *DMap) loadCurrentAtomicInt(e *env) (int, int64, error) {
 		}
 		return current, entry.TTL(), nil
 	}
-	return current, 0, nil
+	return 0, 0, nil
 }
 
 func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, error) {
@@ -79,6 +79,7 @@ func (dm *DMap) atomicIncrDecr(opcode protocol.OpCode, e *env, delta int) (int, 
 
 	if ttl != 0 {
 		e.timeout = time.Until(time.UnixMilli(ttl))
+		e.opcode = protocol.OpPutEx
 	}
 	e.value = val
 	err = dm.put(e)
