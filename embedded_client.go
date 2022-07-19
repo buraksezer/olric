@@ -61,6 +61,18 @@ type EmbeddedDMap struct {
 	storageEngine string
 }
 
+func (dm *EmbeddedDMap) Pipeline() (*DMapPipeline, error) {
+	cc, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
+	if err != nil {
+		return nil, err
+	}
+	cdm, err := cc.NewDMap(dm.name)
+	if err != nil {
+		return nil, err
+	}
+	return cdm.Pipeline()
+}
+
 // Scan returns an iterator to loop over the keys.
 //
 // Available scan options:

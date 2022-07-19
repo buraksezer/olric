@@ -224,6 +224,8 @@ type DMap interface {
 	// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
 	// concurrently on the cluster, Put call may set new values to the DMap.
 	Destroy(ctx context.Context) error
+
+	Pipeline() (*DMapPipeline, error)
 }
 
 type statsConfig struct {

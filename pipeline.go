@@ -365,7 +365,7 @@ func (dp *DMapPipeline) Flush(ctx context.Context) error {
 	return errGr.Wait()
 }
 
-func (dm *ClusterDMap) Pipeline() *DMapPipeline {
+func (dm *ClusterDMap) Pipeline() (*DMapPipeline, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DMapPipeline{
 		dm:       dm,
@@ -373,5 +373,5 @@ func (dm *ClusterDMap) Pipeline() *DMapPipeline {
 		result:   make(map[uint64][]redis.Cmder),
 		ctx:      ctx,
 		cancel:   cancel,
-	}
+	}, nil
 }
