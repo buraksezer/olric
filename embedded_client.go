@@ -152,7 +152,8 @@ func (dm *EmbeddedDMap) Name() string {
 	return dm.name
 }
 
-// GetPut atomically sets the key to value and returns the old value stored at key.
+// GetPut atomically sets the key to value and returns the old value stored at key. It returns nil if there is no
+// previous value.
 func (dm *EmbeddedDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
 	e, err := dm.dm.GetPut(ctx, key, value)
 	if err != nil {

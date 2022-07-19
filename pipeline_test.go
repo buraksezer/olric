@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -176,6 +177,131 @@ func TestDMapPipeline_Expire(t *testing.T) {
 	}
 }
 
+func TestDMapPipeline_Incr(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FutureIncr)
+	pipe := dm.(*ClusterDMap).Pipeline()
+	for i := 0; i < 100; i++ {
+		fi, err := pipe.Incr(ctx, "mykey", 1)
+		require.NoError(t, err)
+		futures[i] = fi
+	}
+	err = pipe.Flush(ctx)
+	require.NoError(t, err)
+
+	for i, fp := range futures {
+		num, err := fp.Result()
+		require.NoError(t, err)
+		require.Equal(t, i+1, num)
+	}
+}
+
+func TestDMapPipeline_Decr(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FutureDecr)
+	pipe := dm.(*ClusterDMap).Pipeline()
+	for i := 0; i < 100; i++ {
+		fi, err := pipe.Decr(ctx, "mykey", 1)
+		require.NoError(t, err)
+		futures[i] = fi
+	}
+	err = pipe.Flush(ctx)
+	require.NoError(t, err)
+
+	for i, fp := range futures {
+		num, err := fp.Result()
+		require.NoError(t, err)
+		require.Equal(t, -1*(i+1), num)
+	}
+}
+
+func TestDMapPipeline_GetPut(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FutureGetPut)
+	pipe := dm.(*ClusterDMap).Pipeline()
+	for i := 0; i < 100; i++ {
+		fi, err := pipe.GetPut(ctx, testutil.ToKey(i), testutil.ToVal(i))
+		require.NoError(t, err)
+		futures[i] = fi
+	}
+	err = pipe.Flush(ctx)
+	require.NoError(t, err)
+
+	for _, fp := range futures {
+		gr, err := fp.Result()
+		require.NoError(t, err)
+		if gr != nil {
+			fmt.Println(gr.String())
+		}
+	}
+}
+
+func TestDMapPipeline_IncrByFloat(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FutureIncrByFloat)
+	pipe := dm.(*ClusterDMap).Pipeline()
+	for i := 0; i < 100; i++ {
+		fi, err := pipe.IncrByFloat(ctx, "mykey", 1.2)
+		require.NoError(t, err)
+		futures[i] = fi
+	}
+	err = pipe.Flush(ctx)
+	require.NoError(t, err)
+
+	for _, fp := range futures {
+		_, err := fp.Result()
+		require.NoError(t, err)
+	}
+}
+
 func ExamplePipeline() {
 	c, err := NewClusterClient([]string{"127.0.0.1:3320"})
 	if err != nil {
@@ -204,4 +330,6 @@ func ExamplePipeline() {
 	if err != nil {
 		// Handle this error
 	}
+
+	//
 }

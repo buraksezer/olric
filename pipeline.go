@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"time"
 
@@ -108,9 +109,9 @@ func (f *FutureGet) Result() (*GetResponse, error) {
 		if cmd.Err() != nil {
 			return nil, processProtocolError(cmd.Err())
 		}
-		scmd := redis.NewStringCmd(context.Background(), cmd.Args()...)
-		scmd.SetVal(cmd.(*redis.Cmd).Val().(string))
-		return f.dp.dm.makeGetResponse(scmd)
+		stringCmd := redis.NewStringCmd(context.Background(), cmd.Args()...)
+		stringCmd.SetVal(cmd.(*redis.Cmd).Val().(string))
+		return f.dp.dm.makeGetResponse(stringCmd)
 	default:
 		return nil, ErrNotReady
 	}
@@ -186,6 +187,145 @@ func (dp *DMapPipeline) Expire(ctx context.Context, key string, timeout time.Dur
 	}, nil
 }
 
+type FutureIncr struct {
+	dp     *DMapPipeline
+	partID uint64
+	index  int
+	ctx    context.Context
+}
+
+func (f *FutureIncr) Result() (int, error) {
+	select {
+	case <-f.ctx.Done():
+		cmd := f.dp.result[f.partID][f.index]
+		if cmd.Err() != nil {
+			return 0, processProtocolError(cmd.Err())
+		}
+		return int(cmd.(*redis.Cmd).Val().(int64)), nil
+	default:
+		return 0, ErrNotReady
+	}
+}
+
+func (dp *DMapPipeline) Incr(ctx context.Context, key string, delta int) (*FutureIncr, error) {
+	cmd := protocol.NewIncr(dp.dm.name, key, delta).Command(ctx)
+	partID, index := dp.addCommand(key, cmd)
+	return &FutureIncr{
+		dp:     dp,
+		partID: partID,
+		index:  index,
+		ctx:    dp.ctx,
+	}, nil
+}
+
+type FutureDecr struct {
+	dp     *DMapPipeline
+	partID uint64
+	index  int
+	ctx    context.Context
+}
+
+func (f *FutureDecr) Result() (int, error) {
+	select {
+	case <-f.ctx.Done():
+		cmd := f.dp.result[f.partID][f.index]
+		if cmd.Err() != nil {
+			return 0, processProtocolError(cmd.Err())
+		}
+		return int(cmd.(*redis.Cmd).Val().(int64)), nil
+	default:
+		return 0, ErrNotReady
+	}
+}
+
+func (dp *DMapPipeline) Decr(ctx context.Context, key string, delta int) (*FutureDecr, error) {
+	cmd := protocol.NewDecr(dp.dm.name, key, delta).Command(ctx)
+	partID, index := dp.addCommand(key, cmd)
+	return &FutureDecr{
+		dp:     dp,
+		partID: partID,
+		index:  index,
+		ctx:    dp.ctx,
+	}, nil
+}
+
+type FutureGetPut struct {
+	dp     *DMapPipeline
+	partID uint64
+	index  int
+	ctx    context.Context
+}
+
+func (f *FutureGetPut) Result() (*GetResponse, error) {
+	select {
+	case <-f.ctx.Done():
+		cmd := f.dp.result[f.partID][f.index]
+		if cmd.Err() == redis.Nil {
+			// This should be the first run.
+			return nil, nil
+		}
+		if cmd.Err() != nil {
+			return nil, processProtocolError(cmd.Err())
+		}
+		stringCmd := redis.NewStringCmd(context.Background(), cmd.Args()...)
+		stringCmd.SetVal(cmd.(*redis.Cmd).Val().(string))
+		return f.dp.dm.makeGetResponse(stringCmd)
+	default:
+		return nil, ErrNotReady
+	}
+}
+
+func (dp *DMapPipeline) GetPut(ctx context.Context, key string, value interface{}) (*FutureGetPut, error) {
+	buf := bytes.NewBuffer(nil)
+
+	enc := resp.New(buf)
+	err := enc.Encode(value)
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := protocol.NewGetPut(dp.dm.name, key, buf.Bytes()).SetRaw().Command(ctx)
+	partID, index := dp.addCommand(key, cmd)
+	return &FutureGetPut{
+		dp:     dp,
+		partID: partID,
+		index:  index,
+		ctx:    dp.ctx,
+	}, nil
+}
+
+type FutureIncrByFloat struct {
+	dp     *DMapPipeline
+	partID uint64
+	index  int
+	ctx    context.Context
+}
+
+func (f *FutureIncrByFloat) Result() (float64, error) {
+	select {
+	case <-f.ctx.Done():
+		cmd := f.dp.result[f.partID][f.index]
+		if cmd.Err() != nil {
+			return 0, processProtocolError(cmd.Err())
+		}
+		stringRes := cmd.(*redis.Cmd).Val().(string)
+		return strconv.ParseFloat(stringRes, 64)
+	default:
+		return 0, ErrNotReady
+	}
+}
+
+func (dp *DMapPipeline) IncrByFloat(ctx context.Context, key string, delta float64) (*FutureIncrByFloat, error) {
+	cmd := protocol.NewIncrByFloat(dp.dm.name, key, delta).Command(ctx)
+	partID, index := dp.addCommand(key, cmd)
+	return &FutureIncrByFloat{
+		dp:     dp,
+		partID: partID,
+		index:  index,
+		ctx:    dp.ctx,
+	}, nil
+}
+
 func (dp *DMapPipeline) flushOnPartition(ctx context.Context, partID uint64) error {
 	rc, err := dp.dm.clusterClient.clientByPartID(partID)
 	if err != nil {
@@ -198,10 +338,7 @@ func (dp *DMapPipeline) flushOnPartition(ctx context.Context, partID uint64) err
 		pipe.Do(ctx, cmd.Args()...)
 	}
 
-	result, err := pipe.Exec(ctx)
-	if err != nil {
-		return err
-	}
+	result, _ := pipe.Exec(ctx)
 	dp.result[partID] = result
 	return nil
 }

@@ -246,7 +246,8 @@ func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, er
 	return int(res), nil
 }
 
-// GetPut atomically sets the key to value and returns the old value stored at key.
+// GetPut atomically sets the key to value and returns the old value stored at key. It returns nil if there is no
+// previous value.
 func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
 	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {

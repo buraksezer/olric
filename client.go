@@ -178,7 +178,8 @@ type DMap interface {
 	// after being decremented or an error.
 	Decr(ctx context.Context, key string, delta int) (int, error)
 
-	// GetPut atomically sets the key to value and returns the old value stored at key.
+	// GetPut atomically sets the key to value and returns the old value stored at key. It returns nil if there is no
+	// previous value.
 	GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error)
 
 	// IncrByFloat atomically increments the key by delta. The return value is the new value
