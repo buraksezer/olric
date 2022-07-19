@@ -15,14 +15,11 @@
 package olric
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"log"
 	"os"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,68 +55,6 @@ type ClusterDMap struct {
 	engine        storage.Entry
 	client        *server.Client
 	clusterClient *ClusterClient
-}
-
-type DMapPipeline struct {
-	mtx      sync.Mutex
-	dm       *ClusterDMap
-	index    int
-	commands map[uint64]map[int]redis.Cmder
-}
-
-func (dp *DMapPipeline) Put(ctx context.Context, key string, value interface{}, options ...PutOption) error {
-	var buf *bytes.Buffer
-
-	enc := resp.New(buf)
-	err := enc.Encode(value)
-	if err != nil {
-		return err
-	}
-
-	var pc dmap.PutConfig
-	for _, opt := range options {
-		opt(&pc)
-	}
-
-	cmd := dp.dm.writePutCommand(&pc, key, buf.Bytes()).Command(ctx)
-
-	hkey := partitions.HKey(dp.dm.name, key)
-	partID := hkey % dp.dm.clusterClient.partitionCount
-
-	dp.mtx.Lock()
-	if _, ok := dp.commands[partID]; !ok {
-		dp.commands[partID] = make(map[int]redis.Cmder)
-	}
-	dp.commands[partID][dp.index] = cmd
-	dp.index++
-	dp.mtx.Unlock()
-
-	return nil
-}
-
-func (dp *DMapPipeline) flushOnPartition(ctx context.Context, partID uint64) error {
-	return nil
-}
-
-func (dp *DMapPipeline) Flush(ctx context.Context) error {
-	dp.mtx.Lock()
-	defer dp.mtx.Unlock()
-
-	numCpu := runtime.NumCPU()
-	sem := semaphore.NewWeighted(int64(numCpu))
-	for i := uint64(0); i < dp.dm.clusterClient.partitionCount; i++ {
-		sem.Acquire(ctx, 1)
-		go func(partID uint64) {
-			defer sem.Release(1)
-			_ = dp.flushOnPartition(ctx, partID)
-		}(i)
-	}
-}
-
-func (dm *ClusterDMap) Pipeline() *DMapPipeline {
-	return &DMapPipeline{
-		dm: dm,
-	}
 }
 
 // Name exposes name of the DMap.
@@ -160,10 +95,7 @@ func (dm *ClusterDMap) writePutCommand(c *dmap.PutConfig, key string, value []by
 	return cmd
 }
 
-func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
-	hkey := partitions.HKey(dmap, key)
-	partID := hkey % cl.partitionCount
-
+func (cl *ClusterClient) clientByPartID(partID uint64) (*redis.Client, error) {
 	raw := cl.routingTable.Load()
 	if raw == nil {
 		return nil, fmt.Errorf("routing table is empty")
@@ -181,6 +113,12 @@ func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
 
 	primaryOwner := route.PrimaryOwners[len(route.PrimaryOwners)-1]
 	return cl.client.Get(primaryOwner), nil
+}
+
+func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
+	hkey := partitions.HKey(dmap, key)
+	partID := hkey % cl.partitionCount
+	return cl.clientByPartID(partID)
 }
 
 // Put sets the value for the given key. It overwrites any previous value for
@@ -215,21 +153,7 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 	return processProtocolError(cmd.Err())
 }
 
-// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value. See GetResponse for the details.
-func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
-	rc, err := dm.clusterClient.smartPick(dm.name, key)
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(ctx)
-	err = rc.Process(ctx, cmd)
-	if err != nil {
-		return nil, processProtocolError(err)
-	}
-
+func (dm *ClusterDMap) makeGetResponse(cmd *redis.StringCmd) (*GetResponse, error) {
 	raw, err := cmd.Bytes()
 	if err != nil {
 		return nil, processProtocolError(err)
@@ -240,6 +164,22 @@ func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error
 	return &GetResponse{
 		entry: e,
 	}, nil
+}
+
+// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
+// does not contain the key. It's thread-safe. It is safe to modify the contents
+// of the returned value. See GetResponse for the details.
+func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
+	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(ctx)
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
+	if err != nil {
+		return nil, err
+	}
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+	return dm.makeGetResponse(cmd)
 }
 
 // Delete deletes values for the given keys. Delete will not return error
