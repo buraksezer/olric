@@ -31,7 +31,10 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-var ErrNotReady = errors.New("not ready yet")
+var (
+	ErrNotReady       = errors.New("not ready yet")
+	ErrPipelineClosed = errors.New("pipeline is closed")
+)
 
 type DMapPipeline struct {
 	mtx      sync.Mutex
@@ -338,12 +341,23 @@ func (dp *DMapPipeline) flushOnPartition(ctx context.Context, partID uint64) err
 		pipe.Do(ctx, cmd.Args()...)
 	}
 
+	// Exec executes all previously queued commands using one
+	// client-server roundtrip.
+	//
+	// Exec always returns list of commands and error of the first failed
+	// command if any.
 	result, _ := pipe.Exec(ctx)
 	dp.result[partID] = result
 	return nil
 }
 
 func (dp *DMapPipeline) Flush(ctx context.Context) error {
+	select {
+	case <-dp.ctx.Done():
+		return ErrPipelineClosed
+	default:
+	}
+
 	dp.mtx.Lock()
 	defer dp.mtx.Unlock()
 
@@ -363,6 +377,28 @@ func (dp *DMapPipeline) Flush(ctx context.Context) error {
 	}
 
 	return errGr.Wait()
+}
+
+func (dp *DMapPipeline) Discard() error {
+	dp.mtx.Lock()
+	defer dp.mtx.Unlock()
+
+	select {
+	case <-dp.ctx.Done():
+		return ErrPipelineClosed
+	default:
+	}
+
+	dp.cancel()
+
+	dp.commands = make(map[uint64][]redis.Cmder)
+	dp.result = make(map[uint64][]redis.Cmder)
+	dp.ctx, dp.cancel = context.WithCancel(context.Background())
+	return nil
+}
+
+func (dp *DMapPipeline) Close() {
+	dp.cancel()
 }
 
 func (dm *ClusterDMap) Pipeline() (*DMapPipeline, error) {

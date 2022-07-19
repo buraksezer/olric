@@ -41,6 +41,7 @@ func TestDMapPipeline_Put(t *testing.T) {
 	futures := make(map[int]*FuturePut)
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	for i := 0; i < 100; i++ {
 		fp, err := pipe.Put(ctx, testutil.ToKey(i), testutil.ToVal(i))
@@ -85,6 +86,7 @@ func TestDMapPipeline_Get(t *testing.T) {
 
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	futures := make(map[int]*FutureGet)
 	for i := 0; i < 100; i++ {
@@ -125,6 +127,7 @@ func TestDMapPipeline_Delete(t *testing.T) {
 
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	futures := make(map[int]*FutureDelete)
 	for i := 0; i < 100; i++ {
@@ -162,6 +165,7 @@ func TestDMapPipeline_Expire(t *testing.T) {
 
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	futures := make(map[int]*FutureExpire)
 	for i := 0; i < 100; i++ {
@@ -202,6 +206,7 @@ func TestDMapPipeline_Incr(t *testing.T) {
 	futures := make(map[int]*FutureIncr)
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	for i := 0; i < 100; i++ {
 		fi, err := pipe.Incr(ctx, "mykey", 1)
@@ -235,6 +240,7 @@ func TestDMapPipeline_Decr(t *testing.T) {
 	futures := make(map[int]*FutureDecr)
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	for i := 0; i < 100; i++ {
 		fi, err := pipe.Decr(ctx, "mykey", 1)
@@ -268,6 +274,7 @@ func TestDMapPipeline_GetPut(t *testing.T) {
 	futures := make(map[int]*FutureGetPut)
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	for i := 0; i < 100; i++ {
 		fi, err := pipe.GetPut(ctx, testutil.ToKey(i), testutil.ToVal(i))
@@ -303,6 +310,7 @@ func TestDMapPipeline_IncrByFloat(t *testing.T) {
 	futures := make(map[int]*FutureIncrByFloat)
 	pipe, err := dm.Pipeline()
 	require.NoError(t, err)
+	defer pipe.Close()
 
 	for i := 0; i < 100; i++ {
 		fi, err := pipe.IncrByFloat(ctx, "mykey", 1.2)
@@ -316,6 +324,74 @@ func TestDMapPipeline_IncrByFloat(t *testing.T) {
 		_, err := fp.Result()
 		require.NoError(t, err)
 	}
+}
+
+func TestDMapPipeline_Discard(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FuturePut)
+	pipe, err := dm.Pipeline()
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		fp, err := pipe.Put(ctx, testutil.ToKey(i), testutil.ToVal(i))
+		require.NoError(t, err)
+		futures[i] = fp
+	}
+
+	// Discard all pipelined DM.PUT requests.
+	err = pipe.Discard()
+	require.NoError(t, err)
+
+	err = pipe.Flush(ctx)
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		key := testutil.ToKey(i)
+		_, err := dm.Get(ctx, key)
+		require.ErrorIs(t, err, ErrKeyNotFound)
+	}
+}
+
+func TestDMapPipeline_Close(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FuturePut)
+	pipe, err := dm.Pipeline()
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		fp, err := pipe.Put(ctx, testutil.ToKey(i), testutil.ToVal(i))
+		require.NoError(t, err)
+		futures[i] = fp
+	}
+
+	pipe.Close()
+
+	err = pipe.Flush(ctx)
+	require.ErrorIs(t, err, ErrPipelineClosed)
 }
 
 func ExamplePipeline() {
@@ -349,6 +425,4 @@ func ExamplePipeline() {
 	if err != nil {
 		// Handle this error
 	}
-
-	//
 }
