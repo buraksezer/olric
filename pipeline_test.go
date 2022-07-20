@@ -277,7 +277,7 @@ func TestDMapPipeline_GetPut(t *testing.T) {
 	defer pipe.Close()
 
 	for i := 0; i < 100; i++ {
-		fi, err := pipe.GetPut(ctx, testutil.ToKey(i), testutil.ToVal(i))
+		fi, err := pipe.GetPut(ctx, "key", testutil.ToVal(i))
 		require.NoError(t, err)
 		futures[i] = fi
 	}
