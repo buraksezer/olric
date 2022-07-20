@@ -394,35 +394,74 @@ func TestDMapPipeline_Close(t *testing.T) {
 	require.ErrorIs(t, err, ErrPipelineClosed)
 }
 
-func ExamplePipeline() {
-	c, err := NewClusterClient([]string{"127.0.0.1:3320"})
-	if err != nil {
-		// Handle this error
-	}
-	dm, err := c.NewDMap("mydmap")
-	if err != nil {
-		// Handle this error
-	}
+func TestDMapPipeline_ErrNotReady(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
 
 	ctx := context.Background()
+	c, err := NewClusterClient([]string{db.name})
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
 
 	pipe, err := dm.Pipeline()
-	if err != nil {
-		// Handle this error
-	}
+	require.NoError(t, err)
+	defer pipe.Close()
 
-	futurePut, err := pipe.Put(ctx, "key-1", "value-1")
-	if err != nil {
-		// Handle this error
-	}
+	t.Run("Put", func(t *testing.T) {
+		fp, err := pipe.Put(ctx, "key", "value")
+		require.NoError(t, err)
+		require.ErrorIs(t, ErrNotReady, fp.Result())
+	})
 
-	err = pipe.Flush(context.Background())
-	if err != nil {
-		// Handle this error
-	}
+	t.Run("Get", func(t *testing.T) {
+		fp := pipe.Get(ctx, "key")
+		_, err := fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
 
-	err = futurePut.Result()
-	if err != nil {
-		// Handle this error
-	}
+	t.Run("Delete", func(t *testing.T) {
+		fp := pipe.Delete(ctx, "key")
+		_, err := fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
+
+	t.Run("Expire", func(t *testing.T) {
+		fp, err := pipe.Expire(ctx, "key", time.Second)
+		require.NoError(t, err)
+		err = fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
+
+	t.Run("Incr", func(t *testing.T) {
+		fp, err := pipe.Incr(ctx, "key", 1)
+		require.NoError(t, err)
+		_, err = fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
+
+	t.Run("Decr", func(t *testing.T) {
+		fp, err := pipe.Decr(ctx, "key", 1)
+		require.NoError(t, err)
+		_, err = fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
+
+	t.Run("GetPut", func(t *testing.T) {
+		fp, err := pipe.GetPut(ctx, "key", "value")
+		require.NoError(t, err)
+		_, err = fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
+
+	t.Run("IncrByFloat", func(t *testing.T) {
+		fp, err := pipe.IncrByFloat(ctx, "key", 1)
+		require.NoError(t, err)
+		_, err = fp.Result()
+		require.ErrorIs(t, ErrNotReady, err)
+	})
 }

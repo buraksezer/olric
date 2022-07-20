@@ -372,6 +372,8 @@ func (dp *DMapPipeline) Flush(ctx context.Context) error {
 		partID := i
 		errGr.Go(func() error {
 			defer sem.Release(1)
+			// If flushOnPartition returns an error, it will eventually stop
+			// all flush operation.
 			return dp.flushOnPartition(ctx, partID)
 		})
 	}
