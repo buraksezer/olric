@@ -48,7 +48,7 @@ func TestDMapPipeline_Put(t *testing.T) {
 		require.NoError(t, err)
 		futures[i] = fp
 	}
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for _, fp := range futures {
@@ -94,7 +94,7 @@ func TestDMapPipeline_Get(t *testing.T) {
 		futures[i] = fg
 	}
 
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for i, fg := range futures {
@@ -135,7 +135,7 @@ func TestDMapPipeline_Delete(t *testing.T) {
 		futures[i] = fd
 	}
 
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for _, fd := range futures {
@@ -174,7 +174,7 @@ func TestDMapPipeline_Expire(t *testing.T) {
 		futures[i] = fd
 	}
 
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for _, fd := range futures {
@@ -213,7 +213,7 @@ func TestDMapPipeline_Incr(t *testing.T) {
 		require.NoError(t, err)
 		futures[i] = fi
 	}
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for i, fp := range futures {
@@ -247,7 +247,7 @@ func TestDMapPipeline_Decr(t *testing.T) {
 		require.NoError(t, err)
 		futures[i] = fi
 	}
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for i, fp := range futures {
@@ -281,7 +281,7 @@ func TestDMapPipeline_GetPut(t *testing.T) {
 		require.NoError(t, err)
 		futures[i] = fi
 	}
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for _, fp := range futures {
@@ -317,7 +317,7 @@ func TestDMapPipeline_IncrByFloat(t *testing.T) {
 		require.NoError(t, err)
 		futures[i] = fi
 	}
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for _, fp := range futures {
@@ -354,7 +354,7 @@ func TestDMapPipeline_Discard(t *testing.T) {
 	err = pipe.Discard()
 	require.NoError(t, err)
 
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.NoError(t, err)
 
 	for i := 0; i < 100; i++ {
@@ -390,7 +390,7 @@ func TestDMapPipeline_Close(t *testing.T) {
 
 	pipe.Close()
 
-	err = pipe.Flush(ctx)
+	err = pipe.Exec(ctx)
 	require.ErrorIs(t, err, ErrPipelineClosed)
 }
 

@@ -32,10 +32,24 @@ import (
 )
 
 var (
-	ErrNotReady       = errors.New("not ready yet")
+	// ErrNotReady denotes that the Future instance you hold is not ready to read the response yet.
+	ErrNotReady = errors.New("not ready yet")
+
+	// ErrPipelineClosed denotes that the underlying pipeline is closed, and it's impossible to operate.
 	ErrPipelineClosed = errors.New("pipeline is closed")
 )
 
+// DMapPipeline implements a pipeline for the following methods of the DMap API:
+//
+// * Put
+// * Get
+// * Delete
+// * Incr
+// * Decr
+// * GetPut
+// * IncrByFloat
+//
+// DMapPipeline enables batch operations on DMap data.
 type DMapPipeline struct {
 	mtx      sync.Mutex
 	dm       *ClusterDMap
@@ -57,6 +71,7 @@ func (dp *DMapPipeline) addCommand(key string, cmd redis.Cmder) (uint64, int) {
 	return partID, len(dp.commands[partID]) - 1
 }
 
+// FuturePut is used to read the result of a pipelined Put command.
 type FuturePut struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -64,6 +79,7 @@ type FuturePut struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined Put command.
 func (f *FuturePut) Result() error {
 	select {
 	case <-f.ctx.Done():
@@ -74,6 +90,8 @@ func (f *FuturePut) Result() error {
 	}
 }
 
+// Put queues a Put command. The parameters are identical to the DMap.Put,
+// but it returns FuturePut to read the batched response.
 func (dp *DMapPipeline) Put(ctx context.Context, key string, value interface{}, options ...PutOption) (*FuturePut, error) {
 	buf := bytes.NewBuffer(nil)
 
@@ -98,6 +116,7 @@ func (dp *DMapPipeline) Put(ctx context.Context, key string, value interface{}, 
 	}, nil
 }
 
+// FutureGet is used to read result of a pipelined Get command.
 type FutureGet struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -105,6 +124,7 @@ type FutureGet struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined Get command.
 func (f *FutureGet) Result() (*GetResponse, error) {
 	select {
 	case <-f.ctx.Done():
@@ -120,6 +140,8 @@ func (f *FutureGet) Result() (*GetResponse, error) {
 	}
 }
 
+// Get queues a Get command. The parameters are identical to the DMap.Get,
+// but it returns FutureGet to read the batched response.
 func (dp *DMapPipeline) Get(ctx context.Context, key string) *FutureGet {
 	cmd := protocol.NewGet(dp.dm.name, key).SetRaw().Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
@@ -131,6 +153,7 @@ func (dp *DMapPipeline) Get(ctx context.Context, key string) *FutureGet {
 	}
 }
 
+// FutureDelete is used to read the result of a pipelined Delete command.
 type FutureDelete struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -138,6 +161,7 @@ type FutureDelete struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined Delete command.
 func (f *FutureDelete) Result() (int, error) {
 	select {
 	case <-f.ctx.Done():
@@ -151,6 +175,8 @@ func (f *FutureDelete) Result() (int, error) {
 	}
 }
 
+// Delete queues a Delete command. The parameters are identical to the DMap.Delete,
+// but it returns FutureDelete to read the batched response.
 func (dp *DMapPipeline) Delete(ctx context.Context, key string) *FutureDelete {
 	cmd := protocol.NewDel(dp.dm.name, []string{key}...).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
@@ -162,6 +188,7 @@ func (dp *DMapPipeline) Delete(ctx context.Context, key string) *FutureDelete {
 	}
 }
 
+// FutureExpire is used to read the result of a pipelined Expire command.
 type FutureExpire struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -169,6 +196,7 @@ type FutureExpire struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined Expire command.
 func (f *FutureExpire) Result() error {
 	select {
 	case <-f.ctx.Done():
@@ -179,6 +207,8 @@ func (f *FutureExpire) Result() error {
 	}
 }
 
+// Expire queues an Expire command. The parameters are identical to the DMap.Expire,
+// but it returns FutureExpire to read the batched response.
 func (dp *DMapPipeline) Expire(ctx context.Context, key string, timeout time.Duration) (*FutureExpire, error) {
 	cmd := protocol.NewExpire(dp.dm.name, key, timeout).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
@@ -190,6 +220,7 @@ func (dp *DMapPipeline) Expire(ctx context.Context, key string, timeout time.Dur
 	}, nil
 }
 
+// FutureIncr is used to read the result of a pipelined Incr command.
 type FutureIncr struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -197,6 +228,7 @@ type FutureIncr struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined Incr command.
 func (f *FutureIncr) Result() (int, error) {
 	select {
 	case <-f.ctx.Done():
@@ -210,6 +242,8 @@ func (f *FutureIncr) Result() (int, error) {
 	}
 }
 
+// Incr queues an Incr command. The parameters are identical to the DMap.Incr,
+// but it returns FutureIncr to read the batched response.
 func (dp *DMapPipeline) Incr(ctx context.Context, key string, delta int) (*FutureIncr, error) {
 	cmd := protocol.NewIncr(dp.dm.name, key, delta).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
@@ -221,6 +255,7 @@ func (dp *DMapPipeline) Incr(ctx context.Context, key string, delta int) (*Futur
 	}, nil
 }
 
+// FutureDecr is used to read the result of a pipelined Decr command.
 type FutureDecr struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -228,6 +263,7 @@ type FutureDecr struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined Decr command.
 func (f *FutureDecr) Result() (int, error) {
 	select {
 	case <-f.ctx.Done():
@@ -241,6 +277,8 @@ func (f *FutureDecr) Result() (int, error) {
 	}
 }
 
+// Decr queues a Decr command. The parameters are identical to the DMap.Decr,
+// but it returns FutureDecr to read the batched response.
 func (dp *DMapPipeline) Decr(ctx context.Context, key string, delta int) (*FutureDecr, error) {
 	cmd := protocol.NewDecr(dp.dm.name, key, delta).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
@@ -252,6 +290,7 @@ func (dp *DMapPipeline) Decr(ctx context.Context, key string, delta int) (*Futur
 	}, nil
 }
 
+// FutureGetPut is used to read the result of a pipelined GetPut command.
 type FutureGetPut struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -259,6 +298,7 @@ type FutureGetPut struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined GetPut command.
 func (f *FutureGetPut) Result() (*GetResponse, error) {
 	select {
 	case <-f.ctx.Done():
@@ -278,6 +318,8 @@ func (f *FutureGetPut) Result() (*GetResponse, error) {
 	}
 }
 
+// GetPut queues a GetPut command. The parameters are identical to the DMap.GetPut,
+// but it returns FutureGetPut to read the batched response.
 func (dp *DMapPipeline) GetPut(ctx context.Context, key string, value interface{}) (*FutureGetPut, error) {
 	buf := bytes.NewBuffer(nil)
 
@@ -297,6 +339,7 @@ func (dp *DMapPipeline) GetPut(ctx context.Context, key string, value interface{
 	}, nil
 }
 
+// FutureIncrByFloat is used to read the result of a pipelined IncrByFloat command.
 type FutureIncrByFloat struct {
 	dp     *DMapPipeline
 	partID uint64
@@ -304,6 +347,7 @@ type FutureIncrByFloat struct {
 	ctx    context.Context
 }
 
+// Result returns a response for the pipelined IncrByFloat command.
 func (f *FutureIncrByFloat) Result() (float64, error) {
 	select {
 	case <-f.ctx.Done():
@@ -318,6 +362,8 @@ func (f *FutureIncrByFloat) Result() (float64, error) {
 	}
 }
 
+// IncrByFloat queues an IncrByFloat command. The parameters are identical to the DMap.IncrByFloat,
+// but it returns FutureIncrByFloat to read the batched response.
 func (dp *DMapPipeline) IncrByFloat(ctx context.Context, key string, delta float64) (*FutureIncrByFloat, error) {
 	cmd := protocol.NewIncrByFloat(dp.dm.name, key, delta).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
@@ -329,7 +375,7 @@ func (dp *DMapPipeline) IncrByFloat(ctx context.Context, key string, delta float
 	}, nil
 }
 
-func (dp *DMapPipeline) flushOnPartition(ctx context.Context, partID uint64) error {
+func (dp *DMapPipeline) execOnPartition(ctx context.Context, partID uint64) error {
 	rc, err := dp.dm.clusterClient.clientByPartID(partID)
 	if err != nil {
 		return err
@@ -351,7 +397,8 @@ func (dp *DMapPipeline) flushOnPartition(ctx context.Context, partID uint64) err
 	return nil
 }
 
-func (dp *DMapPipeline) Flush(ctx context.Context) error {
+// Exec executes all queued commands using one client-server roundtrip.
+func (dp *DMapPipeline) Exec(ctx context.Context) error {
 	select {
 	case <-dp.ctx.Done():
 		return ErrPipelineClosed
@@ -372,19 +419,18 @@ func (dp *DMapPipeline) Flush(ctx context.Context) error {
 		partID := i
 		errGr.Go(func() error {
 			defer sem.Release(1)
-			// If flushOnPartition returns an error, it will eventually stop
+			// If execOnPartition returns an error, it will eventually stop
 			// all flush operation.
-			return dp.flushOnPartition(ctx, partID)
+			return dp.execOnPartition(ctx, partID)
 		})
 	}
 
 	return errGr.Wait()
 }
 
+// Discard discards the pipelined commands and resets all internal states.
+// A pipeline can be reused after calling Discard.
 func (dp *DMapPipeline) Discard() error {
-	dp.mtx.Lock()
-	defer dp.mtx.Unlock()
-
 	select {
 	case <-dp.ctx.Done():
 		return ErrPipelineClosed
@@ -393,16 +439,32 @@ func (dp *DMapPipeline) Discard() error {
 
 	dp.cancel()
 
+	dp.mtx.Lock()
+	defer dp.mtx.Unlock()
+
 	dp.commands = make(map[uint64][]redis.Cmder)
 	dp.result = make(map[uint64][]redis.Cmder)
 	dp.ctx, dp.cancel = context.WithCancel(context.Background())
 	return nil
 }
 
+// Close closes the pipeline and frees the allocated resources. You shouldn't try to
+// reuse a closed pipeline.
 func (dp *DMapPipeline) Close() {
 	dp.cancel()
 }
 
+// Pipeline is a mechanism to realise Redis Pipeline technique.
+//
+// Pipelining is a technique to extremely speed up processing by packing
+// operations to batches, send them at once to Redis and read a replies in a
+// singe step.
+// See https://redis.io/topics/pipelining
+//
+// Pay attention, that Pipeline is not a transaction, so you can get unexpected
+// results in case of big pipelines and small read/write timeouts.
+// Redis client has retransmission logic in case of timeouts, pipeline
+// can be retransmitted and commands can be executed more than once.
 func (dm *ClusterDMap) Pipeline() (*DMapPipeline, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DMapPipeline{
