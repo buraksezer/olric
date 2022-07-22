@@ -225,6 +225,17 @@ type DMap interface {
 	// concurrently on the cluster, Put call may set new values to the DMap.
 	Destroy(ctx context.Context) error
 
+	// Pipeline is a mechanism to realise Redis Pipeline technique.
+	//
+	// Pipelining is a technique to extremely speed up processing by packing
+	// operations to batches, send them at once to Redis and read a replies in a
+	// singe step.
+	// See https://redis.io/topics/pipelining
+	//
+	// Pay attention, that Pipeline is not a transaction, so you can get unexpected
+	// results in case of big pipelines and small read/write timeouts.
+	// Redis client has retransmission logic in case of timeouts, pipeline
+	// can be retransmitted and commands can be executed more than once.
 	Pipeline() (*DMapPipeline, error)
 }
 
