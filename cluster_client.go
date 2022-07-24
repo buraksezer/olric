@@ -17,11 +17,14 @@ package olric
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/buraksezer/olric/config"
@@ -68,6 +71,10 @@ func processProtocolError(err error) error {
 	}
 	if err == redis.Nil {
 		return ErrKeyNotFound
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		opErr := err.(*net.OpError)
+		return fmt.Errorf("%s %s %s: %w", opErr.Op, opErr.Net, opErr.Addr, ErrConnRefused)
 	}
 	return convertDMapError(protocol.ConvertError(err))
 }
@@ -610,6 +617,36 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 	return members, nil
 }
 
+func (cl *ClusterClient) RefreshMetadata(ctx context.Context) error {
+	var members []Member
+	var err error
+	for {
+		members, err = cl.Members(ctx)
+		if errors.Is(err, ErrConnRefused) {
+			err = nil
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
+	}
+	addresses := make(map[string]struct{})
+	for _, member := range members {
+		addresses[member.Name] = struct{}{}
+	}
+
+	for addr := range cl.client.Addresses() {
+		if _, ok := addresses[addr]; !ok {
+			// Gone
+			if err := cl.client.Close(addr); err != nil {
+				return err
+			}
+		}
+	}
+	return cl.fetchRoutingTable()
+}
+
 // Close stops background routines and frees allocated resources.
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	select {
@@ -711,7 +748,7 @@ func (cl *ClusterClient) fetchRoutingTablePeriodically() {
 		case <-ticker.C:
 			err := cl.fetchRoutingTable()
 			if err != nil {
-				cl.logger.Printf("[ERROR] Failed to fetch the latest routing table: %s", err)
+				cl.logger.Printf("[ERROR] Failed to fetch the latest version of the routing table: %s", err)
 			}
 		}
 	}
@@ -760,13 +797,24 @@ func NewClusterClient(addresses []string, options ...ClusterClientOption) (*Clus
 		cl.client.Get(address)
 	}
 
+	// Discover all cluster members
+	members, err := cl.Members(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error while discovering the cluster members: %w", err)
+	}
+	for _, member := range members {
+		cl.client.Get(member.Name)
+	}
+
+	// Hash function is required to target primary owners instead of random cluster members.
 	partitions.SetHashFunc(cc.hasher)
 
-	// Initial fetch.
+	// Initial fetch. ClusterClient targets the primary owners for a smooth and quick operation.
 	if err := cl.fetchRoutingTable(); err != nil {
 		return nil, err
 	}
 
+	// Refresh the routing table in every 15 seconds.
 	cl.wg.Add(1)
 	go cl.fetchRoutingTablePeriodically()
 

@@ -27,7 +27,7 @@ const DefaultScanCount = 10
 
 // Member denotes a member of the Olric cluster.
 type Member struct {
-	// Member name in the cluster
+	// Member name in the cluster. It's also host:port of the node.
 	Name string
 
 	// ID of the Member in the cluster. Hash of Name and Birthdate of the member
@@ -288,6 +288,8 @@ type Client interface {
 
 	// Members returns a thread-safe list of cluster members.
 	Members(ctx context.Context) ([]Member, error)
+
+	RefreshMetadata(ctx context.Context) error
 
 	// Close stops background routines and frees allocated resources.
 	Close(ctx context.Context) error

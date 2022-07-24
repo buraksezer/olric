@@ -84,6 +84,11 @@ func (dm *EmbeddedDMap) Pipeline() (*DMapPipeline, error) {
 	return cdm.Pipeline()
 }
 
+func (e *EmbeddedClient) RefreshMetadata(_ context.Context) error {
+	// EmbeddedClient already has the latest metadata.
+	return nil
+}
+
 // Scan returns an iterator to loop over the keys.
 //
 // Available scan options:

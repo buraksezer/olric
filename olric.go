@@ -91,6 +91,8 @@ var (
 
 	// ErrEntryTooLarge returned if required space for an entry is bigger than table size.
 	ErrEntryTooLarge = errors.New("entry too large for the configured table size")
+
+	ErrConnRefused = errors.New("connection refused")
 )
 
 // Olric implements a distributed cache and in-memory key/value data store.

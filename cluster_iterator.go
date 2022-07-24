@@ -273,7 +273,7 @@ func (i *ClusterIterator) fetchRoutingTablePeriodically() {
 			return
 		case <-time.After(time.Second):
 			if err := i.fetchRoutingTable(); err != nil {
-				i.logger.Printf("[ERROR] Failed to fetch the latest routing table: %s", err)
+				i.logger.Printf("[ERROR] Failed to fetch the latest version of the routing table: %s", err)
 			}
 		}
 	}

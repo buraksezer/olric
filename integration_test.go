@@ -16,6 +16,7 @@ package olric
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"testing"
@@ -71,6 +72,12 @@ func TestIntegration_NodesJoinOrLeftDuringQuery(t *testing.T) {
 
 	for i := 0; i < 100000; i++ {
 		_, err = dm.Get(context.Background(), fmt.Sprintf("mykey-%d", i))
+		if errors.Is(err, ErrConnRefused) {
+			// Rewind
+			i--
+			require.NoError(t, c.RefreshMetadata(context.Background()))
+			continue
+		}
 		require.NoError(t, err)
 		if i == 5999 {
 			err = c.client.Close(db2.name)
@@ -411,6 +418,11 @@ func TestIntegration_Kill_Nodes_During_Operation(t *testing.T) {
 
 	for i := 0; i < 100000; i++ {
 		_, err = dm.Get(context.Background(), fmt.Sprintf("mykey-%d", i))
+		if errors.Is(err, ErrConnRefused) {
+			i--
+			fmt.Println(c.RefreshMetadata(context.Background()))
+			continue
+		}
 		require.NoError(t, err)
 	}
 }
