@@ -17,15 +17,18 @@ package olric
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/buraksezer/olric/hasher"
 	"log"
+	"net"
 	"os"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/bufpool"
 	"github.com/buraksezer/olric/internal/cluster/partitions"
 	"github.com/buraksezer/olric/internal/discovery"
@@ -69,6 +72,10 @@ func processProtocolError(err error) error {
 	if err == redis.Nil {
 		return ErrKeyNotFound
 	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		opErr := err.(*net.OpError)
+		return fmt.Errorf("%s %s %s: %w", opErr.Op, opErr.Net, opErr.Addr, ErrConnRefused)
+	}
 	return convertDMapError(protocol.ConvertError(err))
 }
 
@@ -95,10 +102,7 @@ func (dm *ClusterDMap) writePutCommand(c *dmap.PutConfig, key string, value []by
 	return cmd
 }
 
-func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
-	hkey := partitions.HKey(dmap, key)
-	partID := hkey % cl.partitionCount
-
+func (cl *ClusterClient) clientByPartID(partID uint64) (*redis.Client, error) {
 	raw := cl.routingTable.Load()
 	if raw == nil {
 		return nil, fmt.Errorf("routing table is empty")
@@ -116,6 +120,12 @@ func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
 
 	primaryOwner := route.PrimaryOwners[len(route.PrimaryOwners)-1]
 	return cl.client.Get(primaryOwner), nil
+}
+
+func (cl *ClusterClient) smartPick(dmap, key string) (*redis.Client, error) {
+	hkey := partitions.HKey(dmap, key)
+	partID := hkey % cl.partitionCount
+	return cl.clientByPartID(partID)
 }
 
 // Put sets the value for the given key. It overwrites any previous value for
@@ -150,21 +160,7 @@ func (dm *ClusterDMap) Put(ctx context.Context, key string, value interface{}, o
 	return processProtocolError(cmd.Err())
 }
 
-// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
-// does not contain the key. It's thread-safe. It is safe to modify the contents
-// of the returned value. See GetResponse for the details.
-func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
-	rc, err := dm.clusterClient.smartPick(dm.name, key)
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(ctx)
-	err = rc.Process(ctx, cmd)
-	if err != nil {
-		return nil, processProtocolError(err)
-	}
-
+func (dm *ClusterDMap) makeGetResponse(cmd *redis.StringCmd) (*GetResponse, error) {
 	raw, err := cmd.Bytes()
 	if err != nil {
 		return nil, processProtocolError(err)
@@ -175,6 +171,22 @@ func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error
 	return &GetResponse{
 		entry: e,
 	}, nil
+}
+
+// Get gets the value for the given key. It returns ErrKeyNotFound if the DB
+// does not contain the key. It's thread-safe. It is safe to modify the contents
+// of the returned value. See GetResponse for the details.
+func (dm *ClusterDMap) Get(ctx context.Context, key string) (*GetResponse, error) {
+	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(ctx)
+	rc, err := dm.clusterClient.smartPick(dm.name, key)
+	if err != nil {
+		return nil, err
+	}
+	err = rc.Process(ctx, cmd)
+	if err != nil {
+		return nil, processProtocolError(err)
+	}
+	return dm.makeGetResponse(cmd)
 }
 
 // Delete deletes values for the given keys. Delete will not return error
@@ -241,7 +253,8 @@ func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, er
 	return int(res), nil
 }
 
-// GetPut atomically sets the key to value and returns the old value stored at key.
+// GetPut atomically sets the key to value and returns the old value stored at key. It returns nil if there is no
+// previous value.
 func (dm *ClusterDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
 	rc, err := dm.clusterClient.smartPick(dm.name, key)
 	if err != nil {
@@ -604,6 +617,43 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 	return members, nil
 }
 
+// RefreshMetadata fetches a list of available members and the latest routing
+// table version. It also closes stale clients, if there are any.
+func (cl *ClusterClient) RefreshMetadata(ctx context.Context) error {
+	// Fetch a list of currently available cluster members.
+	var members []Member
+	var err error
+	for {
+		members, err = cl.Members(ctx)
+		if errors.Is(err, ErrConnRefused) {
+			err = nil
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
+	}
+	// Use a map for fast access.
+	addresses := make(map[string]struct{})
+	for _, member := range members {
+		addresses[member.Name] = struct{}{}
+	}
+
+	// Clean stale client connections
+	for addr := range cl.client.Addresses() {
+		if _, ok := addresses[addr]; !ok {
+			// Gone
+			if err := cl.client.Close(addr); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Re-fetch the routing table, we should use the latest routing table version.
+	return cl.fetchRoutingTable()
+}
+
 // Close stops background routines and frees allocated resources.
 func (cl *ClusterClient) Close(ctx context.Context) error {
 	select {
@@ -705,7 +755,7 @@ func (cl *ClusterClient) fetchRoutingTablePeriodically() {
 		case <-ticker.C:
 			err := cl.fetchRoutingTable()
 			if err != nil {
-				cl.logger.Printf("[ERROR] Failed to fetch the latest routing table: %s", err)
+				cl.logger.Printf("[ERROR] Failed to fetch the latest version of the routing table: %s", err)
 			}
 		}
 	}
@@ -754,13 +804,24 @@ func NewClusterClient(addresses []string, options ...ClusterClientOption) (*Clus
 		cl.client.Get(address)
 	}
 
+	// Discover all cluster members
+	members, err := cl.Members(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error while discovering the cluster members: %w", err)
+	}
+	for _, member := range members {
+		cl.client.Get(member.Name)
+	}
+
+	// Hash function is required to target primary owners instead of random cluster members.
 	partitions.SetHashFunc(cc.hasher)
 
-	// Initial fetch.
+	// Initial fetch. ClusterClient targets the primary owners for a smooth and quick operation.
 	if err := cl.fetchRoutingTable(); err != nil {
 		return nil, err
 	}
 
+	// Refresh the routing table in every 15 seconds.
 	cl.wg.Add(1)
 	go cl.fetchRoutingTablePeriodically()
 

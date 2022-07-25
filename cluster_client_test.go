@@ -16,13 +16,13 @@ package olric
 
 import (
 	"context"
-	"github.com/buraksezer/olric/hasher"
 	"log"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric/hasher"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/stats"
 	"github.com/stretchr/testify/require"

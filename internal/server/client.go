@@ -47,6 +47,17 @@ func NewClient(c *config.Client) *Client {
 	}
 }
 
+func (c *Client) Addresses() map[string]struct{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	addresses := make(map[string]struct{})
+	for address, _ := range c.clients {
+		addresses[address] = struct{}{}
+	}
+	return addresses
+}
+
 func (c *Client) Get(addr string) *redis.Client {
 	c.mu.RLock()
 	rc, ok := c.clients[addr]
@@ -69,22 +80,26 @@ func (c *Client) Get(addr string) *redis.Client {
 	return rc
 }
 
-func (c *Client) Pick() (*redis.Client, error) {
+func (c *Client) pickNodeRoundRobin() (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	addr, err := c.roundRobin.Get()
 	if err == roundrobin.ErrEmptyInstance {
-		return nil, fmt.Errorf("no available client found")
+		return "", fmt.Errorf("no available client found")
 	}
+	if err != nil {
+		return "", err
+	}
+	return addr, nil
+}
+
+func (c *Client) Pick() (*redis.Client, error) {
+	addr, err := c.pickNodeRoundRobin()
 	if err != nil {
 		return nil, err
 	}
-	rc, ok := c.clients[addr]
-	if !ok {
-		return nil, fmt.Errorf("client could not be found: %s", addr)
-	}
-	return rc, nil
+	return c.Get(addr), nil
 }
 
 func (c *Client) Close(addr string) error {

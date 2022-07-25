@@ -27,7 +27,7 @@ const DefaultScanCount = 10
 
 // Member denotes a member of the Olric cluster.
 type Member struct {
-	// Member name in the cluster
+	// Member name in the cluster. It's also host:port of the node.
 	Name string
 
 	// ID of the Member in the cluster. Hash of Name and Birthdate of the member
@@ -178,7 +178,8 @@ type DMap interface {
 	// after being decremented or an error.
 	Decr(ctx context.Context, key string, delta int) (int, error)
 
-	// GetPut atomically sets the key to value and returns the old value stored at key.
+	// GetPut atomically sets the key to value and returns the old value stored at key. It returns nil if there is no
+	// previous value.
 	GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error)
 
 	// IncrByFloat atomically increments the key by delta. The return value is the new value
@@ -223,6 +224,19 @@ type DMap interface {
 	// is no global lock on DMaps. So if you call Put/PutEx and Destroy methods
 	// concurrently on the cluster, Put call may set new values to the DMap.
 	Destroy(ctx context.Context) error
+
+	// Pipeline is a mechanism to realise Redis Pipeline technique.
+	//
+	// Pipelining is a technique to extremely speed up processing by packing
+	// operations to batches, send them at once to Redis and read a replies in a
+	// singe step.
+	// See https://redis.io/topics/pipelining
+	//
+	// Pay attention, that Pipeline is not a transaction, so you can get unexpected
+	// results in case of big pipelines and small read/write timeouts.
+	// Redis client has retransmission logic in case of timeouts, pipeline
+	// can be retransmitted and commands can be executed more than once.
+	Pipeline() (*DMapPipeline, error)
 }
 
 type statsConfig struct {
@@ -274,6 +288,10 @@ type Client interface {
 
 	// Members returns a thread-safe list of cluster members.
 	Members(ctx context.Context) ([]Member, error)
+
+	// RefreshMetadata fetches a list of available members and the latest routing
+	// table version. It also closes stale clients, if there are any.
+	RefreshMetadata(ctx context.Context) error
 
 	// Close stops background routines and frees allocated resources.
 	Close(ctx context.Context) error

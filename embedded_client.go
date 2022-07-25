@@ -61,6 +61,37 @@ type EmbeddedDMap struct {
 	storageEngine string
 }
 
+// Pipeline is a mechanism to realise Redis Pipeline technique.
+//
+// Pipelining is a technique to extremely speed up processing by packing
+// operations to batches, send them at once to Redis and read a replies in a
+// singe step.
+// See https://redis.io/topics/pipelining
+//
+// Pay attention, that Pipeline is not a transaction, so you can get unexpected
+// results in case of big pipelines and small read/write timeouts.
+// Redis client has retransmission logic in case of timeouts, pipeline
+// can be retransmitted and commands can be executed more than once.
+func (dm *EmbeddedDMap) Pipeline() (*DMapPipeline, error) {
+	cc, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
+	if err != nil {
+		return nil, err
+	}
+	cdm, err := cc.NewDMap(dm.name)
+	if err != nil {
+		return nil, err
+	}
+	return cdm.Pipeline()
+}
+
+// RefreshMetadata fetches a list of available members and the latest routing
+// table version. It also closes stale clients, if there are any. EmbeddedClient has
+// this method to implement the Client interface. It doesn't need to refresh metadata manually.
+func (e *EmbeddedClient) RefreshMetadata(_ context.Context) error {
+	// EmbeddedClient already has the latest metadata.
+	return nil
+}
+
 // Scan returns an iterator to loop over the keys.
 //
 // Available scan options:
@@ -152,7 +183,8 @@ func (dm *EmbeddedDMap) Name() string {
 	return dm.name
 }
 
-// GetPut atomically sets the key to value and returns the old value stored at key.
+// GetPut atomically sets the key to value and returns the old value stored at key. It returns nil if there is no
+// previous value.
 func (dm *EmbeddedDMap) GetPut(ctx context.Context, key string, value interface{}) (*GetResponse, error) {
 	e, err := dm.dm.GetPut(ctx, key, value)
 	if err != nil {
