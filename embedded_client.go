@@ -84,6 +84,9 @@ func (dm *EmbeddedDMap) Pipeline() (*DMapPipeline, error) {
 	return cdm.Pipeline()
 }
 
+// RefreshMetadata fetches a list of available members and the latest routing
+// table version. It also closes stale clients, if there are any. EmbeddedClient has
+// this method to implement the Client interface. It doesn't need to refresh metadata manually.
 func (e *EmbeddedClient) RefreshMetadata(_ context.Context) error {
 	// EmbeddedClient already has the latest metadata.
 	return nil

@@ -289,6 +289,8 @@ type Client interface {
 	// Members returns a thread-safe list of cluster members.
 	Members(ctx context.Context) ([]Member, error)
 
+	// RefreshMetadata fetches a list of available members and the latest routing
+	// table version. It also closes stale clients, if there are any.
 	RefreshMetadata(ctx context.Context) error
 
 	// Close stops background routines and frees allocated resources.

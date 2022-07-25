@@ -617,7 +617,10 @@ func (cl *ClusterClient) Members(ctx context.Context) ([]Member, error) {
 	return members, nil
 }
 
+// RefreshMetadata fetches a list of available members and the latest routing
+// table version. It also closes stale clients, if there are any.
 func (cl *ClusterClient) RefreshMetadata(ctx context.Context) error {
+	// Fetch a list of currently available cluster members.
 	var members []Member
 	var err error
 	for {
@@ -631,11 +634,13 @@ func (cl *ClusterClient) RefreshMetadata(ctx context.Context) error {
 		}
 		break
 	}
+	// Use a map for fast access.
 	addresses := make(map[string]struct{})
 	for _, member := range members {
 		addresses[member.Name] = struct{}{}
 	}
 
+	// Clean stale client connections
 	for addr := range cl.client.Addresses() {
 		if _, ok := addresses[addr]; !ok {
 			// Gone
@@ -644,6 +649,8 @@ func (cl *ClusterClient) RefreshMetadata(ctx context.Context) error {
 			}
 		}
 	}
+
+	// Re-fetch the routing table, we should use the latest routing table version.
 	return cl.fetchRoutingTable()
 }
 

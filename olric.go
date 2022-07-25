@@ -89,9 +89,11 @@ var (
 	// Maximum length of a key is 256 bytes.
 	ErrKeyTooLarge = errors.New("key too large")
 
-	// ErrEntryTooLarge returned if required space for an entry is bigger than table size.
+	// ErrEntryTooLarge returned if the required space for an entry is bigger than table size.
 	ErrEntryTooLarge = errors.New("entry too large for the configured table size")
 
+	// ErrConnRefused returned if the target node refused a connection request.
+	// It is good to call RefreshMetadata to update the underlying data structures.
 	ErrConnRefused = errors.New("connection refused")
 )
 
