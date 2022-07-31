@@ -389,20 +389,18 @@ type PutConfig struct {
 }
 
 // Put sets the value for the given key. It overwrites any previous value
-// for that key, and it's thread-safe. The key has to be string. value type
+// for that key, and it's thread-safe. The key has to be a string. value type
 // is arbitrary. It is safe to modify the contents of the arguments after
 // Put returns but not before.
 func (dm *DMap) Put(ctx context.Context, key string, value interface{}, cfg *PutConfig) error {
 	valueBuf := pool.Get()
+	defer pool.Put(valueBuf)
+
 	enc := resp.New(valueBuf)
 	err := enc.Encode(value)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		// FIXME: This can be harmful for async replication
-		pool.Put(valueBuf)
-	}()
 
 	if cfg == nil {
 		cfg = &PutConfig{}
@@ -411,6 +409,7 @@ func (dm *DMap) Put(ctx context.Context, key string, value interface{}, cfg *Put
 	e.putConfig = cfg
 	e.dmap = dm.name
 	e.key = key
-	e.value = valueBuf.Bytes()
+	e.value = make([]byte, valueBuf.Len())
+	copy(e.value[:], valueBuf.Bytes())
 	return dm.put(e)
 }
