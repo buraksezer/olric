@@ -69,15 +69,15 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 	}
 
 	valueBuf := pool.Get()
+	defer pool.Put(valueBuf)
+
 	enc := resp.New(valueBuf)
 	err = enc.Encode(updated)
 	if err != nil {
 		return 0, err
 	}
-	e.value = valueBuf.Bytes()
-	defer func() {
-		pool.Put(valueBuf)
-	}()
+	e.value = make([]byte, valueBuf.Len())
+	copy(e.value, valueBuf.Bytes())
 
 	err = dm.put(e)
 	if err != nil {
@@ -138,19 +138,20 @@ func (dm *DMap) GetPut(ctx context.Context, key string, value interface{}) (stor
 	}
 
 	valueBuf := pool.Get()
+	defer pool.Put(valueBuf)
+
 	enc := resp.New(valueBuf)
 	err := enc.Encode(value)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		pool.Put(valueBuf)
-	}()
 
 	e := newEnv(ctx)
 	e.dmap = dm.name
 	e.key = key
-	e.value = valueBuf.Bytes()
+	e.value = make([]byte, valueBuf.Len())
+	copy(e.value, valueBuf.Bytes())
+
 	raw, err := dm.getPut(e)
 	if err != nil {
 		return nil, err
@@ -193,15 +194,16 @@ func (dm *DMap) atomicIncrByFloat(e *env, delta float64) (float64, error) {
 	}
 
 	valueBuf := pool.Get()
+	defer pool.Put(valueBuf)
+
 	enc := resp.New(valueBuf)
 	err = enc.Encode(latest)
 	if err != nil {
 		return 0, err
 	}
 	e.value = valueBuf.Bytes()
-	defer func() {
-		pool.Put(valueBuf)
-	}()
+	e.value = make([]byte, valueBuf.Len())
+	copy(e.value, valueBuf.Bytes())
 
 	err = dm.put(e)
 	if err != nil {
