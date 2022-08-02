@@ -189,6 +189,43 @@ func (s *Server) ListenAndServe() error {
 	return s.server.Serve(lw)
 }
 
+func (s *Server) ListenAndServeUDS() error {
+	listener, err := net.Listen("unix", "olric.sock")
+	if err != nil {
+		return err
+	}
+
+	lw := &ListenerWrapper{
+		Listener:        listener,
+		keepAlivePeriod: s.config.KeepAlivePeriod,
+	}
+
+	defer close(s.stopped)
+	s.listener = lw
+
+	srv := redcon.NewServerNetwork("unix", "olric.sock",
+		s.mux.ServeRESP,
+		func(conn redcon.Conn) bool {
+			ConnectionsTotal.Increase(1)
+			CurrentConnections.Increase(1)
+			return true
+		},
+		func(conn redcon.Conn, err error) {
+			CurrentConnections.Increase(-1)
+		},
+	)
+
+	if s.config.IdleClose != 0 {
+		srv.SetIdleClose(s.config.IdleClose)
+	}
+	s.server = srv
+
+	// The TCP server has been started
+	//s.started()
+	//checkpoint.Pass()
+	return s.server.Serve(lw)
+}
+
 // Shutdown gracefully shuts down the server without interrupting any active connections.
 // Shutdown works by first closing all open listeners, then closing all idle connections,
 // and then waiting indefinitely for connections to return to idle and then shut down.
