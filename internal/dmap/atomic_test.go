@@ -56,10 +56,8 @@ func TestDMap_loadCurrentAtomicInt(t *testing.T) {
 	_, ttl, err := dm.loadCurrentAtomicInt(e)
 	require.NoError(t, err)
 
-	timePassed := time.Millisecond * 500
-	<-time.After(timePassed)
-	now := time.Now()
-	require.WithinDuration(t, time.UnixMilli(ttl), now, ttlDuration)
+	<-time.After(time.Millisecond * 500)
+	require.WithinDuration(t, time.UnixMilli(ttl), time.Now(), ttlDuration)
 }
 
 func TestDMap_Atomic_Incr(t *testing.T) {
