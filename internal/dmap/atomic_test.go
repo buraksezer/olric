@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/resp"
@@ -28,6 +29,38 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 )
+
+func TestDMap_loadCurrentAtomicInt(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	key := "incr"
+
+	ttlDuration := time.Second * 5
+	s.config.DMaps.TTLDuration = time.Second * 5
+
+	dm, err := s.NewDMap("atomic_test")
+	require.NoError(t, err)
+
+	_, err = dm.Incr(ctx, key, 1)
+	if err != nil {
+		s.log.V(2).Printf("[ERROR] Failed to call Incr: %v", err)
+		return
+	}
+
+	e := newEnv(ctx)
+	e.dmap = dm.name
+	e.key = key
+	_, ttl, err := dm.loadCurrentAtomicInt(e)
+	require.NoError(t, err)
+
+	timePassed := time.Millisecond * 500
+	<-time.After(timePassed)
+	now := time.Now()
+	require.WithinDuration(t, time.UnixMilli(ttl), now, ttlDuration)
+}
 
 func TestDMap_Atomic_Incr(t *testing.T) {
 	cluster := testcluster.New(NewService)

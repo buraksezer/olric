@@ -249,7 +249,7 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 			}
 
 			f.Lock()
-			e := newEnv(nil)
+			e := newEnv(context.Background())
 			e.hkey = hkey
 			e.fragment = f
 			err = dm.putEntryOnFragment(e, winner.entry)
