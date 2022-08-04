@@ -100,7 +100,7 @@ func TestIntegration_NodesJoinOrLeftDuringQuery(t *testing.T) {
 }
 
 func TestIntegration_DMap_Cache_Eviction_LRU_MaxKeys(t *testing.T) {
-	var maxKeys = 100000
+	maxKeys := 100000
 	newConfig := func() *config.Config {
 		c := config.New("local")
 		c.PartitionCount = config.DefaultPartitionCount
@@ -149,7 +149,7 @@ func TestIntegration_DMap_Cache_Eviction_LRU_MaxKeys(t *testing.T) {
 }
 
 func TestIntegration_DMap_Cache_Eviction_MaxKeys(t *testing.T) {
-	var maxKeys = 100000
+	maxKeys := 100000
 	newConfig := func() *config.Config {
 		c := config.New("local")
 		c.PartitionCount = config.DefaultPartitionCount
@@ -205,7 +205,7 @@ func TestIntegration_DMap_Cache_Eviction_MaxKeys(t *testing.T) {
 }
 
 func TestIntegration_DMap_Cache_Eviction_MaxIdleDuration(t *testing.T) {
-	var maxKeys = 100000
+	maxKeys := 100000
 	newConfig := func() *config.Config {
 		c := config.New("local")
 		c.PartitionCount = config.DefaultPartitionCount
@@ -254,7 +254,7 @@ func TestIntegration_DMap_Cache_Eviction_MaxIdleDuration(t *testing.T) {
 }
 
 func TestIntegration_DMap_Cache_Eviction_TTLDuration(t *testing.T) {
-	var maxKeys = 100000
+	maxKeys := 100000
 	newConfig := func() *config.Config {
 		c := config.New("local")
 		c.PartitionCount = config.DefaultPartitionCount
@@ -292,7 +292,7 @@ func TestIntegration_DMap_Cache_Eviction_TTLDuration(t *testing.T) {
 	var total int
 
 	for i := 0; i < maxKeys; i++ {
-		_, err = dm.Get(ctx, fmt.Sprintf("mykey-%d", i))
+		_, err := dm.Get(ctx, fmt.Sprintf("mykey-%d", i))
 		if err == ErrKeyNotFound {
 			err = nil
 			total++
@@ -303,7 +303,7 @@ func TestIntegration_DMap_Cache_Eviction_TTLDuration(t *testing.T) {
 }
 
 func TestIntegration_DMap_Cache_Eviction_LRU_MaxInuse(t *testing.T) {
-	var maxKeys = 100000
+	maxKeys := 100000
 	newConfig := func() *config.Config {
 		c := config.New("local")
 		c.PartitionCount = config.DefaultPartitionCount

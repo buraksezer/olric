@@ -18,29 +18,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/buraksezer/olric/pkg/storage"
 )
 
-func (dm *DMap) loadCurrentAtomicInt(e *env) (int, error) {
+func (dm *DMap) loadCurrentAtomicInt(e *env) (int, int64, error) {
 	entry, err := dm.Get(e.ctx, e.key)
 	if errors.Is(err, ErrKeyNotFound) {
-		return 0, nil
+		return 0, 0, nil
 	}
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	if entry == nil {
-		return 0, nil
+		return 0, 0, nil
 	}
 	nr, err := util.ParseInt(entry.Value(), 10, 64)
 	if err != nil {
-		return 0, nil
+		return 0, 0, nil
 	}
-	return int(nr), nil
+	return int(nr), entry.TTL(), nil
 }
 
 func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
@@ -53,7 +55,7 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 		}
 	}()
 
-	current, err := dm.loadCurrentAtomicInt(e)
+	current, ttl, err := dm.loadCurrentAtomicInt(e)
 	if err != nil {
 		return 0, err
 	}
@@ -79,6 +81,10 @@ func (dm *DMap) atomicIncrDecr(cmd string, e *env, delta int) (int, error) {
 	e.value = make([]byte, valueBuf.Len())
 	copy(e.value, valueBuf.Bytes())
 
+	if ttl != 0 {
+		e.putConfig.HasPX = true
+		e.putConfig.PX = time.Until(time.UnixMilli(ttl))
+	}
 	err = dm.put(e)
 	if err != nil {
 		return 0, err
