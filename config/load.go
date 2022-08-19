@@ -288,7 +288,14 @@ func Load(filename string) (*Config, error) {
 		return nil, err
 	}
 
-	var joinRetryInterval, keepAlivePeriod, bootstrapTimeout, routingTablePushInterval time.Duration
+	var (
+		joinRetryInterval,
+		keepAlivePeriod,
+		bootstrapTimeout,
+		routingTablePushInterval,
+		leaveTimeout time.Duration
+	)
+
 	if c.Olricd.KeepAlivePeriod != "" {
 		keepAlivePeriod, err = time.ParseDuration(c.Olricd.KeepAlivePeriod)
 		if err != nil {
@@ -316,6 +323,13 @@ func Load(filename string) (*Config, error) {
 		if err != nil {
 			return nil, errors.WithMessage(err,
 				fmt.Sprintf("failed to parse olricd.routingTablePushInterval: '%s'", c.Olricd.RoutingTablePushInterval))
+		}
+	}
+	if c.Olricd.LeaveTimeout != "" {
+		leaveTimeout, err = time.ParseDuration(c.Olricd.LeaveTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.leaveTimeout: '%s'", c.Olricd.LeaveTimeout))
 		}
 	}
 
@@ -362,6 +376,7 @@ func Load(filename string) (*Config, error) {
 		Serializer:               sr,
 		KeepAlivePeriod:          keepAlivePeriod,
 		BootstrapTimeout:         bootstrapTimeout,
+		LeaveTimeout:             leaveTimeout,
 		DMaps:                    dmapConfig,
 		StorageEngines:           storageEngines,
 	}

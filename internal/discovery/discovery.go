@@ -288,19 +288,31 @@ func (d *Discovery) Shutdown() error {
 	// because this mechanism may cause goroutine leak.
 	d.wg.Wait()
 
-	// Leave will broadcast a leave message but will not shutdown the background
-	// listeners, meaning the node will continue participating in gossip and state
-	// updates.
-	d.log.V(2).Printf("[INFO] Broadcasting a leave message")
-	if err := d.memberlist.Leave(15 * time.Second); err != nil {
-		d.log.V(3).Printf("[ERROR] memberlist.Leave returned an error: %v", err)
+	if d.memberlist != nil {
+		// Leave will broadcast a leave message but will not shutdown the background
+		// listeners, meaning the node will continue participating in gossip and state
+		// updates.
+		d.log.V(2).Printf("[INFO] Broadcasting a leave message")
+		if err := d.memberlist.Leave(d.config.LeaveTimeout); err != nil {
+			d.log.V(3).Printf("[WARN] memberlist.Leave returned an error: %v", err)
+		}
 	}
 
 	if d.serviceDiscovery != nil {
-		defer d.serviceDiscovery.Close()
+		defer func(serviceDiscovery service_discovery.ServiceDiscovery) {
+			err := serviceDiscovery.Close()
+			if err != nil {
+				d.log.V(3).Printf("[ERROR] ServiceDiscovery.Close returned an error: %v", err)
+			}
+		}(d.serviceDiscovery)
+
 		if err := d.serviceDiscovery.Deregister(); err != nil {
 			d.log.V(3).Printf("[ERROR] ServiceDiscovery.Deregister returned an error: %v", err)
 		}
 	}
-	return d.memberlist.Shutdown()
+
+	if d.memberlist != nil {
+		return d.memberlist.Shutdown()
+	}
+	return nil
 }

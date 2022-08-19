@@ -113,6 +113,9 @@ const (
 	// DefaultJoinRetryInterval denotes a time gap between sequential join attempts.
 	DefaultJoinRetryInterval = time.Second
 
+	// DefaultLeaveTimeout is the default value of maximum amount of time before
+	DefaultLeaveTimeout = 5 * time.Second
+
 	// DefaultMaxJoinAttempts denotes a maximum number of failed join attempts
 	// before forming a standalone cluster.
 	DefaultMaxJoinAttempts = 10
@@ -268,6 +271,15 @@ type Config struct {
 	// address that is provided.
 	MemberlistInterface string
 
+	// Olric will broadcast a leave message but will not shut down the background
+	// listeners, meaning the node will continue participating in gossip and state
+	// updates.
+	//
+	// Sending a leave message will block until the leave message is successfully
+	// broadcast to a member of the cluster, if any exist or until a specified timeout
+	// is reached.
+	LeaveTimeout time.Duration
+
 	// MemberlistConfig is the memberlist configuration that Olric will
 	// use to do the underlying membership management and gossip. Some
 	// fields in the MemberlistConfig will be overwritten by Olric no
@@ -418,6 +430,9 @@ func (c *Config) Sanitize() error {
 	}
 	if c.MaxJoinAttempts == 0 {
 		c.MaxJoinAttempts = DefaultMaxJoinAttempts
+	}
+	if c.LeaveTimeout == 0 {
+		c.LeaveTimeout = DefaultLeaveTimeout
 	}
 	if c.RoutingTablePushInterval == 0*time.Second {
 		c.RoutingTablePushInterval = DefaultRoutingTablePushInterval
