@@ -43,7 +43,18 @@ olricd:
 
   # Minimum number of members to form a cluster and run any query on the cluster.
   memberCountQuorum: 1
+
+  # Interval between routing table push events.
   routingTablePushInterval: 1m
+
+  # Olric will broadcast a leave message but will not shut down the background
+  # listeners, meaning the node will continue participating in gossip and state
+  # updates.
+  #
+  # Sending a leave message will block until the leave message is successfully
+  # broadcast to a member of the cluster, if any exist or until a specified timeout
+  # is reached.
+  leaveTimeout: 5s
 
 storageEngines:
   config:
