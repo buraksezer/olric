@@ -108,6 +108,38 @@ func TestDMap_Atomic_Decr(t *testing.T) {
 	}
 }
 
+func TestDMap_Atomic_Honor_Current_TTL(t *testing.T) {
+	// See https://github.com/buraksezer/olric/pull/172
+	cluster := testcluster.New(NewService)
+	s := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	key := "decr"
+
+	dm, err := s.NewDMap("atomic_test")
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	err = dm.PutEx(key, 10, time.Hour)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	_, err = dm.Decr(key, 1)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+
+	entry, err := dm.GetEntry(key)
+	if err != nil {
+		t.Fatalf("Expected nil. Got: %v", err)
+	}
+	if entry.TTL == 0 {
+		t.Fatal("entry.TTL cannot be zero")
+	}
+}
+
 func TestDMap_Atomic_GetPut(t *testing.T) {
 	cluster := testcluster.New(NewService)
 	s := cluster.AddMember(nil).(*Service)
