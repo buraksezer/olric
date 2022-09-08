@@ -58,7 +58,7 @@ import (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.4.6"
+const ReleaseVersion string = "0.4.7"
 
 var (
 	// ErrOperationTimeout is returned when an operation times out.
