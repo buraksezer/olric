@@ -205,7 +205,7 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		err = protocol.ConvertError(err)
 		if err != nil {
 			if dm.s.log.V(6).Ok() {
-				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
+				dm.s.log.V(6).Printf("[DEBUG] Failed to call get on"+
 					" a replica owner: %s: %v", host, err)
 			}
 			continue
@@ -216,7 +216,7 @@ func (dm *DMap) lookupOnReplicas(hkey uint64, key string) []*version {
 		if err != nil {
 			// TODO: Improve logging
 			if dm.s.log.V(6).Ok() {
-				dm.s.log.V(6).Printf("[ERROR] Failed to call get on"+
+				dm.s.log.V(6).Printf("[DEBUG] Failed to call get on"+
 					" a replica owner: %s: %v", host, err)
 			}
 		}

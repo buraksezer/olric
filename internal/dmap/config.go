@@ -73,7 +73,7 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 		}
 	}
 
-	// TODO: Create a new function to verify config config.
+	// TODO: Create a new function to verify config.
 	if c.evictionPolicy == config.LRUEviction {
 		if c.maxInuse <= 0 && c.maxKeys <= 0 {
 			return fmt.Errorf("maxInuse or maxKeys have to be greater than zero")

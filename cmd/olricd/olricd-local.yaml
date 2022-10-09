@@ -154,10 +154,10 @@ logging:
   # * 6 - Trace level verbosity
   #   * Context to understand the steps leading up to neterrors and warnings
   #   * More information for troubleshooting reported issues
-  verbosity: 6
+  verbosity: 3
 
   # Default LogLevel is DEBUG. Available levels: "DEBUG", "WARN", "ERROR", "INFO"
-  level: DEBUG
+  level: INFO
   output: stderr
 
 memberlist:
