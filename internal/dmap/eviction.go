@@ -44,7 +44,7 @@ func (dm *DMap) isKeyIdleOnFragment(hkey uint64, f *fragment) bool {
 	if errors.Is(err, storage.ErrKeyNotFound) {
 		return false
 	}
-	// TODO: Handle other errors.
+	//TODO: Handle other errors.
 	ttl := (dm.config.maxIdleDuration.Nanoseconds() + lastAccess) / 1000000
 	return isKeyExpired(ttl)
 }

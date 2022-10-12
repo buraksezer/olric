@@ -240,7 +240,7 @@ func TestPubSub_Handler_Close(t *testing.T) {
 
 	err = ps.Ping(ctx)
 	require.Error(t, err, "redis: client is closed")
-	// TODO: Control active subscriber count
+	//TODO: Control active subscriber count
 }
 
 func TestPubSub_Handler_PubSubChannels_Without_Patterns(t *testing.T) {

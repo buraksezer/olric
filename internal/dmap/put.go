@@ -302,7 +302,6 @@ func (dm *DMap) putOnCluster(e *env) error {
 			e.timeout = dm.config.ttlDuration
 		}
 		if dm.config.evictionPolicy == config.LRUEviction {
-			// TODO: What about lock?
 			if err = dm.setLRUEvictionStats(e); err != nil {
 				return err
 			}

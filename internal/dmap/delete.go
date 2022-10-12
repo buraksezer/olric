@@ -82,7 +82,6 @@ func (dm *DMap) deleteBackupOnCluster(hkey uint64, key string) error {
 				dm.s.log.V(3).Printf("[ERROR] Failed to delete replica key/value on %s: %s", dm.name, err)
 				return protocol.ConvertError(err)
 			}
-			// TODO: Improve logging
 			return protocol.ConvertError(cmd.Err())
 		})
 	}

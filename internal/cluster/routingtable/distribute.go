@@ -61,7 +61,6 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 		cmd := protocol.NewLengthOfPart(partID).Command(r.ctx)
 		rc := r.client.Get(owner.String())
 		err := rc.Process(r.ctx, cmd)
-		// TODO: improve logging
 		if err != nil {
 			r.log.V(6).Printf("[DEBUG] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
@@ -170,7 +169,6 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 		cmd := protocol.NewLengthOfPart(partID).SetReplica().Command(r.ctx)
 		rc := r.client.Get(backup.String())
 		err := rc.Process(r.ctx, cmd)
-		// TODO: improve logging
 		if err != nil {
 			r.log.V(6).Printf("[DEBUG] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
