@@ -37,6 +37,9 @@ type fragment struct {
 }
 
 func (f *fragment) Stats() storage.Stats {
+	f.RLock()
+	defer f.RUnlock()
+
 	return f.storage.Stats()
 }
 
