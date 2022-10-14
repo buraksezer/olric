@@ -799,8 +799,6 @@ func ParseIncrByFloatCommand(cmd redcon.Command) (*IncrByFloat, error) {
 	), nil
 }
 
-// TODO: Add PLock
-
 type Lock struct {
 	DMap     string
 	Key      string

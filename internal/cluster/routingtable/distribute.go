@@ -44,11 +44,11 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 			r.log.V(6).Printf("[DEBUG] Failed to find %s in the cluster: %v", owner, err)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
-			r.log.V(6).Printf("[INFO] Member: %s has been deleted from the primary owners list of PartID: %v", owner.String(), partID)
+			r.log.V(3).Printf("[INFO] Member: %s has been deleted from the primary owners list of PartID: %v", owner.String(), partID)
 			continue
 		}
 		if !owner.CompareByID(current) {
-			r.log.V(4).Printf("[WARN] One of the partitions owners is probably re-joined: %s", current)
+			r.log.V(3).Printf("[WARN] One of the partitions owners is probably re-joined: %s", current)
 			owners = append(owners[:i], owners[i+1:]...)
 			i--
 			continue
@@ -61,9 +61,8 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 		cmd := protocol.NewLengthOfPart(partID).Command(r.ctx)
 		rc := r.client.Get(owner.String())
 		err := rc.Process(r.ctx, cmd)
-		// TODO: improve logging
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+			r.log.V(6).Printf("[DEBUG] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
 			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
@@ -71,7 +70,7 @@ func (r *RoutingTable) distributePrimaryCopies(partID uint64) []discovery.Member
 
 		count, err := cmd.Result()
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+			r.log.V(6).Printf("[DEBUG] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
 			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
@@ -170,16 +169,15 @@ func (r *RoutingTable) distributeBackups(partID uint64) []discovery.Member {
 		cmd := protocol.NewLengthOfPart(partID).SetReplica().Command(r.ctx)
 		rc := r.client.Get(backup.String())
 		err := rc.Process(r.ctx, cmd)
-		// TODO: improve logging
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+			r.log.V(6).Printf("[DEBUG] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
 			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue
 		}
 		count, err := cmd.Result()
 		if err != nil {
-			r.log.V(3).Printf("[ERROR] Failed to check key count on backup "+
+			r.log.V(6).Printf("[DEBUG] Failed to check key count on backup "+
 				"partition: %d: %v", partID, err)
 			// Pass it. If the node is down, memberlist package will send a leave event.
 			continue

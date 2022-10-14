@@ -68,7 +68,6 @@ func (s *Service) getEntryCommandHandler(conn redcon.Conn, cmd redcon.Command) {
 	e.hkey = partitions.HKey(getEntryCmd.DMap, getEntryCmd.Key)
 	e.kind = kind
 	nt, err := dm.getOnFragment(e)
-	// TODO: errFragmentNotFound??
 	if err == errFragmentNotFound {
 		err = ErrKeyNotFound
 	}

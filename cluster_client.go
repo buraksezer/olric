@@ -224,7 +224,6 @@ func (dm *ClusterDMap) Incr(ctx context.Context, key string, delta int) (int, er
 	if err != nil {
 		return 0, processProtocolError(err)
 	}
-	// TODO: Consider returning uint64 as response
 	res, err := cmd.Uint64()
 	if err != nil {
 		return 0, processProtocolError(cmd.Err())
@@ -245,7 +244,6 @@ func (dm *ClusterDMap) Decr(ctx context.Context, key string, delta int) (int, er
 	if err != nil {
 		return 0, processProtocolError(err)
 	}
-	// TODO: Consider returning uint64 as response
 	res, err := cmd.Uint64()
 	if err != nil {
 		return 0, processProtocolError(cmd.Err())
@@ -343,7 +341,6 @@ func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Durat
 		return nil, err
 	}
 
-	// TODO: Inconsistency: TIMEOUT, duration or second?
 	cmd := protocol.NewLock(dm.name, key, deadline.Seconds()).Command(ctx)
 	err = rc.Process(ctx, cmd)
 	if err != nil {
@@ -362,9 +359,8 @@ func (dm *ClusterDMap) Lock(ctx context.Context, key string, deadline time.Durat
 }
 
 // LockWithTimeout sets a lock for the given key. If the lock is still unreleased
-// the end of given period of time,
-// it automatically releases the lock. Acquired lock is only for the key in
-// this dmap.
+// the end of given period of time, it automatically releases the lock.
+// Acquired lock is only for the key in this DMap.
 //
 // It returns immediately if it acquires the lock for the given key. Otherwise,
 // it waits until deadline.
@@ -377,7 +373,6 @@ func (dm *ClusterDMap) LockWithTimeout(ctx context.Context, key string, timeout,
 		return nil, err
 	}
 
-	// TODO: Inconsistency: TIMEOUT, duration or second?
 	cmd := protocol.NewLock(dm.name, key, deadline.Seconds()).SetPX(timeout.Milliseconds()).Command(ctx)
 	err = rc.Process(ctx, cmd)
 	if err != nil {
@@ -414,7 +409,6 @@ func (c *ClusterLockContext) Lease(ctx context.Context, duration time.Duration) 
 	if err != nil {
 		return err
 	}
-	// TODO: Inconsistency!
 	cmd := protocol.NewLockLease(c.dm.name, c.key, c.token, duration.Seconds()).Command(ctx)
 	err = rc.Process(ctx, cmd)
 	if err != nil {
