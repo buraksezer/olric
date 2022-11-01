@@ -7,7 +7,7 @@ used both as an embedded Go library and as a language-independent service.
 
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
 
-Olric is implemented in [Go](https://go.dev/) and uses the [Redis protocol](https://redis.io/topics/protocol). That means Olric has client implementations in all major programming 
+Olric is implemented in [Go](https://go.dev/) and uses the [Redis serialization protocol](https://redis.io/topics/protocol). So Olric has client implementations in all major programming 
 languages.
 
 Olric is highly scalable and available. Distributed applications can use it for distributed caching, clustering and 
@@ -22,11 +22,11 @@ See [Docker](#docker) and [Samples](#samples) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.4.5](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
+The current production version is [v0.4.8](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
 
 ### About versions
 
-Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis protocol](https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
+Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis serialization protocol](https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
 Olric v0.4.x tree is going to receive bug fixes and security updates forever, but I would recommend considering an upgrade to the new version.
 
 This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-).
@@ -36,8 +36,10 @@ This document only covers `v0.5`. See v0.4.x documents [here](https://github.com
 ## At a glance
 
 * Designed to share some transient, approximate, fast-changing data between servers,
-* Has a Redis compatible API and uses Redis protocol,
-* Provides a drop-in replacement for Redis Publish/Subscribe messaging system.
+* Uses Redis serialization protocol,
+* Implements a distributed hash table,
+* Provides a drop-in replacement for Redis Publish/Subscribe messaging system,
+* Supports both programmatic and declarative configuration, 
 * Embeddable but can be used as a language-independent service with *olricd*,
 * Supports different eviction algorithms (including LRU and TTL),
 * Highly available and horizontally scalable,
@@ -991,11 +993,7 @@ or operating systems that do not support keep-alives ignore this field. If negat
 Olric uses:
 * [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for cluster membership and failure detection,
 * [buraksezer/consistent](https://github.com/buraksezer/consistent) for consistent hashing and load balancing,
-* [Golang's TCP implementation](https://golang.org/pkg/net/#TCPConn) as transport layer,
-* Different alternatives for serialization:
-    * [encoding/gob](https://golang.org/pkg/encoding/gob/),
-    * [encoding/json](https://golang.org/pkg/encoding/json/), 
-    * [vmihailenco/msgpack](https://github.com/vmihailenco/msgpack).
+* [Redis Serialization Protocol](https://github.com/tidwall/redcon) for communication.
 
 Olric distributes data among partitions. Every partition is being owned by a cluster member and may have one or more backups for redundancy. 
 When you read or write a DMap entry, you transparently talk to the partition owner. Each request hits the most up-to-date version of a

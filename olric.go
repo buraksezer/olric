@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*Package olric provides a distributed cache and in-memory key/value data store.
+/*
+Package olric provides a distributed cache and in-memory key/value data store.
 It can be used both as an embedded Go library and as a language-independent
 service.
 
@@ -22,7 +23,8 @@ a cluster of computers.
 Olric is designed to be a distributed cache. But it also provides Publish/Subscribe,
 data replication, failure detection and simple anti-entropy services.
 So it can be used as an ordinary key/value data store to scale your cloud
-application.*/
+application.
+*/
 package olric
 
 import (
@@ -55,7 +57,7 @@ import (
 )
 
 // ReleaseVersion is the current stable version of Olric
-const ReleaseVersion string = "0.5.0-beta.8"
+const ReleaseVersion string = "0.5.0-rc.1"
 
 var (
 	// ErrOperationTimeout is returned when an operation times out.
