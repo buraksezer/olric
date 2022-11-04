@@ -11,7 +11,7 @@ Olric is implemented in [Go](https://go.dev/) and uses the [Redis serialization 
 languages.
 
 Olric is highly scalable and available. Distributed applications can use it for distributed caching, clustering and 
-Publish-Subscribe messaging.
+publish-subscribe messaging.
 
 It is designed to scale out to hundreds of members and thousands of clients. When you add new members, they automatically 
 discover the cluster and linearly increase the memory capacity. Olric offers simple scalability, partitioning (sharding), 
@@ -54,7 +54,7 @@ This document only covers `v0.5`. See v0.4.x documents [here](https://github.com
 ## Possible Use Cases
 
 Olric is an eventually consistent, unordered key/value data store. It supports various eviction mechanisms for distributed caching implementations. Olric 
-also provides Publish-Subscribe, data replication, failure detection and simple anti-entropy services. 
+also provides publish-subscribe messaging, data replication, failure detection and simple anti-entropy services. 
 
 It's good at distributed caching and publish/subscribe messaging.
 
@@ -138,7 +138,7 @@ It's good at distributed caching and publish/subscribe messaging.
 * Designed to share some transient, approximate, fast-changing data between servers,
 * Accepts arbitrary types as value,
 * Only in-memory,
-* Has a Redis compatible API and uses Redis protocol,
+* Uses Redis protocol,
 * Compatible with existing Redis clients,
 * Embeddable but can be used as a language-independent service with olricd,
 * GC-friendly storage engine,
@@ -175,7 +175,7 @@ You also feel free to open an issue on GitHub to report bugs and share feature r
 With a correctly configured Golang environment:
 
 ```
-go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-beta.2
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-rc.1
 ```
 
 Now you can start using Olric:
@@ -197,7 +197,7 @@ docker run -p 3320:3320 olricio/olricd:v0.5.0-beta.2
 This command will pull olricd Docker image and run a new Olric Instance. You should know that the container exposes 
 `3320` and `3322` ports. 
 
-Now, you can access a running Olric instance by using `redis-cli`.
+Now, you can access an Olric cluster using any Redis client including `redis-cli`:
 
 ```bash
 redis-cli -p 3320
@@ -213,7 +213,7 @@ OK
 With olricd, you can create an Olric cluster with a few commands. This is how to install olricd:
 
 ```bash
-go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-beta.2
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-rc.1
 ```
 
 Let's create a cluster with the following:
@@ -231,7 +231,7 @@ OLRICD_CONFIG=<YOUR_CONFIG_FILE_PATH> olricd
 
 Olric uses [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for failure detection and cluster membership. 
 Currently, there are different ways to discover peers in a cluster. You can use a static list of nodes in your `olricd.yaml` 
-file. It's ideal for development and test environments. Olric also supports Consul, Kubernetes and well-known cloud providers
+file. It's ideal for development and test environments. Olric also supports Consul, Kubernetes and all well-known cloud providers
 for service discovery. Please take a look at [Service Discovery](#service-discovery) section for further information.
 
 See [Client-Server](#client-server) section to get more information about this deployment scenario.
@@ -252,8 +252,7 @@ with each other. So an Olric node can discover the whole cluster by using a sing
 
 #### Embedding into your Go application.
 
-Olric was originally designed as an embeddable, distributed version of Golang's built-in map. Building distributed systems
-based on Olric is an easy task. See [Samples](#samples) section to learn how to embed Olric into your existing Golang application.
+See [Samples](#samples) section to learn how to embed Olric into your existing Golang application.
 
 ### Operation Modes
 
@@ -266,9 +265,9 @@ Member Mode is having a low-latency data access and locality.
 
 #### Client-Server
 
-In the Client-Server deployment, Olric data and services are centralized in one or more servers, and they are
-accessed by the application through clients. You can have a cluster of servers that can be independently created
-and scaled. Your clients communicate with these members to reach to Olric data and services on them.
+In Client-Server Mode, Olric data and services are centralized in one or more servers, and they are accessed by the 
+application through clients. You can have a cluster of servers that can be independently created and scaled. Your clients 
+communicate with these members to reach to Olric data and services on them.
 
 Client-Server deployment has advantages including more predictable and reliable performance, easier identification
 of problem causes and, most importantly, better scalability. When you need to scale in this deployment type, just add more
@@ -276,12 +275,13 @@ Olric server members. You can address client and server scalability concerns sep
 
 ## Golang Client
 
-The official Golang client is defined by the `Client` interface. There are two different implementations of it in this repository.
-`EmbeddedClient` provides a client implementation for [embedded-member](#embedded-member) scenario, `ClusterClient` provides an implementation of the same interface
-for [client-server](#client-server) deployment scenario. Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient`
-provides a better performance due to localization of the queries.
+The official Golang client is defined by the `Client` interface. There are two different implementations of that interface in 
+this repository. `EmbeddedClient` provides a client implementation for [embedded-member](#embedded-member) scenario, 
+`ClusterClient` provides an implementation of the same interface for [client-server](#client-server) deployment scenario. 
+Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient` provides 
+a better performance due to localization of the queries.
 
-See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-beta.3)
+See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-rc.1)
 
 ## Commands
 
@@ -1098,7 +1098,7 @@ it returns `ErrReadQuorum`.
 
 #### Simple Split-Brain Protection
 
-Olric implements a technique called *majority quorum* to manage split-brain conditions. If a network partitioning occurs, and some of the members
+Olric implements a technique called *majority quorum* to manage split-brain conditions. If a network partitioning occurs, and some members
 lost the connection to rest of the cluster, they immediately stops functioning and return an error to incoming requests. This behaviour is controlled by
 `MemberCountQuorum` parameter. It's default `1`. 
 
