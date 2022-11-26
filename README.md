@@ -1224,7 +1224,7 @@ See [Hazelcast and the Mythical PA/EC System](https://dbmsmusings.blogspot.com/2
 Olric implements a GC-friendly storage engine to store large amounts of data on RAM. Basically, it applies an append-only log file approach with indexes. 
 Olric inserts key/value pairs into pre-allocated byte slices (table in Olric terminology) and indexes that memory region by using Golang's built-in map. 
 The data type of this map is `map[uint64]uint64`. When a pre-allocated byte slice is full Olric allocates a new one and continues inserting the new data into it. 
-This design greatly improves the write latency.
+This design greatly reduces the write latency.
 
 When you want to read a key/value pair from the Olric cluster, it scans the related DMap fragment by iterating over the indexes(implemented by the built-in map). 
 The number of allocated byte slices should be small. So Olric would find the key immediately but technically, the read performance depends on the number of keys in the fragment. 
