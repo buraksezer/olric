@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/buraksezer/olric.svg)](https://pkg.go.dev/github.com/buraksezer/olric) [![Coverage Status](https://coveralls.io/repos/github/buraksezer/olric/badge.svg?branch=master)](https://coveralls.io/github/buraksezer/olric?branch=master) [![Build Status](https://travis-ci.org/buraksezer/olric.svg?branch=master)](https://travis-ci.org/buraksezer/olric) [![Go Report Card](https://goreportcard.com/badge/github.com/buraksezer/olric)](https://goreportcard.com/report/github.com/buraksezer/olric) [![Discord](https://img.shields.io/discord/721708998021087273.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/ahK7Vjr8We) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Olric is a distributed, in-memory data structure store. It's designed from the ground up to be distributed, and it can be 
+Olric is a distributed, in-memory object store. It's designed from the ground up to be distributed, and it can be 
 used both as an embedded Go library and as a language-independent service.
 
 With Olric, you can instantly create a fast, scalable, shared pool of RAM across a cluster of computers.
@@ -22,7 +22,7 @@ See [Docker](#docker) and [Samples](#samples) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.4.8](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
+The current production version is [v0.4.9](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
 
 ### About versions
 
@@ -156,7 +156,7 @@ It's good at distributed caching and publish/subscribe messaging.
 * Supports [distributed queries](#query) on keys,
 * Provides a plugin interface for service discovery daemons and cloud providers,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode),
-* Supports [distributed topic](#distributed-topic) data structure,
+* Provides a drop-in replacement of Redis' Publish-Subscribe messaging feature.
 
 See [Architecture](#architecture) section to see details.
 
@@ -230,13 +230,14 @@ OLRICD_CONFIG=<YOUR_CONFIG_FILE_PATH> olricd
 ```
 
 Olric uses [hashicorp/memberlist](https://github.com/hashicorp/memberlist) for failure detection and cluster membership. 
-Currently, there are different ways to discover peers in a cluster. You can use a static list of nodes in your `olricd.yaml` 
-file. It's ideal for development and test environments. Olric also supports Consul, Kubernetes and all well-known cloud providers
+Currently, there are different ways to discover peers in a cluster. You can use a static list of nodes in your configuration. 
+It's ideal for development and test environments. Olric also supports Consul, Kubernetes and all well-known cloud providers
 for service discovery. Please take a look at [Service Discovery](#service-discovery) section for further information.
 
 See [Client-Server](#client-server) section to get more information about this deployment scenario.
 
 #### Maintaining a list of peers manually
+
 Basically, there is a list of nodes under `memberlist` block in the configuration file. In order to create an Olric cluster, 
 you just need to add `Host:Port` pairs of the other nodes. Please note that the `Port` is the memberlist port of the peer.
 It is `3322` by default. 
@@ -875,7 +876,6 @@ CLUSTER.MEMBERS
    3) "true" <- Is cluster coordinator (the oldest node)
 ```
 
-
 ### Others
 
 #### PING
@@ -893,10 +893,12 @@ The STATS command returns information and statistics about the server in JSON fo
 
 ## Configuration
 
+Olric supports both declarative and programmatic configurations. You can choose one of them depending on your needs.
 You should feel free to ask any questions about configuration and integration. Please see [Support](#support) section.
 
 ### Embedded-Member Mode
 
+### Programmatic Configuration
 Olric provides a function to generate default configuration to use in embedded-member mode:
 
 ```go
@@ -910,7 +912,7 @@ Default configuration is good enough for distributed caching scenario. In order 
 
 See [Sample Code](#sample-code) section for an introduction.
 
-#### Manage the configuration in YAML format
+#### Declarative configuration with YAML format
 
 You can also import configuration from a YAML file by using the `Load` function:
 
