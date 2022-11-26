@@ -898,7 +898,7 @@ You should feel free to ask any questions about configuration and integration. P
 
 ### Embedded-Member Mode
 
-### Programmatic Configuration
+#### Programmatic Configuration
 Olric provides a function to generate default configuration to use in embedded-member mode:
 
 ```go
