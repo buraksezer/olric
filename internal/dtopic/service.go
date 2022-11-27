@@ -56,7 +56,7 @@ func NewService(e *environment.Environment) (service.Service, error) {
 		client:     e.Get("client").(*transport.Client),
 		log:        e.Get("logger").(*flog.Logger),
 		rt:         e.Get("routingtable").(*routingtable.RoutingTable),
-		dispatcher: NewDispatcher(context.Background()),
+		dispatcher: NewDispatcher(ctx, e.Get("logger").(*flog.Logger)),
 		m:          make(map[string]*DTopic),
 		ctx:        ctx,
 		cancel:     cancel,

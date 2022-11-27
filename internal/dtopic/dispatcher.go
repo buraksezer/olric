@@ -17,11 +17,12 @@ package dtopic
 import (
 	"context"
 	"fmt"
-	"github.com/buraksezer/olric/pkg/neterrors"
 	"math/rand"
 	"runtime"
 	"sync"
 
+	"github.com/buraksezer/olric/pkg/flog"
+	"github.com/buraksezer/olric/pkg/neterrors"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -40,11 +41,13 @@ type Dispatcher struct {
 
 	m   map[string]*listeners
 	ctx context.Context
+	log *flog.Logger
 }
 
-func NewDispatcher(ctx context.Context) *Dispatcher {
+func NewDispatcher(ctx context.Context, log *flog.Logger) *Dispatcher {
 	return &Dispatcher{
 		m:   make(map[string]*listeners),
+		log: log,
 		ctx: ctx,
 	}
 }
@@ -89,7 +92,9 @@ func (d *Dispatcher) removeListener(topic string, listenerID uint64) error {
 
 	l, ok := d.m[topic]
 	if !ok {
-		return neterrors.Wrap(neterrors.ErrInvalidArgument, fmt.Sprintf("topic not found: %s", topic))
+		// There is no active listener for this topic
+		d.log.V(3).Printf("[DEBUG] Topic not found: %s, possibly there is no listener", topic)
+		return nil
 	}
 
 	_, ok = l.m[listenerID]
@@ -112,8 +117,9 @@ func (d *Dispatcher) dispatch(topic string, msg *Message) error {
 
 	l, ok := d.m[topic]
 	if !ok {
-		// there is no listener for this topic on this node.
-		return fmt.Errorf("%w: topic not found: %s", neterrors.ErrInvalidArgument, topic)
+		// There is no active listener for this topic
+		d.log.V(3).Printf("[DEBUG] Topic not found: %s, possibly there is no listener", topic)
+		return nil
 	}
 
 	var wg sync.WaitGroup
