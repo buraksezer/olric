@@ -26,10 +26,10 @@ The current production version is [v0.5.0](https://github.com/buraksezer/olric/t
 
 ### About versions
 
-Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis serialization protocol](https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
+Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5.x and later use [Redis serialization protocol](https://redis.io/docs/reference/protocol-spec/) for communication and the API was significantly changed.
 Olric v0.4.x tree is going to receive bug fixes and security updates forever, but I would recommend considering an upgrade to the new version.
 
-This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-).
+This document only covers `v0.5.x` and later. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-).
 
 ## At a glance
 
@@ -174,7 +174,7 @@ You also feel free to open an issue on GitHub to report bugs and share feature r
 With a correctly configured Golang environment:
 
 ```
-go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-rc.1
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.0
 ```
 
 Now you can start using Olric:
@@ -190,7 +190,7 @@ See [Configuration](#configuration) section to create your cluster properly.
 You can launch `olricd` Docker container by running the following command. 
 
 ```bash
-docker run -p 3320:3320 olricio/olricd:v0.5.0-beta.2
+docker run -p 3320:3320 olricio/olricd:v0.5.0
 ``` 
 
 This command will pull olricd Docker image and run a new Olric Instance. You should know that the container exposes 
@@ -212,7 +212,7 @@ OK
 With olricd, you can create an Olric cluster with a few commands. This is how to install olricd:
 
 ```bash
-go install github.com/buraksezer/olric/cmd/olricd@v0.5.0-rc.1
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.0
 ```
 
 Let's create a cluster with the following:
@@ -281,7 +281,7 @@ this repository. `EmbeddedClient` provides a client implementation for [embedded
 Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient` provides 
 a better performance due to localization of the queries.
 
-See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-rc.1)
+See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0)
 
 ## Cluster Events
 
