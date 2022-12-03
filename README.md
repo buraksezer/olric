@@ -22,7 +22,7 @@ See [Docker](#docker) and [Samples](#samples) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.4.9](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-)
+The current production version is [v0.5.0](https://github.com/buraksezer/olric/tree/release/v0.5.0#olric-)
 
 ### About versions
 
@@ -30,8 +30,6 @@ Olric v0.4 and previous versions use *Olric Binary Protocol*, v0.5 uses [Redis s
 Olric v0.4.x tree is going to receive bug fixes and security updates forever, but I would recommend considering an upgrade to the new version.
 
 This document only covers `v0.5`. See v0.4.x documents [here](https://github.com/buraksezer/olric/tree/release/v0.4.0#olric-).
-
-**Important note**: Documenting `v0.5` is an ongoing effort. So some parts of this document may be wrong or inaccurate.
 
 ## At a glance
 
@@ -70,7 +68,8 @@ It's good at distributed caching and publish/subscribe messaging.
   * [Operation Modes](#operation-modes)
     * [Embedded Member](#embedded-member)
     * [Client-Server](#client-server)
-* [Golang client](#golang-client)
+* [Golang Client](#golang-client)
+* [Cluster Events](#cluster-events)
 * [Commands](#commands)
   * [Distributed Map](#distributed-map)
     * [DM.PUT](#dmput)
@@ -283,6 +282,20 @@ Obviously, you can use `ClusterClient` for your embedded-member deployments. But
 a better performance due to localization of the queries.
 
 See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0-rc.1)
+
+## Cluster Events
+
+Olric can send push cluster events to `cluster.events` channel. Available cluster events:
+
+* node-join-event
+* node-left-event
+* fragment-migration-event
+* fragment-received-even
+
+If you want to receive these events, set `true` to `EnableClusterEventsChannel` and subscribe to `cluster.events` channel. 
+The default is `false`.
+
+See [events/cluster_events.go](events/cluster_events.go) file to get more information about events.
 
 ## Commands
 
@@ -981,12 +994,6 @@ timeout and 0 for default. The default is config.DefaultReadTimeout
 ##### config.WriteTimeout
 
 Timeout for socket writes. If reached, commands will fail with a timeout instead of blocking. The default is config.DefaultWriteTimeout
-
-##### config.KeepAlive
-
-KeepAlive specifies the interval between keep-alive probes for an active network connection. If zero, keep-alive probes 
-are sent with a default value (currently 15 seconds), if supported by the protocol and operating system. Network protocols 
-or operating systems that do not support keep-alives ignore this field. If negative, keep-alive probes are disabled.
 
 ## Architecture
 
