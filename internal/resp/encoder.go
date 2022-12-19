@@ -28,12 +28,14 @@ package resp
 
 import (
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
 	"time"
 
 	"github.com/buraksezer/olric/internal/util"
+	"google.golang.org/protobuf/proto"
 )
 
 type encoder interface {
@@ -102,6 +104,18 @@ func (e *Encoder) Encode(v interface{}) error {
 		return e.int(v.Nanoseconds())
 	case encoding.BinaryMarshaler:
 		b, err := v.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		return e.bytes(b)
+	case proto.Message:
+		b, err := proto.Marshal(v)
+		if err != nil {
+			return err
+		}
+		return e.bytes(b)
+	case json.Marshaler:
+		b, err := json.Marshal(v)
 		if err != nil {
 			return err
 		}

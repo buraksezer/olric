@@ -28,10 +28,12 @@ package resp
 
 import (
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/buraksezer/olric/internal/util"
+	"google.golang.org/protobuf/proto"
 )
 
 // Scan parses bytes `b` to `v` with appropriate type.
@@ -140,6 +142,10 @@ func Scan(b []byte, v interface{}) error {
 		return nil
 	case encoding.BinaryUnmarshaler:
 		return v.UnmarshalBinary(b)
+	case proto.Message:
+		return proto.Unmarshal(b, v)
+	case json.Unmarshaler:
+		return json.Unmarshal(b, v)
 	default:
 		return fmt.Errorf(
 			"olric: can't unmarshal %T (consider implementing BinaryUnmarshaler)", v)
