@@ -414,7 +414,10 @@ func (dp *DMapPipeline) Exec(ctx context.Context) error {
 	numCpu := 1
 	sem := semaphore.NewWeighted(int64(numCpu))
 	for i := uint64(0); i < dp.dm.clusterClient.partitionCount; i++ {
-		_ = sem.Acquire(ctx, 1)
+		err := sem.Acquire(ctx, 1)
+		if err != nil {
+			return err
+		}
 
 		partID := i
 		errGr.Go(func() error {
