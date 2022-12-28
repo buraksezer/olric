@@ -236,7 +236,17 @@ type DMap interface {
 	// results in case of big pipelines and small read/write timeouts.
 	// Redis client has retransmission logic in case of timeouts, pipeline
 	// can be retransmitted and commands can be executed more than once.
-	Pipeline() (*DMapPipeline, error)
+	Pipeline(opts ...PipelineOption) (*DMapPipeline, error)
+}
+
+// PipelineOption is a function for defining options to control behavior of the Pipeline command.
+type PipelineOption func(pipeline *DMapPipeline)
+
+// PipelineConcurrency is a PipelineOption controlling the number of concurrent goroutines.
+func PipelineConcurrency(concurrency int) PipelineOption {
+	return func(dp *DMapPipeline) {
+		dp.concurrency = concurrency
+	}
 }
 
 type statsConfig struct {

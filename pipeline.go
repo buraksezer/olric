@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -57,6 +58,8 @@ type DMapPipeline struct {
 	result   map[uint64][]redis.Cmder
 	ctx      context.Context
 	cancel   context.CancelFunc
+
+	concurrency int // defaults to runtime.NumCPU()
 }
 
 func (dp *DMapPipeline) addCommand(key string, cmd redis.Cmder) (uint64, int) {
@@ -418,8 +421,7 @@ func (dp *DMapPipeline) Exec(ctx context.Context) error {
 	defer dp.cancel()
 
 	var errGr errgroup.Group
-	numCpu := 1
-	sem := semaphore.NewWeighted(int64(numCpu))
+	sem := semaphore.NewWeighted(int64(dp.concurrency))
 	for i := uint64(0); i < dp.dm.clusterClient.partitionCount; i++ {
 		err := sem.Acquire(ctx, 1)
 		if err != nil {
@@ -494,15 +496,23 @@ func (dp *DMapPipeline) Close() {
 // results in case of big pipelines and small read/write timeouts.
 // Redis client has retransmission logic in case of timeouts, pipeline
 // can be retransmitted and commands can be executed more than once.
-func (dm *ClusterDMap) Pipeline() (*DMapPipeline, error) {
+func (dm *ClusterDMap) Pipeline(opts ...PipelineOption) (*DMapPipeline, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &DMapPipeline{
+	dp := &DMapPipeline{
 		dm:       dm,
 		commands: make(map[uint64][]redis.Cmder),
 		result:   make(map[uint64][]redis.Cmder),
 		ctx:      ctx,
 		cancel:   cancel,
-	}, nil
+
+		concurrency: runtime.NumCPU(),
+	}
+
+	for _, opt := range opts {
+		opt(dp)
+	}
+
+	return dp, nil
 }
 
 // This stores a slice of commands for each partition. There is a possibility that a single
