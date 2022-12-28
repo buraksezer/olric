@@ -72,7 +72,7 @@ type EmbeddedDMap struct {
 // results in case of big pipelines and small read/write timeouts.
 // Redis client has retransmission logic in case of timeouts, pipeline
 // can be retransmitted and commands can be executed more than once.
-func (dm *EmbeddedDMap) Pipeline() (*DMapPipeline, error) {
+func (dm *EmbeddedDMap) Pipeline(opts ...PipelineOption) (*DMapPipeline, error) {
 	cc, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (dm *EmbeddedDMap) Pipeline() (*DMapPipeline, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cdm.Pipeline()
+	return cdm.Pipeline(opts...)
 }
 
 // RefreshMetadata fetches a list of available members and the latest routing
