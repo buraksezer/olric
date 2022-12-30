@@ -66,7 +66,12 @@ func (dp *DMapPipeline) addCommand(key string, cmd redis.Cmder) (uint64, int) {
 	hkey := partitions.HKey(dp.dm.name, key)
 	partID := hkey % dp.dm.clusterClient.partitionCount
 
-	dp.commands[partID] = append(dp.commands[partID], cmd)
+	cmds, ok := dp.commands[partID]
+	if !ok {
+		// if there are no existing commands, get a new slice from the pool
+		cmds = getPipelineCmdsFromPool()
+	}
+	dp.commands[partID] = append(cmds, cmd)
 
 	return partID, len(dp.commands[partID]) - 1
 }
@@ -445,6 +450,19 @@ func (dp *DMapPipeline) Discard() error {
 	dp.mtx.Lock()
 	defer dp.mtx.Unlock()
 
+	// return all command slices to the pool
+
+	for _, v := range dp.commands {
+		putPipelineCmdsIntoPool(v)
+	}
+
+	for _, v := range dp.result {
+		putPipelineCmdsIntoPool(v)
+	}
+
+	// the deletes below are purposefully not combined with the loops above, as these are recognized and optimized
+	// by the compiler. https://go-review.googlesource.com/c/go/+/110055
+
 	for k := range dp.commands {
 		delete(dp.commands, k)
 	}
@@ -483,4 +501,31 @@ func (dm *ClusterDMap) Pipeline() (*DMapPipeline, error) {
 		ctx:      ctx,
 		cancel:   cancel,
 	}, nil
+}
+
+// This stores a slice of commands for each partition. There is a possibility that a single
+// large slice could be allocated with an unusually large number of commands in a single pipeline that
+// are very unbalanced across partitions, but that is unlikely to be a problem in practice.
+//
+// It does not store a pointer to the slice as recommended by staticcheck because that is harder to reason
+// about, and a single allocation is not a big deal compared to the slices we're able to reuse.
+// https://staticcheck.io/docs/checks#SA6002
+// https://github.com/dominikh/go-tools/issues/1336#issuecomment-1331206290
+var pipelineCmdPool = sync.Pool{
+	New: func() interface{} {
+		return make([]redis.Cmder, 0)
+	},
+}
+
+func getPipelineCmdsFromPool() []redis.Cmder {
+	return pipelineCmdPool.Get().([]redis.Cmder)
+}
+
+func putPipelineCmdsIntoPool(cmds []redis.Cmder) {
+	// remove references to underlying commands so they can be GCed
+	for i := range cmds {
+		cmds[i] = nil
+	}
+	cmds = cmds[:0]
+	pipelineCmdPool.Put(cmds)
 }
