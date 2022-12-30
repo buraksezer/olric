@@ -445,8 +445,14 @@ func (dp *DMapPipeline) Discard() error {
 	dp.mtx.Lock()
 	defer dp.mtx.Unlock()
 
-	dp.commands = make(map[uint64][]redis.Cmder)
-	dp.result = make(map[uint64][]redis.Cmder)
+	for k := range dp.commands {
+		delete(dp.commands, k)
+	}
+
+	for k := range dp.result {
+		delete(dp.result, k)
+	}
+
 	dp.ctx, dp.cancel = context.WithCancel(context.Background())
 	return nil
 }
