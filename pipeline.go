@@ -38,6 +38,9 @@ var (
 
 	// ErrPipelineClosed denotes that the underlying pipeline is closed, and it's impossible to operate.
 	ErrPipelineClosed = errors.New("pipeline is closed")
+
+	// ErrPipelineExecuted denotes that Exec was already called on the underlying pipeline.
+	ErrPipelineExecuted = errors.New("pipeline already executed")
 )
 
 // DMapPipeline implements a pipeline for the following methods of the DMap API:
@@ -52,12 +55,14 @@ var (
 //
 // DMapPipeline enables batch operations on DMap data.
 type DMapPipeline struct {
-	mtx      sync.Mutex
-	dm       *ClusterDMap
-	commands map[uint64][]redis.Cmder
-	result   map[uint64][]redis.Cmder
-	ctx      context.Context
-	cancel   context.CancelFunc
+	mtx          sync.Mutex
+	dm           *ClusterDMap
+	commands     map[uint64][]redis.Cmder
+	result       map[uint64][]redis.Cmder
+	ctx          context.Context
+	cancel       context.CancelFunc
+	closedCtx    context.Context // used to detect if the pipeline is closed / discarded
+	closedCancel context.CancelFunc
 
 	concurrency int // defaults to runtime.NumCPU()
 }
@@ -81,14 +86,23 @@ func (dp *DMapPipeline) addCommand(key string, cmd redis.Cmder) (uint64, int) {
 
 // FuturePut is used to read the result of a pipelined Put command.
 type FuturePut struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined Put command.
 func (f *FuturePut) Result() error {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -117,23 +131,33 @@ func (dp *DMapPipeline) Put(ctx context.Context, key string, value interface{}, 
 	cmd := dp.dm.writePutCommand(&pc, key, buf.Bytes()).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FuturePut{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}, nil
 }
 
 // FutureGet is used to read result of a pipelined Get command.
 type FutureGet struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined Get command.
 func (f *FutureGet) Result() (*GetResponse, error) {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return nil, ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -154,23 +178,33 @@ func (dp *DMapPipeline) Get(ctx context.Context, key string) *FutureGet {
 	cmd := protocol.NewGet(dp.dm.name, key).SetRaw().Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureGet{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}
 }
 
 // FutureDelete is used to read the result of a pipelined Delete command.
 type FutureDelete struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined Delete command.
 func (f *FutureDelete) Result() (int, error) {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return 0, ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -189,23 +223,33 @@ func (dp *DMapPipeline) Delete(ctx context.Context, key string) *FutureDelete {
 	cmd := protocol.NewDel(dp.dm.name, []string{key}...).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureDelete{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}
 }
 
 // FutureExpire is used to read the result of a pipelined Expire command.
 type FutureExpire struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined Expire command.
 func (f *FutureExpire) Result() error {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -221,23 +265,33 @@ func (dp *DMapPipeline) Expire(ctx context.Context, key string, timeout time.Dur
 	cmd := protocol.NewExpire(dp.dm.name, key, timeout).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureExpire{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}, nil
 }
 
 // FutureIncr is used to read the result of a pipelined Incr command.
 type FutureIncr struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined Incr command.
 func (f *FutureIncr) Result() (int, error) {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return 0, ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -256,23 +310,33 @@ func (dp *DMapPipeline) Incr(ctx context.Context, key string, delta int) (*Futur
 	cmd := protocol.NewIncr(dp.dm.name, key, delta).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureIncr{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}, nil
 }
 
 // FutureDecr is used to read the result of a pipelined Decr command.
 type FutureDecr struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined Decr command.
 func (f *FutureDecr) Result() (int, error) {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return 0, ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -291,23 +355,33 @@ func (dp *DMapPipeline) Decr(ctx context.Context, key string, delta int) (*Futur
 	cmd := protocol.NewDecr(dp.dm.name, key, delta).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureDecr{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}, nil
 }
 
 // FutureGetPut is used to read the result of a pipelined GetPut command.
 type FutureGetPut struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined GetPut command.
 func (f *FutureGetPut) Result() (*GetResponse, error) {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return nil, ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -340,23 +414,33 @@ func (dp *DMapPipeline) GetPut(ctx context.Context, key string, value interface{
 	cmd := protocol.NewGetPut(dp.dm.name, key, buf.Bytes()).SetRaw().Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureGetPut{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}, nil
 }
 
 // FutureIncrByFloat is used to read the result of a pipelined IncrByFloat command.
 type FutureIncrByFloat struct {
-	dp     *DMapPipeline
-	partID uint64
-	index  int
-	ctx    context.Context
+	dp        *DMapPipeline
+	partID    uint64
+	index     int
+	ctx       context.Context
+	closedCtx context.Context
 }
 
 // Result returns a response for the pipelined IncrByFloat command.
 func (f *FutureIncrByFloat) Result() (float64, error) {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-f.closedCtx.Done():
+		return 0, ErrPipelineClosed
+	default:
+	}
+
 	select {
 	case <-f.ctx.Done():
 		cmd := f.dp.result[f.partID][f.index]
@@ -376,10 +460,11 @@ func (dp *DMapPipeline) IncrByFloat(ctx context.Context, key string, delta float
 	cmd := protocol.NewIncrByFloat(dp.dm.name, key, delta).Command(ctx)
 	partID, index := dp.addCommand(key, cmd)
 	return &FutureIncrByFloat{
-		dp:     dp,
-		partID: partID,
-		index:  index,
-		ctx:    dp.ctx,
+		dp:        dp,
+		partID:    partID,
+		index:     index,
+		ctx:       dp.ctx,
+		closedCtx: dp.closedCtx,
 	}, nil
 }
 
@@ -410,11 +495,22 @@ func (dp *DMapPipeline) execOnPartition(ctx context.Context, partID uint64) erro
 	return nil
 }
 
-// Exec executes all queued commands using one client-server roundtrip.
+// Exec executes all queued commands using one client-server roundtrip per partition.
 func (dp *DMapPipeline) Exec(ctx context.Context) error {
+	// this select is separate from the one below on purpose, since select is non-deterministic if multiple
+	// cases are available, and we need to guarantee this check first.
+	select {
+	case <-dp.closedCtx.Done():
+		return ErrPipelineClosed
+	default:
+	}
+
+	// this checks to see if Exec has already run. While Exec should only be called once, it is possible that
+	// the user could call Exec multiple times. If we stored the result of errGr.Wait on the pipeline, we could
+	// return that error and make Exec idempotent.
 	select {
 	case <-dp.ctx.Done():
-		return ErrPipelineClosed
+		return ErrPipelineExecuted
 	default:
 	}
 
@@ -444,12 +540,12 @@ func (dp *DMapPipeline) Exec(ctx context.Context) error {
 // A pipeline can be reused after calling Discard.
 func (dp *DMapPipeline) Discard() error {
 	select {
-	case <-dp.ctx.Done():
+	case <-dp.closedCtx.Done():
 		return ErrPipelineClosed
 	default:
 	}
 
-	dp.cancel()
+	dp.closedCancel()
 
 	dp.mtx.Lock()
 	defer dp.mtx.Unlock()
@@ -475,14 +571,15 @@ func (dp *DMapPipeline) Discard() error {
 		delete(dp.result, k)
 	}
 
-	dp.ctx, dp.cancel = context.WithCancel(context.Background())
+	dp.initContexts()
+
 	return nil
 }
 
 // Close closes the pipeline and frees the allocated resources. You shouldn't try to
 // reuse a closed pipeline.
 func (dp *DMapPipeline) Close() {
-	dp.cancel()
+	dp.closedCancel()
 }
 
 // Pipeline is a mechanism to realise Redis Pipeline technique.
@@ -497,13 +594,10 @@ func (dp *DMapPipeline) Close() {
 // Redis client has retransmission logic in case of timeouts, pipeline
 // can be retransmitted and commands can be executed more than once.
 func (dm *ClusterDMap) Pipeline(opts ...PipelineOption) (*DMapPipeline, error) {
-	ctx, cancel := context.WithCancel(context.Background())
 	dp := &DMapPipeline{
 		dm:       dm,
 		commands: make(map[uint64][]redis.Cmder),
 		result:   make(map[uint64][]redis.Cmder),
-		ctx:      ctx,
-		cancel:   cancel,
 
 		concurrency: runtime.NumCPU(),
 	}
@@ -512,7 +606,17 @@ func (dm *ClusterDMap) Pipeline(opts ...PipelineOption) (*DMapPipeline, error) {
 		opt(dp)
 	}
 
+	dp.initContexts()
+
 	return dp, nil
+}
+
+// initContexts sets up chained contexts for the pipeline. The base is closedCtx, which is closed either in
+// Close or Discard. ctx is a child of closedCtx, as we want to cancel the pipeline if it is closed. It is
+// canceled in Exec, and used to block FutureXXX.Result() calls until Exec has completed.
+func (dp *DMapPipeline) initContexts() {
+	dp.closedCtx, dp.closedCancel = context.WithCancel(context.Background())
+	dp.ctx, dp.cancel = context.WithCancel(dp.closedCtx)
 }
 
 // This stores a slice of commands for each partition. There is a possibility that a single
