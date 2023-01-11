@@ -385,6 +385,9 @@ func (dp *DMapPipeline) execOnPartition(ctx context.Context, partID uint64) erro
 	if err != nil {
 		return err
 	}
+	// There is no need to protect dp.commands map and its content.
+	// It's already filled before running Exec, and it's now a read-only
+	// data structure
 	commands := dp.commands[partID]
 	pipe := rc.Pipeline()
 
@@ -398,7 +401,9 @@ func (dp *DMapPipeline) execOnPartition(ctx context.Context, partID uint64) erro
 	// Exec always returns list of commands and error of the first failed
 	// command if any.
 	result, _ := pipe.Exec(ctx)
+	dp.mtx.Lock()
 	dp.result[partID] = result
+	dp.mtx.Unlock()
 	return nil
 }
 
@@ -409,9 +414,6 @@ func (dp *DMapPipeline) Exec(ctx context.Context) error {
 		return ErrPipelineClosed
 	default:
 	}
-
-	dp.mtx.Lock()
-	defer dp.mtx.Unlock()
 
 	defer dp.cancel()
 
