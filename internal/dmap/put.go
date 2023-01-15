@@ -214,10 +214,17 @@ func (dm *DMap) setLRUEvictionStats(e *env) error {
 	// But I think that it's good to use only one of time in a production system.
 	// Because it should be easy to understand and debug.
 	st := e.fragment.storage.Stats()
+
 	// This works for every request if you enabled LRU.
 	// But loading a number from memory should be very cheap.
 	// ownedPartitionCount changes in the case of node join or leave.
 	ownedPartitionCount := dm.s.rt.OwnedPartitionCount()
+	if ownedPartitionCount == 0 {
+		// Routing table is an eventually consistent data structure. In order to prevent a panic in prod,
+		// check the owned partition count before doing math.
+		return nil
+	}
+
 	if dm.config.maxKeys > 0 {
 		// MaxKeys controls maximum key count owned by this node.
 		// We need ownedPartitionCount property because every partition
