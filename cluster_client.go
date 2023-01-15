@@ -44,6 +44,10 @@ import (
 
 var pool = bufpool.New()
 
+// DefaultRoutingTableFetchInterval is the default value of RoutingTableFetchInterval. ClusterClient implementation
+// fetches the routing table from the cluster to route requests to the right partition.
+const DefaultRoutingTableFetchInterval = time.Minute
+
 type ClusterLockContext struct {
 	key   string
 	token string
@@ -55,7 +59,6 @@ type ClusterDMap struct {
 	name          string
 	newEntry      func() storage.Entry
 	config        *dmapConfig
-	engine        storage.Entry
 	client        *server.Client
 	clusterClient *ClusterClient
 }
@@ -620,7 +623,6 @@ func (cl *ClusterClient) RefreshMetadata(ctx context.Context) error {
 	for {
 		members, err = cl.Members(ctx)
 		if errors.Is(err, ErrConnRefused) {
-			err = nil
 			continue
 		}
 		if err != nil {
@@ -695,9 +697,10 @@ func (cl *ClusterClient) NewDMap(name string, options ...DMapOption) (DMap, erro
 type ClusterClientOption func(c *clusterClientConfig)
 
 type clusterClientConfig struct {
-	logger *log.Logger
-	config *config.Client
-	hasher hasher.Hasher
+	logger                    *log.Logger
+	config                    *config.Client
+	hasher                    hasher.Hasher
+	routingTableFetchInterval time.Duration
 }
 
 func WithHasher(h hasher.Hasher) ClusterClientOption {
@@ -715,6 +718,14 @@ func WithLogger(l *log.Logger) ClusterClientOption {
 func WithConfig(c *config.Client) ClusterClientOption {
 	return func(cfg *clusterClientConfig) {
 		cfg.config = c
+	}
+}
+
+// WithRoutingTableFetchInterval is used to set a custom value to routingTableFetchInterval. ClusterClient implementation
+// retrieves the routing table from the cluster to route requests to the partition owners.
+func WithRoutingTableFetchInterval(interval time.Duration) ClusterClientOption {
+	return func(cfg *clusterClientConfig) {
+		cfg.routingTableFetchInterval = interval
 	}
 }
 
@@ -739,7 +750,7 @@ func (cl *ClusterClient) fetchRoutingTable() error {
 func (cl *ClusterClient) fetchRoutingTablePeriodically() {
 	defer cl.wg.Done()
 
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(cl.config.routingTableFetchInterval)
 	defer ticker.Stop()
 
 	for {
@@ -755,6 +766,7 @@ func (cl *ClusterClient) fetchRoutingTablePeriodically() {
 	}
 }
 
+// NewClusterClient creates a new Client instance. It needs one node address at least to discover the whole cluster.
 func NewClusterClient(addresses []string, options ...ClusterClientOption) (*ClusterClient, error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("addresses cannot be empty")
@@ -775,6 +787,10 @@ func NewClusterClient(addresses []string, options ...ClusterClientOption) (*Clus
 
 	if cc.config == nil {
 		cc.config = config.NewClient()
+	}
+
+	if cc.routingTableFetchInterval <= 0 {
+		cc.routingTableFetchInterval = DefaultRoutingTableFetchInterval
 	}
 
 	if err := cc.config.Sanitize(); err != nil {

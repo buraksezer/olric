@@ -17,6 +17,7 @@ package olric
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/buraksezer/olric/internal/discovery"
@@ -53,12 +54,42 @@ type EmbeddedClient struct {
 
 // EmbeddedDMap is an DMap client implementation for embedded-member scenario.
 type EmbeddedDMap struct {
+	mtx           sync.RWMutex
+	clusterClient *ClusterClient
 	config        *dmapConfig
 	member        discovery.Member
 	dm            *dmap.DMap
 	client        *EmbeddedClient
 	name          string
-	storageEngine string
+}
+
+func (dm *EmbeddedDMap) setOrGetClusterClient() (Client, error) {
+	// Acquire the read lock and try to access the cluster client, if any.
+	dm.mtx.RLock()
+	if dm.clusterClient != nil {
+		dm.mtx.RUnlock()
+		return dm.clusterClient, nil
+	}
+	dm.mtx.RUnlock()
+
+	// The cluster client is unset, try to create a new one.
+	dm.mtx.Lock()
+	defer dm.mtx.Unlock()
+
+	// Check the existing value last time. There can be another running instances
+	// of this function.
+	if dm.clusterClient != nil {
+		return dm.clusterClient, nil
+	}
+
+	// Create a new cluster client here.
+	c, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
+	if err != nil {
+		return nil, err
+	}
+	dm.clusterClient = c
+
+	return dm.clusterClient, nil
 }
 
 // Pipeline is a mechanism to realise Redis Pipeline technique.
@@ -73,15 +104,16 @@ type EmbeddedDMap struct {
 // Redis client has retransmission logic in case of timeouts, pipeline
 // can be retransmitted and commands can be executed more than once.
 func (dm *EmbeddedDMap) Pipeline(opts ...PipelineOption) (*DMapPipeline, error) {
-	cc, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
+	cc, err := dm.setOrGetClusterClient()
 	if err != nil {
 		return nil, err
 	}
-	cdm, err := cc.NewDMap(dm.name)
+
+	clusterDMap, err := cc.NewDMap(dm.name)
 	if err != nil {
 		return nil, err
 	}
-	return cdm.Pipeline(opts...)
+	return clusterDMap.Pipeline(opts...)
 }
 
 // RefreshMetadata fetches a list of available members and the latest routing

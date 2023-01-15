@@ -465,3 +465,64 @@ func TestDMapPipeline_ErrNotReady(t *testing.T) {
 		require.ErrorIs(t, ErrNotReady, err)
 	})
 }
+
+func TestDMapPipeline_EmbeddedClient(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c := db.NewEmbeddedClient()
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	futures := make(map[int]*FuturePut)
+	pipe, err := dm.Pipeline()
+	require.NoError(t, err)
+	defer pipe.Close()
+
+	for i := 0; i < 100; i++ {
+		fp, err := pipe.Put(ctx, testutil.ToKey(i), testutil.ToVal(i))
+		require.NoError(t, err)
+		futures[i] = fp
+	}
+	err = pipe.Exec(ctx)
+	require.NoError(t, err)
+
+	for _, fp := range futures {
+		require.NoError(t, fp.Result())
+	}
+
+	for i := 0; i < 100; i++ {
+		key := testutil.ToKey(i)
+		gr, err := dm.Get(ctx, key)
+		require.NoError(t, err)
+
+		value, err := gr.Byte()
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), value)
+	}
+}
+
+func TestDMapPipeline_setOrGetClusterClient(t *testing.T) {
+	cluster := newTestOlricCluster(t)
+	db := cluster.addMember(t)
+
+	ctx := context.Background()
+	c := db.NewEmbeddedClient()
+	defer func() {
+		require.NoError(t, c.Close(ctx))
+	}()
+
+	dm, err := c.NewDMap("mydmap")
+	require.NoError(t, err)
+
+	pipeOne, err := dm.Pipeline()
+	require.NoError(t, err)
+	defer pipeOne.Close()
+
+	require.NotNil(t, dm.(*EmbeddedDMap).clusterClient)
+}
