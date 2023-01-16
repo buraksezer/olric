@@ -54,7 +54,7 @@ type EmbeddedClient struct {
 
 // EmbeddedDMap is an DMap client implementation for embedded-member scenario.
 type EmbeddedDMap struct {
-	mtx           sync.RWMutex
+	clientOnce    sync.Once
 	clusterClient *ClusterClient
 	config        *dmapConfig
 	member        discovery.Member
@@ -64,32 +64,13 @@ type EmbeddedDMap struct {
 }
 
 func (dm *EmbeddedDMap) setOrGetClusterClient() (Client, error) {
-	// Acquire the read lock and try to access the cluster client, if any.
-	dm.mtx.RLock()
-	if dm.clusterClient != nil {
-		dm.mtx.RUnlock()
-		return dm.clusterClient, nil
-	}
-	dm.mtx.RUnlock()
+	var err error
+	dm.clientOnce.Do(func() {
+		// Create a new cluster client here.
+		dm.clusterClient, err = NewClusterClient([]string{dm.client.db.rt.This().String()})
+	})
 
-	// The cluster client is unset, try to create a new one.
-	dm.mtx.Lock()
-	defer dm.mtx.Unlock()
-
-	// Check the existing value last time. There can be another running instances
-	// of this function.
-	if dm.clusterClient != nil {
-		return dm.clusterClient, nil
-	}
-
-	// Create a new cluster client here.
-	c, err := NewClusterClient([]string{dm.client.db.rt.This().String()})
-	if err != nil {
-		return nil, err
-	}
-	dm.clusterClient = c
-
-	return dm.clusterClient, nil
+	return dm.clusterClient, err
 }
 
 // Pipeline is a mechanism to realise Redis Pipeline technique.
