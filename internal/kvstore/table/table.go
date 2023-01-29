@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/RoaringBitmap/roaring/roaring64"
@@ -53,16 +54,17 @@ type Stats struct {
 }
 
 type Table struct {
-	coefficient uint64
-	offset      uint64
-	allocated   uint64
-	inuse       uint64
-	garbage     uint64
-	recycledAt  int64
-	state       State
-	hkeys       map[uint64]uint64
-	offsetIndex *roaring64.Bitmap
-	memory      []byte
+	lastAccessMtx sync.RWMutex
+	coefficient   uint64
+	offset        uint64
+	allocated     uint64
+	inuse         uint64
+	garbage       uint64
+	recycledAt    int64
+	state         State
+	hkeys         map[uint64]uint64
+	offsetIndex   *roaring64.Bitmap
+	memory        []byte
 }
 
 func New(size uint64) *Table {
@@ -269,10 +271,16 @@ func (t *Table) get(offset uint64) storage.Entry {
 	e.SetTimestamp(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
 	offset += 8
 
+	// Every SCAN call updates the last access time. We have to serialize the access to that field.
+	t.lastAccessMtx.RLock()
 	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	t.lastAccessMtx.RUnlock()
 
 	// Update the last access field
-	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
+	lastAccess := uint64(time.Now().UnixNano())
+	t.lastAccessMtx.Lock()
+	binary.BigEndian.PutUint64(t.memory[offset:], lastAccess)
+	t.lastAccessMtx.Unlock()
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
@@ -303,10 +311,17 @@ func (t *Table) Get(hkey uint64) (storage.Entry, error) {
 	e.SetTimestamp(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
 	offset += 8
 
+	// Every GET call updates the last access time. We have to serialize the access to that field.
+	t.lastAccessMtx.RLock()
 	e.SetLastAccess(int64(binary.BigEndian.Uint64(t.memory[offset : offset+8])))
+	t.lastAccessMtx.RUnlock()
 
 	// Update the last access field
-	binary.BigEndian.PutUint64(t.memory[offset:], uint64(time.Now().UnixNano()))
+	lastAccess := uint64(time.Now().UnixNano())
+	t.lastAccessMtx.Lock()
+	binary.BigEndian.PutUint64(t.memory[offset:], lastAccess)
+	t.lastAccessMtx.Unlock()
+
 	offset += 8
 
 	vlen := binary.BigEndian.Uint32(t.memory[offset : offset+4])
