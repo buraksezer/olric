@@ -333,10 +333,23 @@ func (dm *DMap) Get(ctx context.Context, key string) (storage.Entry, error) {
 		return entry, nil
 	}
 
+	nearCacheEntry, err := dm.nearCache.Get(hkey)
+	if err == storage.ErrKeyNotFound {
+		err = nil
+	}
+	if err != nil {
+		dm.s.log.V(3).Printf("[ERROR] NearCache GET failed: %v", err)
+	} else {
+		if nearCacheEntry != nil {
+			dm.s.log.V(3).Printf("[ERROR] Served from NearCache: %s", key)
+			return nearCacheEntry, nil
+		}
+	}
+
 	// Redirect to the partition owner
 	cmd := protocol.NewGet(dm.name, key).SetRaw().Command(dm.s.ctx)
 	rc := dm.s.client.Get(member.String())
-	err := rc.Process(ctx, cmd)
+	err = rc.Process(ctx, cmd)
 	if err != nil {
 		return nil, protocol.ConvertError(err)
 	}
@@ -351,5 +364,11 @@ func (dm *DMap) Get(ctx context.Context, key string) (storage.Entry, error) {
 
 	entry := dm.engine.NewEntry()
 	entry.Decode(value)
+
+	err = dm.nearCache.Put(hkey, entry)
+	if err != nil {
+		dm.s.log.V(3).Printf("[ERROR] NearCache PUT failed: %v", err)
+	}
+
 	return entry, nil
 }

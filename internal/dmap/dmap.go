@@ -17,6 +17,7 @@ package dmap
 import (
 	"errors"
 	"fmt"
+	"github.com/buraksezer/olric/internal/kvstore"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -38,6 +39,7 @@ type DMap struct {
 	fragmentName string
 	s            *Service
 	engine       storage.Engine
+	nearCache    storage.Engine
 	config       *dmapConfig
 }
 
@@ -87,11 +89,17 @@ func (s *Service) NewDMap(name string) (*DMap, error) {
 		return dm, nil
 	}
 
+	nearCache, err := kvstore.New(kvstore.DefaultConfig())
+	if err != nil {
+		return nil, err
+	}
+
 	dm = &DMap{
 		config:       &dmapConfig{},
 		name:         name,
 		fragmentName: s.fragmentName(name),
 		s:            s,
+		nearCache:    nearCache,
 	}
 	if err := dm.config.load(s.config.DMaps, name); err != nil {
 		return nil, err

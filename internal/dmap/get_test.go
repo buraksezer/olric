@@ -232,3 +232,36 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 		require.Equal(t, testutil.ToVal(i), gr.Value())
 	}
 }
+
+func TestDMap_Get_NearCache(t *testing.T) {
+	cluster := testcluster.New(NewService)
+	s1 := cluster.AddMember(nil).(*Service)
+	s2 := cluster.AddMember(nil).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	// Call DMap.Put on S1
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
+		require.NoError(t, err)
+
+	}
+
+	// Call DMap.Get on S2
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		res, err := dm2.Get(ctx, testutil.ToKey(i))
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), res.Value())
+	}
+
+	// Call DMap.Get on S2
+	for i := 0; i < 10; i++ {
+		res, err := dm2.Get(ctx, testutil.ToKey(i))
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), res.Value())
+	}
+}
