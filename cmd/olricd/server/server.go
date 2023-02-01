@@ -37,9 +37,14 @@ type Olricd struct {
 
 // New creates a new Server instance
 func New(c *config.Config) (*Olricd, error) {
+	db, err := olric.New(c)
+	if err != nil {
+		return nil, err
+	}
 	return &Olricd{
 		config: c,
 		log:    c.Logger,
+		db:     db,
 	}, nil
 }
 
@@ -82,12 +87,6 @@ func (s *Olricd) Start() error {
 	s.log.Printf("[INFO] pid: %d has been started", os.Getpid())
 	// Wait for SIGTERM or SIGINT
 	go s.waitForInterrupt()
-
-	db, err := olric.New(s.config)
-	if err != nil {
-		return err
-	}
-	s.db = db
 
 	s.errGr.Go(func() error {
 		return s.db.Start()
