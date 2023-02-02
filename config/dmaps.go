@@ -74,6 +74,8 @@ type DMaps struct {
 	// different values per DMap.
 	TriggerCompactionInterval time.Duration
 
+	NearCache *NearCache
+
 	// Custom is useful to set custom cache config per DMap instance.
 	Custom map[string]DMap
 }
@@ -126,12 +128,23 @@ func (dm *DMaps) Sanitize() error {
 		return fmt.Errorf("failed to sanitize storage engine configuration: %w", err)
 	}
 
+	if dm.NearCache != nil {
+		if err := dm.NearCache.Sanitize(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (dm *DMaps) Validate() error {
 	if err := dm.Engine.Validate(); err != nil {
 		return fmt.Errorf("failed to validate storage engine configuration: %w", err)
+	}
+
+	if dm.NearCache != nil {
+		if err := dm.NearCache.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

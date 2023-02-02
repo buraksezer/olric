@@ -83,6 +83,13 @@ memberlist:
   udpBufferSize: 1400
 
 dmaps:
+  nearCache:
+    maxIdleDuration: 100s
+    ttlDuration: 200s
+    maxKeys: 300000
+    maxInuse: 2000000
+    lruSamples: 20
+    evictionPolicy: "LRU"
   engine:
     name: kvstore
     config:
@@ -198,6 +205,14 @@ func TestConfig(t *testing.T) {
 	c.DMaps.EvictionPolicy = LRUEviction
 	c.DMaps.Engine.Name = DefaultStorageEngine
 	c.DMaps.Engine.Config = map[string]interface{}{"tableSize": 202134}
+
+	c.DMaps.NearCache = &NearCache{}
+	c.DMaps.NearCache.TTLDuration = 200 * time.Second
+	c.DMaps.NearCache.MaxIdleDuration = 100 * time.Second
+	c.DMaps.NearCache.MaxKeys = 300000
+	c.DMaps.NearCache.MaxInuse = 2000000
+	c.DMaps.NearCache.LRUSamples = 20
+	c.DMaps.NearCache.EvictionPolicy = LRUEviction
 
 	c.DMaps.Custom = map[string]DMap{"foobar": {
 		MaxIdleDuration: 30 * time.Second,

@@ -64,6 +64,8 @@ type DMap struct {
 	// EvictionPolicy determines the eviction policy in use. It's NONE by default.
 	// Set as LRU to enable LRU eviction policy.
 	EvictionPolicy EvictionPolicy
+
+	NearCache *NearCache
 }
 
 // Sanitize sets default values to empty configuration variables, if it's possible.

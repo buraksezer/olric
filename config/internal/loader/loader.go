@@ -107,6 +107,15 @@ type dmap struct {
 	EvictionPolicy  string  `yaml:"evictionPolicy"`
 }
 
+type nearCache struct {
+	MaxIdleDuration string `yaml:"maxIdleDuration"`
+	TTLDuration     string `yaml:"ttlDuration"`
+	MaxKeys         int    `yaml:"maxKeys"`
+	MaxInuse        int    `yaml:"maxInuse"`
+	LRUSamples      int    `yaml:"lruSamples"`
+	EvictionPolicy  string `yaml:"evictionPolicy"`
+}
+
 type dmaps struct {
 	Engine                      *engine         `yaml:"engine"`
 	NumEvictionWorkers          int64           `yaml:"numEvictionWorkers"`
@@ -119,6 +128,7 @@ type dmaps struct {
 	CheckEmptyFragmentsInterval string          `yaml:"checkEmptyFragmentsInterval"`
 	TriggerCompactionInterval   string          `yaml:"triggerCompactionInterval"`
 	Custom                      map[string]dmap `yaml:"custom"`
+	NearCache                   *nearCache      `yaml:"nearCache"`
 }
 
 type serviceDiscovery map[string]interface{}

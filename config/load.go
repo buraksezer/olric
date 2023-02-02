@@ -138,6 +138,43 @@ func loadDMapConfig(c *loader.Loader) (*DMaps, error) {
 			res.Custom[name] = cc
 		}
 	}
+
+	nearCache, err := loadNearCacheConfig(c)
+	if err != nil {
+		return nil, errors.WithMessage(err, "")
+	}
+	res.NearCache = nearCache
+
+	return res, nil
+}
+
+func loadNearCacheConfig(c *loader.Loader) (*NearCache, error) {
+	if c.DMaps.NearCache == nil {
+		return nil, nil
+	}
+
+	res := &NearCache{}
+	if c.DMaps.NearCache.MaxIdleDuration != "" {
+		maxIdleDuration, err := time.ParseDuration(c.DMaps.NearCache.MaxIdleDuration)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse nearCache.MaxIdleDuration")
+		}
+		res.MaxIdleDuration = maxIdleDuration
+	}
+
+	if c.DMaps.NearCache.TTLDuration != "" {
+		ttlDuration, err := time.ParseDuration(c.DMaps.NearCache.TTLDuration)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to parse nearCache.TTLDuration")
+		}
+		res.TTLDuration = ttlDuration
+	}
+
+	res.MaxKeys = c.DMaps.NearCache.MaxKeys
+	res.MaxInuse = c.DMaps.NearCache.MaxInuse
+	res.LRUSamples = c.DMaps.NearCache.LRUSamples
+	res.EvictionPolicy = EvictionPolicy(c.DMaps.NearCache.EvictionPolicy)
+
 	return res, nil
 }
 
