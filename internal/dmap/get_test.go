@@ -16,11 +16,13 @@ package dmap
 
 import (
 	"context"
+	"github.com/buraksezer/olric/config"
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 func TestDMap_Get_Standalone(t *testing.T) {
@@ -230,5 +232,50 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 		gr, err := dm2.Get(ctx, testutil.ToKey(i))
 		require.NoError(t, err)
 		require.Equal(t, testutil.ToVal(i), gr.Value())
+	}
+}
+
+func TestDMap_Get_NearCache(t *testing.T) {
+	cluster := testcluster.New(NewService)
+
+	c1 := testutil.NewConfig()
+	c1.DMaps.NearCache = &config.NearCache{
+		TTLDuration: time.Second,
+	}
+	e1 := testcluster.NewEnvironment(c1)
+
+	c2 := testutil.NewConfig()
+	c2.DMaps.NearCache = &config.NearCache{
+		TTLDuration: time.Second,
+	}
+	e2 := testcluster.NewEnvironment(c2)
+
+	s1 := cluster.AddMember(e1).(*Service)
+	s2 := cluster.AddMember(e2).(*Service)
+	defer cluster.Shutdown()
+
+	ctx := context.Background()
+	// Call DMap.Put on S1
+	dm1, err := s1.NewDMap("mydmap")
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		err = dm1.Put(ctx, testutil.ToKey(i), testutil.ToVal(i), nil)
+		require.NoError(t, err)
+
+	}
+
+	// Call DMap.Get on S2
+	dm2, err := s2.NewDMap("mydmap")
+	require.NoError(t, err)
+	for i := 0; i < 10; i++ {
+		res, err := dm2.Get(ctx, testutil.ToKey(i))
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), res.Value())
+	}
+
+	for i := 0; i < 10; i++ {
+		res, err := dm2.Get(ctx, testutil.ToKey(i))
+		require.NoError(t, err)
+		require.Equal(t, testutil.ToVal(i), res.Value())
 	}
 }

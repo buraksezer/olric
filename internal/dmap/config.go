@@ -30,6 +30,7 @@ type dmapConfig struct {
 	maxInuse        int
 	lruSamples      int
 	evictionPolicy  config.EvictionPolicy
+	nearCache       *config.NearCache
 }
 
 func (c *dmapConfig) load(dc *config.DMaps, name string) error {
@@ -41,6 +42,7 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 	c.lruSamples = dc.LRUSamples
 	c.evictionPolicy = dc.EvictionPolicy
 	c.engine = dc.Engine
+	c.nearCache = dc.NearCache
 
 	if dc.Custom != nil {
 		// config.DMap struct can be used for fine-grained control.
@@ -69,6 +71,9 @@ func (c *dmapConfig) load(dc *config.DMaps, name string) error {
 			}
 			if c.engine == nil {
 				c.engine = cs.Engine
+			}
+			if cs.NearCache != nil {
+				c.nearCache = cs.NearCache
 			}
 		}
 	}
