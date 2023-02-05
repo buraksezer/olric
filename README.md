@@ -22,7 +22,7 @@ See [Docker](#docker) and [Samples](#samples) sections to get started!
 
 Join our [Discord server!](https://discord.gg/ahK7Vjr8We)
 
-The current production version is [v0.5.0](https://github.com/buraksezer/olric/tree/release/v0.5.0#olric-)
+The current production version is [v0.5.4](https://github.com/buraksezer/olric/tree/release/v0.5.0#olric-)
 
 ### About versions
 
@@ -45,7 +45,7 @@ This document only covers `v0.5.x` and later. See v0.4.x documents [here](https:
 * Supports replication by default (with sync and async options),
 * Quorum-based voting for replica control (Read/Write quorums),
 * Supports atomic operations,
-* Implements an iterator on distributed maps,
+* Provides an iterator on distributed maps,
 * Provides a plugin interface for service discovery daemons,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode),
 
@@ -152,7 +152,7 @@ It's good at distributed caching and publish/subscribe messaging.
 * Supports replication by default (with sync and async options),
 * Quorum-based voting for replica control,
 * Thread-safe by default,
-* Supports [distributed queries](#query) on keys,
+* Provides an iterator on distributed maps,
 * Provides a plugin interface for service discovery daemons and cloud providers,
 * Provides a locking primitive which inspired by [SETNX of Redis](https://redis.io/commands/setnx#design-pattern-locking-with-codesetnxcode),
 * Provides a drop-in replacement of Redis' Publish-Subscribe messaging feature.
@@ -174,7 +174,7 @@ You also feel free to open an issue on GitHub to report bugs and share feature r
 With a correctly configured Golang environment:
 
 ```
-go install github.com/buraksezer/olric/cmd/olricd@v0.5.0
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.4
 ```
 
 Now you can start using Olric:
@@ -190,7 +190,7 @@ See [Configuration](#configuration) section to create your cluster properly.
 You can launch `olricd` Docker container by running the following command. 
 
 ```bash
-docker run -p 3320:3320 olricio/olricd:v0.5.0
+docker run -p 3320:3320 olricio/olricd:v0.5.4
 ``` 
 
 This command will pull olricd Docker image and run a new Olric Instance. You should know that the container exposes 
@@ -212,7 +212,7 @@ OK
 With olricd, you can create an Olric cluster with a few commands. This is how to install olricd:
 
 ```bash
-go install github.com/buraksezer/olric/cmd/olricd@v0.5.0
+go install github.com/buraksezer/olric/cmd/olricd@v0.5.4
 ```
 
 Let's create a cluster with the following:
@@ -281,7 +281,7 @@ this repository. `EmbeddedClient` provides a client implementation for [embedded
 Obviously, you can use `ClusterClient` for your embedded-member deployments. But it's good to use `EmbeddedClient` provides 
 a better performance due to localization of the queries.
 
-See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.0)
+See the client documentation on [pkg.go.dev](https://pkg.go.dev/github.com/buraksezer/olric@v0.5.4)
 
 ## Cluster Events
 
