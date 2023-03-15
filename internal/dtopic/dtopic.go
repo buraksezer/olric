@@ -53,9 +53,9 @@ type Message struct {
 
 // DTopic implements a distributed topic to deliver messages between clients and Olric nodes. You should know that:
 //
-//  * Communication between parties is one-to-many (fan-out).
-//  * All data is in-memory, and the published messages are not stored in the cluster.
-//  * Fire&Forget: message delivery is not guaranteed.
+//   - Communication between parties is one-to-many (fan-out).
+//   - All data is in-memory, and the published messages are not stored in the cluster.
+//   - Fire&Forget: message delivery is not guaranteed.
 type DTopic struct {
 	name        string
 	flag        int16
@@ -65,12 +65,13 @@ type DTopic struct {
 
 // NewDTopic returns a new distributed topic instance.
 // Parameters:
-//   * name: DTopic name.
-//   * concurrency: Maximum number of concurrently processing DTopic messages.
-//   * flag: Any flag to control DTopic behaviour.
+//   - name: DTopic name.
+//   - concurrency: Maximum number of concurrently processing DTopic messages.
+//   - flag: Any flag to control DTopic behaviour.
+//
 // Flags for delivery options:
-//   * UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
-//   * OrderedDelivery: Messages are delivered in order. Not implemented yet.
+//   - UnorderedDelivery: Messages are delivered in random order. It's good to distribute independent events in a distributed system.
+//   - OrderedDelivery: Messages are delivered in order. Not implemented yet.
 func (s *Service) NewDTopic(name string, concurrency int, flag int16) (*DTopic, error) {
 	s.Lock()
 	defer s.Unlock()
@@ -135,7 +136,7 @@ func (d *DTopic) AddListener(f func(Message)) (uint64, error) {
 // RemoveListener removes a listener with the given listenerID.
 func (d *DTopic) RemoveListener(listenerID uint64) error {
 	CurrentListeners.Decrease(1)
-	return d.s.dispatcher.removeListener(d.name, listenerID)
+	return d.s.removeListenerOnCluster(d.name, listenerID)
 }
 
 // Destroy removes all listeners for this topic on the cluster. If Publish function is called again after Destroy, the topic will be

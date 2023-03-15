@@ -53,6 +53,36 @@ func (s *Service) destroyDTopicOnCluster(topic string) error {
 	return g.Wait()
 }
 
+func (s *Service) removeListenerOnCluster(topic string, listenerID uint64) error {
+	s.rt.Members().RLock()
+	defer s.rt.Members().RUnlock()
+
+	var g errgroup.Group
+	s.rt.Members().Range(func(_ uint64, m discovery.Member) bool {
+		member := m // https://golang.org/doc/faq#closures_and_goroutines
+		g.Go(func() error {
+			if !s.isAlive() {
+				return ErrServerGone
+			}
+			// Remove it from the server.
+			req := protocol.NewDTopicMessage(protocol.OpDTopicRemoveListener)
+			req.SetDTopic(topic)
+			req.SetExtra(protocol.DTopicRemoveListenerExtra{
+				ListenerID: listenerID,
+			})
+			_, err := s.requestTo(member.String(), req)
+			if err != nil {
+				s.log.V(2).Printf("[ERROR] Failed to call Destroy on %s, topic: %s : %v", member, topic, err)
+				return err
+			}
+			return nil
+		})
+		return true
+	})
+
+	return g.Wait()
+}
+
 func (s *Service) dtopicDestroyOperation(w, r protocol.EncodeDecoder) {
 	req := r.(*protocol.DTopicMessage)
 	err := s.destroyDTopicOnCluster(req.DTopic())
