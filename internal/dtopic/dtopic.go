@@ -135,7 +135,6 @@ func (d *DTopic) AddListener(f func(Message)) (uint64, error) {
 
 // RemoveListener removes a listener with the given listenerID.
 func (d *DTopic) RemoveListener(listenerID uint64) error {
-	CurrentListeners.Decrease(1)
 	return d.s.removeListenerOnCluster(d.name, listenerID)
 }
 
