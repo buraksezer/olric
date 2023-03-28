@@ -72,6 +72,12 @@ func (c *Client) Get(addr string) *redis.Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Need to check again, because another goroutine may have updated clients
+	// between our calls to RUnlock and Lock.
+	if rc, ok = c.clients[addr]; ok {
+		return rc
+	}
+
 	opt := c.config.RedisOptions()
 	opt.Addr = addr
 	rc = redis.NewClient(opt)
