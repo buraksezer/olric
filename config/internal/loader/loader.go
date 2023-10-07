@@ -27,6 +27,7 @@ type olricd struct {
 	KeepAlivePeriod            string  `yaml:"keepAlivePeriod"`
 	IdleClose                  string  `yaml:"idleClose"`
 	BootstrapTimeout           string  `yaml:"bootstrapTimeout"`
+	ShutdownTimeout            string  `yaml:"shutdownTimeout"`
 	ReplicaCount               int     `yaml:"replicaCount"`
 	WriteQuorum                int     `yaml:"writeQuorum"`
 	ReadQuorum                 int     `yaml:"readQuorum"`

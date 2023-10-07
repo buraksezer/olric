@@ -109,6 +109,9 @@ const (
 	// status.
 	DefaultBootstrapTimeout = 10 * time.Second
 
+	// DefaultShutdownTimeout denotes default timeout value to shutdown.
+	DefaultShutdownTimetout = 60 * time.Second
+
 	// DefaultJoinRetryInterval denotes a time gap between sequential join attempts.
 	DefaultJoinRetryInterval = time.Second
 
@@ -205,6 +208,10 @@ type Config struct {
 	// "operable" Olric node. BootstrapTimeout sets a deadline to check
 	// bootstrapping status without blocking indefinitely.
 	BootstrapTimeout time.Duration
+
+	// Timeout for shutdown
+	// If olric cannot gracefully exit for a long time, wait for a period of time and forcibly exit.
+	ShutdownTimeout time.Duration
 
 	// Coordinator member pushes the routing table to cluster members in the case of
 	// node join or left events. It also pushes the table periodically. RoutingTablePushInterval
@@ -452,6 +459,9 @@ func (c *Config) Sanitize() error {
 
 	if c.BootstrapTimeout == 0 {
 		c.BootstrapTimeout = DefaultBootstrapTimeout
+	}
+	if c.ShutdownTimeout == 0 {
+		c.ShutdownTimeout = DefaultShutdownTimetout
 	}
 	if c.JoinRetryInterval == 0 {
 		c.JoinRetryInterval = DefaultJoinRetryInterval

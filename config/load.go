@@ -302,6 +302,7 @@ func Load(filename string) (*Config, error) {
 		keepAlivePeriod,
 		idleClose,
 		bootstrapTimeout,
+		shutdownTimeout,
 		triggerBalancerInterval,
 		leaveTimeout,
 		routingTablePushInterval time.Duration
@@ -328,6 +329,13 @@ func Load(filename string) (*Config, error) {
 		if err != nil {
 			return nil, errors.WithMessage(err,
 				fmt.Sprintf("failed to parse olricd.bootstrapTimeout: '%s'", c.Olricd.BootstrapTimeout))
+		}
+	}
+	if c.Olricd.ShutdownTimeout != "" {
+		shutdownTimeout, err = time.ParseDuration(c.Olricd.ShutdownTimeout)
+		if err != nil {
+			return nil, errors.WithMessage(err,
+				fmt.Sprintf("failed to parse olricd.shutdownTimeout: '%s'", c.Olricd.ShutdownTimeout))
 		}
 	}
 	if c.Memberlist.JoinRetryInterval != "" {
@@ -403,6 +411,7 @@ func Load(filename string) (*Config, error) {
 		KeepAlivePeriod:            keepAlivePeriod,
 		IdleClose:                  idleClose,
 		BootstrapTimeout:           bootstrapTimeout,
+		ShutdownTimeout:            shutdownTimeout,
 		LeaveTimeout:               leaveTimeout,
 		DMaps:                      dmapConfig,
 	}

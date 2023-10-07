@@ -56,7 +56,7 @@ func (s *Olricd) waitForInterrupt() {
 
 	// Awaits for shutdown
 	s.errGr.Go(func() error {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), s.config.ShutdownTimeout)
 		defer cancel()
 
 		if err := s.db.Shutdown(ctx); err != nil {
