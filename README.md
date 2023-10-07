@@ -1245,94 +1245,95 @@ In this section, you can find code snippets for various scenarios.
 
 ### Embedded-member scenario
 #### Distributed map
+
 ```go
 package main
 
 import (
-  "context"
-  "fmt"
-  "log"
-  "time"
+	"context"
+	"fmt"
+	"log"
+	"time"
 
-  "github.com/buraksezer/olric"
-  "github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
 )
 
 func main() {
-  // Sample for Olric v0.5.x
+	// Sample for Olric v0.5.x
 
-  // Deployment scenario: embedded-member
-  // This creates a single-node Olric cluster. It's good enough for experimenting.
+	// Deployment scenario: embedded-member
+	// This creates a single-node Olric cluster. It's good enough for experimenting.
 
-  // config.New returns a new config.Config with sane defaults. Available values for env:
-  // local, lan, wan
-  c := config.New("local")
+	// config.New returns a new config.Config with sane defaults. Available values for env:
+	// local, lan, wan
+	c := config.New("local")
 
-  // Callback function. It's called when this node is ready to accept connections.
-  ctx, cancel := context.WithCancel(context.Background())
-  c.Started = func() {
-    defer cancel()
-    log.Println("[INFO] Olric is ready to accept connections")
-  }
+	// Callback function. It's called when this node is ready to accept connections.
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Started = func() {
+		defer cancel()
+		log.Println("[INFO] Olric is ready to accept connections")
+	}
 
-  // Create a new Olric instance.
-  db, err := olric.New(c)
-  if err != nil {
-    log.Fatalf("Failed to create Olric instance: %v", err)
-  }
+	// Create a new Olric instance.
+	db, err := olric.New(c)
+	if err != nil {
+		log.Fatalf("Failed to create Olric instance: %v", err)
+	}
 
-  // Start the instance. It will form a single-node cluster.
-  go func() {
-    // Call Start at background. It's a blocker call.
-    err = db.Start()
-    if err != nil {
-      log.Fatalf("olric.Start returned an error: %v", err)
-    }
-  }()
+	// Start the instance. It will form a single-node cluster.
+	go func() {
+		// Call Start at background. It's a blocker call.
+		err = db.Start()
+		if err != nil {
+			log.Fatalf("olric.Start returned an error: %v", err)
+		}
+	}()
 
-  <-ctx.Done()
+	<-ctx.Done()
 
-  // In embedded-member scenario, you can use the EmbeddedClient. It implements
-  // the Client interface.
-  e := db.NewEmbeddedClient()
+	// In embedded-member scenario, you can use the EmbeddedClient. It implements
+	// the Client interface.
+	e := db.NewEmbeddedClient()
 
-  dm, err := e.NewDMap("bucket-of-arbitrary-items")
-  if err != nil {
-    log.Fatalf("olric.NewDMap returned an error: %v", err)
-  }
+	dm, err := e.NewDMap("bucket-of-arbitrary-items")
+	if err != nil {
+		log.Fatalf("olric.NewDMap returned an error: %v", err)
+	}
 
-  ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel = context.WithCancel(context.Background())
 
-  // Magic starts here!
-  fmt.Println("##")
-  fmt.Println("Simple Put/Get on a DMap instance:")
-  err = dm.Put(ctx, "my-key", "Olric Rocks!")
-  if err != nil {
-    log.Fatalf("Failed to call Put: %v", err)
-  }
+	// Magic starts here!
+	fmt.Println("##")
+	fmt.Println("Simple Put/Get on a DMap instance:")
+	err = dm.Put(ctx, "my-key", "Olric Rocks!")
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
+	}
 
-  gr, err := dm.Get(ctx, "my-key")
-  if err != nil {
-    log.Fatalf("Failed to call Get: %v", err)
-  }
+	gr, err := dm.Get(ctx, "my-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
 
-  // Olric uses the Redis serialization format.
-  value, err := gr.String()
-  if err != nil {
-    log.Fatalf("Failed to read Get response: %v", err)
-  }
+	// Olric uses the Redis serialization format.
+	value, err := gr.String()
+	if err != nil {
+		log.Fatalf("Failed to read Get response: %v", err)
+	}
 
-  fmt.Println("Response for my-key:", value)
-  fmt.Println("##")
+	fmt.Println("Response for my-key:", value)
+	fmt.Println("##")
 
-  // Don't forget the call Shutdown when you want to leave the cluster.
-  ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-  defer cancel()
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-  err = db.Shutdown(ctx)
-  if err != nil {
-    log.Printf("Failed to shutdown Olric: %v", err)
-  }
+	err = db.Shutdown(ctx)
+	if err != nil {
+		log.Printf("Failed to shutdown Olric: %v", err)
+	}
 }
 ```
 
@@ -1342,88 +1343,88 @@ func main() {
 package main
 
 import (
-  "context"
-  "fmt"
-  "log"
-  "time"
+	"context"
+	"fmt"
+	"log"
+	"time"
 
-  "github.com/buraksezer/olric"
-  "github.com/buraksezer/olric/config"
+	"github.com/buraksezer/olric"
+	"github.com/buraksezer/olric/config"
 )
 
 func main() {
-  // Sample for Olric v0.5.x
+	// Sample for Olric v0.5.x
 
-  // Deployment scenario: embedded-member
-  // This creates a single-node Olric cluster. It's good enough for experimenting.
+	// Deployment scenario: embedded-member
+	// This creates a single-node Olric cluster. It's good enough for experimenting.
 
-  // config.New returns a new config.Config with sane defaults. Available values for env:
-  // local, lan, wan
-  c := config.New("local")
+	// config.New returns a new config.Config with sane defaults. Available values for env:
+	// local, lan, wan
+	c := config.New("local")
 
-  // Callback function. It's called when this node is ready to accept connections.
-  ctx, cancel := context.WithCancel(context.Background())
-  c.Started = func() {
-    defer cancel()
-    log.Println("[INFO] Olric is ready to accept connections")
-  }
+	// Callback function. It's called when this node is ready to accept connections.
+	ctx, cancel := context.WithCancel(context.Background())
+	c.Started = func() {
+		defer cancel()
+		log.Println("[INFO] Olric is ready to accept connections")
+	}
 
-  // Create a new Olric instance.
-  db, err := olric.New(c)
-  if err != nil {
-    log.Fatalf("Failed to create Olric instance: %v", err)
-  }
+	// Create a new Olric instance.
+	db, err := olric.New(c)
+	if err != nil {
+		log.Fatalf("Failed to create Olric instance: %v", err)
+	}
 
-  // Start the instance. It will form a single-node cluster.
-  go func() {
-    // Call Start at background. It's a blocker call.
-    err = db.Start()
-    if err != nil {
-      log.Fatalf("olric.Start returned an error: %v", err)
-    }
-  }()
+	// Start the instance. It will form a single-node cluster.
+	go func() {
+		// Call Start at background. It's a blocker call.
+		err = db.Start()
+		if err != nil {
+			log.Fatalf("olric.Start returned an error: %v", err)
+		}
+	}()
 
-  <-ctx.Done()
+	<-ctx.Done()
 
-  // In embedded-member scenario, you can use the EmbeddedClient. It implements
-  // the Client interface.
-  e := db.NewEmbeddedClient()
+	// In embedded-member scenario, you can use the EmbeddedClient. It implements
+	// the Client interface.
+	e := db.NewEmbeddedClient()
 
-  ps, err := e.NewPubSub()
-  if err != nil {
-    log.Fatalf("olric.NewPubSub returned an error: %v", err)
-  }
+	ps, err := e.NewPubSub()
+	if err != nil {
+		log.Fatalf("olric.NewPubSub returned an error: %v", err)
+	}
 
-  ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel = context.WithCancel(context.Background())
 
-  // Olric implements a drop-in replacement of Redis Publish-Subscribe messaging
-  // system. PubSub client is just a thin layer around go-redis/redis.
-  rps := ps.Subscribe(ctx, "my-channel")
+	// Olric implements a drop-in replacement of Redis Publish-Subscribe messaging
+	// system. PubSub client is just a thin layer around go-redis/redis.
+	rps := ps.Subscribe(ctx, "my-channel")
 
-  // Get a message to read messages from my-channel
-  msg := rps.Channel()
+	// Get a message to read messages from my-channel
+	msg := rps.Channel()
 
-  go func() {
-    // Publish a message here.
-    _, err := ps.Publish(ctx, "my-channel", "Olric Rocks!")
-    if err != nil {
-      log.Fatalf("PubSub.Publish returned an error: %v", err)
-    }
-  }()
+	go func() {
+		// Publish a message here.
+		_, err := ps.Publish(ctx, "my-channel", "Olric Rocks!")
+		if err != nil {
+			log.Fatalf("PubSub.Publish returned an error: %v", err)
+		}
+	}()
 
-  // Consume messages
-  rm := <-msg
+	// Consume messages
+	rm := <-msg
 
-  fmt.Printf("Received message: \"%s\" from \"%s\"", rm.Channel, rm.Payload)
+	fmt.Printf("Received message: \"%s\" from \"%s\"", rm.Channel, rm.Payload)
 
-  // Don't forget the call Shutdown when you want to leave the cluster.
-  ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-  defer cancel()
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-  err = e.Close(ctx)
-  if err != nil {
-    log.Printf("Failed to close EmbeddedClient: %v", err)
-  }
+	err = e.Close(ctx)
+	if err != nil {
+		log.Printf("Failed to close EmbeddedClient: %v", err)
+	}
 }
 ```
 
@@ -1434,66 +1435,66 @@ func main() {
 package main
 
 import (
-  "context"
-  "fmt"
-  "log"
-  "time"
+	"context"
+	"fmt"
+	"log"
+	"time"
 
-  "github.com/buraksezer/olric"
+	"github.com/buraksezer/olric"
 )
 
 func main() {
-  // Sample for Olric v0.5.x
+	// Sample for Olric v0.5.x
 
-  // Deployment scenario: client-server
+	// Deployment scenario: client-server
 
-  // NewClusterClient takes a list of the nodes. This list may only contain a
-  // load balancer address. Please note that Olric nodes will calculate the partition owner
-  // and proxy the incoming requests.
-  c, err := olric.NewClusterClient([]string{"localhost:3320"})
-  if err != nil {
-    log.Fatalf("olric.NewClusterClient returned an error: %v", err)
-  }
+	// NewClusterClient takes a list of the nodes. This list may only contain a
+	// load balancer address. Please note that Olric nodes will calculate the partition owner
+	// and proxy the incoming requests.
+	c, err := olric.NewClusterClient([]string{"localhost:3320"})
+	if err != nil {
+		log.Fatalf("olric.NewClusterClient returned an error: %v", err)
+	}
 
-  // In client-server scenario, you can use the ClusterClient. It implements
-  // the Client interface.
-  dm, err := c.NewDMap("bucket-of-arbitrary-items")
-  if err != nil {
-    log.Fatalf("olric.NewDMap returned an error: %v", err)
-  }
+	// In client-server scenario, you can use the ClusterClient. It implements
+	// the Client interface.
+	dm, err := c.NewDMap("bucket-of-arbitrary-items")
+	if err != nil {
+		log.Fatalf("olric.NewDMap returned an error: %v", err)
+	}
 
-  ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
-  // Magic starts here!
-  fmt.Println("##")
-  fmt.Println("Simple Put/Get on a DMap instance:")
-  err = dm.Put(ctx, "my-key", "Olric Rocks!")
-  if err != nil {
-    log.Fatalf("Failed to call Put: %v", err)
-  }
+	// Magic starts here!
+	fmt.Println("##")
+	fmt.Println("Simple Put/Get on a DMap instance:")
+	err = dm.Put(ctx, "my-key", "Olric Rocks!")
+	if err != nil {
+		log.Fatalf("Failed to call Put: %v", err)
+	}
 
-  gr, err := dm.Get(ctx, "my-key")
-  if err != nil {
-    log.Fatalf("Failed to call Get: %v", err)
-  }
+	gr, err := dm.Get(ctx, "my-key")
+	if err != nil {
+		log.Fatalf("Failed to call Get: %v", err)
+	}
 
-  // Olric uses the Redis serialization format.
-  value, err := gr.String()
-  if err != nil {
-    log.Fatalf("Failed to read Get response: %v", err)
-  }
+	// Olric uses the Redis serialization format.
+	value, err := gr.String()
+	if err != nil {
+		log.Fatalf("Failed to read Get response: %v", err)
+	}
 
-  fmt.Println("Response for my-key:", value)
-  fmt.Println("##")
+	fmt.Println("Response for my-key:", value)
+	fmt.Println("##")
 
-  // Don't forget the call Shutdown when you want to leave the cluster.
-  ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-  defer cancel()
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-  err = c.Close(ctx)
-  if err != nil {
-    log.Printf("Failed to close ClusterClient: %v", err)
-  }
+	err = c.Close(ctx)
+	if err != nil {
+		log.Printf("Failed to close ClusterClient: %v", err)
+	}
 }
 ```
 
@@ -1609,70 +1610,70 @@ func main() {
 ```
 
 #### Publish-Subscribe
+
 ```go
 package main
 
 import (
-  "context"
-  "fmt"
-  "log"
-  "time"
+	"context"
+	"fmt"
+	"log"
+	"time"
 
-  "github.com/buraksezer/olric"
+	"github.com/buraksezer/olric"
 )
 
 func main() {
-  // Sample for Olric v0.5.x
+	// Sample for Olric v0.5.x
 
-  // Deployment scenario: client-server
+	// Deployment scenario: client-server
 
-  // NewClusterClient takes a list of the nodes. This list may only contain a
-  // load balancer address. Please note that Olric nodes will calculate the partition owner
-  // and proxy the incoming requests.
-  c, err := olric.NewClusterClient([]string{"localhost:3320"})
-  if err != nil {
-    log.Fatalf("olric.NewClusterClient returned an error: %v", err)
-  }
+	// NewClusterClient takes a list of the nodes. This list may only contain a
+	// load balancer address. Please note that Olric nodes will calculate the partition owner
+	// and proxy the incoming requests.
+	c, err := olric.NewClusterClient([]string{"localhost:3320"})
+	if err != nil {
+		log.Fatalf("olric.NewClusterClient returned an error: %v", err)
+	}
 
-  // In client-server scenario, you can use the ClusterClient. It implements
-  // the Client interface.
-  ps, err := c.NewPubSub()
-  if err != nil {
-    log.Fatalf("olric.NewPubSub returned an error: %v", err)
-  }
+	// In client-server scenario, you can use the ClusterClient. It implements
+	// the Client interface.
+	ps, err := c.NewPubSub()
+	if err != nil {
+		log.Fatalf("olric.NewPubSub returned an error: %v", err)
+	}
 
-  ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
-  // Olric implements a drop-in replacement of Redis Publish-Subscribe messaging
-  // system. PubSub client is just a thin layer around go-redis/redis.
-  rps := ps.Subscribe(ctx, "my-channel")
+	// Olric implements a drop-in replacement of Redis Publish-Subscribe messaging
+	// system. PubSub client is just a thin layer around go-redis/redis.
+	rps := ps.Subscribe(ctx, "my-channel")
 
-  // Get a message to read messages from my-channel
-  msg := rps.Channel()
+	// Get a message to read messages from my-channel
+	msg := rps.Channel()
 
-  go func() {
-    // Publish a message here.
-    _, err := ps.Publish(ctx, "my-channel", "Olric Rocks!")
-    if err != nil {
-      log.Fatalf("PubSub.Publish returned an error: %v", err)
-    }
-  }()
+	go func() {
+		// Publish a message here.
+		_, err := ps.Publish(ctx, "my-channel", "Olric Rocks!")
+		if err != nil {
+			log.Fatalf("PubSub.Publish returned an error: %v", err)
+		}
+	}()
 
-  // Consume messages
-  rm := <-msg
+	// Consume messages
+	rm := <-msg
 
-  fmt.Printf("Received message: \"%s\" from \"%s\"", rm.Channel, rm.Payload)
+	fmt.Printf("Received message: \"%s\" from \"%s\"", rm.Channel, rm.Payload)
 
-  // Don't forget the call Shutdown when you want to leave the cluster.
-  ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-  defer cancel()
+	// Don't forget the call Shutdown when you want to leave the cluster.
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-  err = c.Close(ctx)
-  if err != nil {
-    log.Printf("Failed to close ClusterClient: %v", err)
-  }
+	err = c.Close(ctx)
+	if err != nil {
+		log.Printf("Failed to close ClusterClient: %v", err)
+	}
 }
-
 ```
 
 ## Contributions
