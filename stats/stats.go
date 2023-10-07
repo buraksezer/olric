@@ -81,6 +81,9 @@ type Runtime struct {
 	// NumGoroutine returns the number of goroutines that currently exist.
 	NumGoroutine int `json:"num_goroutine"`
 
+	// NumGoroutine returns the number of os theads that currently exist.
+	NumThread int `json:"num_thread"`
+
 	// MemStats records statistics about the memory allocator.
 	MemStats runtime.MemStats `json:"mem_stats"`
 }

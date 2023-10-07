@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -118,12 +119,14 @@ func (db *Olric) stats(cfg statsConfig) stats.Stats {
 	}
 
 	if cfg.CollectRuntime {
+		var threadProfile = pprof.Lookup("threadcreate")
 		s.Runtime = &stats.Runtime{
 			GOOS:         runtime.GOOS,
 			GOARCH:       runtime.GOARCH,
 			Version:      runtime.Version(),
 			NumCPU:       runtime.NumCPU(),
 			NumGoroutine: runtime.NumGoroutine(),
+			NumThread:    threadProfile.Count(),
 		}
 		runtime.ReadMemStats(&s.Runtime.MemStats)
 	}
