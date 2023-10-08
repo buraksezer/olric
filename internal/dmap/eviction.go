@@ -17,9 +17,9 @@ package dmap
 import (
 	"errors"
 	"fmt"
-	"math/rand"
 	"runtime"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/buraksezer/olric/internal/cluster/partitions"
@@ -98,8 +98,14 @@ func (s *Service) evictKeysAtBackground() {
 	}
 }
 
+func (s *Service) nextPartID() uint64 {
+	currentPartID := atomic.AddUint64(&s.currentPartID, 1)
+	partID := currentPartID % s.config.PartitionCount
+	return partID
+}
+
 func (s *Service) evictKeys() {
-	partID := uint64(rand.Intn(int(s.config.PartitionCount)))
+	partID := s.nextPartID()
 	part := s.primary.PartitionByID(partID)
 	part.Map().Range(func(name, tmp interface{}) bool {
 		f := tmp.(*fragment)

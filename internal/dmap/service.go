@@ -43,19 +43,20 @@ type storageMap struct {
 type Service struct {
 	sync.RWMutex // protects dmaps map
 
-	log     *flog.Logger
-	config  *config.Config
-	client  *server.Client
-	server  *server.Server
-	rt      *routingtable.RoutingTable
-	primary *partitions.Partitions
-	backup  *partitions.Partitions
-	locker  *locker.Locker
-	dmaps   map[string]*DMap
-	storage *storageMap
-	wg      sync.WaitGroup
-	ctx     context.Context
-	cancel  context.CancelFunc
+	log           *flog.Logger
+	config        *config.Config
+	client        *server.Client
+	server        *server.Server
+	rt            *routingtable.RoutingTable
+	primary       *partitions.Partitions
+	backup        *partitions.Partitions
+	locker        *locker.Locker
+	dmaps         map[string]*DMap
+	storage       *storageMap
+	wg            sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
+	currentPartID uint64
 }
 
 func registerErrors() {
