@@ -53,7 +53,6 @@ client:
   maxConnAge: 2h
   poolTimeout: 4s
   idleTimeout: 6m
-  idleCheckFrequency: 8m
 
 logging:
   verbosity: 6
@@ -167,7 +166,6 @@ func TestConfig(t *testing.T) {
 	c.Client.MaxConnAge = 2 * time.Hour
 	c.Client.PoolTimeout = 4 * time.Second
 	c.Client.IdleTimeout = 6 * time.Minute
-	c.Client.IdleCheckFrequency = 8 * time.Minute
 
 	c.LogVerbosity = 6
 	c.LogLevel = "DEBUG"

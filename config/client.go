@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -97,12 +97,6 @@ type Client struct {
 	// Default is 5 minutes. -1 disables idle timeout check.
 	IdleTimeout time.Duration
 
-	// Frequency of idle checks made by idle connections reaper.
-	// Default is 1 minute. -1 disables idle connections reaper,
-	// but idle connections are still discarded by the client
-	// if IdleTimeout is set.
-	IdleCheckFrequency time.Duration
-
 	// TLS Config to use. When set TLS will be negotiated.
 	TLSConfig *tls.Config
 
@@ -158,9 +152,6 @@ func (c *Client) Sanitize() error {
 	if c.IdleTimeout == 0 {
 		c.IdleTimeout = DefaultIdleTimeout
 	}
-	if c.IdleCheckFrequency == 0 {
-		c.IdleCheckFrequency = time.Minute
-	}
 
 	if c.MaxRetries == -1 {
 		c.MaxRetries = 0
@@ -187,25 +178,26 @@ func (c *Client) Sanitize() error {
 func (c *Client) Validate() error { return nil }
 
 func (c *Client) RedisOptions() *redis.Options {
+	// Note: IdleCheckFrequency is gone since go-redis no longer checks idle connections.
+	// See https://github.com/redis/go-redis/discussions/2635
 	return &redis.Options{
-		Network:            "tcp",
-		Dialer:             c.Dialer,
-		OnConnect:          c.OnConnect,
-		MaxRetries:         c.MaxRetries,
-		MinRetryBackoff:    c.MinRetryBackoff,
-		MaxRetryBackoff:    c.MaxRetryBackoff,
-		DialTimeout:        c.DialTimeout,
-		ReadTimeout:        c.ReadTimeout,
-		WriteTimeout:       c.WriteTimeout,
-		PoolFIFO:           c.PoolFIFO,
-		PoolSize:           c.PoolSize,
-		MinIdleConns:       c.MinIdleConns,
-		MaxConnAge:         c.MaxConnAge,
-		PoolTimeout:        c.PoolTimeout,
-		IdleTimeout:        c.IdleTimeout,
-		IdleCheckFrequency: c.IdleCheckFrequency,
-		TLSConfig:          c.TLSConfig,
-		Limiter:            c.Limiter,
+		Network:         "tcp",
+		Dialer:          c.Dialer,
+		OnConnect:       c.OnConnect,
+		MaxRetries:      c.MaxRetries,
+		MinRetryBackoff: c.MinRetryBackoff,
+		MaxRetryBackoff: c.MaxRetryBackoff,
+		DialTimeout:     c.DialTimeout,
+		ReadTimeout:     c.ReadTimeout,
+		WriteTimeout:    c.WriteTimeout,
+		PoolFIFO:        c.PoolFIFO,
+		PoolSize:        c.PoolSize,
+		MinIdleConns:    c.MinIdleConns,
+		ConnMaxLifetime: c.MaxConnAge,
+		PoolTimeout:     c.PoolTimeout,
+		ConnMaxIdleTime: c.IdleTimeout,
+		TLSConfig:       c.TLSConfig,
+		Limiter:         c.Limiter,
 	}
 }
 

@@ -25,7 +25,7 @@ import (
 	"github.com/buraksezer/olric/internal/pubsub"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/buraksezer/olric/stats"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 

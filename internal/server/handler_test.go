@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/buraksezer/olric/internal/protocol"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/redcon"
 )

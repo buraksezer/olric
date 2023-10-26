@@ -27,7 +27,7 @@ import (
 	"github.com/buraksezer/olric/internal/dmap"
 	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/resp"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )

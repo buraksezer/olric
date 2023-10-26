@@ -28,7 +28,7 @@ import (
 	"github.com/buraksezer/olric/internal/resp"
 	"github.com/buraksezer/olric/internal/stats"
 	"github.com/buraksezer/olric/pkg/storage"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 var pool = bufpool.New()

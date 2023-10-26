@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"github.com/buraksezer/olric/internal/server"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 type PubSub struct {
