@@ -64,6 +64,11 @@ olricd:
   # cluster.events channel. Default is false.
   enableClusterEventsChannel: true
 
+authentication:
+  enabled: true
+  username: "foobar"
+  password: "secret"
+
 client:
   # Timeout for TCP dial.
   #
@@ -120,13 +125,6 @@ client:
   # Default is 5 minutes. -1 disables idle timeout check.
   #idleTimeout: 5m
 
-  # Frequency of idle checks made by idle connections reaper.
-  # Default is 1 minute. -1 disables idle connections reaper,
-  # but idle connections are still discarded by the client
-  # if IdleTimeout is set.
-  #idleCheckFrequency: 1m
-
-
 logging:
   # DefaultLogVerbosity denotes default log verbosity level.
   #
@@ -154,10 +152,10 @@ logging:
   # * 6 - Trace level verbosity
   #   * Context to understand the steps leading up to neterrors and warnings
   #   * More information for troubleshooting reported issues
-  verbosity: 3
+  verbosity: 6
 
   # Default LogLevel is DEBUG. Available levels: "DEBUG", "WARN", "ERROR", "INFO"
-  level: INFO
+  level: WARN
   output: stderr
 
 memberlist:

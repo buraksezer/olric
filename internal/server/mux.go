@@ -22,23 +22,31 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/buraksezer/olric/internal/protocol"
 	"github.com/buraksezer/olric/internal/util"
 	"github.com/tidwall/redcon"
 )
 
+var errAuthRequired = errors.New("authentication required")
+
 // ServeMux is an RESP command multiplexer.
 type ServeMux struct {
+	config   *Config
 	handlers map[string]redcon.Handler
 }
 
 // NewServeMux allocates and returns a new ServeMux.
-func NewServeMux() *ServeMux {
-	return &ServeMux{
+func NewServeMux(c *Config) *ServeMux {
+	protocol.SetError("NOAUTH", errAuthRequired)
+	s := &ServeMux{
+		config:   c,
 		handlers: make(map[string]redcon.Handler),
 	}
+	return s
 }
 
 // HandleFunc registers the handler function for the given command.
@@ -69,14 +77,22 @@ func (m *ServeMux) Handle(command string, handler redcon.Handler) {
 func (m *ServeMux) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 	command := strings.ToLower(util.BytesToString(cmd.Args[0]))
 
+	if m.config.RequireAuth && command != protocol.Generic.Auth {
+		ctx := conn.Context().(*ConnContext)
+		if !ctx.IsAuthenticated() {
+			protocol.WriteError(conn, errAuthRequired)
+			return
+		}
+	}
+
 	if handler, ok := m.handlers[command]; ok {
 		handler.ServeRESP(conn, cmd)
 		return
 	}
 
-	if command == "pubsub" {
+	if command == protocol.PubSub.PubSub {
 		if len(cmd.Args) < 2 {
-			conn.WriteError(fmt.Sprintf("ERR wrong number of arguments for '%s' command", command))
+			protocol.WriteError(conn, fmt.Errorf("wrong number of arguments for '%s' command", command))
 			return
 		}
 		command = fmt.Sprintf("%s %s", command, util.BytesToString(cmd.Args[1]))
@@ -87,5 +103,5 @@ func (m *ServeMux) ServeRESP(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	conn.WriteError(fmt.Sprintf("ERR unknown command '%s'", command))
+	protocol.WriteError(conn, fmt.Errorf("unknown command '%s'", command))
 }
