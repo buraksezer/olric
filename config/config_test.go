@@ -224,6 +224,7 @@ func TestConfig(t *testing.T) {
 		Username: "foobar",
 		Password: "secret",
 	}
+	c.Client.Authentication = c.Authentication
 
 	err = c.Sanitize()
 	require.NoError(t, err)
