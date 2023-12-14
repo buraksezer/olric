@@ -16,11 +16,12 @@ package dmap
 
 import (
 	"context"
+	"testing"
+
 	"github.com/buraksezer/olric/internal/cluster/routingtable"
 	"github.com/buraksezer/olric/internal/testcluster"
 	"github.com/buraksezer/olric/internal/testutil"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestDMap_Get_Standalone(t *testing.T) {
@@ -222,7 +223,7 @@ func TestDMap_Get_ReadRepair(t *testing.T) {
 	e3 := testcluster.NewEnvironment(c3)
 	s3 := cluster.AddMember(e3).(*Service)
 
-	// Call DMap.Get on S2
+	// Call DMap.Get on S3
 	dm2, err := s3.NewDMap("mydmap")
 	require.NoError(t, err)
 

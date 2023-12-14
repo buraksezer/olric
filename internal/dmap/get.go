@@ -238,24 +238,26 @@ func (dm *DMap) readRepair(winner *version, versions []*version) {
 		// Sync
 		tmp := *version.host
 		if tmp.CompareByID(dm.s.rt.This()) {
-			hkey := partitions.HKey(dm.name, winner.entry.Key())
-			part := dm.getPartitionByHKey(hkey, partitions.PRIMARY)
-			f, err := dm.loadOrCreateFragment(part)
-			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to get or create the fragment for: %s on %s: %v",
-					winner.entry.Key(), dm.name, err)
-				return
-			}
+			for _, kind := range []partitions.Kind{partitions.PRIMARY, partitions.BACKUP} {
+				hkey := partitions.HKey(dm.name, winner.entry.Key())
+				part := dm.getPartitionByHKey(hkey, kind)
+				f, err := dm.loadOrCreateFragment(part)
+				if err != nil {
+					dm.s.log.V(3).Printf("[ERROR] Failed to get or create the fragment of kind %s for: %s on %s: %v",
+						kind.String(), winner.entry.Key(), dm.name, err)
+					return
+				}
 
-			f.Lock()
-			e := newEnv(context.Background())
-			e.hkey = hkey
-			e.fragment = f
-			err = dm.putEntryOnFragment(e, winner.entry)
-			if err != nil {
-				dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
+				f.Lock()
+				e := newEnv(context.Background())
+				e.hkey = hkey
+				e.fragment = f
+				err = dm.putEntryOnFragment(e, winner.entry)
+				if err != nil {
+					dm.s.log.V(3).Printf("[ERROR] Failed to synchronize with replica: %v", err)
+				}
+				f.Unlock()
 			}
-			f.Unlock()
 		} else {
 			// If readRepair is enabled, this function is called by every GET request.
 			cmd := protocol.NewPutEntry(dm.name, winner.entry.Key(), winner.entry.Encode()).Command(dm.s.ctx)
