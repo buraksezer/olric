@@ -278,10 +278,10 @@ func (dm *DMap) getOnCluster(hkey uint64, key string) (storage.Entry, error) {
 	// readRepair function may call putOnFragment function which needs a write
 	// lock. Please don't forget calling RUnlock before returning here.
 	versions := dm.lookupOnOwners(hkey, key)
-	if dm.s.config.ReadQuorum >= config.MinimumReplicaCount {
-		v := dm.lookupOnReplicas(hkey, key)
-		versions = append(versions, v...)
-	}
+	// if dm.s.config.ReadQuorum >= config.MinimumReplicaCount {
+	// 	v := dm.lookupOnReplicas(hkey, key)
+	// 	versions = append(versions, v...)
+	// }
 
 	if len(versions) < dm.s.config.ReadQuorum {
 		return nil, ErrReadQuorum
