@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	MaxKeyLength   = 256
+	MaxKeyLength   = 2048
 	MetadataLength = 29
 )
 
