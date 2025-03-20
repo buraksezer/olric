@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/logutils v1.0.0
 	github.com/hashicorp/memberlist v0.5.3
 	github.com/pkg/errors v0.9.1
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.7.3
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/btree v1.7.0
